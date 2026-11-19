@@ -10,8 +10,12 @@
 # token (/etc/tuist-sa-token, audience tuist-runners-dispatch) is the
 # Bearer credential, and the endpoint is the dispatch URL with
 # `/dispatch` swapped for `/pods/<pod>/metrics`. The server resolves the
-# Pod to its job; an unclaimed Pod is a no-op there. Fail-open: a bad
-# sample or a failed POST is logged and skipped, never blocking the job.
+# Pod to its job. Until GitHub proves which job runs on the Pod (the
+# in_progress webhook, which can arrive minutes into the job) the server
+# answers 202 and records nothing, so the samples are kept and resent
+# with the next batch: the job's first sample is then the VM as the job
+# found it, before checkout and cache restores write to the disk.
+# Fail-open: a failed POST never blocks the job.
 #
 # macOS is sampled whole-VM (one Pod == one VM): there are no cgroups,
 # so CPU/memory/disk describe the guest and network sums the VM's
@@ -51,6 +55,13 @@ echo "$(date -u +%FT%TZ) metrics-poll: sampling every ${interval}s -> ${metrics_
 prev_rx=""
 prev_tx=""
 
+# Samples the server has not recorded yet (a 202, a 5xx or no answer),
+# resent with every POST. Capped at 30 minutes of samples; past the cap
+# the oldest are kept, because the job's start is the one that matters.
+pending=""
+pending_count=0
+max_pending=120
+
 # cpu_busy_percent reads top's second sample (an interval average; the
 # first sample is since-boot) and derives busy = 100 - idle.
 cpu_busy_percent() {
@@ -77,11 +88,15 @@ net_totals() {
     END { printf "%d %d", rx + 0, tx + 0 }'
 }
 
-# disk_totals echoes "used total" bytes for the volume the job writes
-# to. On APFS `/` is the sealed, read-only system volume (a few GB);
-# the runner's work lands on the firmlinked Data volume, so sample that.
+# disk_totals echoes "used total" bytes for the disk the job writes to,
+# with used = total - available, so the server's total - used is the
+# space the job can still write. The job writes to the firmlinked Data
+# volume, but every volume of the APFS container (System, Preboot, VM,
+# Recovery) shares its space: df's Size and Avail are the container's,
+# its Used is the Data volume's alone, and total - Used overstated the
+# free space by everything the other volumes hold.
 disk_totals() {
-  df -k /System/Volumes/Data 2>/dev/null | awk 'NR == 2 { printf "%d %d", $3 * 1024, $2 * 1024 }'
+  df -k /System/Volumes/Data 2>/dev/null | awk 'NR == 2 { printf "%d %d", ($2 - $4) * 1024, $2 * 1024 }'
 }
 
 delta() {
@@ -90,7 +105,7 @@ delta() {
 }
 
 emit_sample() {
-  local ts cpu mem_used rx tx disk_used disk_total net_in net_out payload
+  local ts cpu mem_used rx tx disk_used disk_total net_in net_out sample status
   ts="$(date +%s)"
   cpu="$(cpu_busy_percent)"
   mem_used="$(mem_used_bytes)"
@@ -107,15 +122,28 @@ emit_sample() {
   prev_rx="${rx:-0}"
   prev_tx="${tx:-0}"
 
-  payload="$(printf '{"samples":[{"timestamp":%s,"cpu_usage_percent":%s,"memory_used_bytes":%s,"memory_total_bytes":%s,"network_bytes_in":%s,"network_bytes_out":%s,"disk_used_bytes":%s,"disk_total_bytes":%s}]}' \
+  sample="$(printf '{"timestamp":%s,"cpu_usage_percent":%s,"memory_used_bytes":%s,"memory_total_bytes":%s,"network_bytes_in":%s,"network_bytes_out":%s,"disk_used_bytes":%s,"disk_total_bytes":%s}' \
     "${ts}" "${cpu:-0}" "${mem_used:-0}" "${mem_total:-0}" "${net_in}" "${net_out}" "${disk_used:-0}" "${disk_total:-0}")"
 
-  curl -sS -o /dev/null --max-time 10 \
+  if [ "${pending_count}" -lt "${max_pending}" ]; then
+    pending="${pending:+${pending},}${sample}"
+    pending_count=$((pending_count + 1))
+  fi
+
+  status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
     --request POST \
     --header "Authorization: Bearer ${SA_TOKEN}" \
     --header "Content-Type: application/json" \
-    --data "${payload}" \
-    "${metrics_url}" || true
+    --data "{\"samples\":[${pending}]}" \
+    "${metrics_url}")" || status=""
+
+  case "${status}" in
+    202 | 5* | "") ;;
+    *)
+      pending=""
+      pending_count=0
+      ;;
+  esac
 }
 
 # `--once` samples a single time and exits. dispatch-poll invokes it

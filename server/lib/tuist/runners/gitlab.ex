@@ -31,12 +31,14 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.Workers.CaptureGitLabIdentityWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
   require Logger
 
   @routing_poll_error "A GitLab job could not be routed. Set exactly one existing Tuist profile in its tags (GitLab 19.3+)."
+  @shape_poll_error "A GitLab job's profile is larger than the account's runner concurrency limit allows. Use a smaller profile or upgrade the plan."
   @max_waiting_jobs 5
   @payload_retention_seconds 12 * 60 * 60
   @waiting_statuses ["queued", "claimed"]
@@ -50,6 +52,11 @@ defmodule Tuist.Runners.GitLab do
   def get_connection(id), do: Repo.get(Connection, id)
   # Internal lookup after dispatch or report authentication selected the job.
   def get_job(id), do: Repo.get(Job, id)
+
+  @doc "Stores the cache volume identity verified when the job was acquired."
+  def store_cache_volume_identity(%Job{} = job, identity) when is_map(identity) do
+    job |> Ecto.Changeset.change(cache_volume_identity: identity) |> Repo.update()
+  end
 
   def get_job_for_account(account_id, id) do
     Repo.one(
@@ -158,9 +165,9 @@ defmodule Tuist.Runners.GitLab do
         Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
         {:ok, 1}
 
-      {{:ok, job}, {:error, _}} ->
+      {{:ok, job}, {:error, reason}} ->
         settle_rejected(job, payload)
-        {:error, :invalid_job_tags}
+        {:error, reason}
 
       {{:error, _}, _} ->
         Client.update_job(connection.url, payload, "failed", "runner_system_failure")
@@ -188,6 +195,10 @@ defmodule Tuist.Runners.GitLab do
 
   defp routing_error({:ok, _}), do: nil
 
+  defp routing_error({:error, :shape_exceeds_limit}) do
+    "This profile's machine is larger than the account's runner concurrency limit allows. Use a smaller profile or upgrade the plan."
+  end
+
   defp routing_error({:error, _}) do
     "Set exactly one existing Tuist profile in the job tags, for example tags: [tuist-macos]. GitLab 19.3 or newer is required."
   end
@@ -212,8 +223,12 @@ defmodule Tuist.Runners.GitLab do
         })
 
       case target do
-        {:ok, resolved} -> enqueue_assignment(job, account, resolved, payload)
-        {:error, _} -> :ok
+        {:ok, resolved} ->
+          enqueue_assignment(job, account, resolved, payload)
+          {:ok, _} = CaptureGitLabIdentityWorker.enqueue(job)
+
+        {:error, _} ->
+          :ok
       end
 
       job
@@ -225,9 +240,12 @@ defmodule Tuist.Runners.GitLab do
          true <- Enum.all?(tags, &is_binary/1),
          [label] <-
            tags |> Enum.map(&String.downcase/1) |> Enum.filter(&String.starts_with?(&1, Profile.prefix())) |> Enum.uniq(),
-         {:ok, profile} <- Profiles.match_for_dispatch(account, [label]) do
-      Dispatch.resolve_dispatch_target(account, [Profile.dispatch_label(profile)])
+         {:ok, profile} <- Profiles.match_for_dispatch(account, [label]),
+         {:ok, target} <- Dispatch.resolve_dispatch_target(account, [Profile.dispatch_label(profile)]),
+         :ok <- Dispatch.check_shape_fits_limit(account, target) do
+      {:ok, target}
     else
+      {:error, :shape_exceeds_limit} = error -> error
       _ -> {:error, :invalid_job_tags}
     end
   end
@@ -497,7 +515,14 @@ defmodule Tuist.Runners.GitLab do
         where: c.id == ^connection.id,
         update: [
           set: [
-            last_error: fragment("CASE WHEN ? = ? THEN ? ELSE NULL END", c.last_error, ^@routing_poll_error, c.last_error)
+            last_error:
+              fragment(
+                "CASE WHEN ? IN (?, ?) THEN ? ELSE NULL END",
+                c.last_error,
+                ^@routing_poll_error,
+                ^@shape_poll_error,
+                c.last_error
+              )
           ]
         ]
       ),
@@ -518,6 +543,9 @@ defmodule Tuist.Runners.GitLab do
 
         {:error, :invalid_job_tags} ->
           @routing_poll_error
+
+        {:error, :shape_exceeds_limit} ->
+          @shape_poll_error
 
         {:error, :rate_limited} ->
           "GitLab is rate limiting runner requests. Tuist will retry."

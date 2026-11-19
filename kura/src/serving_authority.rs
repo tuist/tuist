@@ -62,6 +62,11 @@ pub struct ServingAuthority {
     // Record versions whose content this destination confirmed against the
     // source while it still served, for exactly one named intent.
     pub(crate) verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
+    // A destination rejection retrying cannot change, reported by the frozen
+    // source so the controller resumes it before the Quiescing deadline.
+    pub(crate) barrier_failure: Mutex<Option<crate::handover::HandoverFailure>>,
+    // The same outcome on the destination, answered to every later begin.
+    pub(crate) frozen_failure: Mutex<Option<crate::handover::HandoverFailure>>,
     marker: Option<std::path::PathBuf>,
     // The exited holder that left this pod's volume marked. Until its exit
     // resume installs, no other grant may open the volume.
@@ -112,6 +117,8 @@ impl ServingAuthority {
             handover_preparation: tokio::sync::Mutex::new(()),
             preparation: Mutex::new(None),
             verified_content: Mutex::new(None),
+            barrier_failure: Mutex::new(None),
+            frozen_failure: Mutex::new(None),
             marker: None,
             inherited: Mutex::new(None),
             exit_attested: std::sync::atomic::AtomicBool::new(false),
@@ -449,7 +456,7 @@ impl ServingAuthority {
             "epoch": active.as_ref().map_or(0, |a| a.grant.epoch), "valid": valid,
             "remaining_ms": active.as_ref().map_or(0, |a| a.grant.expires_ms.saturating_sub(now_ms() + 2000)),
             "preparation_supported": true, "preparation": *self.preparation.lock().unwrap_or_else(|e| e.into_inner()),
-            "automatic_partition_promotion": false, "observed": self.intent(), "mutations": self.mutations(), "revoked_epoch": self.revoked_epoch.load(Ordering::SeqCst), "fenced_epoch": self.fenced_epoch.load(Ordering::SeqCst), "barrier": *self.barrier.lock().unwrap_or_else(|e| e.into_inner()),
+            "automatic_partition_promotion": false, "observed": self.intent(), "mutations": self.mutations(), "revoked_epoch": self.revoked_epoch.load(Ordering::SeqCst), "fenced_epoch": self.fenced_epoch.load(Ordering::SeqCst), "barrier": *self.barrier.lock().unwrap_or_else(|e| e.into_inner()), "barrier_failure": *self.barrier_failure.lock().unwrap_or_else(|e| e.into_inner()),
             "exit_attested": self.exit_attested.load(Ordering::SeqCst), "exit_resume": *self.inherited.lock().unwrap_or_else(|e| e.into_inner())})
     }
 }
@@ -647,13 +654,14 @@ impl AuthorityConfig {
         authority.attest_incarnation(std::path::Path::new(TERMINATION_LOG));
         let ca = std::fs::read("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
             .map_err(|e| e.to_string())?;
-        let certificate = reqwest::Certificate::from_pem(&ca).map_err(|e| e.to_string())?;
         let config = self.clone();
         let worker = authority.clone();
         std::thread::Builder::new().name("serving-authority".into()).spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("authority runtime");
             runtime.block_on(async move {
-                let client = reqwest::Client::builder().add_root_certificate(certificate).https_only(true).no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(1)).build().expect("authority client");
+                let roots = crate::certificate_trust::certificates(&ca).expect("authority CA certificates");
+                let tls = crate::certificate_trust::config(crate::certificate_trust::Roots::Native(roots), None, Vec::new()).expect("authority TLS configuration");
+                let client = reqwest::Client::builder().tls_backend_preconfigured(tls).https_only(true).no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(1)).build().expect("authority client");
                 let url = format!("https://kubernetes.default.svc/api/v1/namespaces/{}/configmaps/{}-serving", config.namespace, config.instance);
                 loop {
                     let result = async {

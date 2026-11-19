@@ -119,6 +119,7 @@ defmodule Atlas.Contracts do
 
   defp kind_for("msa.docx"), do: :msa
   defp kind_for("annex-2-dpa.docx"), do: :annex_dpa
+  defp kind_for("annex-2-dpa-tuist-hosted.docx"), do: :annex_dpa_tuist_hosted
   defp kind_for("annex-3-daa.docx"), do: :annex_daa
   defp kind_for("annex-4-sla.docx"), do: :annex_sla
   defp kind_for("order-form-tuist-hosted.docx"), do: :order_form_tuist_hosted
@@ -126,7 +127,8 @@ defmodule Atlas.Contracts do
   defp kind_for(_filename), do: :other
 
   defp title_for("msa.docx"), do: "Master Services Agreement"
-  defp title_for("annex-2-dpa.docx"), do: "Annex 2: Data Processing Agreement"
+  defp title_for("annex-2-dpa.docx"), do: "Annex 2: Data Processing Agreement (Self-hosted)"
+  defp title_for("annex-2-dpa-tuist-hosted.docx"), do: "Annex 2: Data Processing Agreement (Tuist-hosted)"
   defp title_for("annex-3-daa.docx"), do: "Annex 3: Data Access Agreement"
   defp title_for("annex-4-sla.docx"), do: "Annex 4: Service Level Agreement"
   defp title_for("order-form-tuist-hosted.docx"), do: "Order Form (Tuist-hosted)"

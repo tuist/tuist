@@ -1,4 +1,5 @@
 import SwiftUI
+import TuistHTTP
 
 /// A view that asynchronously loads, cache and displays an image.
 ///
@@ -316,7 +317,7 @@ public struct CachedAsyncImage<Content>: View where Content: View {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = urlCache
         self.urlRequest = urlRequest
-        urlSession = URLSession(configuration: configuration)
+        urlSession = URLSession.tuist(configuration: configuration)
         self.scale = scale
         self.transaction = transaction
         self.content = content

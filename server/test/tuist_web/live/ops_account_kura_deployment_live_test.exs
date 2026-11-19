@@ -6,6 +6,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -21,6 +22,8 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
   end
 
   test "renders a scoped Kura deployment detail page with Grafana logs", %{conn: conn, user: user} do
+    stub(Environment, :prod?, fn -> true end)
+
     {:ok, server} =
       Kura.create_server(%{
         account_id: user.account.id,
@@ -35,8 +38,30 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
     assert html =~ "Kura deployment"
     assert html =~ "0.5.2"
     refute html =~ "kura@0.5.2"
-    assert html =~ "Grafana"
-    assert html =~ "tuist.grafana.net/explore"
+
+    [href] = html |> Floki.parse_document!() |> Floki.attribute("a[href^='https://tuist.grafana.net/explore']", "href")
+    left = href |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.fetch!("left") |> JSON.decode!()
+    [query] = left["queries"]
+
+    assert left["datasource"] == "pulse-sql"
+    assert query["rawSql"] =~ "'^#{server.provisioner_node_ref}-[0-9]+$'"
+  end
+
+  test "hides the logs link outside production", %{conn: conn, user: user} do
+    stub(Environment, :prod?, fn -> false end)
+
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: user.account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    deployment = List.first(server.deployments)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}")
+
+    refute html =~ "Kubernetes logs"
   end
 
   test "renders a superseded deployment", %{conn: conn, user: user} do

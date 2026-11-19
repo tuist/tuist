@@ -96,6 +96,73 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.nearest_ancestor(repository, "z", ["w"]) == {"w", 3}
     end
 
+    test "raises stored descendants through merges, above their longest parent path", %{repository: repository} do
+      # A shallow clone's main: m1 merges a one-commit branch s1 off m0, m2
+      # merges s2 off m1, and m0's parent arrives later when the clone deepens.
+      GitHistory.record_commits(repository, "sha1", [
+        commit("m0", ["a2"], 2),
+        commit("s1", ["m0"], 3),
+        commit("m1", ["m0", "s1"], 4),
+        commit("s2", ["m1"], 5),
+        commit("m2", ["m1", "s2"], 6)
+      ])
+
+      GitHistory.record_commits(repository, "sha1", [commit("a1", [], 0), commit("a2", ["a1"], 1)])
+
+      assert generations(repository) == %{
+               "a1" => 1,
+               "a2" => 2,
+               "m0" => 3,
+               "s1" => 4,
+               "m1" => 5,
+               "s2" => 6,
+               "m2" => 7
+             }
+    end
+
+    test "keeps every generation one above its highest stored parent whatever order the commits arrive in", %{
+      account: account
+    } do
+      for seed <- 1..25 do
+        :rand.seed(:exsss, {seed, seed * 7, seed * 13})
+        repository = GitHistory.repository_id(account.id, "git@github.com:acme/random-#{seed}.git")
+
+        # A random history: mostly linear, with roots, merges and parents
+        # further back. Uploaded in random batches, some commits more than once.
+        graph =
+          Enum.reduce(1..(4 + :rand.uniform(40)), %{"c0" => []}, fn i, graph ->
+            parents =
+              case :rand.uniform(10) do
+                1 -> []
+                k when k <= 4 -> Enum.uniq(["c#{i - 1}", "c#{:rand.uniform(i) - 1}"])
+                5 -> ["c#{:rand.uniform(i) - 1}"]
+                _ -> ["c#{i - 1}"]
+              end
+
+            Map.put(graph, "c#{i}", parents)
+          end)
+
+        shas = Map.keys(graph)
+
+        (shas ++ Enum.take_random(shas, div(length(shas), 3)))
+        |> Enum.shuffle()
+        |> Enum.chunk_every(1 + :rand.uniform(8))
+        |> Enum.reduce(MapSet.new(), fn batch, stored ->
+          GitHistory.record_commits(repository, "sha1", Enum.map(batch, &commit(&1, graph[&1], :rand.uniform(100))))
+          stored = MapSet.union(stored, MapSet.new(batch))
+
+          # The longest path down to a root of what is stored so far.
+          expected =
+            Enum.reduce(Enum.sort_by(stored, &String.to_integer(String.trim_leading(&1, "c"))), %{}, fn sha, expected ->
+              Map.put(expected, sha, 1 + (graph[sha] |> Enum.map(&Map.get(expected, &1, 0)) |> Enum.max(fn -> 0 end)))
+            end)
+
+          assert generations(repository) == expected, "seed #{seed}, after uploading #{inspect(batch)}"
+          stored
+        end)
+      end
+    end
+
     test "a parent outside the window still gets an edge and counts as generation 0", %{repository: repository} do
       GitHistory.record_commits(repository, "sha1", [commit("x", ["outside"], 0)])
 
@@ -199,6 +266,33 @@ defmodule Tuist.GitHistoryTest do
       main = GitHistory.ref(repository, "main")
       assert Enum.map(GitHistory.ref_commits(main.id), &elem(&1, 0)) == ["m", "d", "c", "b", "a"]
       assert GitHistory.ref(repository, "feature") == nil
+    end
+
+    test "move a branch to a pull request merge checkout's second parent, and only then", %{repository: repository} do
+      seed(repository)
+
+      GitHistory.record_commits(repository, "sha1", [
+        commit("p", ["d"], 10),
+        commit("x", ["d", "p"], 11),
+        commit("q", ["p"], 12),
+        commit("y", ["q", "d"], 13),
+        commit("z", ["d", "q"], 14)
+      ])
+
+      # A pull request's run names its base branch's head too: x is the merge
+      # checkout of p into main's tip d.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "x"}, %{branch: "main", sha: "d"}], "main")
+      assert CoverageFixtures.branch_head(repository, "feature") == "p"
+      assert GitHistory.position(repository, "x") == nil
+
+      # The branch's own merge of main has its previous commit first.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "y"}, %{branch: "main", sha: "d"}], "main")
+      assert CoverageFixtures.branch_head(repository, "feature") == "y"
+
+      # A push names one branch, as a merge queue's does, whose commits are
+      # merges onto the default branch too.
+      GitHistory.record_branch_heads(repository, [%{branch: "queue", sha: "z"}], "main")
+      assert CoverageFixtures.branch_head(repository, "queue") == "z"
     end
 
     test "stay put when an older commit's job is re-run", %{repository: repository} do
@@ -463,6 +557,55 @@ defmodule Tuist.GitHistoryTest do
       assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
       assert owned(repository, "pull/1") == [{"p1", 5}]
     end
+
+    test "detach a commit no ref owns, unowned to commit coverage, until a ref takes it over", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      main = GitHistory.ref(repository, "main").id
+      measure(project, repository, ["e"])
+      detach = fn sha -> GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, sha) end) end
+
+      assert detach.("e")
+      refute detach.("e")
+      refute detach.("d")
+
+      assert %{detached: true, parent_ref_id: ^main, fork_position: 2, head_sha: "e"} =
+               GitHistory.ref(repository, "detached:e")
+
+      GitHistory.sync_coverage_places(repository, ["e"])
+      assert coverage_places(project) == [{"e", nil, nil}]
+      assert GitHistory.position(repository, "e") == nil
+
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert owned(repository, "feature") == [{"e", 3}]
+      assert GitHistory.ref(repository, "detached:e") == nil
+      assert coverage_places(project) == [{"e", feature, 3}]
+    end
+
+    test "ignore a branch head named as a detached ref is", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("x", ["e"], 10)])
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "x") end)
+
+      GitHistory.advance_ref(repository, "detached:x", "main", "d")
+      assert %{parent_ref_id: ^feature, fork_position: 3, head_sha: "x"} = GitHistory.ref(repository, "detached:x")
+
+      GitHistory.advance_ref(repository, "detached:d", "main", "d")
+      assert GitHistory.ref(repository, "detached:d") == nil
+    end
+
+    test "leave a commit whose first parents reach no ref undetached", %{repository: repository} do
+      seed(repository)
+      refute GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "e") end)
+      assert GitHistory.ref(repository, "detached:e") == nil
+    end
   end
 
   describe "shallow clones" do
@@ -580,11 +723,11 @@ defmodule Tuist.GitHistoryTest do
 
     test "count as missing once the files outlived their retention, and are stored again", %{repository: repository} do
       GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
-      age_listing(repository, "c", 30)
       assert GitHistory.listing_complete?(repository, "c")
 
-      # The files are kept 90 days by default (TUIST_COVERAGE_FILE_RETENTION_DAYS).
-      age_listing(repository, "c", 90)
+      # The files are kept two days: no ref owns the commit, so its file
+      # changes were never written from them.
+      age_listing(repository, "c", 2)
       refute GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
 
@@ -599,6 +742,34 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.missing_listings(repository, ["c"]) == []
       assert %{files_count: 2} = CoverageFixtures.listing(repository, "c")
     end
+
+    test "a commit whose file changes are written outlives its listing's files", %{repository: repository} do
+      GitHistory.record_commits(repository, "sha1", [commit("c", [], 0)])
+      GitHistory.record_branch_head(repository, "main", "c", "main")
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
+      assert GitHistory.FileChanges.write(repository, "c") == :written
+
+      age_listing(repository, "c", 30)
+
+      assert GitHistory.listing_complete?(repository, "c")
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+      assert GitHistory.blobs_at(repository, "c", ["Sources/A.swift"]) == %{"Sources/A.swift" => "a1"}
+
+      # An upload repeated all the same leaves the listing as it is.
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], truncated: true)
+      assert %{truncated: false} = CoverageFixtures.listing(repository, "c")
+      assert GitHistory.listing_complete?(repository, "c")
+    end
+
+    test "a truncated listing is asked for again only after the file retention", %{repository: repository} do
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], truncated: true)
+
+      age_listing(repository, "c", 30)
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+
+      age_listing(repository, "c", 90)
+      assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
+    end
   end
 
   describe "settings/1 and prune/2" do
@@ -608,7 +779,7 @@ defmodule Tuist.GitHistoryTest do
                window_commits: 5_000,
                upload_batch_size: 500,
                tracked_file_globs: ["**/Package.resolved" | _],
-               commit_file_limit: 50_000
+               commit_file_limit: 200_000
              } = GitHistory.settings(project)
 
       {:ok, project} = Projects.update_project(project, %{git_history_window_days: 30})

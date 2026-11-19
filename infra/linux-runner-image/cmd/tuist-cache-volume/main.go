@@ -65,6 +65,7 @@ func main() {
 		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
 			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
+			go publishDindMemory()
 			err = serveMounts(os.Args[2], os.Args[3], nil)
 		} else {
 			err = errors.New("invalid mount helper arguments")
@@ -84,6 +85,13 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 		}
 		os.Exit(2)
+	}
+	if opts.proveExecution {
+		// Never fails the job: without a token the server waits for GitHub's report.
+		if result := proveExecution(); result != "" {
+			fmt.Println("Tuist execution token: " + result)
+		}
+		return
 	}
 	if opts.checkout != "" {
 		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
@@ -136,6 +144,7 @@ func main() {
 }
 
 type options struct {
+	proveExecution bool
 	detach         bool
 	checkout       string
 	export         bool
@@ -151,6 +160,7 @@ type options struct {
 func parseArguments(args []string, output io.Writer) (options, error) {
 	flags := flag.NewFlagSet("tuist-cache-volume", flag.ContinueOnError)
 	flags.SetOutput(output)
+	proveExecution := flags.Bool("prove-execution", false, "Hand the host the job's GitHub OIDC token (before the first step)")
 	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
 	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
 	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
@@ -166,6 +176,9 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 		}
 		// The flag set has already printed the error and the usage.
 		return options{}, errArguments
+	}
+	if *proveExecution {
+		return options{proveExecution: true}, nil
 	}
 	if *checkout != "" {
 		return options{checkout: *checkout}, nil
@@ -208,7 +221,6 @@ func attach(key string, targets []string, size int64) error {
 	if targets = withoutCheckoutPaths(targets, statePath); len(targets) == 0 {
 		return writeOutput(false)
 	}
-	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if runtime.GOOS == "darwin" {
 		root = macMountRoot
@@ -219,13 +231,14 @@ func attach(key string, targets []string, size int64) error {
 	if runtime.GOOS == "darwin" {
 		return attachMac(key, targets, root, size)
 	}
-	return attachWithClient(key, targets, root, size, client)
-}
-func attachWithClient(key string, targets []string, root string, size int64, client *http.Client) error {
-	return attachWithMounter(key, targets, root, size, client, bindDirectory)
-}
-func attachWithMounter(key string, targets []string, root string, size int64, client *http.Client, mount func(string, string, string) error) error {
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key, size) }, mount)
+	return attachUsing(key, targets, root, func() (string, string, bool, error) {
+		client, err := newCacheHTTPClient(30 * time.Second)
+		if err != nil {
+			return "", "", false, err
+		}
+		defer client.CloseIdleConnections()
+		return acquire(client, key, size)
+	}, bindDirectory)
 }
 func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
@@ -361,7 +374,7 @@ func acquire(client *http.Client, key string, size int64) (string, string, bool,
 	body, _ := json.Marshal(request)
 	req, err := http.NewRequest("POST", endpoint+"/acquire", bytes.NewReader(body))
 	if err != nil {
-		return "", "", false, err
+		return "", "", false, cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	var result struct {
@@ -375,7 +388,7 @@ func acquire(client *http.Client, key string, size int64) (string, string, bool,
 func requestJSON(client *http.Client, req *http.Request, result any) error {
 	response, err := client.Do(req)
 	if err != nil {
-		return err
+		return cacheRequestError{err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusTooEarly {
@@ -384,7 +397,10 @@ func requestJSON(client *http.Client, req *http.Request, result any) error {
 	if response.StatusCode != 200 {
 		return fmt.Errorf("cache service returned %d", response.StatusCode)
 	}
-	return json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result)
+	if err := json.NewDecoder(io.LimitReader(response.Body, 32768)).Decode(result); err != nil {
+		return cacheResponseError{err}
+	}
+	return nil
 }
 
 // contentHashedKey reports a key with a component that looks like a lockfile or

@@ -89,7 +89,7 @@ defmodule TuistWeb.OverviewLiveCargoTest do
         inserted_at: NaiveDateTime.utc_now() |> NaiveDateTime.add(-3, :day) |> NaiveDateTime.truncate(:second)
     }
 
-    IngestRepo.insert_all(Build, [old |> Map.from_struct() |> Map.drop([:__meta__, :ran_by_account])])
+    IngestRepo.insert_all(Build, [old |> Map.from_struct() |> Map.take(Build.__schema__(:fields))])
     other = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
     other_id = build(other, user, duration_ms: 500_000)
     today = Date.to_iso8601(Date.utc_today())

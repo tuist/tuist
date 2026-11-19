@@ -409,6 +409,41 @@ defmodule Tuist.Gradle.AnalyticsTest do
     end
   end
 
+  describe "status filter" do
+    test "scopes build counts, durations, percentiles, success rate and categories", %{
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    } do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = NaiveDateTime.new!(Date.add(Date.utc_today(), -1), ~T[10:00:00])
+
+      for {status, duration_ms} <- [{"success", 2000}, {"failure", 10_000}, {"failure", 6000}] do
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          status: status,
+          duration_ms: duration_ms,
+          gradle_version: "8.5",
+          inserted_at: inserted_at
+        )
+      end
+
+      opts = [start_datetime: start_datetime, end_datetime: end_datetime, status: "success"]
+
+      assert Analytics.build_analytics(project.id, opts).count == 1
+      assert Analytics.build_duration_analytics(project.id, opts).total_average_duration == 2000.0
+      assert Analytics.build_percentile_durations(project.id, 0.9, opts).total_percentile_duration == 2000.0
+      assert Analytics.build_success_rate_analytics(project.id, opts).success_rate == 1.0
+
+      assert Analytics.build_duration_analytics_by_category(project.id, :gradle_version, opts) == [
+               %{category: "8.5", value: 2000.0}
+             ]
+
+      failure_opts = Keyword.put(opts, :status, "failure")
+      assert Analytics.build_duration_analytics(project.id, failure_opts).total_average_duration == 8000.0
+      assert Analytics.build_success_rate_analytics(project.id, failure_opts).success_rate == 0.0
+    end
+  end
+
   describe "cache_event_analytics/2" do
     test "returns upload and download statistics", %{
       now: now,

@@ -21,7 +21,7 @@
 #   export OVH_APPLICATION_KEY="$(op read 'op://tuist-k8s-staging/OVH_API/application-key')"
 #   export OVH_APPLICATION_SECRET="$(op read 'op://tuist-k8s-staging/OVH_API/application-secret')"
 #   export OVH_CONSUMER_KEY="$(op read 'op://tuist-k8s-staging/OVH_API/consumer-key')"
-# The token needs GET /dedicated/server/*/serviceInfos and PUT /service/*.
+# The token needs GET /dedicated/server/*/serviceInfos, PUT /service/* and GET /services/*.
 
 set -euo pipefail
 
@@ -86,7 +86,9 @@ for attempt in 1 2 3 4 5 6; do
   if ! ovh PUT "/service/${service_id}" "{\"resource\":{\"displayName\":\"${display_name}\"}}" >/dev/null; then
     echo "  PUT /service/${service_id} failed on attempt ${attempt}; retrying" >&2
   fi
-  observed="$(ovh GET "/service/${service_id}" | tr ',' '\n' | grep -o '"displayName":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+  # Read back from /services/{id}, the endpoint the fleet's adoption scan uses;
+  # the legacy /service/{id} kept returning the old name after a rename landed.
+  observed="$(ovh GET "/services/${service_id}" | tr ',' '\n' | grep -o '"displayName":"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
   if [ "$observed" = "$display_name" ]; then
     echo "✓ OVH ${service} (service ${service_id}) displayName set to '${display_name}'"
     exit 0

@@ -166,6 +166,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
+		c.Checkouts.Spare = c.spareCheckout
 		c.Checkouts.Observe = observeCustomCache
 		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
 		// Checkout images are larger than custom ones, so their archives get their own bound.
@@ -476,10 +477,25 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			UID       int                        `json:"uid"`
 			Checkout  bool                       `json:"checkout"`
 			Requested cachevolumes.RequestedSize `json:"requested_volume_bytes"`
+			// ExecutionToken is the GitHub OIDC token the job-started hook
+			// minted, which the server verifies; the agent never reads it.
+			ExecutionToken string `json:"execution_token"`
 		}
-		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
+		err = json.NewDecoder(io.LimitReader(file, mailboxRequestLimit)).Decode(&input)
 		file.Close()
 		if err != nil {
+			continue
+		}
+		if input.ExecutionToken != "" {
+			data, _ := json.Marshal(c.presentExecution(ctx, pod, input.ExecutionToken))
+			if published, err := publishResponse(root, name+".response", data); err != nil {
+				return err
+			} else if !published {
+				continue
+			}
+			if _, err := root.Stat(name); os.IsNotExist(err) {
+				_ = root.Remove(name + ".response")
+			}
 			continue
 		}
 		// A checkout never makes a job wait longer than a cold checkout would cost.
@@ -579,6 +595,24 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 	return nil
+}
+
+// A mailbox request is small; the largest is a job's GitHub OIDC token, which
+// the server caps at 16 KiB.
+const mailboxRequestLimit = 20 << 10
+
+// presentExecution forwards a job's GitHub OIDC token, so the server binds the
+// pod's session to that job without waiting for GitHub's report.
+func (c *CustomVolumes) presentExecution(ctx context.Context, pod *corev1.Pod, token string) map[string]any {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var ignored struct{}
+	body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "token": token}
+	if _, err := c.request(ctx, "execution", body, &ignored); err != nil {
+		log.FromContext(ctx).Info("execution token not accepted", "pod", pod.Name, "error", err.Error())
+		return map[string]any{"error": "unavailable"}
+	}
+	return map[string]any{}
 }
 
 // Guests only ever see complete responses. O_EXCL and link never follow or

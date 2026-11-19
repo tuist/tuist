@@ -13,6 +13,8 @@ defmodule Tuist.VCS do
   alias Tuist.Builds
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
+  alias Tuist.Cargo
+  alias Tuist.ClickHouseCapabilities
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
@@ -34,9 +36,16 @@ defmodule Tuist.VCS do
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
+  @tuist_run_report_footer "\n<sub>Reported by [Tuist](https://tuist.dev), faster builds and reliable tests for Xcode, Gradle, Bazel, and more.</sub>\n"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
-  @test_body_build_systems [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"mix", "Mix"}]
+  @test_body_build_systems [
+    {"xcode", "Xcode"},
+    {"gradle", "Gradle"},
+    {"bazel", "Bazel"},
+    {"mix", "Mix"},
+    {"cargo", "Cargo"}
+  ]
 
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
@@ -513,6 +522,9 @@ defmodule Tuist.VCS do
     flush_interval_seconds = div(Environment.clickhouse_flush_interval_ms(), 1000)
     schedule_in = flush_interval_seconds + 1
 
+    # Entire Trail reports are queued by the comment worker, not here: build
+    # and xcresult processors call this function, and their database role
+    # cannot read `entire_trail_connections`.
     args
     |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
@@ -596,7 +608,8 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url,
         build_url: build_url
       }) do
-    with true <- is_binary(git_commit_sha) and git_commit_sha != "",
+    with true <- project.vcs_comments_enabled,
+         true <- is_binary(git_commit_sha) and git_commit_sha != "",
          true <- is_binary(git_ref) and git_ref != "",
          {:ok, repository_full_handle} <-
            get_repository_full_handle_from_url(git_remote_url_origin),
@@ -622,7 +635,7 @@ defmodule Tuist.VCS do
              installation: installation
            }) do
       vcs_comment_body =
-        get_vcs_comment_body(%{
+        %{
           git_ref: git_ref,
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
@@ -631,7 +644,9 @@ defmodule Tuist.VCS do
           build_url: build_url,
           bundle_url: bundle_url,
           project: project
-        })
+        }
+        |> get_run_report()
+        |> with_run_report_footer()
 
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
@@ -651,6 +666,14 @@ defmodule Tuist.VCS do
       _ ->
         :ok
     end
+  end
+
+  # Reviewers who have never heard of Tuist read these comments, so hosted
+  # comments say what Tuist is. Self-hosted instances keep the report alone.
+  defp with_run_report_footer(nil), do: nil
+
+  defp with_run_report_footer(body) do
+    if Environment.tuist_hosted?(), do: body <> @tuist_run_report_footer, else: body
   end
 
   defp get_existing_vcs_comment_id(%{
@@ -720,39 +743,37 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_vcs_comment_body(%{
-         git_ref: git_ref,
-         git_remote_url_origin: git_remote_url_origin,
-         preview_url: preview_url,
-         preview_qr_code_url: preview_qr_code_url,
-         test_run_url: test_run_url,
-         build_url: build_url,
-         bundle_url: bundle_url,
-         project: project
-       }) do
-    previews =
-      latest_previews(%{
-        git_ref: git_ref,
-        project: project
-      })
+  @doc """
+  Renders the latest previews, tests, builds, and bundles for a project.
 
-    test_runs =
-      get_latest_test_runs(%{
-        git_ref: git_ref,
-        project: project
-      })
+  When `:git_commit_sha` is provided, results match that exact commit regardless
+  of their Git ref. Otherwise, results match `:git_ref`, including both head and
+  merge refs for a pull request. Returns nil when no results are available.
+  """
+  def get_run_report(params) do
+    case get_run_report_sections(params) do
+      nil -> nil
+      report -> report.summary
+    end
+  end
 
-    builds =
-      get_latest_builds(%{
-        git_ref: git_ref,
-        project: project
-      })
-
-    gradle_builds =
-      get_latest_gradle_builds(%{
-        git_ref: git_ref,
-        project: project
-      })
+  @doc "Returns the report and its actionable test sections from the same insight snapshot."
+  def get_run_report_sections(
+        %{
+          git_remote_url_origin: git_remote_url_origin,
+          preview_url: preview_url,
+          preview_qr_code_url: preview_qr_code_url,
+          test_run_url: test_run_url,
+          build_url: build_url,
+          bundle_url: bundle_url,
+          project: project
+        } = params
+      ) do
+    query_params = Map.take(params, [:project, :git_ref, :git_commit_sha])
+    previews = latest_previews(query_params)
+    test_runs = get_latest_test_runs(query_params)
+    builds = get_latest_builds(query_params)
+    gradle_builds = get_latest_gradle_builds(query_params)
 
     previews_body =
       get_previews_body(%{
@@ -772,12 +793,12 @@ defmodule Tuist.VCS do
       })
 
     bundles_body =
-      bundles_body(%{
-        project: project,
-        git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
-        bundle_url: bundle_url
-      })
+      bundles_body(
+        Map.merge(query_params, %{
+          git_remote_url_origin: git_remote_url_origin,
+          bundle_url: bundle_url
+        })
+      )
 
     builds_body =
       get_builds_body(%{
@@ -805,28 +826,26 @@ defmodule Tuist.VCS do
     if Enum.all?(bodies, &is_nil/1) do
       nil
     else
-      """
-      #{@tuist_run_report_prefix}
-      """ <> Enum.map_join(bodies, "", &(&1 || ""))
+      %{
+        summary:
+          """
+          #{@tuist_run_report_prefix}
+          """ <> Enum.map_join(bodies, "", &(&1 || "")),
+        failed_tests: failed_tests_body,
+        flaky_tests: flaky_tests_body
+      }
     end
   end
 
-  defp bundles_body(%{
-         project: project,
-         git_ref: git_ref,
-         git_remote_url_origin: git_remote_url_origin,
-         bundle_url: bundle_url
-       }) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp bundles_body(%{project: project, git_remote_url_origin: git_remote_url_origin, bundle_url: bundle_url} = params) do
     # ClickHouse runs `DISTINCT` before `ORDER BY`, so deduping against
     # `b.name` in the query would pick an arbitrary row per name and
     # report stale bundle sizes. Fetch rows ordered by `inserted_at`
     # first and keep the newest per name in Elixir. Bounded by the
-    # `git_ref` pattern (a single PR or ref) so the scan stays small.
+    # commit or `git_ref` pattern so the scan stays small.
     bundles =
       from(b in Bundle)
-      |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+      |> filter_run_report_query(params)
       |> order_by([b], desc: b.inserted_at)
       |> ClickHouseRepo.all()
       |> Enum.uniq_by(& &1.name)
@@ -891,6 +910,8 @@ defmodule Tuist.VCS do
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
 
+  defp commit_link(git_commit_sha, nil), do: "`#{String.slice(git_commit_sha, 0, 9)}`"
+
   defp commit_link(git_commit_sha, "https://cursor.com/codebase/" <> _repository),
     do: "`#{String.slice(git_commit_sha, 0, 9)}`"
 
@@ -904,11 +925,22 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp latest_previews(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
+  defp filter_run_report_query(query, %{project: project} = params) do
+    query = where(query, [result], result.project_id == ^project.id)
 
+    case Map.get(params, :git_commit_sha) do
+      nil ->
+        git_ref_pattern = params |> Map.fetch!(:git_ref) |> get_git_ref_pattern()
+        where(query, [result], like(result.git_ref, ^git_ref_pattern))
+
+      git_commit_sha ->
+        where(query, [result], result.git_commit_sha == ^git_commit_sha)
+    end
+  end
+
+  defp latest_previews(params) do
     from(p in Preview)
-    |> where([p], p.project_id == ^project.id and like(p.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> order_by([p], desc: p.inserted_at)
     |> distinct([p], p.display_name)
     |> Repo.all()
@@ -939,11 +971,19 @@ defmodule Tuist.VCS do
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url})#{run_command(preview, preview_url)} | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
     end
+  end
+
+  # Command-line previews have no install page or QR code; `tuist run` is how
+  # people and agents try them.
+  defp run_command(preview, preview_url) do
+    if Enum.any?(preview.app_builds, &(&1.type == :executable)),
+      do: "<br/>`tuist run #{preview_url}`",
+      else: ""
   end
 
   defp get_qr_code_image(%{
@@ -1064,7 +1104,7 @@ defmodule Tuist.VCS do
 
     links =
       Enum.map_join(test_runs, "<br/>", fn test_run ->
-        name = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        name = test_run_name(test_run)
         "[#{name}](#{test_run_url.(%{project: project, test_run: test_run})})"
       end)
 
@@ -1072,6 +1112,10 @@ defmodule Tuist.VCS do
       "|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
       "| #{links} | #{rollup_status_text(test_runs, counts)} | #{counts.passed} | #{counts.failed} | #{counts.skipped} | #{commit_link(latest.git_commit_sha, git_remote_url_origin)} |\n"
   end
+
+  defp test_run_name(%{build_system: "cargo", scheme: scheme}), do: Cargo.test_run_label(scheme)
+  defp test_run_name(%{scheme: scheme}) when scheme in [nil, ""], do: "Unknown"
+  defp test_run_name(%{scheme: scheme}), do: scheme
 
   defp rollup_status_text(test_runs, counts) do
     statuses = Enum.map(test_runs, & &1.status)
@@ -1129,7 +1173,7 @@ defmodule Tuist.VCS do
       runs_summary =
         Enum.map_join(flaky_tests_by_run, "", fn {test_run, flaky_tests} ->
           flaky_count = length(flaky_tests)
-          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+          scheme = test_run_name(test_run)
 
           flaky_runs_url =
             Environment.app_url(
@@ -1218,7 +1262,7 @@ defmodule Tuist.VCS do
 
       runs_summary =
         Enum.map_join(failed_runs_with_counts, "", fn {test_run, _runs, failed_count} ->
-          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+          scheme = test_run_name(test_run)
 
           failures_url =
             Environment.app_url(
@@ -1331,11 +1375,9 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_latest_builds(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp get_latest_builds(params) do
     from(b in Builds.Build)
-    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> where([b], b.submission_auth != "network_trusted")
     |> where([b], b.status not in ["processing", "failed_processing"])
     |> order_by([b], desc: b.inserted_at)
@@ -1359,41 +1401,31 @@ defmodule Tuist.VCS do
     |> Map.values()
   end
 
-  defp get_latest_gradle_builds(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp get_latest_gradle_builds(params) do
     from(b in Gradle.Build)
-    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> where([b], b.submission_auth != "network_trusted")
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.root_project_name != ""))
-    |> Enum.reduce(%{}, fn build, acc ->
-      name = build.root_project_name
-
-      current_build = Map.get(acc, name)
-
-      if current_build == nil or
-           NaiveDateTime.after?(
-             build.inserted_at,
-             current_build.inserted_at
-           ) do
-        Map.put(acc, name, build)
-      else
-        acc
-      end
-    end)
-    |> Map.values()
+    |> Enum.uniq_by(fn build -> {build.root_project_name, Enum.sort(build.requested_tasks)} end)
   end
 
-  defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  # The view reads `test_runs` with `FINAL`, under which ClickHouse uses skip
+  # indexes only when `use_skip_indexes_if_final` is on; it's off at the
+  # 24.12 compatibility level the server's profile pins, so it's set here.
+  # Its exact mode expands the granules the ref and commit SHA indexes select
+  # back to whole key ranges, reading the project's whole run history. Exact
+  # mode only matters when a run's newest version could stop matching while
+  # an older one still does; a run's ref and SHA are only ever filled in,
+  # never changed (a shard's report fills a placeholder's blanks), so the
+  # version the filter finds is the newest.
+  defp get_latest_test_runs(params) do
     from(t in Tests.Test.query())
-    |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
-    |> ClickHouseRepo.all()
+    |> ClickHouseRepo.all(settings: ClickHouseCapabilities.skip_indexes_if_final_settings(ClickHouseRepo))
     |> Enum.group_by(& &1.build_system)
     |> Enum.flat_map(fn
       {"xcode", test_runs} -> latest_test_run_per_scheme(test_runs)
@@ -1490,11 +1522,14 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
-        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
+        tasks =
+          build.requested_tasks |> Enum.join(" ") |> String.replace("|", "&#124;") |> String.replace(~r/[\r\n]+/, " ")
+
+        "| [#{build.root_project_name}](#{url}) | #{tasks} | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
-    "| Project | Status | Duration | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|\n" <>
+    "| Project | Requested tasks | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
 
@@ -1948,7 +1983,7 @@ defmodule Tuist.VCS do
     api_url = if is_binary(api_url), do: String.trim(api_url), else: api_url
     payload = {account_id, normalize_client_url(client_url), normalize_github_app_owner(github_app_owner)}
     payload = if api_url in [nil, ""], do: payload, else: Tuple.insert_at(payload, 3, api_url)
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", payload)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "github_state", payload)
   end
 
   @doc """
@@ -1962,7 +1997,7 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
 
     case Phoenix.Token.verify(
-           TuistWeb.Endpoint,
+           Tuist.Web.endpoint(),
            "github_state",
            token,
            max_age: token_max_age_seconds

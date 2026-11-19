@@ -1,7 +1,4 @@
-ARG GO_VERSION=1.25
-ARG ALPINE_VERSION=3.22
-
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
 WORKDIR /src
 COPY infra/stable-egress-controller/go.mod infra/stable-egress-controller/go.sum ./
@@ -16,7 +13,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/manager ./cmd/manager
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
 
 COPY --from=builder /out/manager /usr/local/bin/manager
 

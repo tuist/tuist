@@ -27,6 +27,21 @@
           tuist-cache-volume --key tuist-gradle --path "$tuist_gradle_home/caches" --path "$tuist_gradle_home/wrapper" || tuist_gradle_status=$?
         fi
         if [ "$tuist_gradle_status" = 0 ]; then
+          # Gradle drops only entries unused for seven days, so a busy repository fills the
+          # volume within hours and the job that reaches the top fails. From three quarters
+          # full, drop Gradle's local build cache, and start the caches empty if that is not
+          # enough. Nothing holds these files before Gradle runs.
+          tuist_gradle_used=$(df -Pk "$tuist_gradle_home/caches" 2>/dev/null | awk 'NR == 2 && $3 + $4 > 0 { print int($3 * 100 / ($3 + $4)) }')
+          if [ "${tuist_gradle_used:-0}" -ge 75 ]; then
+            rm -rf "$tuist_gradle_home/caches/build-cache-1"
+            tuist_gradle_used=$(df -Pk "$tuist_gradle_home/caches" 2>/dev/null | awk 'NR == 2 && $3 + $4 > 0 { print int($3 * 100 / ($3 + $4)) }')
+            if [ "${tuist_gradle_used:-0}" -ge 75 ]; then
+              find "$tuist_gradle_home/caches" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+              echo "Warning: the Gradle cache was nearly full, so this job starts it empty. Raise TUIST_GRADLE_CACHE_SIZE if this repeats." >&2
+            else
+              echo "The Gradle cache was nearly full; dropped Gradle's local build cache."
+            fi
+          fi
           mkdir -p "$tuist_gradle_home/init.d"
           cat >"$tuist_gradle_home/init.d/tuist-gradle-cache.gradle" <<'GROOVY'
       // Written by Tuist's Gradle cache step. Gradle cleans its user home only when
@@ -50,7 +65,7 @@
         else
           echo "Warning: could not attach the Gradle cache (tuist-cache-volume exited $tuist_gradle_status); the job runs with an empty one." >&2
         fi
-        unset tuist_gradle_home tuist_gradle_size tuist_gradle_status
+        unset tuist_gradle_home tuist_gradle_size tuist_gradle_status tuist_gradle_used
       else
         echo "This runner does not provide Tuist cache volumes; nothing to set up."
       fi

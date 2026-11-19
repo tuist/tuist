@@ -6,16 +6,22 @@
 # The base is ubuntu:24.04 to match the glibc/libstdc++ of the runners that
 # produce those binaries.
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
 ARG TARGETARCH
+
+COPY --from=certificate-trust /pem-store.sh /policy.json /opt/tuist/certificate-trust/
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
+      openssl \
       curl \
       tini \
       libstdc++6 && \
+    sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf && \
+    update-ca-certificates && \
+    bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt && \
     rm -rf /var/lib/apt/lists/*
 
 ENV RUST_LOG=info

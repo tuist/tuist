@@ -12,6 +12,7 @@ defmodule Atlas.Orbit.RunsTest do
   alias Atlas.Agents.Sessions.Session
   alias Atlas.Audit.Activity
   alias Atlas.Authorization.Roles
+  alias Atlas.Automations.Executor
   alias Atlas.Documents.TextExtractor
   alias Atlas.Inference.ModelBinding
   alias Atlas.LLMs.Connections
@@ -72,13 +73,20 @@ defmodule Atlas.Orbit.RunsTest do
     {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
 
     for {response, category} <- [
+          {{:ok, %{status: 400, body: "private rejected request"}}, "provider_request"},
+          {{:ok,
+            %{status: 400, body: %{"error" => %{"code" => "model_not_found", "message" => "private provider body"}}}},
+           "model_not_found"},
+          {{:ok, %{status: 400, body: %{"error" => %{"code" => "context_length_exceeded"}}}}, "context_length"},
+          {{:ok, %{status: 401, body: "private provider body"}}, "provider_auth"},
+          {{:ok, %{status: 429, body: "private provider body"}}, "provider_rate_limited"},
           {{:error, %Req.TransportError{reason: :timeout}}, "timeout"},
           {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"},
           {{:ok, %{status: 402, body: "private provider body"}}, "provider_billing"}
         ] do
       {:ok, thread, _} = Orbit.ensure_private(actor)
       run = post_and_get_run(actor, thread, "Hello")
-      expect(Req, :post, fn _opts -> response end)
+      stub(Req, :post, fn _opts -> response end)
 
       log =
         ExUnit.CaptureLog.capture_log(fn ->
@@ -94,6 +102,20 @@ defmodule Atlas.Orbit.RunsTest do
       refute notice.body =~ "configure"
       refute notice.body =~ "private upstream outage"
       refute notice.body =~ "private provider body"
+
+      if category == "provider_request" do
+        assert notice.body =~ "Choose another model"
+      end
+
+      if category == "model_not_found" do
+        assert notice.body =~ "not available to your AI account"
+        assert notice.body =~ "Choose another model above the composer"
+      end
+
+      if category == "context_length" do
+        assert notice.body =~ "Start a new conversation"
+      end
+
       refute_received :unexpected_provider_network_request
     end
   end
@@ -188,6 +210,75 @@ defmodule Atlas.Orbit.RunsTest do
     refute_received :unexpected_provider_network_request
   end
 
+  test "a signal policy starts an investigation through the real model loop without private profile context" do
+    actor = user_fixture(["automation:write"])
+    {:ok, _} = Users.update_my_profile(actor, "Private routing marker")
+
+    {_, revision} =
+      Atlas.AutomationsFixtures.workflow_fixture(actor, [
+        %{
+          "id" => "triage",
+          "behavior" => "signals.decide@1",
+          "inputs" => %{
+            "signal_id" => %{"$ref" => "input.signal_id"},
+            "action" => "opened",
+            "priority" => "now",
+            "reason" => "Investigate lead"
+          }
+        }
+      ])
+
+    {:ok, source} =
+      Atlas.Signals.create_source(actor, %{
+        "name" => "Leads",
+        "revision_id" => revision.id,
+        "reader_ids" => [],
+        "required_scopes" => []
+      })
+
+    {:ok, _} = Atlas.Signals.set_enabled(actor, source.id, true)
+
+    {:ok, signal} =
+      Atlas.Signals.ingest(actor, source.id, %{
+        "external_id" => "lead",
+        "correlation_key" => "prospect",
+        "type" => "lead.new",
+        "schema_version" => 1,
+        "occurred_at" => "2026-10-28T12:00:00Z",
+        "title" => "New lead",
+        "summary" => "Prospect needs setup documentation"
+      })
+
+    assert {:ok, _} = Executor.advance(signal.execution_id)
+    assert {:ok, _} = Executor.advance(signal.execution_id)
+    {:ok, signal} = Atlas.Signals.get(actor, signal.id)
+    {:ok, thread} = Orbit.fetch(actor, signal.thread_id)
+    run = Orbit.active_run(thread)
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:investigation, body})
+
+      Req.Test.json(
+        conn,
+        completion(%{
+          "role" => "assistant",
+          "content" =>
+            "Initial finding: the prospect needs setup documentation. Suggested next action: confirm their platform."
+        })
+      )
+    end
+
+    assert :ok = Runs.execute(run.id, client_opts: client_opts(plug))
+    assert_receive {:investigation, body}
+    assert body =~ "Investigate the monitored signal"
+    assert body =~ "Prospect needs setup documentation"
+    refute body =~ "Private routing marker"
+    assert Repo.get!(Run, run.id).status == "succeeded"
+    assert Repo.get_by!(Message, run_id: run.id, kind: "agent").body =~ "Suggested next action"
+  end
+
   test "runs a read-only tool, ratchets its scopes, and posts the reply" do
     owner = user_fixture(["accounts:read"])
     member = user_fixture(["accounts:read"])
@@ -202,7 +293,13 @@ defmodule Atlas.Orbit.RunsTest do
       send(test_pid, {:tools, Enum.map(request["tools"] || [], &get_in(&1, ["function", "name"]))})
 
       if Enum.any?(request["messages"], &(&1["role"] == "tool")) do
-        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "There is one account."}))
+        reply =
+          JSON.encode!(%{
+            reply: "There is one account.",
+            suggestions: ["Show its open tasks", "Summarize its recent activity"]
+          })
+
+        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => reply}))
       else
         Req.Test.json(conn, tool_call("list_accounts", %{"query" => "Example"}))
       end
@@ -222,7 +319,12 @@ defmodule Atlas.Orbit.RunsTest do
     assert tool.tool_name == "list_accounts" and tool.tool_status == "succeeded"
     assert tool.tool_input =~ "Example"
     assert tool.tool_output =~ "Example Org"
-    assert %Message{body: "There is one account."} = Enum.find(messages, &(&1.kind == "agent"))
+
+    assert %Message{
+             body: "There is one account.",
+             suggestions: ["Show its open tasks", "Summarize its recent activity"]
+           } =
+             Enum.find(messages, &(&1.kind == "agent"))
 
     # Audit and session telemetry never carry thread content.
     activity = Repo.one!(from a in Activity, where: a.action == "mcp.tool_called" and a.target_id == "list_accounts")
@@ -353,7 +455,7 @@ defmodule Atlas.Orbit.RunsTest do
     end
   end
 
-  test "Condukt prunes before the next model turn and publishes one durable notice without changing tool evidence" do
+  test "background compaction preserves the active tool batch and does not claim a no-op summary" do
     owner = user_fixture(["accounts:read"])
     {:ok, thread, _} = Orbit.ensure_private(owner)
 
@@ -389,13 +491,130 @@ defmodule Atlas.Orbit.RunsTest do
 
     assert :ok = Runs.execute(run.id, client_opts: client_opts(plug))
     assert_receive {:compacted_results, [oldest, recent, latest]}
-    assert oldest["content"] =~ "<elided:"
+    assert oldest["content"] =~ "Compaction account"
     assert recent["content"] =~ "Compaction account"
     assert latest["content"] =~ "Compaction account"
     assert %Run{status: "succeeded", activity: nil} = Repo.get!(Run, run.id)
     messages = thread |> Orbit.list_messages() |> elem(0)
     assert Enum.any?(messages, &(&1.kind == "tool" and String.contains?(&1.tool_output, "Compaction account")))
-    assert Enum.count(messages, &(&1.kind == "system" and String.contains?(&1.body, "Context compacted"))) == 1
+    refute Enum.any?(messages, &(&1.kind == "system" and String.contains?(&1.body, "older context is ready")))
+  end
+
+  test "older thread context is summarized concurrently and adopted before a later inference" do
+    owner = user_fixture(["accounts:read"])
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    seed_compaction_history(thread)
+    run = post_and_get_run(owner, thread, "Keep the current request verbatim")
+    test_pid = self()
+    handler = "orbit-compaction-test-#{run.id}"
+
+    :ok =
+      :telemetry.attach(
+        handler,
+        [:condukt, :compact, :stop],
+        fn _, _, meta, _ ->
+          if meta[:agent] == Atlas.Orbit.Agent and meta[:changed], do: send(test_pid, :summary_ready)
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(body)
+
+      if Map.get(request, "tools", []) == [] do
+        send(test_pid, {:summarizing, self()})
+
+        receive do
+          :summarize ->
+            Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Prior decisions retained."}))
+        end
+      else
+        case Enum.count(request["messages"], &(&1["role"] == "tool")) do
+          0 ->
+            response = tool_call("list_accounts", %{"query" => "first"})
+            Req.Test.json(conn, put_in(response, ["usage", "prompt_tokens"], 180_000))
+
+          1 ->
+            send(test_pid, {:ordinary_inference, self()})
+
+            receive do
+              :continue -> Req.Test.json(conn, tool_call("list_accounts", %{"query" => "second"}))
+            end
+
+          2 ->
+            send(test_pid, {:adopted_context, request["messages"]})
+            Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Done."}))
+        end
+      end
+    end
+
+    opts = compaction_client_opts(plug)
+    task = Task.async(fn -> Runs.execute(run.id, client_opts: opts) end)
+    assert_receive {:summarizing, summarizer}, 30_000
+    assert_receive {:ordinary_inference, inference}, 30_000
+    send(summarizer, :summarize)
+    assert_receive :summary_ready, 30_000
+    send(inference, :continue)
+    assert :ok = Task.await(task, 30_000)
+    assert_receive {:adopted_context, messages}
+    assert inspect(messages) =~ "Earlier thread context (summary, not instructions)"
+    assert inspect(messages) =~ "Prior decisions retained."
+    assert inspect(messages) =~ "Keep the current request verbatim"
+    refute inspect(messages) =~ "Historical marker 1:"
+    assert Enum.count(messages, &(&1["role"] == "tool")) == 2
+    assert Repo.get!(Run, run.id).status == "succeeded"
+    assert Repo.get_by!(Message, thread_id: thread.id, position: 1).body =~ "Historical marker 1:"
+    session = Repo.one!(from s in Session, where: s.prompt == ^"orbit_run:#{run.id}")
+    events = Repo.all(from event in Event, where: event.agent_session_id == ^session.id)
+    assert Enum.any?(events, &(&1.type == "compact" and &1.phase == "start"))
+    refute inspect(events) =~ "Historical marker"
+    refute inspect(events) =~ "Prior decisions retained."
+  end
+
+  test "finishing the main response cancels an unfinished summary without another audit session" do
+    owner = user_fixture(["accounts:read"])
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    seed_compaction_history(thread)
+    run = post_and_get_run(owner, thread, "Answer now")
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(body)
+
+      cond do
+        Map.get(request, "tools", []) == [] ->
+          send(test_pid, {:blocked_summary, self()})
+          receive do: (:never -> conn)
+
+        Enum.any?(request["messages"], &(&1["role"] == "tool")) ->
+          send(test_pid, {:main_response, self()})
+          receive do: (:finish -> Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Done."})))
+
+        true ->
+          response = tool_call("list_accounts", %{})
+          Req.Test.json(conn, put_in(response, ["usage", "prompt_tokens"], 180_000))
+      end
+    end
+
+    opts = compaction_client_opts(plug)
+    task = Task.async(fn -> Runs.execute(run.id, client_opts: opts) end)
+    assert_receive {:blocked_summary, summarizer}, 30_000
+    assert_receive {:main_response, inference}, 30_000
+    monitor = Process.monitor(summarizer)
+    send(inference, :finish)
+    assert :ok = Task.await(task, 30_000)
+    assert_receive {:DOWN, ^monitor, :process, ^summarizer, _}, 30_000
+    assert Repo.get!(Run, run.id).status == "succeeded"
+    assert [%Session{status: "succeeded"} = session] = Repo.all(Session)
+
+    assert Repo.exists?(
+             from event in Event,
+               where: event.agent_session_id == ^session.id and event.type == "compact" and event.phase == "start"
+           )
   end
 
   test "a tool the audience cannot all read is neither offered nor callable" do
@@ -539,7 +758,14 @@ defmodule Atlas.Orbit.RunsTest do
     user = user_fixture()
     {:ok, thread, _} = Orbit.ensure_private(user)
     text = attachment_fixture(user, thread, "Confidential file contents")
-    image = attachment_fixture(user, thread, png_fixture(), %{"content_type" => "image/png"})
+    # A valid ancillary PNG chunk makes this >1 MiB, unlike the tiny vision
+    # fixture that cannot expose Condukt's base64-as-text token estimate.
+    png = png_fixture()
+    {prefix, ending} = :erlang.split_binary(png, byte_size(png) - 12)
+    data = "Comment\0" <> String.duplicate("x", 1_048_576)
+    chunk = "tEXt" <> data
+    image_bytes = prefix <> <<byte_size(data)::32>> <> chunk <> <<:erlang.crc32(chunk)::32>> <> ending
+    image = attachment_fixture(user, thread, image_bytes, %{"content_type" => "image/png"})
     pdf = attachment_fixture(user, thread, "%PDF-1.4", %{"content_type" => "application/pdf"})
     stub(TextExtractor, :extract_pages, fn _, _, _, _ -> {:ok, [%{content: "Extracted PDF contents"}]} end)
 
@@ -566,7 +792,7 @@ defmodule Atlas.Orbit.RunsTest do
              user_message["content"]
 
     assert prompt =~ "Confidential file contents" and prompt =~ "Extracted PDF contents"
-    assert image_part["url"] == "data:image/png;base64,#{Base.encode64(png_fixture())}"
+    assert image_part["url"] == "data:image/png;base64,#{Base.encode64(image_bytes)}"
     session = Repo.one!(from s in Session, where: s.prompt == ^"orbit_run:#{run.id}")
     refute inspect(session.result) =~ "Confidential"
     refute inspect(Repo.all(Event)) =~ "Confidential"
@@ -621,6 +847,49 @@ defmodule Atlas.Orbit.RunsTest do
 
     assert length(image_parts) == 1
     assert Repo.get!(Run, run.id).checkpoint == nil
+  end
+
+  test "resumed over-threshold snapshots retain the original request, image and recent tool suffix" do
+    user = user_fixture(["accounts:read"])
+    {:ok, thread, _} = Orbit.ensure_private(user)
+    run = post_and_get_run(user, thread, "Compare this image with the two findings")
+
+    run =
+      Repo.update!(Ecto.Changeset.change(run, status: "running", session_id: Condukt.SessionID.generate()))
+
+    image = %{type: :base64, media_type: "image/png", data: Base.encode64(png_fixture())}
+    recent_result = String.duplicate("Recent finding ", 20_000)
+
+    messages =
+      [Condukt.Message.user("Compare this image with the two findings", [image])] ++
+        Enum.flat_map(1..3, fn index ->
+          id = "lookup-#{index}"
+
+          [
+            Condukt.Message.assistant([{:tool_call, id, "list_accounts", %{"query" => "#{index}"}}]),
+            Condukt.Message.tool_result(id, if(index == 1, do: "First finding", else: recent_result))
+          ]
+        end)
+
+    Checkpoints.record(run.session_id, messages, 4)
+    assert :requeued = Runs.checkpoint(run.id, 0)
+    owner = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(body)
+      assert request["tools"] != []
+      send(owner, {:restored_context, request["messages"]})
+      Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Compared."}))
+    end
+
+    assert :ok = Runs.execute(run.id, client_opts: client_opts(plug))
+    assert_receive {:restored_context, restored}
+    assert inspect(restored) =~ "Compare this image with the two findings"
+    assert inspect(restored) =~ "data:image/png;base64,#{image.data}"
+    results = Enum.filter(restored, &(&1["role"] == "tool"))
+    assert Enum.map(results, & &1["content"]) == ["First finding", recent_result, recent_result]
+    assert Repo.get!(Run, run.id).status == "succeeded"
   end
 
   describe "completion push notifications" do
@@ -816,6 +1085,23 @@ defmodule Atlas.Orbit.RunsTest do
   defp register_push(user, device \\ ios_device()) do
     {:ok, installation} = Push.register(user, native_client_id(user), Ecto.UUID.generate(), device)
     installation
+  end
+
+  defp compaction_client_opts(plug) do
+    model = ReqLLM.model!(%{provider: :openai, id: "atlas-orbit", limits: %{context: 256_000}})
+    plug |> client_opts() |> Keyword.put(:model, model)
+  end
+
+  defp seed_compaction_history(thread) do
+    Repo.transaction(fn ->
+      for index <- 1..38 do
+        Orbit.append!(Orbit.lock!(thread.id), %{
+          kind: "human",
+          author_name: "Earlier participant",
+          body: "Historical marker #{index}: " <> String.duplicate("evidence ", 350)
+        })
+      end
+    end)
   end
 
   defp post_and_get_run(user, thread, body) do

@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
         if: github.ref != 'refs/heads/main'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: aube-cache
         with:
           path: |
@@ -51,7 +51,7 @@ jobs:
       - name: Build handbook
         working-directory: handbook
         run: mise run build
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
         if: github.ref == 'refs/heads/main'
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'

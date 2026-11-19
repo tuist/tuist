@@ -4,12 +4,12 @@ defmodule TuistWeb.RateLimitTest do
 
   alias Tuist.Accounts.User
   alias Tuist.Environment
+  alias Tuist.RateLimit.InMemory
+  alias Tuist.RateLimit.PersistentFixedWindow
+  alias Tuist.RateLimit.PersistentTokenBucket
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.TooManyRequestsError
   alias TuistWeb.RateLimit
-  alias TuistWeb.RateLimit.InMemory
-  alias TuistWeb.RateLimit.PersistentFixedWindow
-  alias TuistWeb.RateLimit.PersistentTokenBucket
   alias TuistWeb.RemoteIp
 
   describe "hit/2" do

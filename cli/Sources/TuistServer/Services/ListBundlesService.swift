@@ -10,12 +10,14 @@ public protocol ListBundlesServicing: Sendable {
         gitBranch: String?,
         page: Int?,
         pageSize: Int?,
-        serverURL: URL
+        serverURL: URL,
+        tags: [String]
     ) async throws -> Operations.listBundles.Output.Ok.Body.jsonPayload
 }
 
 enum ListBundlesServiceError: LocalizedError {
     case unknownError(Int)
+    case badRequest(String)
     case unauthorized(String)
     case forbidden(String)
 
@@ -23,6 +25,8 @@ enum ListBundlesServiceError: LocalizedError {
         switch self {
         case let .unknownError(statusCode):
             return "The bundles could not be listed due to an unknown Tuist response of \(statusCode)."
+        case let .badRequest(message):
+            return message
         case let .unauthorized(message):
             return message
         case let .forbidden(message):
@@ -51,7 +55,8 @@ public struct ListBundlesService: ListBundlesServicing {
         gitBranch: String?,
         page: Int?,
         pageSize: Int?,
-        serverURL: URL
+        serverURL: URL,
+        tags: [String] = []
     ) async throws -> Operations.listBundles.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -63,6 +68,7 @@ public struct ListBundlesService: ListBundlesServicing {
                     project_handle: handles.projectHandle
                 ),
                 query: .init(
+                    tags: tags.isEmpty ? nil : tags,
                     page: page,
                     git_branch: gitBranch,
                     page_size: pageSize
@@ -75,6 +81,11 @@ public struct ListBundlesService: ListBundlesServicing {
             switch okResponse.body {
             case let .json(json):
                 return json
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw ListBundlesServiceError.badRequest(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {

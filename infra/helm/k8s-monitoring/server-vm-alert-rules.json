@@ -1,0 +1,169 @@
+[
+  {
+    "uid": "tuist-production-vm-allocator-failure",
+    "title": "Tuist production VM allocator failure",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Production availability",
+    "condition": "C",
+    "for": "0s",
+    "keep_firing_for": "5m",
+    "noDataState": "OK",
+    "execErrState": "KeepLast",
+    "isPaused": false,
+    "labels": {
+      "cluster": "tuist-production",
+      "severity": "warning"
+    },
+    "annotations": {
+      "summary": "Production Tuist VM allocator failed {{ printf \"%.0f\" $values.A.Value }} times in five minutes",
+      "description": "BEAM reported a fatal literal allocator failure. The VM can exit before Atlas receives an application exception, and Kubernetes can report Error rather than OOMKilled. Inspect production server logs for literal_alloc: Cannot allocate and correlate pod terminations and ingress 502 responses. A single failed pod notifies Slack; two distinct failed pods within five minutes trigger the separate automatic incident rule. Healthy deployments do not emit this fatal allocator message.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#tuist-server-fatal-vm-allocator-failures"
+    },
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 300,
+          "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '5 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'namespace') = 'tuist'\n  AND json_get_string(resource_attributes, 'container') = 'server'\n  AND body LIKE '%literal_alloc: Cannot allocate%'",
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "type": "last"
+              }
+            }
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ]
+  },
+  {
+    "uid": "tuist-production-vm-allocator-burst",
+    "title": "Tuist production VM allocator failures across pods",
+    "orgID": 1,
+    "folderUID": "df5dn1g4rckxsf",
+    "ruleGroup": "Production availability",
+    "condition": "C",
+    "for": "0s",
+    "keep_firing_for": "15m",
+    "noDataState": "OK",
+    "execErrState": "Error",
+    "isPaused": false,
+    "labels": {
+      "cluster": "tuist-production",
+      "severity": "critical",
+      "affected_service": "API"
+    },
+    "annotations": {
+      "summary": "Production Tuist VMs failed in {{ printf \"%.0f\" $values.A.Value }} distinct pods within five minutes",
+      "description": "At least two distinct production web pods reported fatal literal allocator failures within five minutes. Repeated lines or restarts from one pod count once. This is independent of Atlas ingestion and the global HTTP error ratio. The scoped Alerts integration route selects Production HTTP availability, which declares a Critical incident and notifies the Engineering on-call schedule. Check the fatal logs, current pod availability, recent releases, and ingress failures. Do not delete data or restart unrelated services. The 15-minute recovery hold prevents the short log window from immediately resolving the alert; the incident still needs human assessment and closure.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#tuist-server-fatal-vm-allocator-failures"
+    },
+    "data": [
+      {
+        "refId": "A",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 300,
+          "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(DISTINCT json_get_string(log_attributes, 'pod')) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '5 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'namespace') = 'tuist'\n  AND json_get_string(resource_attributes, 'container') = 'server'\n  AND body LIKE '%literal_alloc: Cannot allocate%'\n  AND COALESCE(json_get_string(log_attributes, 'pod'), '') <> ''",
+          "refId": "A"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  1
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "type": "last"
+              }
+            }
+          ],
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        }
+      }
+    ]
+  }
+]

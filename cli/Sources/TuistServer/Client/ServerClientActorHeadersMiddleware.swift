@@ -6,6 +6,7 @@ import TuistEnvironment
 struct ServerClientActorHeadersMiddleware: ClientMiddleware {
     static let reportOperations: Set<String> = [
         "createBuild", "createBuild (2)", "createTest", "createRun", "createCommandEvent", "createMixBuild", "createGradleBuild",
+        "createCargoBuild",
     ]
 
     static func actorID(variables: [String: String]) -> String? {

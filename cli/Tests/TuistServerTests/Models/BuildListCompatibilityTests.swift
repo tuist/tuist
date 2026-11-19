@@ -51,11 +51,28 @@ struct BuildListCompatibilityTests {
         let response = try decode(json)
         let build = try #require(response.builds.first)
         #expect(build.started_at == nil)
+        #expect(build.tuist_version == nil)
+        #expect(build.tuist_generation_version == nil)
         #expect(response.pagination_metadata.start_cursor == nil)
         #expect(response.pagination_metadata.end_cursor == nil)
         #expect(response.pagination_metadata.current_page == 1)
         #expect(response.pagination_metadata.total_count == 1)
         #expect(response.pagination_metadata.total_pages == 1)
+    }
+
+    @Test(arguments: [nil, "4.200.0-canary.2+revision", "future-release/2027"] as [String?])
+    func decodes_nullable_and_future_integration_versions(version: String?) throws {
+        var json = try #require(JSONSerialization.jsonObject(with: Data(legacyResponse.utf8)) as? [String: Any])
+        var builds = try #require(json["builds"] as? [[String: Any]])
+        let generatorVersion = version.map { "generator/\($0)" }
+        builds[0]["tuist_version"] = version.map { $0 as Any } ?? NSNull()
+        builds[0]["tuist_generation_version"] = generatorVersion.map { $0 as Any } ?? NSNull()
+        json["builds"] = builds
+
+        let response = try decode(json)
+        let build = try #require(response.builds.first)
+        #expect(build.tuist_version == version)
+        #expect(build.tuist_generation_version == generatorVersion)
     }
 
     @Test func decodes_nullable_cursor_metadata_and_recorded_start_time() throws {

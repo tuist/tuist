@@ -49,4 +49,23 @@ struct MachineReadableOutputTests {
 
         #expect(MachineReadableOutput.isEnabled(arguments: arguments))
     }
+
+    @Test func childFlagsDoNotChangeOuterOutputOrGetRemoved() {
+        let arguments = [
+            "tuist",
+            "--verbose",
+            "run",
+            "https://tuist.dev/a/p/previews/id",
+            "--",
+            "--quiet",
+            "--verbose",
+            "--json",
+            "--",
+        ]
+        #expect(!MachineReadableOutput.isEnabled(arguments: arguments))
+        #expect(!MachineReadableOutput.isQuiet(arguments: arguments))
+        #expect(CommandLineArguments.removingGlobalFlags(arguments) == [
+            "tuist", "run", "https://tuist.dev/a/p/previews/id", "--", "--quiet", "--verbose", "--json", "--",
+        ])
+    }
 }

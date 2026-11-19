@@ -29,7 +29,7 @@ lag and catch-up health remain operational checks for both.
 
 ## Private entrance
 
-The catalog sets `private: true`, `privateHost`, `ingressClassName: kura-runners`,
+The catalog sets `private: true`, `privateHost`, `ingressClassName: kura-<site>-runners`,
 `publicHostNetwork: true`, and the runner PN `clientCIDRs`. The historical
 `publicHostNetwork` field selects the shared host-network gateway mechanism;
 `private` determines which address it publishes. A private instance without a
@@ -37,7 +37,7 @@ private host retains its legacy cluster/NodePort behavior, even if an old
 `publicHost` value is present.
 
 The stable account hostname is
-`<account>-scw-fr-par-runners<environment-suffix>.kura.tuist.dev`, where the
+`<account>-<site>-runners<environment-suffix>.kura.tuist.dev`, where the
 suffix is empty, `-staging`, or `-canary`. Its A record uses a Ready gateway node's
 `tuist.dev/pn-ipv4` label, never the public Node InternalIP. Initial placement
 prefers the selected primary's node, with a deterministic fallback. A healthy
@@ -94,7 +94,7 @@ currently has one host; two process replicas do not provide host redundancy.
 
 Runner caches use the same account disk sizing and plan memory/CPU profiles as
 public managed regions. New instances and cold returns start with the account's
-sized claim (or the plan default: 8Gi for Air/Pro, 16Gi for Enterprise). The
+sized claim (or the plan default: 6Gi for Air/Pro, 16Gi for Enterprise). The
 storage-sizing worker includes runner-region occupancy and eviction telemetry
 in the existing account-wide decision, so a runner region can drive growth and
 must agree with the other measured regions before a shrink.

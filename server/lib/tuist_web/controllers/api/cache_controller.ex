@@ -289,7 +289,30 @@ defmodule TuistWeb.API.CacheController do
              },
              projects: %Schema{
                type: :array,
+               description:
+                 "Project handles whose cache the subject may read. Carries no action; cache_grants says which projects may also be written.",
                items: %Schema{type: :string}
+             },
+             cache_grants: %Schema{
+               type: :object,
+               description:
+                 "Handles by scope and action, as `{account|project: {read|write: [handle]}}`. Write implies read. Cache nodes authorize from these when present.",
+               properties: %{
+                 account: %Schema{
+                   type: :object,
+                   properties: %{
+                     read: %Schema{type: :array, items: %Schema{type: :string}},
+                     write: %Schema{type: :array, items: %Schema{type: :string}}
+                   }
+                 },
+                 project: %Schema{
+                   type: :object,
+                   properties: %{
+                     read: %Schema{type: :array, items: %Schema{type: :string}},
+                     write: %Schema{type: :array, items: %Schema{type: :string}}
+                   }
+                 }
+               }
              },
              payment_required: %Schema{
                type: :array,
@@ -351,6 +374,11 @@ defmodule TuistWeb.API.CacheController do
              expires_in: %Schema{
                type: :integer,
                description: "Seconds until the token expires."
+             },
+             writable: %Schema{
+               type: :boolean,
+               description:
+                 "Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent."
              }
            }
          }},
@@ -368,17 +396,30 @@ defmodule TuistWeb.API.CacheController do
          |> authorized_account_handle(conn)
          |> free_tier_exhausted_account() do
       nil ->
-        {:ok, token, _claims} =
+        {:ok, token, claims} =
           conn
           |> Authentication.authenticated_subject()
           |> Cache.issue_cache_token(scope: params[:full_handle], origin: RemoteIp.origin(conn))
 
-        json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
+        json(
+          conn,
+          Map.merge(
+            %{token: token, expires_in: Cache.cache_token_ttl_seconds()},
+            writable(params[:full_handle], claims)
+          )
+        )
 
       account ->
         render_free_tier_exhausted(conn, account)
     end
   end
+
+  # Clients skip uploads the token cannot make. Only a project-scoped token
+  # answers for a single project.
+  defp writable(full_handle, %{"cache_grants" => %{"project" => %{"write" => write}}})
+       when is_binary(full_handle) and full_handle != "", do: %{writable: write != []}
+
+  defp writable(_full_handle, _claims), do: %{}
 
   defp scope_account_handle(nil), do: nil
 

@@ -75,6 +75,85 @@ defmodule Tuist.Tests.Coverage.Report do
     }
   end
 
+  @doc """
+  A commit of a branch's history (`Tuist.Tests.Coverage.History.commit_cursor_page/3`):
+  its status and, once measured, its figure and its change from the complete
+  commit before it, which only a complete commit has.
+  """
+  def commit_row(%{measured: false} = commit) do
+    %{
+      git_commit_sha: commit.git_commit_sha,
+      committed_at: iso8601(commit.committed_at),
+      status: "not_measured",
+      coverage: nil,
+      covered_lines: nil,
+      executable_lines: nil,
+      change: nil,
+      schemes: []
+    }
+  end
+
+  def commit_row(commit) do
+    %{
+      git_commit_sha: commit.git_commit_sha,
+      committed_at: iso8601(commit.committed_at),
+      status: commit |> Commits.status() |> Atom.to_string(),
+      coverage: commit.coverage,
+      covered_lines: commit.covered_lines,
+      executable_lines: commit.executable_lines,
+      change: Map.get(commit, :change),
+      schemes: commit.schemes
+    }
+  end
+
+  @doc """
+  A run behind a commit or branch (`Tuist.Tests.Coverage.Commits.run_cursor_page/3`):
+  `full`, `partial` when it skipped tests on purpose, or `discarded` when it
+  ran from a dirty checkout, whose coverage never joins its commit's.
+  """
+  def run_row(run) do
+    %{
+      test_run_id: run.test_run_id,
+      git_commit_sha: run.git_commit_sha,
+      scheme: run.scheme,
+      status: run_status(run),
+      covered_lines: run.covered_lines,
+      executable_lines: run.executable_lines,
+      coverage: Coverage.percentage(run.covered_lines, run.executable_lines),
+      ran_at: iso8601(run.ran_at)
+    }
+  end
+
+  defp run_status(%{git_dirty: true}), do: "discarded"
+  defp run_status(%{partial: true}), do: "partial"
+  defp run_status(_run), do: "full"
+
+  @doc "A measured target of a commit (`Tuist.Tests.Coverage.Commits.targets/3`)."
+  def target_row(target), do: target |> target() |> Map.put(:measured, true)
+
+  @doc """
+  A target the commit's runs took from the binary cache without coverage
+  counters (`Tuist.Tests.Coverage.Commits.unmeasured_targets/2`): it has no figure.
+  """
+  def unmeasured_target_row(name),
+    do: %{name: name, files_count: 0, covered_lines: 0, executable_lines: 0, coverage: nil, measured: false}
+
+  @doc """
+  A test run's own coverage (`Tuist.Tests.Coverage.Query.test_run/1`), from
+  its totals in `coverage_runs`, or nil when it measured nothing.
+  """
+  def run_coverage(run, totals) do
+    %{
+      enabled: Map.get(run, :coverage_enabled),
+      git_dirty: Map.get(run, :git_dirty) || false,
+      measured: not is_nil(totals),
+      partial: (totals && totals.partial) || false,
+      covered_lines: totals && totals.covered_lines,
+      executable_lines: totals && totals.executable_lines,
+      coverage: totals && Coverage.percentage(totals.covered_lines, totals.executable_lines)
+    }
+  end
+
   defp target(target), do: Map.put(target, :coverage, Coverage.percentage(target.covered_lines, target.executable_lines))
 
   defp blank_to_nil(""), do: nil

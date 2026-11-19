@@ -2,12 +2,12 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, Bazel cache, Elixir dependency cache, and experimental Rust compilation caching."
+  "description": "Optimize build times with Tuist Cache for Xcode, Gradle, Bazel, Elixir, Rust, and Struo."
 }
 ---
 # Cache {#cache}
 
-Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
+Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built. For how local and remote build caches work across build systems, and what Xcode's own caches are, see <.localized_link href="/references/concepts/build-cache">What is a build cache?</.localized_link>. To work out why builds are slow before choosing a cache, see [Slow builds](https://tuist.dev/solutions/slow-builds).
 
 Learn the cache workflow that matches your project or deployment model:
 
@@ -39,9 +39,14 @@ Learn the cache workflow that matches your project or deployment model:
 />
   <.home_card
     title="Rust cache (experimental)"
-    details="Reuse supported registry leaf-library outputs locally and through Kura. Learn how to enable caching and inspect cache activity."
+    details="Reuse supported Rust compilation outputs and build-script runs locally and through Kura. Learn how to enable caching and inspect cache activity."
     supported_for="rust"
     link="/guides/features/cache/rust"
+/>
+  <.home_card
+    title="Struo cache"
+    details="Share cached script and graph action results across developer machines and CI with Struo's native Tuist provider."
+    link="/guides/features/cache/struo"
 />
   <.home_card
     title="Self-hosting"

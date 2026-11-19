@@ -45,8 +45,7 @@ defmodule TuistWeb.AcceptInvitationLive do
     return_path = return_to |> URI.parse() |> Map.get(:path) |> decode_path()
     return_segments = if is_binary(return_path), do: String.split(return_path, "/", trim: true)
 
-    if String.starts_with?(return_to, "/") and
-         not String.starts_with?(return_to, "//") and
+    if not is_nil(Authentication.local_return_to(return_to)) and
          is_list(return_segments) and
          return_segments != ["auth", "invitations", token] do
       return_to

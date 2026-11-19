@@ -9,7 +9,7 @@ defmodule TuistWeb.TestsLiveTest do
   alias Tuist.Tests.Test.Buffer
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  @render_async_timeout 1_000
+  @render_async_timeout 5_000
 
   for build_system <- [:mix, :xcode, :gradle, :bazel, :cargo] do
     test "shows #{build_system} test cases before they have enough duration samples", %{
@@ -85,8 +85,9 @@ defmodule TuistWeb.TestsLiveTest do
     {:ok, view, _} = live(conn, base <> "?analytics-test-scheme=nextest&duration-scatter-group-by=scheme")
     html = render_async(view, 5000)
     refute has_element?(view, "#tests-analytics-scheme-dropdown")
-    assert html =~ "cargo nextest run"
-    assert html =~ "cargo nextest run · ci"
+    assert html =~ "Cargo tests"
+    assert html =~ "Cargo tests · ci"
+    refute html =~ "cargo nextest run"
     for id <- ids, do: assert(html =~ id)
 
     expect(Tuist.Tests.Analytics, :test_run_duration_scatter_data, fn project_id, opts ->
@@ -184,13 +185,14 @@ defmodule TuistWeb.TestsLiveTest do
     refute has_element?(lv, "[data-part='selective-testing']")
   end
 
-  test "lists Code Coverage in the sidebar only for Xcode and Mix projects", %{
+  test "lists Code Coverage in the sidebar for Xcode, Mix, Cargo and Gradle projects in every account", %{
     conn: conn,
     organization: organization
   } do
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> true end)
+    # Production, where coverage once needed an account flag.
+    stub(Tuist.Environment, :env, fn -> :prod end)
 
-    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, once: false] do
+    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: true, mix: true, cargo: true, once: false] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 

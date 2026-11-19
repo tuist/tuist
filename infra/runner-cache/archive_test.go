@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/tuist/tuist/infra/runner-cache/sparse"
 	"golang.org/x/sys/unix"
 )
 
@@ -295,7 +296,7 @@ func TestImageArchiveStoresOnlyDataOfSparseImage(t *testing.T) {
 			t.Fatal("restoration changed bytes at", offset, err)
 		}
 	}
-	if _, err = restored.ReadAt(got, 2<<30); err != nil || !isZero(got[:zeroChunk]) {
+	if _, err = restored.ReadAt(got, 2<<30); err != nil || !sparse.IsZero(got[:sparse.ZeroChunk]) {
 		t.Fatal("restoration changed a zero run", err)
 	}
 }

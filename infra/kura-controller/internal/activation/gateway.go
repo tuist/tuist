@@ -4,6 +4,7 @@ package activation
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,6 +30,7 @@ type Gateway struct {
 	Transport http.RoundTripper
 	Wait      time.Duration
 	Poll      time.Duration
+	Refusals  *Refusals
 	slots     chan struct{}
 	streams   chan struct{}
 }
@@ -37,8 +40,68 @@ func New(servers Servers, concurrency int) *Gateway {
 		Servers:   servers,
 		Control:   &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 		Transport: &http.Transport{Proxy: nil, ForceAttemptHTTP2: true, MaxIdleConns: 128, MaxIdleConnsPerHost: 8, MaxConnsPerHost: 32, IdleConnTimeout: 30 * time.Second, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 30 * time.Second},
-		Wait:      20 * time.Second, Poll: 2 * time.Second, slots: make(chan struct{}, concurrency), streams: make(chan struct{}, concurrency),
+		Wait:      20 * time.Second, Poll: 2 * time.Second, Refusals: NewRefusals(time.Minute, 4096),
+		slots: make(chan struct{}, concurrency), streams: make(chan struct{}, concurrency),
 	}
+}
+
+// Refusals keeps recent 401/403 verdicts per credential digest and host, so a
+// client resending a refused credential does not reach the control plane.
+type Refusals struct {
+	ttl     time.Duration
+	limit   int
+	now     func() time.Time
+	mu      sync.Mutex
+	entries map[[sha256.Size]byte]refusal
+}
+
+type refusal struct {
+	status  int
+	expires time.Time
+}
+
+func NewRefusals(ttl time.Duration, limit int) *Refusals {
+	return &Refusals{ttl: ttl, limit: limit, now: time.Now, entries: make(map[[sha256.Size]byte]refusal)}
+}
+
+func refusalKey(server, host, authorization string) [sha256.Size]byte {
+	return sha256.Sum256([]byte(server + "\x00" + host + "\x00" + authorization))
+}
+
+func (c *Refusals) Lookup(server, host, authorization string) (int, bool) {
+	key := refusalKey(server, host, authorization)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok {
+		return 0, false
+	}
+	if !c.now().Before(entry.expires) {
+		delete(c.entries, key)
+		return 0, false
+	}
+	return entry.status, true
+}
+
+// A full table drops the verdict; forgetting one only costs a control-plane call.
+func (c *Refusals) Record(server, host, authorization string, status int) {
+	if status != http.StatusUnauthorized && status != http.StatusForbidden {
+		return
+	}
+	now := c.now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.entries) >= c.limit {
+		for key, entry := range c.entries {
+			if !now.Before(entry.expires) {
+				delete(c.entries, key)
+			}
+		}
+		if len(c.entries) >= c.limit {
+			return
+		}
+	}
+	c.entries[refusalKey(server, host, authorization)] = refusal{status: status, expires: now.Add(c.ttl)}
 }
 
 func Environment(host string) (string, bool) {
@@ -92,6 +155,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		unforwardedFailure(w, r, http.StatusUnauthorized)
 		return
 	}
+	if status, refused := g.Refusals.Lookup(server, host, authorization); refused {
+		unforwardedFailure(w, r, status)
+		return
+	}
 	admitted := true
 	select {
 	case g.slots <- struct{}{}:
@@ -113,6 +180,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for {
 		target, status := g.resolve(ctx, server, host, authorization)
 		if status != http.StatusAccepted && status != http.StatusOK {
+			g.Refusals.Record(server, host, authorization, status)
 			unforwardedFailure(w, r, status)
 			return
 		}
@@ -144,6 +212,7 @@ func (g *Gateway) resolve(ctx context.Context, server, host, authorization strin
 	}
 	req.Header.Set("Authorization", authorization)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Tuist-Cache-Activation-Billing", "1")
 	resp, err := g.Control.Do(req)
 	if err != nil {
 		return nil, http.StatusServiceUnavailable
@@ -216,6 +285,9 @@ func unforwardedFailure(w http.ResponseWriter, r *http.Request, status int) {
 
 func failure(w http.ResponseWriter, r *http.Request, status int) {
 	message := http.StatusText(status)
+	if status == http.StatusPaymentRequired {
+		message = "Cache access is blocked by billing. Check your plan and payment status in Tuist."
+	}
 	if status == http.StatusConflict {
 		message = "This account uses custom cache endpoints; set TUIST_CACHE_ENDPOINT"
 	}
@@ -228,7 +300,12 @@ func failure(w http.ResponseWriter, r *http.Request, status int) {
 		switch status {
 		case http.StatusUnauthorized:
 			code = "16"
-		case http.StatusForbidden, http.StatusPaymentRequired:
+		case http.StatusPaymentRequired:
+			// Keep the regional cache's terminal status: older clients retry
+			// RESOURCE_EXHAUSTED as transient backpressure, including uploads.
+			code = "7"
+			w.Header().Set("Tuist-Refusal-Reason", "payment_required")
+		case http.StatusForbidden:
 			code = "7"
 		case http.StatusConflict:
 			code = "9"
@@ -241,6 +318,13 @@ func failure(w http.ResponseWriter, r *http.Request, status int) {
 		w.Header().Set("Grpc-Status", code)
 		w.Header().Set("Grpc-Message", message)
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if status == http.StatusPaymentRequired {
+		// Match the regional HTTP API so existing generated clients can decode it.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
 		return
 	}
 	http.Error(w, message, status)

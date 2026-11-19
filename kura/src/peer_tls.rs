@@ -13,9 +13,9 @@ use axum_server::{
     accept::Accept,
     tls_rustls::{RustlsAcceptor, RustlsConfig},
 };
-use reqwest::{Certificate, Client, Identity};
+use reqwest::{Client, Identity};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
+use rustls::{RootCertStore, ServerConfig};
 use sha2::{Digest, Sha256};
 use tokio::{
     fs,
@@ -23,6 +23,7 @@ use tokio::{
 };
 use tokio_rustls::server::TlsStream;
 
+use crate::certificate_trust::{self, Roots};
 use crate::config::{Config, PeerTlsConfig, PublicTlsConfig};
 
 struct PeerIdentity {
@@ -135,15 +136,21 @@ impl PeerClientFactory {
             builder = builder.read_timeout(Duration::from_secs(30));
         }
 
-        if let Some(identity) = self.identity.load_full() {
-            let id = Identity::from_pem(&identity.identity_pem)
-                .map_err(|error| format!("failed to parse peer identity PEM: {error}"))?;
-            let ca = Certificate::from_pem(&identity.ca_pem)
-                .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
-
-            builder = builder.identity(id).tls_certs_only([ca]);
+        let tls = if let Some(identity) = self.identity.load_full() {
+            // Preserve reqwest's identity-before-CA parsing and take one immutable
+            // rotation snapshot; no public client ever receives this identity.
+            Identity::from_pem(&identity.identity_pem)
+                .map_err(|_| "failed to parse peer identity PEM".to_string())?;
+            certificate_trust::config(
+                Roots::Explicit(certificate_trust::certificates(&identity.ca_pem)?),
+                Some(&identity.identity_pem),
+                Vec::new(),
+            )
+        } else {
+            certificate_trust::config(Roots::Native(Vec::new()), None, Vec::new())
         }
-
+        .map_err(|_| "failed to configure peer TLS trust".to_string())?;
+        builder = builder.tls_backend_preconfigured(tls);
         Ok(builder)
     }
 }
@@ -247,9 +254,8 @@ pub async fn build_internal_server_config(
     let certificates = load_certificates(&peer_tls.cert_path).await?;
     let private_key = load_private_key(&peer_tls.key_path).await?;
     let roots = load_root_store(&peer_tls.ca_cert_path).await?;
-    let verifier = WebPkiClientVerifier::builder(Arc::new(roots))
-        .build()
-        .map_err(|error| format!("failed to build peer client verifier: {error}"))?;
+    let verifier = certificate_trust::client_auth_verifier(roots, Vec::new())
+        .map_err(|_| "failed to build peer client verifier".to_string())?;
 
     let mut server_config = ServerConfig::builder()
         .with_client_cert_verifier(verifier)
@@ -426,7 +432,9 @@ mod tests {
             let identity_pem = format!("{certificate_pem}\n{key_pem}");
             reqwest::Client::builder()
                 .identity(Identity::from_pem(identity_pem.as_bytes()).expect("client identity"))
-                .add_root_certificate(Certificate::from_pem(ca_pem.as_bytes()).expect("trust CA"))
+                .add_root_certificate(
+                    reqwest::Certificate::from_pem(ca_pem.as_bytes()).expect("trust CA"),
+                )
                 .resolve("localhost", addr)
                 .build()
                 .expect("build mTLS client")
@@ -481,7 +489,11 @@ mod tests {
         let factory = PeerClientFactory::from_config(&ctx.state.config)
             .await
             .unwrap();
-        ctx.state.client.store(Arc::new(factory.build().unwrap()));
+        // The server only owns 127.0.0.1:<port>; an unpinned `localhost` can
+        // reach an unrelated listener on [::1]:<port>, such as a Bazel server.
+        ctx.state.client.store(Arc::new(
+            factory.build_resolving("localhost", addr).unwrap(),
+        ));
         for (provider, canonical) in [
             ("ovh", "https://public.invalid:7443".to_owned()),
             ("vultr", private_url),
@@ -512,6 +524,37 @@ mod tests {
                 response.text().await.unwrap(),
                 identity_a,
                 "{provider} routing preserves authenticated mTLS"
+            );
+        }
+
+        let old_client = factory.build_resolving("localhost", addr).unwrap();
+        let paths = ctx.state.config.peer_tls.as_ref().unwrap();
+        std::fs::write(&paths.cert_path, client_b_cert.pem()).unwrap();
+        std::fs::write(&paths.key_path, client_b_key.serialize_pem()).unwrap();
+        let mut overlap = rcgen::CertificateParams::new(vec!["unrelated.test".into()]).unwrap();
+        overlap.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        let overlap = overlap
+            .self_signed(&rcgen::KeyPair::generate().unwrap())
+            .unwrap();
+        std::fs::write(
+            &paths.ca_cert_path,
+            format!("{}{}", ca.pem(), overlap.pem()),
+        )
+        .unwrap();
+        factory.reload_from_config(&ctx.state.config).await.unwrap();
+        let new_client = factory.build_resolving("localhost", addr).unwrap();
+        for (client, expected) in [(old_client, &identity_a), (new_client, &identity_b)] {
+            let actual = client
+                .get(format!("https://localhost:{}/identity", addr.port()))
+                .send()
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap();
+            assert_eq!(
+                &actual, expected,
+                "new builds rotate identity; existing clients retain their snapshot"
             );
         }
 

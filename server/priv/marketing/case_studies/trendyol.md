@@ -6,6 +6,13 @@ onboarded_date: "2023-09-08"
 founded_date: "2010"
 company: "Trendyol"
 excerpt: "Trendyol reduced build times by 65% with Tuist, cutting CI builds to 10 minutes and local UI test setups to 30 seconds. Their self-hosted Tuist instance ensures secure, fast performance, streamlining workflows for 170+ developers."
+results:
+  - metric: "CI build time"
+    before: "30 min"
+    after: "10 min"
+  - metric: "Clean Xcode environment ready for UI tests"
+    before: "15+ min"
+    after: "~30 s"
 ---
 
 ## The challenge

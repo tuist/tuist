@@ -244,9 +244,10 @@ public struct Project: Codable, Equatable, Sendable {
     public var containsExternalDependencies: Bool {
         targets.contains(where: { target in
             target.dependencies.contains(where: {
-                if case .external = $0 {
+                switch $0 {
+                case .external, .externalWithStatus:
                     return true
-                } else {
+                default:
                     return false
                 }
             })

@@ -11,6 +11,7 @@ defmodule TuistWeb.API.GradleController do
   alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.ReportActor
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.GradleReportPublishingPlug
   alias TuistWeb.Plugs.ReportActorPlug
 
@@ -126,7 +127,8 @@ defmodule TuistWeb.API.GradleController do
                  build_path: %Schema{type: :string},
                  project_path: %Schema{type: :string, nullable: true},
                  duration_ms: %Schema{type: :integer},
-                 started_at: %Schema{type: :string, format: :"date-time"}
+                 started_at: %Schema{type: :string, format: :"date-time"},
+                 failure: GradleExecution.failure()
                },
                required: [:phase, :build_path, :duration_ms, :started_at]
              }
@@ -163,6 +165,7 @@ defmodule TuistWeb.API.GradleController do
                type: :object,
                properties: %{
                  execution: GradleExecution.task(),
+                 failure: GradleExecution.failure(),
                  task_path: %Schema{type: :string, description: "Task path (e.g., :app:compileKotlin)."},
                  task_type: %Schema{type: :string, nullable: true, description: "Task type class name."},
                  outcome: %Schema{
@@ -220,7 +223,9 @@ defmodule TuistWeb.API.GradleController do
                  network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
                  network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
                  disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
-                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."},
+                 disk_total_bytes: %Schema{type: :integer, minimum: 0, nullable: true},
+                 disk_available_bytes: %Schema{type: :integer, minimum: 0, nullable: true}
                },
                required: [
                  :timestamp,
@@ -304,6 +309,7 @@ defmodule TuistWeb.API.GradleController do
       status: body.status,
       gradle_version: body[:gradle_version],
       java_version: body[:java_version],
+      tuist_version: Headers.get_build_integration_version(conn, :gradle),
       is_ci: body[:is_ci] || false,
       git_branch: body[:git_branch],
       git_commit_sha: body[:git_commit_sha],
@@ -345,7 +351,8 @@ defmodule TuistWeb.API.GradleController do
         cache_artifact_size: task[:cache_artifact_size],
         remote_cache_miss: task[:remote_cache_miss] || false,
         remote_cache_stored: task[:remote_cache_stored],
-        started_at: task[:started_at]
+        started_at: task[:started_at],
+        failure: task[:failure]
       }
     end)
   end
@@ -431,6 +438,11 @@ defmodule TuistWeb.API.GradleController do
                    actor: ReportActor,
                    duration_ms: %Schema{type: :integer},
                    status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
+                   tuist_version: %Schema{
+                     type: :string,
+                     nullable: true,
+                     description: "The reporting Tuist Gradle plugin version."
+                   },
                    gradle_version: %Schema{type: :string, nullable: true},
                    java_version: %Schema{type: :string, nullable: true},
                    is_ci: %Schema{type: :boolean},
@@ -513,6 +525,7 @@ defmodule TuistWeb.API.GradleController do
             actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
             gradle_version: build.gradle_version,
             java_version: build.java_version,
             is_ci: build.is_ci,
@@ -579,6 +592,11 @@ defmodule TuistWeb.API.GradleController do
              actor: ReportActor,
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
+             tuist_version: %Schema{
+               type: :string,
+               nullable: true,
+               description: "The reporting Tuist Gradle plugin version."
+             },
              gradle_version: %Schema{type: :string, nullable: true},
              java_version: %Schema{type: :string, nullable: true},
              is_ci: %Schema{type: :boolean},
@@ -598,7 +616,21 @@ defmodule TuistWeb.API.GradleController do
              configuration_cache_entry_size: %Schema{type: :integer, nullable: true},
              configuration_cache_load_duration_ms: %Schema{type: :integer, nullable: true},
              configuration_cache_invalidation_reasons: %Schema{type: :array, items: %Schema{type: :string}},
-             configuration_operations: %Schema{type: :array, items: %Schema{type: :object}},
+             configuration_operations: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   phase: %Schema{type: :string},
+                   build_path: %Schema{type: :string},
+                   project_path: %Schema{type: :string},
+                   duration_ms: %Schema{type: :integer},
+                   started_at: %Schema{type: :string, format: :"date-time"},
+                   failure_message: %Schema{type: :string, nullable: true}
+                 }
+               }
+             },
+             failures: GradleExecution.failures(),
              artifact_transforms: %Schema{type: :array, items: %Schema{type: :object}},
              tasks_local_hit_count: %Schema{type: :integer},
              tasks_remote_hit_count: %Schema{type: :integer},
@@ -634,7 +666,8 @@ defmodule TuistWeb.API.GradleController do
                    cache_artifact_size: %Schema{type: :integer, nullable: true},
                    remote_cache_miss: %Schema{type: :boolean},
                    remote_cache_stored: %Schema{type: :boolean, nullable: true},
-                   started_at: %Schema{type: :string, format: :"date-time", nullable: true}
+                   started_at: %Schema{type: :string, format: :"date-time", nullable: true},
+                   failure_message: GradleExecution.failure_message()
                  }
                }
              }
@@ -665,6 +698,7 @@ defmodule TuistWeb.API.GradleController do
             actor: Tuist.ReportActor.actor(build),
             duration_ms: build.duration_ms,
             status: build.status,
+            tuist_version: if(build.tuist_version != "", do: build.tuist_version),
             gradle_version: build.gradle_version,
             java_version: build.java_version,
             is_ci: build.is_ci,
@@ -685,9 +719,11 @@ defmodule TuistWeb.API.GradleController do
                   build_path: operation.build_path,
                   project_path: operation.project_path,
                   duration_ms: operation.duration_ms,
-                  started_at: operation.started_at
+                  started_at: operation.started_at,
+                  failure_message: present(operation.failure_message)
                 }
               end),
+            failures: Gradle.list_failures(build),
             artifact_transforms:
               Enum.map(artifact_transforms, fn transform ->
                 %{
@@ -726,7 +762,8 @@ defmodule TuistWeb.API.GradleController do
                   cache_artifact_size: task.cache_artifact_size,
                   remote_cache_miss: task.remote_cache_miss,
                   remote_cache_stored: task.remote_cache_stored,
-                  started_at: task.started_at
+                  started_at: task.started_at,
+                  failure_message: present(task.failure_message)
                 }
               end)
           })
@@ -737,4 +774,7 @@ defmodule TuistWeb.API.GradleController do
         end
     end
   end
+
+  defp present(""), do: nil
+  defp present(value), do: value
 end

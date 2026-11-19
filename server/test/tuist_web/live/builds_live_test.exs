@@ -8,10 +8,9 @@ defmodule TuistWeb.BuildsLiveTest do
 
   alias TuistTestSupport.Fixtures.RunsFixtures
 
-  # render_async/2 is LiveViewTest's first-party hook for waiting on async assigns.
-  # The builds widgets still cross analytics-backed async work that can be slower on CI,
-  # so keep an explicit timeout until we have a deterministic non-time-based drain.
-  @render_async_timeout 1_000
+  # These integration tests run real ClickHouse queries. Wait for completion with
+  # CI headroom rather than imposing a one-second performance budget.
+  @render_async_timeout 30_000
 
   test "renders empty view when no builds are available", %{
     conn: conn,
@@ -148,15 +147,40 @@ defmodule TuistWeb.BuildsLiveTest do
 
     path = "/#{project.account.name}/#{project.name}/builds"
     {:ok, view, _} = live(conn, path)
-    render_async(view, 5_000)
+    render_async(view, @render_async_timeout)
     assert has_element?(view, "#build-runs-table", "App")
     assert has_element?(view, "#build-runs-table", "Other")
     render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=ci")
-    render_async(view, 5_000)
+    render_async(view, @render_async_timeout)
     assert has_element?(view, "#build-runs-table", "App")
     refute has_element?(view, "#build-runs-table", "Other")
     render_patch(view, path <> "?analytics-build-scheme=App&analytics-environment=local")
-    render_async(view, 5_000)
+    render_async(view, @render_async_timeout)
     refute has_element?(view, "#build-runs-table", "Verification")
+  end
+
+  test "build analytics follow the status filter", %{conn: conn, project: project} do
+    yesterday = DateTime.add(DateTime.utc_now(), -1, :day)
+
+    for {status, duration} <- [{"success", 2_000}, {"failure", 10_000}] do
+      RunsFixtures.build_fixture(project_id: project.id, status: status, duration: duration, inserted_at: yesterday)
+    end
+
+    path = "/#{project.account.name}/#{project.name}/builds"
+
+    {:ok, lv, _html} = live(conn, path)
+    render_async(lv, @render_async_timeout)
+    assert lv |> element("#widget-build-duration") |> render() =~ "6.0s"
+
+    render_patch(lv, path <> "?analytics-build-status=success")
+    render_async(lv, @render_async_timeout)
+    assert lv |> element("#widget-build-duration") |> render() =~ "2.0s"
+    assert has_element?(lv, "#widget-total-builds", "1")
+    assert has_element?(lv, "#widget-build-success-rate", "100.0%")
+    assert has_element?(lv, "#widget-failed-builds[data-empty=true]")
+
+    render_patch(lv, path <> "?analytics-build-status=failure")
+    render_async(lv, @render_async_timeout)
+    assert lv |> element("#widget-build-duration") |> render() =~ "10.0s"
   end
 end

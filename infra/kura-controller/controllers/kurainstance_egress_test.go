@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -207,6 +208,64 @@ func TestEgressClassPodAnnotation(t *testing.T) {
 	}
 	if _, ok := egressClassPodAnnotation(unshaped); ok {
 		t.Fatal("must not render for unshaped instances")
+	}
+}
+
+// On egress-tree pools the HTB class enforces the ceiling, so the Cilium
+// annotation leaves the pods, but only when they restart anyway: a controller
+// deploy alone must not roll the fleet. Elsewhere it is the only cap and stays.
+func TestConfigurePodEgressBandwidth(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{egressClassIDAnnotation: "1:2d03"},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			Image:          "ghcr.io/tuist/kura:new",
+			NodeSelector:   map[string]string{nodePoolLabel: "kura-dedibox"},
+			PodAnnotations: map[string]string{egressBandwidthAnnotation: "500M"},
+		},
+	}
+	pools := []string{"kura-us-east", "kura-dedibox"}
+	previousOn := func(image string, withAnnotation bool) *corev1.PodTemplateSpec {
+		old := instance.DeepCopy()
+		old.Spec.Image = image
+		previous := podTemplate(old, "", "production", "", false, false, false)
+		if !withAnnotation {
+			delete(previous.Annotations, egressBandwidthAnnotation)
+		}
+		return &previous
+	}
+	unallocated := instance.DeepCopy()
+	delete(unallocated.Annotations, egressClassIDAnnotation)
+
+	cases := []struct {
+		name     string
+		instance *kurav1alpha1.KuraInstance
+		previous *corev1.PodTemplateSpec
+		pools    []string
+		dropped  bool
+	}{
+		{"new StatefulSet", instance, &corev1.PodTemplateSpec{}, pools, true},
+		{"image change", instance, previousOn("ghcr.io/tuist/kura:old", true), pools, true},
+		{"same image keeps the running pods", instance, previousOn(instance.Spec.Image, true), pools, false},
+		{"already dropped stays dropped", instance, previousOn(instance.Spec.Image, false), pools, true},
+		{"pool without the agent", instance, &corev1.PodTemplateSpec{}, []string{"kura-us-east"}, false},
+		{"no agent pools configured", instance, &corev1.PodTemplateSpec{}, nil, false},
+		{"class not allocated yet", unallocated, &corev1.PodTemplateSpec{}, pools, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			template := podTemplate(tc.instance, "", "production", "", false, false, false)
+			configurePodEgressBandwidth(tc.instance, &template, tc.previous, tc.pools)
+			_, kept := template.Annotations[egressBandwidthAnnotation]
+			if kept == tc.dropped {
+				t.Fatalf("egress-bandwidth kept=%v, want dropped=%v", kept, tc.dropped)
+			}
+			if tc.dropped && template.Annotations[egressClassAnnotation] != `{"classid":"1:2d03","floor_mbps":0,"burst_mbps":500}` {
+				t.Fatalf("dropping the Cilium annotation must leave the class ceiling: %v", template.Annotations)
+			}
+		})
 	}
 }
 

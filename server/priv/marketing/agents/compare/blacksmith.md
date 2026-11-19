@@ -29,8 +29,4 @@ Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) on t
 
 Sources checked on **2026-10-08**: Blacksmith's [Bazel cache](https://docs.blacksmith.sh/blacksmith-caching/bazel-build-caching.md), [Test Analytics](https://docs.blacksmith.sh/blacksmith-observability/test-analytics.md), [CI Analytics](https://docs.blacksmith.sh/blacksmith-observability/dashboard.md), and [Tuist Build Insights](/en/docs-markdown/guides/features/build-insights). This comparison is written by Tuist and recognizes documented build-cache and test-analytics overlap.
 
-## Limitations
-
-Automatic log parsing is not equivalent to complete structured results. Cache trust, architecture, and branch policies must be checked for each backend. Tuist's Bazel cache is not remote execution; selective testing requires generated Xcode projects. Public source and self-hosting terms differ by component. Tuist Runners are invite-only with no public pricing, so no cheapest-runner claim is made.
-
 Related: [Depot](/marketing-markdown/compare/depot), [WarpBuild](/marketing-markdown/compare/warpbuild), and [all comparisons](/marketing-markdown/compare).

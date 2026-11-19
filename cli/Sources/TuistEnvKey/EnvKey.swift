@@ -128,6 +128,7 @@ public enum EnvKey: String, CaseIterable {
     case inspectBundleConfiguration = "TUIST_INSPECT_BUNDLE_CONFIGURATION"
     case inspectBundlePlatform = "TUIST_INSPECT_BUNDLE_PLATFORM"
     case inspectBundleDerivedDataPath = "TUIST_INSPECT_BUNDLE_DERIVED_DATA_PATH"
+    case bundleTags = "TUIST_BUNDLE_TAGS"
 
     // INSPECT TEST
 
@@ -173,11 +174,13 @@ public enum EnvKey: String, CaseIterable {
     case testDevice = "TUIST_TEST_DEVICE"
     case testPlatform = "TUIST_TEST_PLATFORM"
     case testOS = "TUIST_TEST_OS"
+    case testDestination = "TUIST_TEST_DESTINATION"
     case testRosetta = "TUIST_TEST_ROSETTA"
     case testConfiguration = "TUIST_TEST_CONFIGURATION"
     case testSkipUITests = "TUIST_TEST_SKIP_UITESTS"
     case testSkipUnitTests = "TUIST_TEST_SKIP_UNITTESTS"
     case testResultBundlePath = "TUIST_TEST_RESULT_BUNDLE_PATH"
+    case testCoverageOutputPath = "TUIST_TEST_COVERAGE_OUTPUT_PATH"
     case testDerivedDataPath = "TUIST_TEST_DERIVED_DATA_PATH"
     case testRetryCount = "TUIST_TEST_RETRY_COUNT"
     case testTestPlan = "TUIST_TEST_TEST_PLAN"
@@ -202,6 +205,8 @@ public enum EnvKey: String, CaseIterable {
     case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
     case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
     case testStressNewTests = "TUIST_TEST_STRESS_NEW_TESTS"
+    case testSnapshots = "TUIST_TEST_SNAPSHOTS"
+    case testSnapshotSet = "TUIST_TEST_SNAPSHOT_SET"
 
     // TEST SHOW
 
@@ -424,6 +429,24 @@ public enum EnvKey: String, CaseIterable {
     case coverageCompleteFullHandle = "TUIST_COVERAGE_COMPLETE_FULL_HANDLE"
     case coverageCompleteCommit = "TUIST_COVERAGE_COMPLETE_COMMIT"
     case coverageCompleteJSON = "TUIST_COVERAGE_COMPLETE_JSON"
+
+    // SNAPSHOTS UPLOAD
+
+    case snapshotsUploadPath = "TUIST_SNAPSHOTS_UPLOAD_PATH"
+    case snapshotsUploadSet = "TUIST_SNAPSHOTS_UPLOAD_SET"
+    case snapshotsUploadFullHandle = "TUIST_SNAPSHOTS_UPLOAD_FULL_HANDLE"
+    case snapshotsUploadDiffThreshold = "TUIST_SNAPSHOTS_UPLOAD_DIFF_THRESHOLD"
+    case snapshotsUploadSelective = "TUIST_SNAPSHOTS_UPLOAD_SELECTIVE"
+    case snapshotsUploadAllImageNamesFile = "TUIST_SNAPSHOTS_UPLOAD_ALL_IMAGE_NAMES_FILE"
+    case snapshotsUploadFailOnChanges = "TUIST_SNAPSHOTS_UPLOAD_FAIL_ON_CHANGES"
+    case snapshotsUploadJSON = "TUIST_SNAPSHOTS_UPLOAD_JSON"
+
+    // SNAPSHOTS DOWNLOAD
+
+    case snapshotsDownloadPath = "TUIST_SNAPSHOTS_DOWNLOAD_PATH"
+    case snapshotsDownloadSet = "TUIST_SNAPSHOTS_DOWNLOAD_SET"
+    case snapshotsDownloadFullHandle = "TUIST_SNAPSHOTS_DOWNLOAD_FULL_HANDLE"
+    case snapshotsDownloadJSON = "TUIST_SNAPSHOTS_DOWNLOAD_JSON"
 
     // ORGANIZATION UPDATE MEMBER
 

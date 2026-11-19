@@ -31,11 +31,15 @@ type linuxCheckoutClient struct {
 	http               *http.Client
 }
 
-func newLinuxCheckoutClient(timeout time.Duration) *linuxCheckoutClient {
+func newLinuxCheckoutClient(timeout time.Duration) (*linuxCheckoutClient, error) {
+	client, err := newCacheHTTPClient(timeout)
+	if err != nil {
+		return nil, err
+	}
 	return &linuxCheckoutClient{
 		endpoint: os.Getenv("TUIST_CACHE_VOLUME_URL"), pod: os.Getenv("TUIST_CACHE_VOLUME_POD"), uid: os.Getenv("TUIST_CACHE_VOLUME_UID"),
-		http: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-	}
+		http: client,
+	}, nil
 }
 
 func (c *linuxCheckoutClient) request(ctx context.Context) (macResponse, error) {
@@ -46,7 +50,7 @@ func (c *linuxCheckoutClient) request(ctx context.Context) (macResponse, error) 
 	body, _ := json.Marshal(map[string]any{"pod_name": c.pod, "pod_uid": c.uid, "uid": os.Getuid()})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+"/checkout", bytes.NewReader(body))
 	if err != nil {
-		return response, err
+		return response, cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	err = requestJSON(c.http, req, &response)
@@ -59,7 +63,11 @@ func (c *linuxCheckoutClient) request(ctx context.Context) (macResponse, error) 
 func checkoutLinux(workspace string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	client := newLinuxCheckoutClient(20 * time.Second)
+	client, err := newLinuxCheckoutClient(20 * time.Second)
+	if err != nil {
+		return "unavailable (request)"
+	}
+	defer client.http.CloseIdleConnections()
 	return checkoutLinuxAt(ctx, workspace, linuxCacheRoot, linuxCheckoutStatePath, client.request, bindCheckout)
 }
 
@@ -117,7 +125,11 @@ func checkoutLinuxAt(ctx context.Context, workspace, root, statePath string, req
 func exportCheckoutLinux() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	client := newLinuxCheckoutClient(3 * time.Minute)
+	client, err := newLinuxCheckoutClient(3 * time.Minute)
+	if err != nil {
+		return "failed (" + err.Error() + ")"
+	}
+	defer client.http.CloseIdleConnections()
 	return exportCheckoutLinuxAt(ctx, linuxCheckoutStatePath, linuxExportScratch, gitCommand, client.upload)
 }
 
@@ -144,12 +156,12 @@ func (c *linuxCheckoutClient) upload(ctx context.Context, body io.Reader) error 
 	query := url.Values{"pod_name": {c.pod}, "pod_uid": {c.uid}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+"/checkout-export?"+query.Encode(), body)
 	if err != nil {
-		return err
+		return cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/x-tar")
 	response, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return cacheRequestError{err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusAccepted {

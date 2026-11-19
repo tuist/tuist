@@ -36,7 +36,10 @@
     >
       <div data-part="sidebar-scroll">
         <.link :if={@tab == :guides} patch={docs_path("/#{@locale}")} data-part="nav-link">
-          <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/#{@locale}"}>
+          <.tab_menu_vertical
+            label={dgettext("docs", "Overview")}
+            data-selected={@current_slug == "/#{@locale}"}
+          >
             <:icon_left>
               <.icon name="smart_home" />
             </:icon_left>
@@ -44,7 +47,7 @@
         </.link>
         <.link :if={@tab == :cli} patch={docs_path("/#{@locale}/cli")} data-part="nav-link">
           <.tab_menu_vertical
-            label="Overview"
+            label={dgettext("docs", "Overview")}
             data-selected={@current_slug == "/#{@locale}/cli"}
           >
             <:icon_left>
@@ -55,7 +58,7 @@
         <div :for={group <- @tree} data-part="nav-section">
           <.line_divider :if={group.label} />
           <div :if={group.label} data-part="content-divider">
-            <.icon name={group_icon(group.label)} />
+            <.icon name={group_icon(group.category || group.label)} />
             <span>{group.label}</span>
           </div>
           <div data-part="nav-items">

@@ -4,15 +4,76 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Observability
   alias Tuist.Projects.Project
+  alias Tuist.Tests.Coverage
 
-  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
-  def immutable_shard_reports_enabled?(account, flags \\ nil) do
+  @doc "Default-off account opt-in to Pulse; configured tenant ownership and membership still apply."
+  def pulse_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
-      :immutable_shard_reports,
+      :pulse,
       account,
-      flag_enabled?(:immutable_shard_reports, account, flags) and not xcode_coverage_enabled?(account, flags)
+      flag_enabled?(:pulse, account, flags)
     )
   end
+
+  @doc """
+  Whether `user` is blocked from sending telemetry from Tuist's clients
+  (`TuistWeb.API.TelemetryController`), set with the `:telemetry_blocked`
+  FunWithFlags toggle for that user when their clients abuse the endpoint.
+  """
+  def telemetry_blocked?(user), do: FunWithFlags.enabled?(:telemetry_blocked, for: user)
+
+  @doc "Default-off account opt-in to Linux Bazel remote execution in every environment."
+  def bazel_remote_execution_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :bazel_remote_execution,
+      account,
+      flag_enabled?(:bazel_remote_execution, account, flags)
+    )
+  end
+
+  @doc "Default-off account enrollment in runner-local shard artifact storage."
+  def runner_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_shard_storage,
+      account,
+      flag_enabled?(:runner_shard_storage, account, flags)
+    )
+  end
+
+  @doc "Default-off account enrollment in public shard artifact storage."
+  def public_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :public_shard_storage,
+      account,
+      flag_enabled?(:public_shard_storage, account, flags)
+    )
+  end
+
+  @doc """
+  Immutable shard plans (version 1) are disabled for every account, whatever
+  the `:immutable_shard_reports` toggle says, so every new plan is a legacy one.
+
+  Version-1 plans drop coverage and per-test evidence: the coverage stores pick
+  each shard's current report by receipt order, while version-1 reports are
+  ordered by producer attempt, and coverage and test selection read every
+  attempt's facts from `test_case_runs`/`test_module_runs`. A sharded run on
+  such a plan therefore gets no commit coverage and gives test selection no
+  baseline or evidence. No account uses immutable plans, so they stay off
+  until coverage and test selection read version-1 reports (rows tagged with
+  their fact set, run totals derived rather than rewritten). Existing version-1
+  plans keep their contract.
+
+  To re-enable, answer with the account's toggle again, and keep projects
+  whose coverage still can't be read from version-1 reports on legacy plans.
+  """
+  def immutable_shard_reports_enabled?(subject, flags \\ nil)
+
+  def immutable_shard_reports_enabled?(%Project{account: account}, _flags), do: immutable_shard_reports_disabled(account)
+
+  def immutable_shard_reports_enabled?(account, _flags), do: immutable_shard_reports_disabled(account)
+
+  defp immutable_shard_reports_disabled(account),
+    do: Observability.feature_flag_evaluated(:immutable_shard_reports, account, false)
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account, flags \\ nil) do
@@ -36,6 +97,27 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to Kura data volumes encrypted at rest
+  (`kura-encrypted-nvme`) in regions on the node-local NVMe class.
+  """
+  def kura_encrypted_volumes_enabled?(account) do
+    FunWithFlags.enabled?(:kura_encrypted_volumes, for: account)
+  end
+
+  @doc """
+  Default-off account opt-in to thin encrypted Kura volumes
+  (`kura-thin-encrypted-nvme`). It applies only in regions listed in
+  `TUIST_KURA_THIN_REGIONS` (`Tuist.Kura.Regions.thin_volumes?/2`).
+  """
+  def kura_thin_volumes_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :kura_thin_volumes,
+      account,
+      flag_enabled?(:kura_thin_volumes, account, flags)
+    )
+  end
+
+  @doc """
   Whether legacy endpoint discovery may hand out the stable hostname. Canary
   enables this automatically; other environments use the account/global flag.
   DNS publication is independent because new CLIs derive that hostname locally.
@@ -46,6 +128,42 @@ defmodule Tuist.FeatureFlags do
       account,
       Environment.env() == :can or flag_enabled?(:kura_stable_hostname, account, flags)
     )
+  end
+
+  @doc """
+  Whether the account may use agent sandboxes: the sandbox and agent
+  session API, and the work pollers of its agent environments. Canary and
+  production require an explicit `:sandboxes` FunWithFlags toggle for the
+  account, since every sandbox runs on shared bare-metal nodes.
+  Development, test, and staging default to enabled.
+  """
+  def sandboxes_enabled?(account) do
+    not sandboxes_flag_required?() or FunWithFlags.enabled?(:sandboxes, for: account)
+  end
+
+  defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
+  Whether a user may use Luft's features: threads, AI subscriptions and
+  MCP servers. Canary and production require an explicit `:luft` FunWithFlags
+  toggle. Development, test and staging default to enabled. Organization
+  routing uses `organization_luft_enabled?/1` instead.
+  """
+  def luft_enabled?(actor) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:luft, for: actor)
+  end
+
+  @doc "Organization AI requires the account's `:luft` flag in every environment."
+  def organization_luft_enabled?(account), do: FunWithFlags.enabled?(:luft, for: account)
+
+  @doc """
+  The names of the flags enabled for `user` that the Tuist apps read
+  (`GET /api/me/feature-flags`) to show or hide features. Apps treat a flag
+  they don't receive as off. Add a flag here, under the name the apps use,
+  only when an app feature depends on it.
+  """
+  def app_flags(user) do
+    for {name, true} <- [{"luft", luft_enabled?(user)}], do: name
   end
 
   @doc """
@@ -68,14 +186,50 @@ defmodule Tuist.FeatureFlags do
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
+  @doc "Enabling the pause flag holds current runner limits, globally or for one account."
+  def runner_concurrency_growth_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_concurrency_growth_paused,
+      account,
+      not flag_enabled?(:runner_concurrency_growth_paused, account, flags)
+    )
+  end
+
   @doc """
   Whether the account's Linux jobs get a persistent Docker data root per
-  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Canary and
-  production require the `:runner_docker_cache` flag for the account during the
-  rollout; development, test and staging default to enabled.
+  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Production
+  requires the `:runner_docker_cache` flag for the account during the rollout.
+  Canary enables it for qualification without a separate database toggle;
+  pool configuration, profile opt-outs and repository authorization still apply.
+  Development, test and staging also default to enabled.
   """
   def runner_docker_cache_enabled?(account) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+    Environment.env() != :prod or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
+
+  @doc """
+  Whether the account's GitHub Actions jobs on Linux runners use the cache the
+  runner hosts serve (`Tuist.Runners.ActionsCache`) instead of GitHub's.
+  Production requires the `:runner_actions_cache` flag for the account during
+  the rollout; other environments default to enabled.
+  """
+  def runner_actions_cache_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_actions_cache,
+      account,
+      Environment.env() != :prod or flag_enabled?(:runner_actions_cache, account, flags)
+    )
+  end
+
+  @doc """
+  Whether a verified GitHub Actions OIDC token binds the account's runner
+  session to the job it names (`Tuist.Runners.ExecutionTokens.prove/1`).
+  Production requires the `:runner_oidc_execution` flag for the account during
+  the rollout; without it the server only logs the job a token names.
+  Other environments default to enabled.
+  """
+  def runner_oidc_execution_enabled?(account) do
+    Environment.env() != :prod or FunWithFlags.enabled?(:runner_oidc_execution, for: account)
   end
 
   @doc """
@@ -89,6 +243,33 @@ defmodule Tuist.FeatureFlags do
       :runner_site_cache,
       account,
       flag_enabled?(:runner_site_cache, account, flags)
+    )
+  end
+
+  @doc """
+  Whether the account gets a node in the runner-cache region of each site it
+  qualifies for (`runner_site_enabled?/2` or `runner_site_cache_enabled?/2`)
+  without the cache traffic from the site `Tuist.Kura.RunnerCache` otherwise
+  requires. Capacity admission still applies.
+  """
+  def runner_site_cache_pinned?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_site_cache_pinned,
+      account,
+      flag_enabled?(:runner_site_cache_pinned, account, flags)
+    )
+  end
+
+  @doc """
+  Whether the account is kept out of every site's runner-cache region, so its
+  node there drains and is torn down. Its jobs still run at the site
+  (`runner_site_enabled?/2`) and use its other regions' caches.
+  """
+  def runner_site_cache_excluded?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_site_cache_excluded,
+      account,
+      flag_enabled?(:runner_site_cache_excluded, account, flags)
     )
   end
 
@@ -112,21 +293,43 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
-  for the given account. Canary and production require an explicit `:xcode_coverage`
-  FunWithFlags toggle for the account while the feature is in early access, so
-  its data model and API can still change. Development, test, and staging
-  default to enabled.
+  Whether coverage-based test selection (test impact analysis) runs for a
+  project: the project needs coverage (`Tuist.Tests.Coverage.supported?/1`)
+  and its account the `:test_impact_analysis` flag. Canary and production
+  require an explicit toggle while development, test, and staging default to
+  enabled.
   """
-  def xcode_coverage_enabled?(account, flags \\ nil)
+  def test_impact_analysis_enabled?(account, project, flags \\ nil) do
+    Coverage.supported?(project) and test_impact_analysis_account_enabled?(account, flags)
+  end
 
-  def xcode_coverage_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:xcode_coverage, :unknown, false)
+  @doc """
+  Hosted snapshot testing (`Tuist.Snapshots`): on outside canary and
+  production, and behind the `:snapshots` account flag there while it is in
+  early access.
+  """
+  def snapshots_enabled?(account, flags \\ nil)
 
-  def xcode_coverage_enabled?(account, flags) do
+  def snapshots_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:snapshots, :unknown, false)
+
+  def snapshots_enabled?(account, flags) do
     Observability.feature_flag_evaluated(
-      :xcode_coverage,
+      :snapshots,
       account,
-      Environment.env() not in [:can, :prod] or flag_enabled?(:xcode_coverage, account, flags)
+      Environment.env() not in [:can, :prod] or flag_enabled?(:snapshots, account, flags)
+    )
+  end
+
+  @doc """
+  The account's side of `test_impact_analysis_enabled?/3`, without a project:
+  its `:test_impact_analysis` toggle. It's what `Tuist.Ops.FeatureFlags`,
+  whose evaluations are per account, reports.
+  """
+  def test_impact_analysis_account_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :test_impact_analysis,
+      account,
+      Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags)
     )
   end
 

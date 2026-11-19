@@ -271,6 +271,11 @@ func TestOSUpdateInstallPassesThePasswordOnStdinOnly(t *testing.T) {
 			"FAKE_SUDO_STDIN=" + stdin,
 		}
 
+		for name, value := range map[string]string{"stat": "tuist", "id": "501"} {
+			if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nprintf '%s\n' '"+value+"'\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
 		script := renderOSUpdateInstallScript(dir, "u1", "macOS Tahoe 26.7-25G229", "tuist")
 		runScript(t, shell, script, password+"\n", env...)
 		if got := waitForExit(t, shell, dir, "u1", OSUpdateJobInstall); got.ExitCode != 0 {
@@ -279,7 +284,7 @@ func TestOSUpdateInstallPassesThePasswordOnStdinOnly(t *testing.T) {
 
 		gotArgv, _ := os.ReadFile(argv)
 		gotStdin, _ := os.ReadFile(stdin)
-		if want := "-n softwareupdate --install macOS Tahoe 26.7-25G229 --restart --user tuist --stdinpass\n"; string(gotArgv) != want {
+		if want := "-n /bin/launchctl asuser 501 /usr/sbin/softwareupdate --install macOS Tahoe 26.7-25G229 --restart --force --user tuist --stdinpass\n"; string(gotArgv) != want {
 			t.Errorf("%s: sudo argv = %q, want %q", shell, gotArgv, want)
 		}
 		if strings.Contains(string(gotArgv), password) || strings.Contains(script, password) {
@@ -428,6 +433,40 @@ func TestTailscaleStateReadIsEmptyWithoutAState(t *testing.T) {
 		}
 		if got := read(); got != `{"_machinekey":"k"}` {
 			t.Errorf("%s: read %q", shell, got)
+		}
+	}
+}
+
+func TestOSUpdateInstallRequiresTheOwnersConsoleSession(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		for _, tc := range []struct{ console, uid string }{
+			{"root", "501"}, {"another-user", "501"}, {"tuist", "0"}, {"tuist", ""}, {"tuist", "not-a-uid"},
+		} {
+			t.Run(filepath.Base(shell)+"/"+tc.console+"/"+tc.uid, func(t *testing.T) {
+				root, bin := t.TempDir(), t.TempDir()
+				marker := filepath.Join(bin, "sudo-called")
+				for name, value := range map[string]string{"stat": tc.console, "id": tc.uid} {
+					if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nprintf '%s\\n' '"+value+"'\n"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte("#!/bin/sh\ntouch \"$CALLED\"\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				cmd := exec.Command(shell, "-c", renderOSUpdateInstallScript(root, "u1", "macOS Tahoe 26.7-25G229", "tuist"))
+				cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "CALLED="+marker)
+				cmd.Stdin = strings.NewReader("secret\n")
+				out, err := cmd.CombinedOutput()
+				if err == nil {
+					t.Fatalf("install accepted an invalid console: %s", out)
+				}
+				if strings.Contains(string(out), "secret") {
+					t.Fatal("failure leaked the password")
+				}
+				if _, err := os.Stat(marker); !os.IsNotExist(err) {
+					t.Fatal("installer ran without a valid console")
+				}
+			})
 		}
 	}
 }

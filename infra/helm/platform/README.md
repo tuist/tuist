@@ -16,8 +16,9 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
 | `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
-| `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp), the kubelet (10250/tcp), the Cilium agent, Hubble, operator and Envoy metrics (9962-9965/tcp) and node-exporter (9100/tcp) from sources outside the cluster |
-| `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
+| `clusterPortsHostPolicy` | Cilium host policy that drops VXLAN (8472/udp), cilium-health (4240/tcp), Hubble (4244/tcp), the kubelet (10250/tcp), ingress-nginx health/metrics (10254/tcp), the Cilium agent, Hubble, operator and Envoy metrics (9962-9965/tcp) and node-exporter (9100/tcp) from sources outside the cluster |
+| `ipv4OptionsTcpDrop` | Host-network DaemonSet that drops incoming IPv4 TCP packets carrying IP options (CVE-2026-98432) in a nftables table of its own; rack nodes get it from `infra/helm/rack-cache-gateways` |
+| `disableMultipathTCP` | Managed-only DaemonSet that sets `net.mptcp.enabled = 0` in every Linux node's host network namespace and persists it in `/etc/sysctl.d`. Listeners opened before it ran stay MPTCP until their process restarts; rack nodes get it from `infra/helm/rack-cache-gateways` |
 
 ## Bootstrap
 
@@ -82,19 +83,6 @@ backfilled, and missing observations must not be replaced by fabricated zeros.
 platform values overlay and reproduces the failure through a real HTTP/2 nginx
 `grpc_pass` proxy. Set `TUIST_TEST_NGINX` to a local nginx binary to include the
 transport regression; the values checks do not require nginx.
-
-## Preview Janitor
-
-The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that
-deletes expired preview namespaces inside the preview cluster. It reads
-namespaces labeled `tuist.dev/preview=true`, deletes the matching
-`KuraInstance` from the `kura` namespace, and deletes the preview namespace.
-The namespace delete cascades through every chart-created resource, including
-the Helm release Secret, so no `helm uninstall` step is required.
-
-The janitor is disabled by default because it needs cluster-wide delete access
-to dynamic preview namespaces. Keep it enabled only for the managed preview
-cluster overlay.
 
 ## Local validation
 
@@ -227,8 +215,8 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 
 ## Runner Kura gateway
 
-`kura-runners-ingress-nginx` is enabled in staging, canary and production on the
-`kura-scw-fr-par` pool. It reuses the shared Kura streaming configuration and
+Each rack site runs its own runner Kura gateway
+(`kura-<site>-runners-ingress-nginx`). It reuses the shared Kura streaming configuration and
 terminates TLS for per-account private hostnames. Its listeners bind the host
 interfaces; HTTP and gRPC access is restricted by each Ingress's source allowlist.
 It does not trust forwarded headers, PROXY protocol or real-IP rewriting.

@@ -9,8 +9,8 @@ defmodule Tuist.Tests.CoverageTest do
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
+  alias Tuist.Tests.CoverageRunFile
   alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -122,7 +122,7 @@ defmodule Tuist.Tests.CoverageTest do
 
     defp build_systems(test) do
       ClickHouseRepo.all(
-        from(f in CoverageFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
+        from(f in CoverageRunFile, where: f.test_run_id == ^test.id, distinct: true, select: f.build_system)
       )
     end
 
@@ -146,6 +146,24 @@ defmodule Tuist.Tests.CoverageTest do
       assert project.id |> CoverageFixtures.targets_for_run(test.id) |> Enum.map(&{&1.name, &1.files_count}) == [
                {"calculator", 1}
              ]
+    end
+
+    test "records the platform the client resolved the run's destination to", %{project: project, account: account} do
+      {:ok, test} =
+        create_test(project, account, %{
+          coverage: %{tool: "llvm-cov", tool_version: "27.0", platform: "ios", partial: false, files: [add()]}
+        })
+
+      platform =
+        ClickHouseRepo.one(
+          from(c in CoverageRun,
+            where: c.test_run_id == ^test.id,
+            group_by: c.test_run_id,
+            select: fragment("argMax(?, ?)", c.platform, c.version)
+          )
+        )
+
+      assert platform == "ios"
     end
 
     test "records Xcode coverage as measured by xccov with the run's Xcode", %{project: project, account: account} do
@@ -172,7 +190,8 @@ defmodule Tuist.Tests.CoverageTest do
           storage_key: "key",
           partial: true,
           tool: "cover",
-          tool_version: "OTP 28/Elixir 1.19.5"
+          tool_version: "OTP 28/Elixir 1.19.5",
+          platform: ""
         }
       )
 
@@ -216,6 +235,19 @@ defmodule Tuist.Tests.CoverageTest do
       assert detail.lines == [{2, 3}, {3, 0}, {4, 0}, {6, 1}, {7, 0}]
       assert [%{name: "add(_:_:)", execution_count: 3}] = detail.functions
       assert file_detail(project, test, "Missing.swift") == nil
+    end
+
+    test "caps a count past UInt32's maximum instead of wrapping it", %{project: project, account: account} do
+      hot =
+        file("Sources/Calculator/Hot.swift", "hot1", ["Calculator"], [{1, 2 ** 32 + 5}, {2, 7}], [
+          %{name: "hot()", line_number: 1, execution_count: 2 ** 33, covered_lines: 2, executable_lines: 2}
+        ])
+
+      {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([hot])})
+
+      detail = file_detail(project, test, "Sources/Calculator/Hot.swift")
+      assert detail.lines == [{1, 4_294_967_295}, {2, 7}]
+      assert [%{execution_count: 4_294_967_295}] = detail.functions
     end
 
     test "keeps the report's counts for a file without line data", %{project: project, account: account} do
@@ -349,15 +381,15 @@ defmodule Tuist.Tests.CoverageTest do
              }
 
       assert ClickHouseRepo.all(
-               from(f in CoverageFile,
+               from(f in CoverageRunFile,
                  where: f.test_run_id == ^test.id,
                  order_by: f.path,
-                 select: {f.path, f.in_repository, f.build_system, f.scope_kind, f.scope_id, f.evidence_kind}
+                 select: {f.path, f.in_repository, f.build_system}
                )
              ) == [
-               {"/tmp/DerivedSources/Outside.swift", false, "xcode", "run", "", "observed"},
-               {"Sources/Calculator/Add.swift", true, "xcode", "run", "", "observed"},
-               {"Sources/Calculator/Generated.swift", false, "xcode", "run", "", "observed"}
+               {"/tmp/DerivedSources/Outside.swift", false, "xcode"},
+               {"Sources/Calculator/Add.swift", true, "xcode"},
+               {"Sources/Calculator/Generated.swift", false, "xcode"}
              ]
     end
 
@@ -430,10 +462,9 @@ defmodule Tuist.Tests.CoverageTest do
     end
   end
 
-  describe "the xcode_coverage feature flag" do
-    test "drops the coverage of an account that does not have it", %{project: project, account: account} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
-
+  describe "build systems without coverage" do
+    test "drop the coverage a run reports", %{account: account} do
+      project = ProjectsFixtures.project_fixture(account_id: account.id, build_system: :bazel)
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
 
       assert CoverageFixtures.run_summary(project.id, test.id) == nil
@@ -643,6 +674,6 @@ defmodule Tuist.Tests.CoverageTest do
       |> Enum.sort()
 
     assert tables ==
-             ~w(coverage_commit_targets coverage_file_deltas coverage_files coverage_runs coverage_target_sources coverage_test_sources git_commit_files)
+             ~w(coverage_commit_targets coverage_file_deltas coverage_file_layouts coverage_files coverage_run_files coverage_runs git_commit_files test_impact_diffs test_impact_runs)
   end
 end

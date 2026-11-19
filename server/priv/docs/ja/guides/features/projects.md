@@ -1,58 +1,41 @@
 ---
 {
-  "title": "Projects",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn about Tuist's DSL for defining Xcode projects."
+  "title": "プロジェクト",
+  "titleTemplate": ":title · 機能 · ガイド · Tuist",
+  "description": "Swift で Xcode プロジェクトを定義し、Tuist を使って一貫して生成します。マージコンフリクトを解消し、依存関係をグラフとしてモデル化し、モジュールキャッシュを活用できます。"
 }
 ---
-# 生成されたプロジェクト{#generated-projects}。
+# 生成されたプロジェクト {#generated-projects}
 
-Generatedは、複雑さとコストを許容可能なレベルに保ちながら、これらの課題を克服するのに役立つ実行可能な代替手段です。それは、Xcodeプロジェクトを基本要素として考慮し、将来のXcodeアップデートに対する弾力性を確保し、Xcodeプロジェクト生成を活用して、モジュール化に焦点を当てた宣言的APIをチームに提供する。Tuistは、プロジェクト宣言を使用して、モジュール化の複雑さ**を簡素化し、さまざまな環境でのビルドやテストのようなワークフローを最適化し、Xcodeプロジェクトの進化を促進し、民主化します。
+Tuist の生成されたプロジェクトは、複雑さとコストを許容範囲内に抑えながらこれらの課題を克服するための現実的な代替手段です。Xcode プロジェクトを基本要素と位置づけ、将来の Xcode アップデートに対する耐性を確保し、Xcode プロジェクトの生成を活用して、モジュール化に重点を置いた宣言型 API をチームに提供します。Tuist はプロジェクト定義を用いてモジュール化の複雑さを簡素化し、さまざまな環境でのビルドやテストといったワークフローを最適化し、Xcode プロジェクトの進化を促進・民主化します。
 
-## どのように機能するのか？{どのように機能するのか？｝
+## 仕組み {#how-does-it-work}
 
-生成されたプロジェクトを使い始めるために必要なことは、**Tuistのドメイン固有言語（DSL）**
-を使ってプロジェクトを定義することです。これは、`Workspace.swift` または`Project.swift`
-のようなマニフェストファイルの使用を伴います。以前に Swift のパッケージマネージャで作業したことがあるなら、アプローチは非常に似ています。
+生成されたプロジェクトを始めるには、**Tuist のドメイン固有言語（DSL）** を使ってプロジェクトを定義するだけで済みます。これには、`Workspace.swift` や `Project.swift` などのマニフェストファイルを使用します。Swift Package Manager を使ったことがあれば、そのアプローチは非常に似ています。
 
-プロジェクトを定義したら、Tuistはそれを管理し、相互作用させるための様々なワークフローを提供する：
+プロジェクトを定義すると、Tuist はそれを管理・操作するためのさまざまなワークフローを提供します。
 
-- **生成する：** これは基本的なワークフローです。Xcodeと互換性のあるXcodeプロジェクトを作成するために使用します。
-- **<LocalizedLink href="/cli/build">ビルド</LocalizedLink>：**
-  このワークフローは、Xcodeプロジェクトを生成するだけでなく、`xcodebuild` を使用してコンパイルします。
-- **<LocalizedLink href="/cli/test">テスト</LocalizedLink>：**
-  ビルド・ワークフローのように動作し、Xcodeプロジェクトを生成するだけでなく、`xcodebuild` を利用してテストします。
+- **Generate:** これは基本的なワークフローです。Xcode と互換性のある Xcode プロジェクトを作成するために使用します。
+- **<.localized_link href="/cli/build">Build</.localized_link>:** このワークフローは Xcode プロジェクトを生成するだけでなく、`xcodebuild` を使ってコンパイルも実行します。
+- **<.localized_link href="/cli/test">Test</.localized_link>:** ビルドワークフローと同様に動作し、Xcode プロジェクトを生成するだけでなく、`xcodebuild` を使ってテストを実行します。
 
-## Xcodeプロジェクトの課題 {#challenges-with-xcode-projects}。
+## Xcode プロジェクトの課題 {#challenges-with-xcode-projects}
 
-Xcode プロジェクトが成長するにつれて、**組織は、信頼性の低いインクリメンタルビルド、問題に遭遇した開発者による Xcode
-のグローバルキャッシュの頻繁なクリア、および脆弱なプロジェクト構成を含むいくつかの要因のために、生産性の低下**
-に直面するかもしれません。迅速な機能開発を維持するために、組織は一般的に様々な戦略を模索します。
+Xcode プロジェクトが大きくなるにつれて、**組織の生産性が低下する可能性があります**。その要因としては、信頼性の低い増分ビルド、問題に遭遇した開発者による Xcode のグローバルキャッシュの頻繁なクリア、脆弱なプロジェクト設定などが挙げられます。迅速な機能開発を維持するため、組織は通常、さまざまな戦略を検討します。
 
-React
-Native](https://reactnative.dev/)のようなJavaScriptベースの動的ランタイムを使用してプラットフォームを抽象化することで、コンパイラーをバイパスすることを選択する組織もある。このアプローチは効果的かもしれないが、[プラットフォームのネイティブ機能へのアクセスが複雑になる](https://shopify.engineering/building-app-clip-react-native)。他の組織は、**コードベースをモジュール化することを選ぶ**
-、これは明確な境界を確立するのに役立ち、コードベースを作業しやすくし、ビルド時間の信頼性を向上させる。しかし、Xcode
-のプロジェクトフォーマットは、モジュール化のために設計されておらず、ほとんど理解できない暗黙のコンフィギュレーションや、頻繁なコンフリクトをもたらします。これは、悪いバス要因につながり、インクリメンタルビルドは改善するかもしれませんが、開発者は、ビルドが失敗したときに、Xcode
-のビルドキャッシュ（すなわち、派生データ）を頻繁にクリアするかもしれません。これに対処するために、いくつかの組織は、**Xcodeのビルドシステム**
-を放棄し、[Buck](https://buck.build/)や[Bazel](https://bazel.build/)のような代替手段を採用することを選択します。しかし、これには[高い複雑性とメンテナンス負担](https://bazel.build/migrate/xcode)が伴います。
+一部の組織は、[React Native](https://reactnative.dev/) のような JavaScript ベースの動的ランタイムを使ってプラットフォームを抽象化することで、コンパイラを回避することを選択します。このアプローチは効果的かもしれませんが、[プラットフォームのネイティブ機能へのアクセスが複雑化](https://shopify.engineering/building-app-clip-react-native)します。他の組織は、**コードベースのモジュール化**を選択し、明確な境界を設けることでコードベースの扱いやすさを高め、ビルド時間の信頼性を向上させます。しかし、Xcode プロジェクト形式はモジュール化向けに設計されておらず、理解できる人が少なく頻繁なコンフリクトを引き起こす暗黙的な設定につながります。これはバス係数を悪化させ、増分ビルドが改善される場合でも、ビルドが失敗した際に開発者が Xcode のビルドキャッシュ（派生データ）を頻繁にクリアすることがあります。この問題に対処するため、一部の組織は **Xcode のビルドシステムを放棄** し、[Buck](https://buck.build/) や [Bazel](https://bazel.build/) などの代替手段を採用することを選択します。ただし、これには [高い複雑さとメンテナンス負担](https://bazel.build/migrate/xcode) が伴います。
 
 
-## 代替案 {#alternatives}
+## 代替手段 {#alternatives}
 
-### スイフト・パッケージ・マネージャー {#swift-package-manager}
+### Swift Package Manager {#swift-package-manager}
 
-Swift Package Manager
-(SPM)は主に依存関係に焦点を当てているが、Tuistは異なるアプローチを提供する。Tuistでは、SPMとの統合のためにパッケージを定義するだけでなく、プロジェクト、ワークスペース、ターゲット、スキームといった馴染みのある概念を使ってプロジェクトを形作ります。
+Swift Package Manager（SPM）は主に依存関係に焦点を当てていますが、Tuist は異なるアプローチを提供します。Tuist では、SPM 統合のためのパッケージを定義するだけでなく、プロジェクト、ワークスペース、ターゲット、スキームといった馴染みのある概念を使ってプロジェクトを構築します。
 
-### XcodeGen {#xcodegen}.
+### XcodeGen {#xcodegen}
 
-[XcodeGen](https://github.com/yonaskolb/XcodeGen) は、共同 Xcode プロジェクトの競合を減らし、Xcode
-の内部動作のいくつかの複雑さを単純化するために設計された専用のプロジェクトジェネレータです。しかし、プロジェクトは、[YAML](https://yaml.org/)
-のようなシリアライズ可能なフォーマットを使用して定義されます。Swift
-とは異なり、これは開発者が追加のツールを組み込むことなく、抽象化やチェックの上に構築することを可能にしません。XcodeGenは、検証や最適化のために依存関係を内部表現にマップする方法を提供するが、それはまだXcodeのニュアンスに開発者をさらす。これは、XcodeGenを、Bazelコミュニティに見られるような[ツールを構築する](https://github.com/MobileNativeFoundation/rules_xcodeproj)ための適切な基盤にするかもしれないが、健全で生産的な環境を維持することを目的とする包括的なプロジェクトの進化には最適ではない。
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) は、共同作業を行う Xcode プロジェクトでのコンフリクトを減らし、Xcode の内部動作の複雑さの一部を簡素化するために設計された専用プロジェクトジェネレーターです。ただし、プロジェクトは [YAML](https://yaml.org/) のようなシリアライズ可能な形式で定義されます。Swift とは異なり、追加のツールを組み込まないと抽象化やチェックの上に構築することができません。XcodeGen は検証と最適化のために依存関係を内部表現にマッピングする方法を提供していますが、それでも開発者は Xcode の細かな仕様にさらされます。このため、Bazel コミュニティで見られるように、XcodeGen は [ツール構築](https://github.com/MobileNativeFoundation/rules_xcodeproj) の適切な基盤となる可能性がありますが、健全で生産的な環境を維持することを目的とした包括的なプロジェクト進化には最適ではありません。現在 XcodeGen を使用している場合、[XcodeGen vs Tuist](https://tuist.dev/compare/xcodegen) では、既存の XcodeGen プロジェクトでどの Tuist 機能が利用できるかが説明されています。Tuist の生成されたプロジェクトに移行するには、<.localized_link href="/guides/features/projects/adoption/migrate/xcodegen-project">移行ガイド</.localized_link>を参照してください。
 
-### バゼル {#bazel}
+### Bazel {#bazel}
 
-[Bazel](https://bazel.build) は、リモートキャッシュ機能で有名な先進的なビルドシステムで、主にこの機能のために Swift
-コミュニティ内で人気を得ています。しかし、Xcodeとそのビルドシステムの限られた拡張性を考えると、それをBazelのシステムで代用することは、かなりの努力とメンテナンスを要求します。BazelをXcodeと統合するために多額の投資をしている企業のリストから明らかなように、豊富なリソースを持つ少数の企業だけが、このオーバーヘッドに耐えることができる。興味深いことに、コミュニティは、Xcodeプロジェクトを生成するためにBazelのXcodeGenを使用する[ツール](https://github.com/MobileNativeFoundation/rules_xcodeproj)を作成した。この結果、BazelファイルからXcodeGen
-YAMLへ、そして最後にXcodeプロジェクトへと、複雑な変換の連鎖が発生します。このような階層化されたインダイレクトは、しばしばトラブルシューティングを複雑にし、問題の診断と解決をより困難にします。
+[Bazel](https://bazel.build) はリモートキャッシング機能で知られる高度なビルドシステムであり、主にこの機能によって Swift コミュニティ内で人気を集めています。しかし、Xcode とそのビルドシステムの拡張性は限られているため、これを Bazel のシステムに置き換えるには多大な努力とメンテナンスが必要です。このオーバーヘッドを負担できるのは豊富なリソースを持つ少数の企業に限られ、Bazel と Xcode の統合に多額の投資を行っている企業の限定されたリストからも明らかです。興味深いことに、コミュニティは Bazel の XcodeGen を利用して Xcode プロジェクトを生成する [ツール](https://github.com/MobileNativeFoundation/rules_xcodeproj) を作成しました。これにより、Bazel ファイルから XcodeGen YAML、そして最終的に Xcode プロジェクトへという複雑な変換チェーンが生じます。このような多層的な間接化はトラブルシューティングを複雑にし、問題の診断と解決をより困難にします。

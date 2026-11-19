@@ -109,6 +109,35 @@ checksum = "sha256:7323406b781232bdc33f2356c03da968d1f7633ddfb19a7c82f982b83e92c
 url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-client-26.1.2.11-amd64.tgz"
 url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543176"
 
+[[tools."github:longbridge/nsh"]]
+version = "0.5.1"
+backend = "github:longbridge/nsh"
+
+[tools."github:longbridge/nsh"."platforms.linux-arm64"]
+checksum = "sha256:6f182e61ce68115b99d29a096f4a935bf3e7aa2733cdf9f135274ccec00dfef6"
+url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386606"
+
+[tools."github:longbridge/nsh"."platforms.linux-x64"]
+checksum = "sha256:f34729e613196ca122d956deb543a92f319e053ff17dfc09ba04a6ec2fb79c74"
+url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-linux-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386600"
+
+[tools."github:longbridge/nsh"."platforms.macos-arm64"]
+checksum = "sha256:2710affd59e6345b6f87dfa1f579c36b9a9d7a58992b8399d14f39290da048a3"
+url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-macos-arm64.tar.gz"
+url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386617"
+
+[tools."github:longbridge/nsh"."platforms.macos-x64"]
+checksum = "sha256:7381ffe37180584fb12b0488756ffd9e8ff585fede2deac450a51336141ccd69"
+url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-macos-x86_64.tar.gz"
+url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386603"
+
+[tools."github:longbridge/nsh"."platforms.windows-x64"]
+checksum = "sha256:9dc4b74037033c8ff50b1047b4702b36e6fd66beb9f5d61411d3497f4751df90"
+url = "https://github.com/longbridge/nsh/releases/download/v0.5.1/nsh-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/longbridge/nsh/releases/assets/746386571"
+
 [[tools."github:minio/minio"]]
 version = "2025-09-07T16-13-09Z"
 backend = "github:minio/minio"
@@ -136,43 +165,58 @@ checksum = "sha256:4759080aeef7385aaceaac1131c30aaeb99605921553967dc6d3ef4e16ac6
 url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.darwin-amd64.RELEASE.2025-09-07T16-13-09Z"
 url_api = "https://api.github.com/repos/minio/minio/releases/assets/404656124"
 
+[tools."github:minio/minio"."platforms.windows-x64"]
+checksum = "sha256:af709e6ba68488404e85acdd22a3030d0f5e56a108d4b27d744f18ceb50861b4"
+url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.windows-amd64.RELEASE.2025-09-07T16-13-09Z.exe"
+url_api = "https://api.github.com/repos/minio/minio/releases/assets/404655799"
+
 [[tools.helm]]
 version = "3.16.3"
 backend = "aqua:helm/helm"
 
 [tools.helm."platforms.linux-arm64"]
-url = "https://get.helm.sh/helm-3.16.3-linux-arm64.tar.gz"
+checksum = "sha256:5bd34ed774df6914b323ff84a0a156ea6ff2ba1eaf0113962fa773f3f9def798"
+url = "https://get.helm.sh/helm-v3.16.3-linux-arm64.tar.gz"
 
 [tools.helm."platforms.linux-x64"]
-url = "https://get.helm.sh/helm-3.16.3-linux-amd64.tar.gz"
+checksum = "sha256:f5355c79190951eed23c5432a3b920e071f4c00a64f75e077de0dd4cb7b294ea"
+url = "https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz"
 
 [tools.helm."platforms.macos-arm64"]
-url = "https://get.helm.sh/helm-3.16.3-darwin-arm64.tar.gz"
+checksum = "sha256:3a39f690173086e6eea17674751eb3c8b970c02697e49cecd4093eaa3cf89dcd"
+url = "https://get.helm.sh/helm-v3.16.3-darwin-arm64.tar.gz"
 
 [tools.helm."platforms.macos-x64"]
-url = "https://get.helm.sh/helm-3.16.3-darwin-amd64.tar.gz"
+checksum = "sha256:495d75b404a96fb664f1ca3f8cb01db2210aacc62dbfa1bbab30916abbb20a57"
+url = "https://get.helm.sh/helm-v3.16.3-darwin-amd64.tar.gz"
 
 [tools.helm."platforms.windows-x64"]
-url = "https://get.helm.sh/helm-3.16.3-windows-amd64.tar.gz"
+checksum = "sha256:2acc9f8b7943073a9bdadd3f85beee899a874c2df0906253397333f6d81bfdc8"
+url = "https://get.helm.sh/helm-v3.16.3-windows-amd64.tar.gz"
 
 [[tools.kubectl]]
 version = "1.31.3"
 backend = "aqua:kubernetes/kubernetes/kubectl"
 
 [tools.kubectl."platforms.linux-arm64"]
-url = "https://dl.k8s.io/1.31.3/bin/linux/arm64/kubectl"
+checksum = "sha256:a3953ad2b32eca0b429249a5fbdf4f8ef7d57223c45cc0401fd80fd12c7b9071"
+url = "https://dl.k8s.io/v1.31.3/bin/linux/arm64/kubectl"
 
 [tools.kubectl."platforms.linux-x64"]
-url = "https://dl.k8s.io/1.31.3/bin/linux/amd64/kubectl"
+checksum = "sha256:981f6b49577068bc174275184d8ee7105d8e54f40733792c519cd85023984c0f"
+url = "https://dl.k8s.io/v1.31.3/bin/linux/amd64/kubectl"
 
 [tools.kubectl."platforms.macos-arm64"]
-url = "https://dl.k8s.io/1.31.3/bin/darwin/arm64/kubectl"
+checksum = "sha256:ef34c2c7debe346e5fd47065d9f66229edf164b043aa908fa5af0808f642ec7b"
+url = "https://dl.k8s.io/v1.31.3/bin/darwin/arm64/kubectl"
 
 [tools.kubectl."platforms.macos-x64"]
-url = "https://dl.k8s.io/1.31.3/bin/darwin/amd64/kubectl"
+checksum = "sha256:66f49bbb19869f0735517a331c946fe1296d2f0f8cb5e7e7fb6ba33a8cee113c"
+url = "https://dl.k8s.io/v1.31.3/bin/darwin/amd64/kubectl"
 
 [tools.kubectl."platforms.windows-x64"]
-url = "https://dl.k8s.io/1.31.3/bin/windows/amd64/kubectl.exe"
+checksum = "sha256:0ad6b474beb5cbc22216f09cc9e660c1d2d21035349ad9c9e3a253754c384339"
+url = "https://dl.k8s.io/v1.31.3/bin/windows/amd64/kubectl.exe"
 
 [[tools.node]]
 version = "24.11.0"
@@ -197,10 +241,6 @@ url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-x64.tar.gz"
 [tools.node."platforms.windows-x64"]
 checksum = "sha256:1054540bce22b54ec7e50ebc078ec5d090700a77657607a58f6a64df21f49fdd"
 url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-win-x64.zip"
-
-[[tools."npm:appium"]]
-version = "3.0.1"
-backend = "npm:appium"
 
 [[tools."npm:prettier"]]
 version = "3.4.2"

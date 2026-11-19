@@ -118,7 +118,8 @@ The default backing file is 200 GB; an operator can choose a different size.
 Formatting disables discard and the persistent mount opts out of periodic
 [fstrim](https://www.man7.org/linux/man-pages/man8/fstrim.8.html), preserving the
 outer file reservation. Do not manually trim or hole-punch that backing file.
-It never reformats or resizes an existing image. A dedicated block device with
+It never reformats or resizes an existing image; growing one is an operator
+step ("Changing the cache size"). A dedicated block device with
 XFS is also supported with automatic provisioning disabled.
 
 Managed production sets `cacheVolumes.provisioning.enabled=true`. A privileged
@@ -126,8 +127,10 @@ init container runs this same script in the host mount namespace before the
 agent starts, covering both current and replacement hosts. It requires the XFS
 tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
-Retries retain existing contents and reject size mismatches, foreign mounts,
-symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
+Retries retain existing contents and reject foreign mounts, symlinks, and
+nonempty unprovisioned paths. An existing image of another size is kept as it
+is; a new `sizeGB` reaches only images created after it, until an operator
+grows the existing ones. Failure leaves the agent unready;
 the host cannot advertise volume readiness. Each reconcile also labels the Node
 `tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
 master and removes the labels of evicted ones. Disabling provisioning never deletes
@@ -135,6 +138,90 @@ the backing file or unmounts existing storage. Runner scheduling prefers ready
 hosts but does not require them; jobs on other hosts fall back to ordinary
 directories. If unprovisioned hosts have accumulated pod directories, drain those
 pods and remove only their confirmed-unused directories before retrying setup.
+
+### Changing the cache size
+
+The provisioning script never resizes an existing backing file, so a new
+`runnersFleetLinux.cacheVolumes.provisioning.sizeGB` reaches replacement hosts
+on its own and existing hosts only when an operator grows their image. Size it
+against `/data`, which the cache shares with containerd and kubelet: kubelet
+evicts Pods once `imagefs.available` drops below 15%, so the image plus the
+host's peak use outside it (`node_filesystem_size_bytes - node_filesystem_avail_bytes`
+on `/data`, less the current image) must leave that margin.
+
+#### Growing an existing image
+
+XFS grows while mounted, so a host keeps its masters, checkouts and Docker
+caches, and needs no cordon or drain. The agent reads capacity and free space
+with `statfs` on every admission, so it uses the new room at once, and the init
+container keeps the grown file on its next start because it then matches
+`sizeGB`. Writes to canary or production need elevation (infra/AGENTS.md).
+
+Save this as `grow-cache.sh`, with `new` set to the new `sizeGB` in bytes. It
+takes the provisioning script's lock, checks that the mount is this backing
+file, and refuses a grow that would leave less than `keep` free on `/data`
+(the host's peak use outside the cache plus kubelet's 15% margin; 200 GB on the
+889 GB production hosts):
+
+```bash
+set -euo pipefail
+img=/var/lib/kubelet/tuist-runner-cache.img mnt=/var/lib/kubelet/tuist-runner-cache
+new=350000000000 keep=200000000000
+exec 9>"$img.lock"; flock -x 9
+dev=$(losetup --noheadings --output NAME -j "$img")
+[[ -n $dev && $(findmnt -n -o SOURCE --mountpoint "$mnt") == "$dev" ]] || { echo "skip: mount does not match $img"; exit 1; }
+grow=$(( new - $(stat -c %s "$img") ))
+avail=$(df -B1 --output=avail "$(dirname "$img")" | tail -1 | tr -d ' ')
+(( grow > 0 && avail - grow >= keep )) || { echo "skip: grow=$grow avail=$avail"; exit 1; }
+fallocate -l "$new" "$img"   # preallocate the added bytes on /data
+losetup -c "$dev"            # the loop device picks up the new length
+xfs_growfs "$mnt" | tail -1  # grow XFS online
+df -B1G --output=size,avail "$mnt" | tail -1
+df -B1G --output=size,avail "$(dirname "$img")" | tail -1
+```
+
+Run it on one host, check it, then do the rest one at a time:
+
+```bash
+kubectl -n tuist-runners debug node/<node> --image=ubuntu --profile=sysadmin -i -q -- \
+  nsenter -t 1 -m -- bash -s < grow-cache.sh
+kubectl -n tuist-runners logs <node-debugger pod>
+kubectl -n tuist-runners delete pod <node-debugger pod>
+```
+
+The attached session can end before it prints anything, so read the result from
+the debugger Pod's log: `data blocks changed from … to …` followed by the cache's
+and `/data`'s size and free GiB. The debugger Pod stays behind; delete it. A
+rerun on a grown host prints `skip` and changes nothing. Afterwards the agent's
+log should show attaches succeeding and prefetch restoring listed masters it
+had refused with `no_space`.
+
+#### Shrinking
+
+XFS cannot shrink, so a smaller size means rebuilding the image, which discards
+the host's masters, checkouts and Docker caches; jobs there start cold until
+prefetch and jobs refill it. Do one host at a time.
+
+1. `kubectl cordon <node>` and wait until no runner Pod is left on it.
+2. Wait until the host's agent has published every job: its log shows no
+   `publish`, `upload` or `delete` operation for ten minutes, and
+   `kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- ls /host/var/lib/kubelet/tuist-runner-cache/state`
+   lists no journals.
+3. Move the agent off with a taint it does not tolerate:
+   `kubectl taint node <node> tuist.dev/cache-rebuild=true:NoExecute`, and
+   wait for its `runner-cache-volumes` Pod to go.
+4. In a sysadmin debug shell (`kubectl debug node/<node> --image=ubuntu --profile=sysadmin -it -- chroot /host bash`):
+   `systemctl stop "$(systemd-escape --path --suffix=mount /var/lib/kubelet/tuist-runner-cache)"`,
+   confirm `findmnt /var/lib/kubelet/tuist-runner-cache` and
+   `losetup -j /var/lib/kubelet/tuist-runner-cache.img` print nothing and the
+   directory is empty, then `rm /var/lib/kubelet/tuist-runner-cache.img`.
+5. `kubectl taint node <node> tuist.dev/cache-rebuild-`. The agent's init
+   container provisions the new size (it needs that size plus 40 GB free on
+   `/data`), and the agent becomes ready.
+6. Check the new size with
+   `kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- df -B1G /host/var/lib/kubelet/tuist-runner-cache`
+   (the agents' capacity metric does not keep a node label), then
+   `kubectl uncordon <node>`.
 
 ## Trust, publication and recovery
 
@@ -166,7 +253,11 @@ machinery are the same; moving the Linux writer fence or slot-release boundary
 requires validation against Kata, rather than trusting a job's completion signal.
 
 The privileged agent alone receives the host containerd socket and uses CRI list
-operations for that writer fence. Runtime errors fail closed. Waiting for the
+operations for that writer fence. Runtime errors fail closed. containerd replaces
+its socket when it restarts and the file mount keeps the deleted one, so a
+liveness probe restarts the agent once the mounted socket has no links.
+Mounting `/run/containerd` instead would copy every container's mounts into
+the agent and pin runner cache volumes. Waiting for the
 whole kubelet directory before unmounting deadlocks: propagated child mounts
 keep kubelet's SubPath mounts busy. After the runtime fence, unmounting releases
 those children so kubelet can complete cleanup. Directory removal still waits
@@ -195,7 +286,9 @@ superseded, cleared, or idle for seven days. A superseded replica used in the
 last 24 hours is first refreshed to the new HEAD in the background (see below).
 Physical free-space watermarks drive admission and LRU eviction because reflinks
 share blocks; summed logical sizes cannot measure host disk consumption.
-Defaults are eight allocations per pod, 100 active branches per host, 20 GB
+An attach needs the free-space reserve plus what its copy is expected to
+allocate beyond the default capacity: its expected size less the blocks its
+local master already allocates. Defaults are eight allocations per pod, 100 active branches per host, 20 GB
 logical volume capacity, and a 40 GB free-space reserve.
 
 A cold machine can restore accepted images from the existing object storage.
@@ -209,8 +302,10 @@ object cleanup through the existing URL-TTL grace. Running branches cannot
 resurrect it. Account deletion uses the existing master-prefix cleanup.
 
 Allocation applies the same clear when the saved head's last measurement uses
-80% or more of its capacity and a use cloned from that head measured at 99% or
-more of its own. A large cold fill alone never clears, so keys that are merely
+80% or more of its capacity and a use cloned from that head, or from the head's
+own parent, measured at 99% or more of its own. The parent counts because
+concurrent jobs start from one snapshot: a sibling that saved replaces the head
+the others filled, and each such save would otherwise restart the wait. A large cold fill alone never clears, so keys that are merely
 big keep chaining warm. The new use starts cold and begins a fresh lineage;
 running clones of the old lineage cannot publish. Unknown measurements never
 trigger it. Without this, a nearly full head fails every job that mounts it and
@@ -409,8 +504,22 @@ host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This warms hosts after an observed miss and does not replicate every volume to
-every host. Dispatch separately prefers handing a polling host a queued job whose
+This warms hosts after an observed miss. Separately, every 10 minutes the agent
+asks the server which HEADs its node should hold (`GET
+/api/internal/runners/cache-volumes/masters?node_name=<node>`, with the same
+agent token): first volumes at least two workflow runs used this week and left
+idle for four hours, so an account's first jobs of the day start warm, then
+volumes used in the last day, for the repositories the server places on this
+node (a few nodes per repository; dispatch leaves its young jobs to them). The
+agent restores the ones it lacks one at a time, separately from the job
+prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
+only into free space above the reserve and a checkout volume's 60 GB capacity
+(a checkout evicts only idle masters for its room), never evicting, and as a speculative
+master that pressure eviction takes first until a job clones it.
+`tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
+heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
+go to the checkout populator as a `Spare` restore: free space only, never
+evicting, never replacing a job's request; they are not counted there. Dispatch separately prefers handing a polling host a queued job whose
 predicted custom volumes the host's Node labels advertise (see
 `Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
 the built-in volume. Both that preference and the macOS Pod placement preference
@@ -480,8 +589,44 @@ populator as on macOS
 Everything a job writes under its workspace lands in its clone, on the cache
 filesystem rather than the pod's work volume. A clone is therefore admitted only
 while free space covers the whole checkout image (60 GB), as the reserve covers
-one custom volume. It never evicts anything for that room: without it the job
-checks out as usual.
+one custom volume. Attach eviction keeps only the reserve free, so a clone evicts
+idle custom masters for the rest of its room, but never one a job holds or is
+attaching, and never other checkout masters: without the room the job checks
+out as usual.
+
+### Sandbox sessions
+
+Claude Code sessions in sandboxd's Firecracker guests on the same nodes start
+from the same masters and feed them back, under the CI rules. The server grants
+a checkout in `start_worker` with the fields of a CI allocation (a default-branch
+job that may not start a master, so only an export of the granted `commit`
+moves one); sandboxd relays it, and only it, to the agent (see
+[sandboxd](../sandboxd/AGENTS.md), "Guest to host: checkout"). Guests never
+reach the agent: sandboxd drops their traffic to port 8090, since they share its
+Pod's address and NetworkPolicy identity.
+
+- The caller must be the live, non-terminating sandboxd Pod (label
+  `tuist.dev/sandboxd: "true"`) it names in `--sandboxes-namespace`, on this
+  node, at the caller's address. sandboxd is not on the host network. The chart
+  sets the flag, a `get pods` Role there and both NetworkPolicy rules when
+  sandboxes are enabled; without the flag both endpoints answer 403.
+- `POST /sandbox-checkout/seed` with `{"pod_name": ..., "grant": {...}}` tracks
+  the volume and, with a master for its clear generation, clones it under the
+  scope lock into `checkouts/.sandbox-seeds/<use>/`, attaches the clone
+  read-only and answers 200 with a tar of its `checkout/` tree (directories,
+  regular files and symlinks with their permission bits, no owners; links are
+  never followed). The clone is detached and deleted afterwards. A stream that
+  fails midway is cut without its end-of-archive blocks. Without a master it
+  answers 404 `{"error":"cold"}` and restores the HEAD in the background when
+  there is one. Either way the use ends at once (`report` with state `deleted`,
+  `warm` when it seeded): the session holds a copy, not a branch. Four seeds
+  run at a time (`busy` past them); a stream gets 10 minutes. Clones left by a
+  restarted agent are abandoned at start.
+- `POST /sandbox-checkout/export` takes the same request line, then the export
+  tar in the CI format, into `checkouts/.incoming/sandbox-<use>` with the CI
+  export's intake slots, admission and 5-minute bound, and queues the build. It
+  answers 202 `{"ok":true}` once queued, 507 without room, 400 for an invalid
+  export, 409 while the same use's export is still being received.
 
 ## Docker cache volumes
 
@@ -509,11 +654,94 @@ The agent:
   superblock with no journal to recover and no errors, and withholds an unchanged
   data root or one above 30 GB.
 - answers `POST /docker-merge` from the live runner pod after its job: when the
-  lineage's HEAD moved past the job's base it offers that HEAD's clone as
+  lineage's HEAD is newer than the copy actually mounted (including an older
+  local clone of the head assigned at allocation), it offers that HEAD's clone as
   `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
   at a time), so the guest merges the job's images with it before publishing;
-  otherwise it answers no merge.
+  otherwise it answers no merge. The guest merges three ways against the data
+  root the job mounted: each side's additions and changes are kept, an image or
+  builder one side removed is not brought back from the other, and a builder one
+  side removed is also removed from the merged root unless the other side changed
+  it. Merging does not copy a builder both sides hold in the same state. While another job of the lineage on this host
+  has finished with a changed, clean data root that is not yet published, it
+  first waits up to two minutes for that publication, since HEAD moves only once
+  the upload completes. Jobs on other hosts, or ones still tearing down, can
+  still supersede it.
+
+An older local clone cannot publish without merging its assigned head: comparing
+only the allocation's base would allow a successful CAS to erase content absent
+from that clone. The host checks its durable mounted-generation marker before
+publication. Background prefetch uses one worker and a 64-lineage FIFO, keeping
+the newest queued generation per scope. Downloads still do not delay attach;
+an immediate job on another host may use an older copy until refresh completes.
+
+Guest teardown enforces a 26 decimal GB aggregate filesystem-use target before
+publication and again after merging. It evicts least-recently-used registry
+images and whole opted-in BuildKit volumes, preserving database consistency;
+embedded build cache remains subject to Docker's 10 GB GC target. Builder use
+timestamps live in `tuist/builders.json` inside the image and travel with copied
+builder state. Missing history is treated as oldest. A single oversized builder
+can be evicted in full. These are disposable caches, not durable job output.
+
+After stopping dockerd, the guest calls `syncfs` and the Linux `FITRIM` ioctl
+before unmounting so deleted ext4 blocks release the sparse image's backing
+extents. It deliberately keeps BusyBox mount: installing `util-linux` replaced
+that utility and prevented loop-device setup in Kata, before jobs could start. Usage, eviction, GC or trim errors withhold the
+snapshot. The host still enforces the 30 GB allocated-byte limit, leaving 4 GB
+above the guest target for metadata/shutdown writes; it never mounts or parses
+the guest filesystem. Roll out the controller/agent and runner images together.
 
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
-server gates it per account with `:runner_docker_cache` on canary and
-production, and each runner profile can turn it off.
+server gates it per account with `:runner_docker_cache` in production. Non-production
+environments enable the server rollout policy by default. Each runner profile
+can still turn it off.
+
+### Canary qualification before production enablement
+
+Managed production enables Docker caching on its Linux pools through the normal
+canary-gated deployment cascade. Canary enables cache volumes and Docker caching
+only for its default `2vcpu-8gb` pool, using a bounded 200 GB host store with the
+40 GB admission reserve. Runner-profile opt-outs still apply; the acceptance
+probe fails if authorization or a profile opt-out prevents mounting. Do not
+bypass that failure.
+
+The normal production cascade runs native and actual job-container Linux probes,
+then three separate jobs on that canary pool: cold (which also builds the changed
+source within the job), same-size write, and final reuse. Each job checks both the embedded Docker driver
+and a stable-key docker-container builder, sequentially in one snapshot to avoid
+their seed jobs overwriting each other's state. An experiment key is unique to
+the workflow run and attempt. The compile vertex must be cached for unchanged
+source; changed-source jobs must read the previous job's mutable-cache marker
+and produce the expected executable. The final job proves the last mutation
+survived teardown too. No assertion is retried or treated as inconclusive.
+
+The 120-second pause between jobs is a publication allowance, not proof that the
+host published. Successful reuse by the following job supplies that proof; a
+slow publication fails the gate rather than silently passing. Artifacts retain
+build logs, assertions and build durations. This single-host check does not
+establish immediate cross-host freshness, merge of BuildKit database records,
+or the production allocated-byte publication cap under realistic pressure.
+
+The cascade passes the intended runner-image digest before staging holds to the
+probe, which compares it with the Pod's declared image. Running on a held older
+image cannot qualify a candidate. Hotfix deployment still bypasses acceptance;
+use the normal cascade for enablement. After production deploys, verify actual
+new Pod images, DinD readiness/restarts, ordinary native/container jobs, cache
+attachment, host publication and subsequent reuse. Canary's single-host results
+do not replace production publication/allocation and cross-host observations.
+
+### Production off switches
+
+The server `runner_docker_cache` flag controls new allocations. Disabling it
+does not remove the DinD supervisor or undo a cache already attached to a job.
+For a supervisor/startup regression, set the affected Linux RunnerPools'
+`spec.dockerCache` to false through human-authorized production JIT access. The
+controller replaces idle Pods with ordinary DinD; running jobs finish on their
+existing configuration. This is a quick mitigation, not an instantaneous change
+to every Pod.
+
+Persist that rollback by setting
+`runnersFleetLinux.cacheVolumes.dockerCache.enabled: false` in the production
+overlay and deploying it; a live-only patch can be overwritten by a subsequent
+deployment. Verify new Pods have the flag off, DinD is Ready, and native and
+container jobs complete. Clearing saved volumes is not required for rollback.

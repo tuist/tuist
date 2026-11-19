@@ -28,6 +28,38 @@ defmodule Tuist.GitHub.App do
     end
   end
 
+  @doc """
+  Mints a fresh installation token limited to `repositories` (names
+  without the owner) and `permissions`, for handing to code Tuist does
+  not control. Unlike `get_installation_token/2` it is never cached or
+  shared.
+  """
+  def create_scoped_installation_token(
+        %{installation_id: installation_id} = installation,
+        repositories,
+        permissions,
+        opts \\ []
+      )
+      when is_binary(installation_id) and is_list(repositories) and is_map(permissions) do
+    api_url = Keyword.get(opts, :api_url, VCS.installation_api_url(installation))
+
+    case Keyword.get(opts, :credentials, VCS.github_app_credentials(installation)) do
+      nil ->
+        {:error, "GitHub App is not configured"}
+
+      creds ->
+        refresh_installation_token(
+          installation_id,
+          api_url,
+          creds,
+          Keyword.merge(opts,
+            expires_in: to_timeout(minute: 10),
+            body: %{repositories: repositories, permissions: permissions}
+          )
+        )
+    end
+  end
+
   def get_installation_token(installation, opts \\ [])
 
   def get_installation_token(%{installation_id: installation_id} = installation, opts) when is_binary(installation_id) do
@@ -142,6 +174,13 @@ defmodule Tuist.GitHub.App do
     jwt
   end
 
+  defp request_body(opts) do
+    case Keyword.get(opts, :body) do
+      nil -> []
+      body -> [json: body]
+    end
+  end
+
   defp refresh_installation_token(installation_id, api_url, creds, opts) do
     jwt = generate_app_jwt(creds, opts)
 
@@ -158,7 +197,7 @@ defmodule Tuist.GitHub.App do
         [
           url: pinned_url,
           headers: headers
-        ] ++ ssrf_opts ++ Retry.retry_options()
+        ] ++ request_body(opts) ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
         {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->

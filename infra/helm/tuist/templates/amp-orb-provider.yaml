@@ -1,0 +1,72 @@
+{{- if .Values.ampOrbProvider.enabled }}
+{{- if not .Values.sandboxes.enabled }}
+{{- fail "ampOrbProvider requires sandboxes.enabled" }}
+{{- end }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "amp-orb-provider") }}
+{{- $namespace := required "ampOrbProvider.namespace is required" .Values.ampOrbProvider.namespace }}
+{{- $_ := required "ampOrbProvider.url is required" .Values.ampOrbProvider.url }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    app.kubernetes.io/component: amp-orb-provider
+---
+# The server reconciles only this dedicated namespace. Provider identities
+# receive no Kubernetes API permissions and no default-audience token.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    app.kubernetes.io/component: amp-orb-provider
+rules:
+  - apiGroups: [""]
+    resources: [serviceaccounts, secrets]
+    verbs: [get, list, create, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, create, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    app.kubernetes.io/component: amp-orb-provider
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}-identity
+rules:
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-identity
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}-identity
+{{- end }}

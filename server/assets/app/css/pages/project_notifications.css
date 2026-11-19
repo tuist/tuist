@@ -56,6 +56,24 @@
     }
   }
 
+  & > [data-part="reports-card-section"] {
+    & > [data-part="content"] {
+      gap: var(--noora-spacing-9);
+    }
+
+    & [data-part="report-group"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="group-title"] {
+        margin: 0;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
   & > [data-part="alert-rules-card-section"] {
     padding: var(--noora-spacing-8) var(--noora-spacing-7);
 
@@ -77,8 +95,14 @@
   & [data-part="schedule-section"] {
     & > [data-part="content"] {
       & > [data-part="title"] {
+        margin: 0;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+      }
+
+      & > [data-part="schedule-summary"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
     }
   }
@@ -213,6 +237,48 @@
       flex-direction: column;
       gap: var(--noora-spacing-8);
       min-width: 420px;
+    }
+  }
+
+  & #report-bundle-filter-modal {
+    & > [data-part="positioner"] > [data-part="content"] {
+      width: min(500px, calc(100dvw - var(--noora-spacing-9)));
+      max-height: calc(100dvh - var(--noora-spacing-9));
+      overflow-y: auto;
+
+      & > [data-part="body"] {
+        min-width: 0;
+      }
+    }
+
+    & [data-part="schedule-form"] {
+      padding: var(--noora-spacing-4) var(--noora-spacing-0);
+    }
+
+    & [data-part="schedule-row"] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      align-items: start;
+
+      & [data-part="schedule-label"] {
+        padding-top: var(--noora-spacing-3);
+      }
+
+      & .noora-dropdown,
+      & .noora-dropdown-content {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+
+    @media (max-width: 600px) {
+      & [data-part="schedule-row"] {
+        grid-template-columns: minmax(0, 1fr);
+
+        & [data-part="schedule-label"] {
+          padding-top: 0;
+        }
+      }
     }
   }
 

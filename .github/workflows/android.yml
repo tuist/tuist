@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - android/**
+      - cli/Sources/TuistServer/OpenAPI/server.yml
       - .github/workflows/android.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - android/**
+      - cli/Sources/TuistServer/OpenAPI/server.yml
       - .github/workflows/android.yml
   merge_group:
 
@@ -32,13 +34,9 @@ defaults:
     working-directory: android
 
 jobs:
-  # All android jobs stay on GitHub-hosted runners: gradle needs the
-  # Android SDK (ANDROID_HOME), which the hosted image pre-installs but
-  # the in-house tuist-linux runner image does not. Moving them onto
-  # the fleet needs the SDK baked into that image first.
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     permissions:
       contents: read
@@ -60,7 +58,16 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - run: ./gradlew testDebugUnitTest
+      # settings.gradle.kts turns coverage on, so the unit tests report it to tuist/android.
+      - id: test
+        run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
+      # Tells the server the commit's coverage is all in once the run reported,
+      # failing tests included. A failed signal leaves the commit in progress
+      # without turning the run red.
+      - name: Signal that the commit's coverage is complete
+        if: success() || steps.test.outcome == 'failure'
+        continue-on-error: true
+        run: ./gradlew tuistCoverageComplete
 
   test-fork:
     name: Test Fork
@@ -76,11 +83,11 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew testDebugUnitTest
+      - run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     permissions:
       contents: read

@@ -168,7 +168,7 @@ defmodule TuistWeb.CSP do
         "camera=()",
         "display-capture=()",
         "encrypted-media=()",
-        "fullscreen=(self)",
+        ~s|fullscreen=(self "https://www.youtube-nocookie.com")|,
         "geolocation=()",
         "gyroscope=()",
         "magnetometer=()",

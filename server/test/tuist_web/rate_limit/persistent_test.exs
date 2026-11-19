@@ -3,10 +3,10 @@ defmodule TuistWeb.RateLimit.PersistentTest do
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.RateLimit.PersistentFixedWindow
+  alias Tuist.RateLimit.PersistentTokenBucket
+  alias Tuist.RateLimit.RedisPool
   alias TuistWeb.RateLimit
-  alias TuistWeb.RateLimit.PersistentFixedWindow
-  alias TuistWeb.RateLimit.PersistentTokenBucket
-  alias TuistWeb.RateLimit.RedisPool
 
   setup do
     owner = self()

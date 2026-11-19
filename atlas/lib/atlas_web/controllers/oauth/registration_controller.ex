@@ -5,6 +5,7 @@ defmodule AtlasWeb.Oauth.RegistrationController do
 
   import Ecto.Changeset, only: [traverse_errors: 2]
 
+  alias AtlasWeb.Oauth.RedirectURIs
   alias Boruta.Oauth.Client
   alias Boruta.Openid
   alias Boruta.Openid.DynamicRegistrationApplication
@@ -18,13 +19,38 @@ defmodule AtlasWeb.Oauth.RegistrationController do
     "response_types" => :response_types,
     "token_endpoint_auth_method" => :token_endpoint_auth_method,
     "jwks" => :jwks,
-    "jwks_uri" => :jwks_uri,
     "metadata" => :metadata
   }
 
-  def register(%Plug.Conn{} = conn, params) do
-    Openid.register_client(conn, normalize(params), __MODULE__)
+  # Boruta fetches `jwks_uri` with an unguarded HTTP GET while handling this
+  # anonymous request, so it is rejected before Boruta sees the params and left
+  # out of the key map above. Clients that sign assertions register `jwks` inline.
+  def register(%Plug.Conn{} = conn, %{"jwks_uri" => jwks_uri}) when not is_nil(jwks_uri) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{
+      error: "invalid_client_metadata",
+      error_description: "jwks_uri is not supported. Register the client's public keys inline with jwks."
+    })
   end
+
+  def register(%Plug.Conn{} = conn, params) do
+    if allowed_redirect_uris?(params["redirect_uris"]) do
+      Openid.register_client(conn, normalize(params), __MODULE__)
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{
+        error: "invalid_redirect_uri",
+        error_description: "redirect_uris must be loopback, native app, or supported MCP client callbacks."
+      })
+    end
+  end
+
+  # Registration is anonymous, so only redirects an outsider cannot receive codes
+  # at are accepted. See `AtlasWeb.Oauth.RedirectURIs`.
+  defp allowed_redirect_uris?([_ | _] = uris), do: Enum.all?(uris, &RedirectURIs.allowed?/1)
+  defp allowed_redirect_uris?(_uris), do: false
 
   @impl DynamicRegistrationApplication
   def client_registered(conn, %Client{} = client) do

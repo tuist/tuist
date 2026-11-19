@@ -1,26 +1,22 @@
 ---
 {
-  "title": "Logging",
+  "title": "ロギング",
   "titleTemplate": ":title · CLI · Contributors · Tuist",
-  "description": "Learn how to contribute to Tuist by reviewing code"
+  "description": "Tuist CLIにおけるロギングの仕組みと、コントリビューター向けのガイドライン。"
 }
 ---
-# ロギング {#logging}
+# ログ {#logging}
 
-CLIはロギングのための[swift-log](https://github.com/apple/swift-log)インターフェースを受け入れます。このパッケージはロギングの実装の詳細を抽象化し、CLI
-がロギングバックエンドに依存しないようにします。ロガーはタスクローカルを使用して依存関係注入され、[swift-log](https://github.com/apple/swift-log)を使用してどこにでもアクセスできます：
+CLIは、ログ出力のために[swift-log](https://github.com/apple/swift-log)インターフェースを採用しています。このパッケージはログ出力の実装詳細を抽象化し、CLIがログバックエンドに依存しないようにします。ロガーはタスクローカルを使用して依存性注入され、どこからでも次の方法でアクセスできます。
 
 ```bash
 Logger.current
 ```
 
 > [!NOTE]
-> タスク・ローカルは、`Dispatch`
-> やデタッチド・タスクを使用したときに値を伝搬しないので、それらを使用する場合は、値を取得して非同期操作に渡す必要がある。
+> `Dispatch`またはデタッチドタスクを使用する場合、タスクローカルは値を伝播しないため、それらを使用する際は値を取得して非同期操作に渡す必要があります。
 
 
-## 何を記録するか{#what-to-log}
+## 何をログに記録するか {#what-to-log}
 
-ログはCLIのUIではない。問題が発生したときに診断するためのツールです。したがって、提供する情報は多ければ多いほど良い。新しい機能を作るときは、予想外の動作に出くわした開発者の立場になって、彼らにとってどんな情報が役に立つかを考えてください。正しい
-[ログレベル](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)
-を使うようにしてください。そうしないと、開発者はノイズをフィルタリングできません。
+ログはCLIのユーザーインターフェースではありません。問題が発生した際に診断するためのツールです。したがって、提供する情報が多いほど良いでしょう。新機能を開発する際は、予期しない動作に遭遇した開発者の立場になり、どのような情報が役立つかを考えてください。適切な[ログレベル](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)を使用してください。そうしないと、開発者はノイズをフィルタリングできなくなります。

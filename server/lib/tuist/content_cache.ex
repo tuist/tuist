@@ -22,7 +22,11 @@ defmodule Tuist.ContentCache do
   end
 
   def get(name, key, loader) when is_atom(name) and is_function(loader, 0) do
-    if pid = Process.whereis(name) do
+    pid = Process.whereis(name)
+
+    # Only the compiling process waits for modules the parallel compiler has not
+    # finished yet, so compile-time callers load in place instead of in a worker.
+    if pid && not Code.can_await_module_compilation?() do
       pid
       |> GenServer.call({:get, key, loader}, :infinity)
       |> unwrap()

@@ -2,7 +2,8 @@ defmodule Tuist.OAuth.Clients do
   @moduledoc """
   Custom OAuth clients adapter for Boruta that supports both:
 
-  - a static environment-configured client used by Tuist, and
+  - a static environment-configured client used by Tuist,
+  - Luft's static client, whose ID is the same on every server, and
   - dynamically registered clients persisted by Boruta Ecto.
   """
 
@@ -15,6 +16,7 @@ defmodule Tuist.OAuth.Clients do
   alias Tuist.Environment
 
   @authorization_code_ttl 300
+  @luft_client_id "6653b77b-b787-4eb2-b955-8380ea5f1478"
   @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
 
   @impl Clients
@@ -30,6 +32,15 @@ defmodule Tuist.OAuth.Clients do
         end
     end
   end
+
+  @doc """
+  Luft's client ID. Luft is a first-party app, like the Tuist app: its
+  sessions act as the signed-in user (`TuistWeb.Authentication.app_user/1`), so
+  new app features need no new scopes and no new sign-in. It is a public native
+  client (PKCE, RFC 8252), so the ID is not a secret and is fixed in code, which
+  lets Luft sign in to any server running this version without configuration.
+  """
+  def luft_client_id, do: @luft_client_id
 
   @impl Clients
   def public! do
@@ -75,16 +86,14 @@ defmodule Tuist.OAuth.Clients do
   end
 
   @impl Boruta.Openid.Clients
-  def refresh_jwk_from_jwks_uri(client_id) do
-    case static_client(client_id) do
-      %Client{} -> {:error, "JWK refresh from JWKS URI not supported"}
-      nil -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
-    end
-  end
+  # Boruta refreshes a key by fetching the client's `jwks_uri` with an
+  # unguarded HTTP GET whenever a client assertion fails to verify, so a stored
+  # URI would let anyone holding a client ID make the server request it.
+  def refresh_jwk_from_jwks_uri(_client_id), do: {:error, "JWK refresh from JWKS URI not supported"}
 
   defp static_client(client_id) when is_binary(client_id) do
     Enum.find(
-      [kura_introspection_client(), tuist_oauth_client()],
+      [kura_introspection_client(), tuist_oauth_client(), luft_client()],
       &match?(%Client{id: ^client_id}, &1)
     )
   end
@@ -100,7 +109,7 @@ defmodule Tuist.OAuth.Clients do
         [URI.to_string(%{uri | host: "10.0.2.2"})]
 
       Environment.dev?() ->
-        http_config = Application.get_env(:tuist, TuistWeb.Endpoint)[:http] || []
+        http_config = Application.get_env(:tuist, Tuist.Web.endpoint())[:http] || []
         port = Keyword.get(http_config, :port, 8080)
         ["http://10.0.2.2:#{port}/oauth/callback/android"]
 
@@ -141,6 +150,29 @@ defmodule Tuist.OAuth.Clients do
       token_endpoint_jwt_auth_alg: "HS256",
       jwt_public_key: Environment.oauth_jwt_public_key(),
       private_key: Environment.oauth_private_key(),
+      enforce_dpop: false
+    }
+  end
+
+  defp luft_client do
+    %Client{
+      id: @luft_client_id,
+      name: "Luft",
+      access_token_ttl: 86_400,
+      authorization_code_ttl: @authorization_code_ttl,
+      refresh_token_ttl: 2_592_000,
+      # The mobile apps' scheme, and the desktop app's loopback callback on any port (RFC 8252 7.3).
+      redirect_uris: ["luft://oauth-callback", "http://127.0.0.1:*/callback"],
+      # Luft requests no scope; `TuistWeb.Oauth.AuthorizeController` refuses
+      # any, since Boruta would otherwise allow public scopes and `openid`,
+      # and this client has no keys to sign ID tokens with.
+      authorize_scope: false,
+      supported_grant_types: @supported_grant_types,
+      pkce: true,
+      public_refresh_token: true,
+      public_revoke: true,
+      confidential: false,
+      token_endpoint_auth_methods: ["none"],
       enforce_dpop: false
     }
   end

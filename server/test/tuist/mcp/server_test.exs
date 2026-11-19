@@ -47,7 +47,11 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_volume_jobs" in tool_names
       assert "list_runner_job_volumes" in tool_names
       assert "get_runner_volume_analytics" in tool_names
-      assert "clear_runner_volume" in tool_names
+      assert "delete_runner_volume" in tool_names
+      refute "clear_runner_volume" in tool_names
+      assert "list_sandboxes" in tool_names
+      assert "get_sandbox_analytics" in tool_names
+      assert "delete_sandbox" in tool_names
       assert "list_webhook_endpoints" in tool_names
       assert "get_webhook_endpoint" in tool_names
       assert "list_webhook_delivery_attempts" in tool_names
@@ -62,6 +66,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_bazel_build_step" in tool_names
       assert "list_xcode_build_steps" in tool_names
       assert "get_xcode_build_step" in tool_names
+      assert "get_build_trace" in tool_names
       assert "list_xcode_build_issues" in tool_names
       assert "list_xcode_build_cache_tasks" in tool_names
       assert "list_xcode_build_cas_outputs" in tool_names
@@ -88,6 +93,15 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_coverage" in tool_names
       assert "list_coverage_files" in tool_names
       assert "get_coverage_file" in tool_names
+      assert "query_pulse" in tool_names
+      assert "get_pulse_analytics" in tool_names
+
+      for name <-
+            ~w(get_pulse_error_issue query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace) do
+        assert name in tool_names
+      end
+
+      refute "get_pulse_error_event" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
       assert "get_bundle_artifact_tree" in tool_names
@@ -109,7 +123,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.42.0"
+      assert server.version == "1.75.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
@@ -132,12 +146,38 @@ defmodule Tuist.MCP.ServerTest do
       refute server.instructions =~ "Bazel"
     end
 
+    test "keeps AI subscription credentials and sign-ins off the connector" do
+      tool_names = Map.keys(Server.server().tools)
+
+      for name <-
+            ~w(list_ai_subscriptions connect_claude_subscription start_chatgpt_subscription_login poll_chatgpt_subscription_login cancel_chatgpt_subscription_login disconnect_ai_subscription) do
+        refute name in tool_names
+      end
+    end
+
     test "offers search_tuist only on the Tuist-hosted installation" do
       stub(Environment, :tuist_hosted?, fn -> true end)
       assert "search_tuist" in Map.keys(Server.server().tools)
 
       stub(Environment, :tuist_hosted?, fn -> false end)
       refute "search_tuist" in Map.keys(Server.server().tools)
+    end
+
+    test "offers report_feedback only on the hosted installation with an Atlas workload token" do
+      token_path = Briefly.create!()
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+      assert "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path <> ".missing" end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> nil end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
     end
 
     test "offers codebase tools only when the hosted codebase service is configured" do

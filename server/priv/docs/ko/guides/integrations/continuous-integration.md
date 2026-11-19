@@ -1,26 +1,52 @@
 ---
 {
-  "title": "Continuous Integration (CI)",
-  "titleTemplate": ":title · Automate · Guides · Tuist",
-  "description": "Learn how to use Tuist in your CI workflows."
+  "title": "지속적 통합(CI)",
+  "titleTemplate": ":title · 자동화 · 가이드 · Tuist",
+  "description": "CI 워크플로에서 Tuist를 사용하는 방법을 알아보세요."
 }
 ---
 # 지속적 통합(CI) {#continuous-integration-ci}
 
-지속적 통합](https://en.wikipedia.org/wiki/Continuous_integration) 워크플로에서 Tuist 명령을
-실행하려면 CI 환경에 설치해야 합니다.
+[지속적 통합](https://en.wikipedia.org/wiki/Continuous_integration) 워크플로에서 Tuist 명령을 실행하려면 CI 환경에 Tuist를 설치해야 합니다. 
 
-인증은 선택 사항이지만 <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>와
-같은 서버 측 기능을 사용하려는 경우 필수입니다.
+인증은 선택 사항이지만, <.localized_link href="/guides/features/cache">캐시</.localized_link>와 같은 서버 측 기능을 사용하려면 필요합니다. Tuist 설치 후 CI 실행 시간을 단축하고 비용을 절감하는 방법은 [느린 빌드](https://tuist.dev/solutions/slow-builds) 및 [CI 비용](https://tuist.dev/solutions/ci-costs)을 참조하세요.
 
-다음 섹션에서는 다양한 CI 플랫폼에서 이 작업을 수행하는 방법에 대한 예를 제공합니다.
+다음 섹션에서는 다양한 CI 플랫폼에서 이를 수행하는 방법을 예시로 제공합니다. Once는 자체 네이티브 Tuist 제공자를 통해 연결되며 Tuist CLI가 필요하지 않습니다. 해당 워크플로에 대해서는 [Once](#once)를 참조하세요.
 
-## 예제 {#example}
+## Once {#once}
 
-### GitHub 작업 {#github-actions}
+<.localized_link href="/guides/get-started/once-project">Once 시작하기</.localized_link>의 제공자 및 캐시 바인딩을 커밋하세요. [Once 설치 지침](https://buildonce.dev/docs/guide/getting-started)을 사용하여 작업에서 Once를 설치한 다음, 캐시 가능한 작업을 실행하기 전에 인증하세요.
 
-GitHub 작업](https://docs.github.com/en/actions)에서
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 인증</LocalizedLink>을 사용하여 안전하고 비밀 없는 인증을 할 수 있습니다:
+GitHub Actions, CircleCI 및 Bitrise는 Once의 헤드리스 OpenID Connect 로그인을 지원합니다. <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 인증</.localized_link>에 설명된 대로 리포지토리를 Tuist 프로젝트에 연결하세요. GitHub Actions에서는 identity-token 권한을 부여하세요:
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v2
+      # Pin Once in your repository's mise.toml.
+      - run: once auth login --provider tuist --no-browser
+      - run: once build MyTarget
+      - run: once test
+```
+
+타겟에 필요한 툴체인을 갖춘 OS를 선택하세요. `MyTarget`을 타겟으로 교체하고, 기존 도구 설치 워크플로를 통해 Once 버전을 고정하세요. 결과 세션은 작업 중 캐시 접근, 보고 및 아티팩트 게시에 재사용됩니다.
+
+다른 제공자의 경우, `TUIST_TOKEN`을 필요한 작업에 대해 승인된 <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>으로 설정하세요. CI 비밀 저장소에 보관하며, `once.toml`이나 워크플로 소스에는 절대 저장하지 마세요. 해당 토큰을 사용할 때는 상호작용 로그인 단계가 필요하지 않습니다.
+
+다중 작업자 스위트의 경우, <.localized_link href="/guides/features/test-sharding/once">Once 테스트 샤딩</.localized_link>을 따르세요. 애플리케이션을 게시하려면 명시적인 <.localized_link href="/guides/features/previews/once">Once 미리보기 게시</.localized_link> 단계를 추가하세요. 일반 빌드는 미리보기를 암시적으로 게시하지 않습니다.
+
+## 예시 {#examples}
+
+### GitHub Actions {#github-actions}
+
+[GitHub Actions](https://docs.github.com/en/actions)에서는 안전하고 비밀 키 없이 인증할 수 있는 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 인증</.localized_link>을 사용할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -43,7 +69,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - run: tuist auth login
       - run: tuist setup cache
 ```
 ```yaml [OIDC (Homebrew)]
@@ -66,10 +91,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install --formula tuist@x.y.z
-      - run: tuist auth login
       - run: tuist setup cache
 ```
-```yaml [Project token (Mise)]
+```yaml [Account token (Mise)]
 name: Build Application
 on:
   pull_request:
@@ -90,7 +114,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist setup cache
 ```
-```yaml [Project token (Homebrew)]
+```yaml [Account token (Homebrew)]
 name: Build Application
 on:
   pull_request:
@@ -115,24 +139,18 @@ jobs:
 :::
 
 > [!NOTE]
-> **Oidc Setup**
+> **OIDC 설정**
 >
-> OIDC 인증을 사용하기 전에
-> <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소</LocalizedLink>를 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `권한: id-token: write` 권한이
-> 필요합니다. 또는 `TUIST_TOKEN` 시크릿과 함께
-> <LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 사용할 수 있습니다.
+> OIDC 인증을 사용하기 전에, <.localized_link href="/guides/integrations/gitforge/github">GitHub 리포지토리 연결</.localized_link>을 통해 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `permissions: id-token: write`이 필요합니다. Tuist 4.218.0부터 CLI는 첫 번째 요청 시 ID 토큰을 교환하므로 워크플로에 `tuist auth login` 단계가 필요하지 않습니다. 이전 버전에서는 다른 Tuist 명령 전에 `tuist auth login`를 실행하세요. 또는 `TUIST_TOKEN` 비밀과 함께 <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>을 사용할 수 있습니다.
 
 
 > [!TIP]
-> 여러 환경에 걸쳐 Tuist 버전을 고정하려면 Tuist 프로젝트에서 `mise use --pin` 을 사용하는 것이 좋습니다. 이 명령은
-> Tuist의 버전이 포함된 `.tool-versions` 파일을 생성합니다.
+> 환경 간 Tuist 버전을 고정하기 위해 Tuist 프로젝트에서 `mise use --pin`을 사용하는 것을 권장합니다. 이 명령은 `mise.toml` 파일에 Tuist 버전을 고정합니다.
 
 
-### Xcode 클라우드 {#xcode-cloud}
+### Xcode Cloud {#xcode-cloud}
 
-Xcode 프로젝트를 소스로 사용하는 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)에서
-[post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-스크립트를 추가하여 Tuist를 설치하고 필요한 명령(예: `tuist generate`)을 실행해야 합니다:
+Xcode 프로젝트를 신뢰할 수 있는 소스로 사용하는 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)에서는 Tuist를 설치하고 필요한 명령(예: `tuist generate`)을 실행하기 위해 [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) 스크립트를 추가해야 합니다:
 
 ::: code-group
 
@@ -143,9 +161,9 @@ Xcode 프로젝트를 소스로 사용하는 [Xcode Cloud](https://developer.app
 curl https://mise.run | sh # Install Mise
 export PATH="$HOME/.local/bin:$PATH"
 
-mise install # Installs the version from .mise.toml
+mise install # Installs the version from mise.toml
 
-# Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
+# Runs the version of Tuist indicated in the mise.toml file
 mise exec -- tuist install --path ../ # `--path` needed as this is run from within the `ci_scripts` directory
 mise exec -- tuist generate -p ../ --no-open # `-p` needed as this is run from within the `ci_scripts` directory
 ```
@@ -159,16 +177,14 @@ tuist generate
 :::
 
 > [!NOTE]
-> **Authentication**
+> **인증**
 >
-> <LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를
-> 설정합니다.
+> Xcode Cloud 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를 설정하여 <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>을 사용하세요.
 
 
 ### CircleCI {#circleci}
 
-CircleCI](https://circleci.com)에서는
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+[CircleCI](https://circleci.com)에서는 안전하고 비밀 키 없이 인증할 수 있는 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 인증</.localized_link>을 사용할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -188,13 +204,10 @@ jobs:
           name: Install Tuist
           command: mise install
       - run:
-          name: Authenticate
-          command: mise exec -- tuist auth login
-      - run:
           name: Build
           command: mise exec -- tuist setup cache
 ```
-```yaml [Project token (Mise)]
+```yaml [Account token (Mise)]
 version: 2.1
 jobs:
   build:
@@ -220,18 +233,14 @@ jobs:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **인증**
 >
-> OIDC 인증을 사용하기 전에
-> <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist 프로젝트에 연결</LocalizedLink>해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-> Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-> <LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+> OIDC 인증을 사용하기 전에, <.localized_link href="/guides/integrations/gitforge/github">GitHub 리포지토리 연결</.localized_link>을 통해 Tuist 프로젝트에 연결해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 리포지토리가 포함되며, Tuist는 이를 사용하여 프로젝트 액세스를 승인합니다. Tuist 4.218.0부터 CLI는 첫 번째 요청 시 ID 토큰을 교환하므로 `tuist auth login` 단계가 필요하지 않습니다. 이전 버전에서는 다른 Tuist 명령 전에 `mise exec -- tuist auth login`를 실행하세요. 또는 `TUIST_TOKEN` 환경 변수와 함께 <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>을 사용할 수 있습니다.
 
 
 ### Bitrise {#bitrise}
 
-Bitrise](https://bitrise.io)에서는
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+[Bitrise](https://bitrise.io)에서는 안전하고 비밀 키 없이 인증할 수 있는 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 인증</.localized_link>을 사용할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -253,15 +262,11 @@ workflows:
           inputs:
           - audience: tuist
       - script@1:
-          title: Authenticate
-          inputs:
-            - content: mise exec -- tuist auth login
-      - script@1:
           title: Build
           inputs:
             - content: mise exec -- tuist setup cache
 ```
-```yaml [Project token (Mise)]
+```yaml [Account token (Mise)]
 workflows:
   build:
     steps:
@@ -285,17 +290,14 @@ workflows:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **인증**
 >
-> OIDC 인증을 사용하기 전에
-> <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist 프로젝트에 연결</LocalizedLink>해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-> Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
-> <LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+> OIDC 인증을 사용하기 전에, <.localized_link href="/guides/integrations/gitforge/github">GitHub 리포지토리 연결</.localized_link>을 통해 Tuist 프로젝트에 연결해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 리포지토리가 포함되며, Tuist는 이를 사용하여 프로젝트 액세스를 승인합니다. Tuist 4.218.0부터 CLI는 첫 번째 요청 시 ID 토큰을 교환하므로 `tuist auth login` 단계가 필요하지 않습니다. 이전 버전에서는 다른 Tuist 명령 전에 `mise exec -- tuist auth login`를 실행하세요. 또는 `TUIST_TOKEN` 환경 변수와 함께 <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>을 사용할 수 있습니다.
 
 
-### 코드매직 {#codemagic}
+### Codemagic {#codemagic}
 
-코드매직](https://codemagic.io)에서 워크플로에 추가 단계를 추가하여 Tuist를 설치할 수 있습니다:
+[Codemagic](https://codemagic.io)에서는 Tuist를 설치하기 위해 워크플로에 추가 단계를 추가할 수 있습니다:
 
 ::: code-group
 ```yaml [Mise]
@@ -311,7 +313,7 @@ workflows:
       - name: Install Mise
         script: |
           curl https://mise.jdx.dev/install.sh | sh
-          mise install # Installs the version from .mise.toml
+          mise install # Installs the version from mise.toml
       - name: Build
         script: mise exec -- tuist setup cache
 ```
@@ -335,7 +337,107 @@ workflows:
 :::
 
 > [!NOTE]
-> **Authentication**
+> **인증**
 >
-> <LocalizedLink href="/guides/server/authentication#project-tokens">프로젝트 토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
+> <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>을 생성하고 `TUIST_TOKEN`이라는 이름의 비밀 환경 변수로 추가하세요.
 
+### Appcircle {#appcircle}
+
+[Appcircle](https://appcircle.io)에서는 기본 제공되는 [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) 및 [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) 워크플로 단계를 사용하거나, **Git Clone** 단계 후에 **Custom Script** 단계를 추가하여 직접 Tuist를 설치할 수 있습니다:
+
+::: code-group
+```bash [Mise]
+cd $AC_REPOSITORY_DIR
+curl https://mise.jdx.dev/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+mise install
+mise exec -- tuist setup cache
+```
+```bash [Homebrew]
+cd $AC_REPOSITORY_DIR
+brew install --formula tuist@x.y.z
+tuist setup cache
+```
+<!-- -->
+:::
+
+> [!NOTE]
+> **워크플로 단계**
+>
+> Tuist Install 단계는 Homebrew로 Tuist를 설치하고 `tuist generate`를 실행합니다. 버전을 고정하려면 **Tuist Version** 입력을 설정한 후, `tuist test` 또는 `tuist build`와 같은 명령을 실행하기 위해 Tuist Commands 단계를 추가하세요.
+
+> [!NOTE]
+> **인증**
+>
+> <.localized_link href="/guides/server/authentication#account-tokens">계정 토큰</.localized_link>을 생성하고, 이를 [환경 변수 그룹](https://docs.appcircle.io/build/build-environment-variables)에 `TUIST_TOKEN`이라는 이름의 변수로 추가한 후, 빌드 구성에서 해당 그룹을 선택하세요. 잠금 아이콘을 사용하여 변수를 비밀로 표시하세요.
+
+## xcodebuild 출력 형식 지정 {#xcodebuild-output-formatting}
+
+`tuist build`, `tuist test`, `tuist xcodebuild build` 및 `tuist xcodebuild test`는 [xcbeautify](https://github.com/cpisciotta/xcbeautify)의 포맷터를 사용하여 `xcodebuild`의 출력을 형식화하므로, 이러한 명령을 직접 xcbeautify로 파이프할 필요가 없습니다. GitHub Actions에서는 `GITHUB_ACTIONS` 환경 변수를 통해 감지되며, Tuist는 xcbeautify의 GitHub Actions 렌더러를 사용하여 컴파일러 경고, 오류 및 테스트 실패를 실행 요약 및 풀 요청의 주석으로 표시합니다. 다른 모든 곳에서는 터미널 렌더러를 사용하며, 출력이 파이프되거나 `NO_COLOR`가 설정되지 않은 경우 색상이 적용됩니다.
+
+명확한 오류 없이 빌드가 실패하는 경우와 같이 `xcodebuild`의 형식화되지 않은 출력을 인쇄하려면 `--verbose`를 전달하세요.
+
+작업이 Tuist를 거치지 않고 직접 `xcodebuild`를 호출하는 경우, 직접 xcbeautify로 파이프하고 `pipefail`를 설정하여 빌드가 실패해도 단계가 실패하도록 하세요:
+
+```bash
+set -o pipefail
+xcodebuild test -scheme App | xcbeautify --renderer github-actions
+```
+
+## 실행 보고서 {#run-report}
+
+Tuist가 실행을 업로드하면 대시보드 URL이 로그에 출력됩니다. 로그를 스크래핑하지 않고 이를 얻으려면(예: 작업 실패 시 테스트 보고서 링크를 Slack에 게시하거나 자체 도구에 실행 데이터를 제공하기 위해) `tuist test`, `tuist xcodebuild test` 또는 `tuist xcodebuild build`에 `--run-report-path`를 전달하거나(또는 `TUIST_RUN_REPORT_PATH`를 설정하세요). Tuist는 실행이 업로드되면 해당 경로에 JSON 보고서를 작성합니다:
+
+```json
+{
+  "runId": "0193f8c1-...",
+  "status": "success",
+  "runURL": "https://tuist.dev/acme/app/runs/0193f8c1-...",
+  "testRunURL": "https://tuist.dev/acme/app/tests/test-runs/...",
+  "buildRunURL": "https://tuist.dev/acme/app/builds/build-runs/...",
+  "testRuns": [
+    {
+      "scheme": "App",
+      "succeeded": true,
+      "totalTests": 42,
+      "skippedTests": 0,
+      "ranTests": 42,
+      "failedTestNames": [],
+      "ranTestModules": 3,
+      "skippedTestModules": 5
+    }
+  ],
+  "buildRuns": [
+    { "scheme": "App", "succeeded": true, "durationInSeconds": 12.3 }
+  ]
+}
+```
+
+| 필드 | 유형 | 설명 |
+| - | - | - |
+| `runId` | 문자열 | 실행의 고유 식별자입니다. |
+| `status` | 문자열 | `"success"` 또는 `"failure"`. |
+| `runURL` | 문자열 | 실행에 대한 대시보드 URL입니다. 항상 존재합니다. |
+| `testRunURL` | 문자열? | 테스트 실행에 대한 대시보드 URL로, 명령이 테스트를 실행했을 때 존재합니다. |
+| `buildRunURL` | 문자열? | 빌드 실행에 대한 대시보드 URL로, 명령이 빌드를 수행했을 때 존재합니다. |
+| `testRuns` | 배열 | 스키마별 테스트 결과: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` 및 `skippedTestModules`. 테스트 횟수는 테스트 케이스 수이며, `skippedTests`는 결과 번들이 건너뜀으로 보고한 항목의 수를 나타냅니다. `skippedTestModules`는 <.localized_link href="/guides/features/selective-testing">선택적 테스팅</.localized_link>이 건너뛴 테스트 모듈의 수를 나타내며, 선택적 테스팅이 적용되지 않았거나 실행이 테스트 샤드인 경우 생략됩니다. |
+| `buildRuns` | 배열 | 스키마별 빌드 결과: `scheme`, `succeeded`, `durationInSeconds`. |
+
+`testRunURL`와 `buildRunURL`는 독립적입니다: 빌드와 테스트를 모두 수행하는 명령은 둘 다 기록하지만, 로그는 각 실행당 하나의 URL만 출력할 수 있습니다.
+
+> [!NOTE]
+> **보고서 작성 시기**
+>
+> 보고서는 서버에 업로드된 실행에만 작성되며, 이는 인증이 필요하고 CI에서 자동으로 발생합니다. 경로는 모든 실행 시작 시 지워지므로, 보고서를 생성하지 않는 실행은 이전 실행의 오래된 보고서 대신 아무 것도 남기지 않습니다.
+
+GitLab CI에서는 [`dotenv` 보고서](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv)를 통해 이후 작업에 URL을 노출하는 것이 일반적인 용도입니다:
+
+```yaml
+test:
+  script:
+    - tuist test --run-report-path tuist-run.json
+    - echo "TUIST_TEST_RUN_URL=$(jq -r '.testRunURL // empty' tuist-run.json)" >> run.env
+  artifacts:
+    reports:
+      dotenv: run.env
+```

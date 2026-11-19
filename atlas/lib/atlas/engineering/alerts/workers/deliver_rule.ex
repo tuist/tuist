@@ -47,13 +47,42 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
 
     with {:ok, rule} <- fetch_rule(rule_id),
          {:ok, issue} <- fetch_issue(subject_id),
-         :ok <- ensure_not_in_cooldown(rule, subject_id) do
-      deliver(rule, issue, reason, environment)
+         :ok <- ensure_not_in_cooldown(rule, subject_id),
+         {:ok, signal} <- current_signal(rule, issue, reason) do
+      environment = if rule.trigger == :event_spike, do: rule.environment, else: environment
+      deliver(rule, issue, reason, environment, signal)
     else
       {:skip, _reason} -> :ok
       {:cancel, reason} -> {:cancel, reason}
+      {:error, _} = error -> error
     end
   end
+
+  # A queued spike can have ended before a worker runs. Recheck committed
+  # events under the cooldown lock instead of paging from a stale job.
+  defp current_signal(%Rule{trigger: :event_spike} = rule, %Issue{status: :unresolved} = issue, :event_spike) do
+    at = DateTime.utc_now()
+
+    case Alerts.spike_matches(rule, at, issue_id: issue.id) do
+      {:ok, [%{event_count: count}]} ->
+        {:ok,
+         %{
+           "event_count" => count,
+           "window_minutes" => rule.threshold_window_minutes,
+           "evaluated_at" => DateTime.to_iso8601(at)
+         }}
+
+      {:ok, []} ->
+        {:skip, :spike_ended}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp current_signal(%Rule{trigger: :event_spike}, _issue, _reason), do: {:skip, :stale_spike}
+  defp current_signal(%Rule{trigger: trigger}, _issue, trigger), do: {:ok, %{}}
+  defp current_signal(_rule, _issue, _reason), do: {:skip, :rule_changed}
 
   defp fetch_rule(rule_id) do
     case Alerts.get_rule(rule_id) do
@@ -87,8 +116,8 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
     end
   end
 
-  defp deliver(%Rule{} = rule, %Issue{} = issue, reason, environment) do
-    case send_to_destination(rule, issue, reason, environment) do
+  defp deliver(%Rule{} = rule, %Issue{} = issue, reason, environment, signal) do
+    case send_to_destination(rule, issue, reason, environment, signal) do
       :ok ->
         {:ok, _} =
           Alerts.record_notification(%{
@@ -96,7 +125,7 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
             subject_type: "error_issue",
             subject_id: issue.id,
             status: "sent",
-            metadata: metadata(rule, issue, reason)
+            metadata: metadata(rule, issue, reason) |> Map.put("environment", environment) |> Map.put("signal", signal)
           })
 
         :ok
@@ -108,7 +137,7 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
             subject_type: "error_issue",
             subject_id: issue.id,
             status: "failed",
-            metadata: metadata(rule, issue, reason),
+            metadata: metadata(rule, issue, reason) |> Map.put("environment", environment) |> Map.put("signal", signal),
             last_error: inspect(err)
           })
 
@@ -117,13 +146,13 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRule do
     end
   end
 
-  defp send_to_destination(%Rule{destination_type: :slack} = rule, %Issue{} = issue, reason, environment),
-    do: SlackDestination.deliver(rule, issue, reason, environment: environment)
+  defp send_to_destination(%Rule{destination_type: :slack} = rule, %Issue{} = issue, reason, environment, signal),
+    do: SlackDestination.deliver(rule, issue, reason, environment: environment, signal: signal)
 
-  defp send_to_destination(%Rule{destination_type: :webhook} = rule, %Issue{} = issue, reason, _environment),
-    do: WebhookDestination.deliver(rule, issue, reason)
+  defp send_to_destination(%Rule{destination_type: :webhook} = rule, %Issue{} = issue, reason, environment, signal),
+    do: WebhookDestination.deliver(rule, issue, reason, environment: environment, signal: signal)
 
-  defp send_to_destination(_rule, _issue, _reason, _environment), do: {:error, :unknown_destination}
+  defp send_to_destination(_rule, _issue, _reason, _environment, _signal), do: {:error, :unknown_destination}
 
   defp metadata(%Rule{} = rule, %Issue{} = issue, reason) do
     %{

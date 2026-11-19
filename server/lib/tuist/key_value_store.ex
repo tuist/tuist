@@ -108,6 +108,7 @@ defmodule Tuist.KeyValueStore do
   while the others suspend until the first caller completes.
   With `cache_errors: false`, callback results matching `{:error, reason}` are
   returned without storing them, including unlocked and persistent lookups.
+  With Cachex, callback exceptions retain their original type and stacktrace and are never cached.
 
   ## Opts
 
@@ -193,17 +194,21 @@ defmodule Tuist.KeyValueStore do
   # miss would stall every locked lookup on the node, including authentication on API requests.
   defp fetch_from_cachex(cache, cache_key, opts, func) do
     result =
-      Cachex.fetch(cache, cache_key, fn -> format_callback_value(func.(), opts) end)
+      try do
+        Cachex.fetch(cache, {__MODULE__, cache_key}, fn -> load_from_cachex(cache, cache_key, opts, func) end)
+      rescue
+        _error in ArgumentError -> :cache_unavailable
+      end
 
     case result do
-      {:commit, value} ->
+      {:ignore, {:ok, value}} ->
         value
 
-      {:ignore, {__MODULE__, :uncached, value}} ->
-        if cache_result?(value, opts), do: result, else: value
+      {:ignore, {:raise, exception, stacktrace}} ->
+        reraise exception, stacktrace
 
-      {:ignore, nil} ->
-        nil
+      :cache_unavailable ->
+        func.()
 
       {:error, %Cachex.Error{message: message}} ->
         {:error, message}
@@ -211,20 +216,25 @@ defmodule Tuist.KeyValueStore do
       value ->
         value
     end
-  rescue
-    _error in ArgumentError -> func.()
   end
 
-  # Cachex returns raw committed values to waiters. Tag uncached errors separately
-  # so literal `{:ignore, value}` cache values retain the same shape for all callers.
-  defp format_callback_value(nil, _opts), do: {:ignore, nil}
+  # The coordination key never stores values: every waiter receives the same envelope,
+  # without confusing literal cache values with exceptions or Cachex control tuples.
+  defp load_from_cachex(cache, cache_key, opts, func) do
+    value =
+      case read_from_cachex(cache, cache_key) do
+        nil ->
+          store_callback_value(func.(), opts, fn value ->
+            if !is_nil(value), do: Cachex.put(cache, cache_key, value, expire: cachex_cache_ttl(opts))
+          end)
 
-  defp format_callback_value(value, opts) do
-    if cache_result?(value, opts) do
-      {:commit, value, expire: cachex_cache_ttl(opts)}
-    else
-      {:ignore, {__MODULE__, :uncached, value}}
-    end
+        value ->
+          value
+      end
+
+    {:ignore, {:ok, value}}
+  rescue
+    exception -> {:ignore, {:raise, exception, __STACKTRACE__}}
   end
 
   defp update_redis(key, ttl, opts, func) do

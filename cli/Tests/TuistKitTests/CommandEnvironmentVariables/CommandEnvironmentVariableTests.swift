@@ -483,6 +483,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testDevice, value: "iPhone")
         setVariable(.testPlatform, value: "iOS")
         setVariable(.testOS, value: "14.5")
+        setVariable(.testDestination, value: "simulator")
         setVariable(.testRosetta, value: "true")
         setVariable(.testConfiguration, value: "Debug")
         setVariable(.testSkipUITests, value: "true")
@@ -513,6 +514,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.device == "iPhone")
         #expect(testCommandWithEnvVars.platform == "iOS")
         #expect(testCommandWithEnvVars.os == "14.5")
+        #expect(testCommandWithEnvVars.destination == .simulator)
         #expect(testCommandWithEnvVars.rosetta == true)
         #expect(testCommandWithEnvVars.configuration == "Debug")
         #expect(testCommandWithEnvVars.skipUITests == true)
@@ -546,6 +548,7 @@ struct CommandEnvironmentVariableTests {
             "--device", "iPad",
             "--platform", "macOS",
             "--os", "15.0",
+            "--destination", "device",
             "--no-rosetta",
             "--configuration", "Release",
             "--no-skip-ui-tests",
@@ -573,6 +576,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.device == "iPad")
         #expect(testCommandWithArgs.platform == "macOS")
         #expect(testCommandWithArgs.os == "15.0")
+        #expect(testCommandWithArgs.destination == .device)
         #expect(testCommandWithArgs.rosetta == false)
         #expect(testCommandWithArgs.configuration == "Release")
         #expect(testCommandWithArgs.skipUITests == false)
@@ -595,6 +599,14 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.shardIndex == 3)
         #expect(testCommandWithArgs.shardSkipUpload == false)
         #expect(testCommandWithArgs.shardArchivePath == "/new/shards/bundle.aar")
+    }
+
+    @Test(.withMockedEnvironment()) func destinationOptionOfTestCommandDefaultsToAll() throws {
+        #expect(try TestRunCommand.parse([]).destination == .all)
+        #expect(try TestRunCommand.parse(["--destination", "simulator"]).destination == .simulator)
+        #expect(throws: (any Error).self) {
+            try TestRunCommand.parse(["--destination", "platform=iOS Simulator,name=iPhone 17"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {

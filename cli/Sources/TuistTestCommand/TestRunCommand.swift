@@ -10,6 +10,7 @@
     import TuistKit
     import TuistLogging
     import TuistServer
+    import TuistSnapshotsCommand
     import TuistSupport
 
     enum TuistTestFlagError: FatalError, Equatable {
@@ -123,6 +124,13 @@
         )
         var os: String?
 
+        @Option(
+            name: .long,
+            help: "Destinations to use cached binaries for: all, simulator, or device. Native macOS targets remain supported. 'device' requires a device -destination after the terminator (--).",
+            envKey: .testDestination
+        )
+        var destination: CacheDestination = .all
+
         @Flag(
             name: .long,
             help:
@@ -161,6 +169,13 @@
         var resultBundlePath: String?
 
         @Option(
+            help: "Directory where each run's code coverage will be saved as LCOV (<result bundle name>.lcov), with repository-relative paths. Requires coverage uploads.",
+            completion: .directory,
+            envKey: .testCoverageOutputPath
+        )
+        var coverageOutputPath: String?
+
+        @Option(
             help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
             completion: .file(),
             envKey: .runReportPath
@@ -194,7 +209,7 @@
             name: .long,
             parsing: .upToNextOption,
             help:
-            "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
+            "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]] or tag:tagName[/TestClass[/TestMethod]] using target metadata tags. It is applied before --skip-test-targets.",
             envKey: .testTestTargets
         )
         var testTargets: [TestIdentifier] = []
@@ -203,7 +218,7 @@
             name: .long,
             parsing: .upToNextOption,
             help:
-            "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
+            "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]] or tag:tagName[/TestClass[/TestMethod]] using target metadata tags.",
             envKey: .testSkipTestTargets
         )
         var skipTestTargets: [TestIdentifier] = []
@@ -346,6 +361,20 @@
         )
         var stressNewTests: StressNewTestsMode?
 
+        @Flag(
+            inversion: .prefixedNo,
+            help: "Export the images your SwiftUI previews render with the tuist/snapshots library (TEST_RUNNER_SNAPSHOTS_EXPORT_DIR) and upload them to Tuist after the run, which compares them with their baseline and fails the run when they changed and nobody approved the changes. On by default in CI for projects connected to Tuist; a run that renders no images uploads nothing. Pass --snapshots to also upload from a local run, or --no-snapshots to turn it off.",
+            envKey: .testSnapshots
+        )
+        var snapshots: Bool?
+
+        @Option(
+            name: .long,
+            help: "The snapshot set the uploaded snapshot images belong to, such as 'ios-iphone': builds are compared within a set. Defaults to the scheme.",
+            envKey: .testSnapshotSet
+        )
+        var snapshotSet: String?
+
         @Option(
             name: .long,
             help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (no xcresult parsing, archiving, or upload — the Tests dashboard is not populated). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
@@ -363,6 +392,11 @@
         public func validate() throws {
             if withoutBuilding, buildOnly {
                 throw TestServiceError.actionInvalid
+            }
+            if snapshots == true, buildOnly {
+                throw ValidationError(
+                    "--snapshots uploads the images the tests render, so it can't be combined with --build-only."
+                )
             }
 
             try TestService.validateParameters(
@@ -414,6 +448,40 @@
                     .test
                 }
 
+            if let coverageOutputPath {
+                await RunMetadataStorage.current.update(
+                    coverageOutputPath: try await Environment.current.pathRelativeToWorkingDirectory(coverageOutputPath)
+                )
+            }
+
+            guard action != .build else {
+                try await runTests(path: absolutePath, action: action)
+                return
+            }
+            try await runTestsUploadingSnapshots(path: absolutePath, action: action)
+        }
+
+        private func runTestsUploadingSnapshots(path: AbsolutePath, action: XcodeBuildTestAction) async throws {
+            try await SnapshotsTestRunner().run(
+                enabled: snapshots ?? EnvKey.testSnapshots.envValue(),
+                set: snapshotSet ?? scheme ?? "default",
+                path: path,
+                skippedTests: {
+                    let tuistSkippedTests = await RunMetadataStorage.current.skippedTests
+                    return tuistSkippedTests || shardIndex != nil || !testTargets.isEmpty || !skipTestTargets.isEmpty
+                },
+                tests: { environment in
+                    try await XcodeBuildEnvironment.$additionalVariables.withValue(
+                        XcodeBuildEnvironment.additionalVariables.merging(environment) { _, new in new }
+                    ) {
+                        try await runTests(path: path, action: action)
+                    }
+                }
+            )
+        }
+
+        // swiftlint:disable:next function_body_length
+        private func runTests(path absolutePath: AbsolutePath, action: XcodeBuildTestAction) async throws {
             try await TestService(
                 generatorFactory: Extension.generatorFactory,
                 cacheStorageFactory: Extension.cacheStorageFactory
@@ -470,7 +538,8 @@
                     return nil
                 }(),
                 mode: inspectMode,
-                stressNewTests: stressNewTests
+                stressNewTests: stressNewTests,
+                cacheDestination: destination
             )
         }
     }

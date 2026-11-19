@@ -48,7 +48,7 @@ struct MenuBarLoginView: View {
         VStack(spacing: 0) {
             caption("Use the root address of your Tuist server")
 
-            TextField("https://example.com", text: $serverURL)
+            TextField(String("https://example.com"), text: $serverURL)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { selectSelfHostedServer() }
                 .padding(.horizontal, 12)
@@ -115,7 +115,7 @@ struct MenuBarLoginView: View {
             .frame(height: 1)
     }
 
-    private func caption(_ text: String) -> some View {
+    private func caption(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.caption)
             .foregroundColor(.secondary)
@@ -123,7 +123,7 @@ struct MenuBarLoginView: View {
             .padding(.bottom, 16)
     }
 
-    private func buttonLabel(_ title: String, icon: String?) -> some View {
+    private func buttonLabel(_ title: LocalizedStringKey, icon: String?) -> some View {
         HStack(spacing: 8) {
             if let icon {
                 Image(icon)
@@ -136,7 +136,7 @@ struct MenuBarLoginView: View {
     }
 
     private func primaryButton(
-        _ title: String,
+        _ title: LocalizedStringKey,
         icon: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
@@ -154,7 +154,7 @@ struct MenuBarLoginView: View {
     }
 
     private func secondaryButton(
-        _ title: String,
+        _ title: LocalizedStringKey,
         icon: String? = nil,
         action: @escaping () -> Void
     ) -> some View {

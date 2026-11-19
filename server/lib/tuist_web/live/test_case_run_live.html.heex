@@ -1,10 +1,11 @@
-<div id="test-case-run-detail">
+<div id="test-case-run-detail" phx-hook="PageFavicon" data-favicon-status={@test_case_run.status}>
   <.button
     :if={@test_run}
     label={
-      if @test_run.scheme in [nil, ""] and @selected_project.build_system not in [:mix, :bazel],
-        do: dgettext("dashboard_tests", "Test Run"),
-        else: test_run_label(@selected_project, @test_run.scheme)
+      if @test_run.scheme in [nil, ""] and
+           @selected_project.build_system not in [:mix, :bazel, :cargo],
+         do: dgettext("dashboard_tests", "Test Run"),
+         else: test_run_label(@selected_project, @test_run.scheme)
     }
     data-part="back-button"
     variant="secondary"
@@ -44,21 +45,21 @@
           label={dgettext("dashboard_tests", "Flaky")}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :if={@test_case_run.is_new}
           label={dgettext("dashboard_tests", "New")}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :if={@test_case_run.is_quarantined}
           label={dgettext("dashboard_tests", "Quarantined")}
           color="information"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
       <.link_button
@@ -82,14 +83,14 @@
           label={"#{module_label(@selected_project)}: #{@test_case_run.module_name}"}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :if={@test_case_run.suite_name != ""}
           label={"#{suite_label(@selected_project)}: #{@test_case_run.suite_name}"}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
     </div>
@@ -108,7 +109,28 @@
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@selection}
+      label={dgettext("dashboard_tests", "Selective Testing")}
+      selected={@selected_tab == "selective-testing"}
+      patch={"?#{Query.put(@uri.query, "tab", "selective-testing")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
+
+  <TestCaseRunTab.test_selection
+    :if={@selected_tab == "selective-testing"}
+    selection={@selection}
+    all_files={@selection_all_files}
+    files={@selection_files}
+    search={@selection_files_search}
+    page={@selection_files_page}
+    total_pages={@selection_files_total_pages}
+    uri={@uri}
+    project={@selected_project}
+    account={@selected_account}
+    test_run_id={@test_case_run.test_run_id}
+  />
 
   <div :if={@selected_tab == "overview"} data-part="overview">
     <.card
@@ -126,21 +148,21 @@
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@test_case_run.status == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@test_case_run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -208,7 +230,7 @@
                   }
                   color="information"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </span>
             </div>
@@ -347,20 +369,20 @@
                     size="small"
                   />
                 </div>
-                <.neutral_button
+                <.ghost_button
                   data-part="closed-collapsible-button"
                   variant="secondary"
                   size="small"
                 >
                   <.chevron_down />
-                </.neutral_button>
-                <.neutral_button
+                </.ghost_button>
+                <.ghost_button
                   data-part="open-collapsible-button"
                   variant="secondary"
                   size="small"
                 >
                   <.chevron_up />
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content">
                 <%= if Enum.any?(@test_case_run.arguments) do %>
@@ -378,7 +400,7 @@
                         size="small"
                       />
                       <span data-part="argument-name">{argument.name}</span>
-                      <.neutral_button
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-detail-closed-btn-#{argument.id}"}
                         variant="secondary"
@@ -390,8 +412,8 @@
                         }
                       >
                         <.chevron_down />
-                      </.neutral_button>
-                      <.neutral_button
+                      </.ghost_button>
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-detail-open-btn-#{argument.id}"}
                         variant="secondary"
@@ -404,7 +426,7 @@
                         }
                       >
                         <.chevron_up />
-                      </.neutral_button>
+                      </.ghost_button>
                     </div>
                     <div
                       id={"arg-detail-body-#{argument.id}"}
@@ -515,8 +537,9 @@
       <.card_section data-part="crash-report-card-section">
         <div data-part="crash-report-details">
           <div data-part="crash-report-header">
-            <.neutral_button
+            <.ghost_button
               :if={@test_case_run.crash_report.test_case_run_attachment.file_name}
+              variant="secondary"
               href={
                 ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@test_case_run.crash_report.test_case_run_attachment.file_name}"
               }
@@ -524,7 +547,7 @@
               size="medium"
             >
               <.download />
-            </.neutral_button>
+            </.ghost_button>
           </div>
           <div data-part="crash-report-metadata">
             <span
@@ -605,7 +628,7 @@
                 size="small"
               />
               <span data-part="argument-name">{argument.name}</span>
-              <.neutral_button
+              <.ghost_button
                 id={"att-arg-closed-btn-#{argument.id}"}
                 variant="secondary"
                 size="medium"
@@ -616,8 +639,8 @@
                 }
               >
                 <.chevron_down />
-              </.neutral_button>
-              <.neutral_button
+              </.ghost_button>
+              <.ghost_button
                 id={"att-arg-open-btn-#{argument.id}"}
                 variant="secondary"
                 size="medium"
@@ -629,7 +652,7 @@
                 }
               >
                 <.chevron_up />
-              </.neutral_button>
+              </.ghost_button>
             </div>
             <div id={"att-arg-body-#{argument.id}"} data-part="argument-body" style="display:none">
               <%= if has_repetition_attachments?(argument.attachments) do %>
@@ -800,10 +823,10 @@
                   <span data-part="label">{format_number(@flaky_run_group.failed_count)}</span>
                 </div>
               </div>
-              <.neutral_button data-part="trigger" variant="secondary" size="medium">
+              <.ghost_button data-part="trigger" variant="secondary" size="medium">
                 <span data-part="icon-closed"><.chevron_down /></span>
                 <span data-part="icon-open"><.chevron_up /></span>
-              </.neutral_button>
+              </.ghost_button>
             </div>
             <div data-part="content">
               <div
@@ -845,7 +868,7 @@
                         }
                         data-part="test-run-link"
                       >
-                        {run.scheme}
+                        {test_run_label(@selected_project, run.scheme)}
                         <.link_icon />
                       </.link>
                     </div>
@@ -986,20 +1009,20 @@
                   size="small"
                 />
               </div>
-              <.neutral_button
+              <.ghost_button
                 data-part="closed-collapsible-button"
                 variant="secondary"
                 size="small"
               >
                 <.chevron_down />
-              </.neutral_button>
-              <.neutral_button
+              </.ghost_button>
+              <.ghost_button
                 data-part="open-collapsible-button"
                 variant="secondary"
                 size="small"
               >
                 <.chevron_up />
-              </.neutral_button>
+              </.ghost_button>
             </div>
             <div data-part="content">
               <%= if Enum.any?(@test_case_run.arguments) do %>
@@ -1023,7 +1046,7 @@
                       size="small"
                     />
                     <span data-part="argument-name">{argument.name}</span>
-                    <.neutral_button
+                    <.ghost_button
                       id={"tab-arg-closed-btn-#{argument.id}"}
                       variant="secondary"
                       size="medium"
@@ -1034,8 +1057,8 @@
                       }
                     >
                       <.chevron_down />
-                    </.neutral_button>
-                    <.neutral_button
+                    </.ghost_button>
+                    <.ghost_button
                       id={"tab-arg-open-btn-#{argument.id}"}
                       variant="secondary"
                       size="medium"
@@ -1047,7 +1070,7 @@
                       }
                     >
                       <.chevron_up />
-                    </.neutral_button>
+                    </.ghost_button>
                   </div>
                   <div
                     id={"tab-arg-body-#{argument.id}"}

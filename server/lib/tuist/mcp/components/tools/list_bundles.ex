@@ -23,6 +23,12 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
           "type" => "string",
           "description" => "Filter by git branch."
         },
+        "tags" => %{
+          "type" => "array",
+          "maxItems" => 10,
+          "items" => %{"type" => "string", "maxLength" => 50, "pattern" => "^[a-zA-Z0-9_-]+$"},
+          "description" => "Return bundles containing ALL specified tags (exact, case-sensitive matches)."
+        },
         "page" => %{
           "type" => "integer",
           "description" => "Page number (default: 1)."
@@ -52,6 +58,12 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
               "download_size" => %{"type" => ["integer", "null"]},
               "git_branch" => %{"type" => ["string", "null"]},
               "git_commit_sha" => %{"type" => ["string", "null"]},
+              "custom_metadata" => %{
+                "type" => "object",
+                "properties" => %{"tags" => %{"type" => "array", "items" => %{"type" => "string"}}},
+                "required" => ["tags"],
+                "additionalProperties" => false
+              },
               "inserted_at" => %{"type" => "string"}
             },
             "required" => [
@@ -83,7 +95,7 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
   @impl EMCP.Tool
   def description,
     do:
-      "List bundles (app binaries) for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
+      "List bundles (app binaries) for a project. Filter by git_branch and tags (ALL tags must match exactly). The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   def execute(_conn, args, project) do
     page = MCPTool.page(args)
@@ -114,6 +126,7 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
              download_size: bundle.download_size,
              git_branch: bundle.git_branch,
              git_commit_sha: bundle.git_commit_sha,
+             custom_metadata: %{tags: bundle.custom_tags},
              inserted_at: Formatter.iso8601(bundle.inserted_at)
            }
          end),
@@ -124,9 +137,12 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
   defp build_filters(project_id, args) do
     base = [%{field: :project_id, op: :==, value: project_id}]
 
-    case Map.get(args, "git_branch") do
-      nil -> base
-      value -> base ++ [%{field: :git_branch, op: :==, value: value}]
-    end
+    base =
+      case Map.get(args, "git_branch") do
+        nil -> base
+        value -> base ++ [%{field: :git_branch, op: :==, value: value}]
+      end
+
+    base ++ Enum.map(Map.get(args, "tags", []), &%{field: :tag, op: :contains, value: &1})
   end
 end

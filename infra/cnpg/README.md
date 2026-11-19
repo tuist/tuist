@@ -10,8 +10,45 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-swift-registry-sync-grants.sql`](./tuist-swift-registry-sync-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_swift_registry_sync` role used by the Swift registry sync worker. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the narrower per-table privileges the worker needs. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
-- [`tuist-grafana-ro-grants.sql`](./tuist-grafana-ro-grants.sql) — column-level `SELECT`s for the `tuist_grafana_ro` role, which backs the Grafana "Tuist Product Usage" dashboard and the runner cache volume warm-rate alert rule over the PDC tunnel. The role is created declaratively by CNPG via `managed.roles[]` with **no `inRoles`** — unlike `tuist_ops_ro` it must never inherit `pg_read_all_data`, because its password lives in Grafana Cloud and every table the dashboard reads sits next to a secret in the same row (`users.encrypted_password`, `projects.token`, `accounts.s3_secret_access_key`, `organizations.oauth2_encrypted_client_secret`). **These grants are applied automatically by `Tuist.Release.migrate/0` (`do_grant_grafana_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `grafana_role_grant_statements/3` (a test asserts this). Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-grafana-ro-grants.sql`](./tuist-grafana-ro-grants.sql) — column-level `SELECT`s for the `tuist_grafana_ro` role, which backs the Grafana "Tuist Product Usage" dashboard and the runner cache volume warm-rate alert rule over the PDC tunnel. The role is created declaratively by CNPG via `managed.roles[]` with **no `inRoles`** — unlike `tuist_ops_ro` it must never inherit `pg_read_all_data`, because its password lives in Grafana Cloud and every table the dashboard reads sits next to a secret in the same row (`users.encrypted_password`, `projects.token_hash`, `accounts.s3_secret_access_key`, `organizations.oauth2_encrypted_client_secret`). **These grants are applied automatically by `Tuist.Release.migrate/0` (`do_grant_grafana_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `grafana_role_grant_statements/3` (a test asserts this). Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (The operator now supports `Database.spec.extensions`, which could reconcile it declaratively on existing clusters instead.)
+
+## Grafana runner incident reads
+
+The Grafana role also has explicit column-level reads on `runner_workflow_jobs`
+(queue/executor timing and job shape), `runner_claims` (current admission slots),
+`runner_concurrency_limits` (account/platform budgets), and `runner_sessions`
+(historical slot intervals). Historical concurrency-limit exclusions must use
+sessions: completed claims are deleted. Limits are current configuration, not
+versioned history; a changed limit cannot reconstruct its previous value.
+Repository/branch metadata, session `execution_identity`, logs, and transition
+outbox payloads are not included.
+
+Roll grant changes out through reviewed changes to `Tuist.Release` and the
+fallback SQL together, then the normal canary → acceptance → production server
+deployment. The managed migration Job sets `TUIST_DATABASE_GRAFANA_ROLE` and
+reconciles grants on every deploy; do not retrieve database credentials or use
+an ad-hoc privileged SQL session to repair Grafana access.
+
+After rollout, verify through the production Grafana Postgres datasource
+`afscyehfnzg8wf`: `current_user` and `session_user` must be `tuist_grafana_ro`,
+`transaction_read_only` must be `on`, and the role must have neither superuser
+privileges nor membership in `pg_read_all_data`. Rerun the blocked incident query:
+
+```sql
+SELECT workflow_job_id, account_id, fleet_name, enqueued_at, executor_claimed_at
+FROM runner_workflow_jobs
+WHERE platform = 'macos' AND enqueued_at > '2026-11-16 10:20:00+00'
+ORDER BY enqueued_at
+LIMIT 60;
+```
+
+Use `has_column_privilege` to verify the lifecycle allowlist and continued denial
+of `runner_sessions.execution_identity` and `runner_workflow_jobs.repository`;
+use `has_table_privilege` to confirm no writes or table-wide `SELECT` were granted.
+Check existing dashboard/cache-alert reads still work. Do not test write denial
+by attempting a production write. Keep this role column-scoped and without
+default grants on future tables or columns.
 
 ## When to run
 
@@ -156,15 +193,15 @@ and web replacements can start before CNPG finishes applying the new limit.
 
 1. Obtain human approval/elevation for the database-only canary change and
    schedule a write interruption. Increasing `max_connections` requires a
-   PostgreSQL restart. With two instances and required `ANY 1` replication,
-   commits wait while the only standby restarts, in addition to the primary
-   switchover interruption. Do not weaken synchronous durability to avoid it.
+   PostgreSQL restart. With required `ANY 1` replication, commits wait while
+   a cluster's only standby restarts, in addition to the primary switchover
+   interruption. Do not weaken synchronous durability to avoid it.
 2. Apply only the CNPG `max_connections: "300"` parameter change, leaving
    application workloads unchanged. Let CNPG complete its standby restart and
    primary switchover.
-3. Wait for both instances to be healthy, with replication restored and no
-   restart pending. Verify the effective `max_connections` is 300 on **both**
-   instances before starting the normal application deployment.
+3. Wait for every instance to be healthy, with replication restored and no
+   restart pending. Verify the effective `max_connections` is 300 on **every**
+   instance before starting the normal application deployment.
 4. During that rollout, check for `53300` and pooler authentication rejections,
    confirm old web connections drain, and check backend memory, active sessions
    and checkout queues remain healthy.

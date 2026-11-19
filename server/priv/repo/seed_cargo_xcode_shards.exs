@@ -20,7 +20,7 @@ now = NaiveDateTime.utc_now()
 
 for {name, build_system, module_names, suite_names, case_name, scheme} <- [
       {"cargo-demo", "cargo", ["rust-store::lib", "rust-store::test/api", "rust-store::test/storage"],
-       ["storage::index", "api::authentication", "storage::transactions"], "creates_record", "nextest"},
+       ["storage::index", "api::authentication", "storage::transactions"], "creates_record", "ci"},
       {"xcode-demo", "xcode", ["StoreTests", "APITests", "TransactionsTests"],
        ["StoreTestsSuite", "APITestsSuite", "TransactionsTestsSuite"], "testCreatesRecord", "StoreApp"}
     ] do

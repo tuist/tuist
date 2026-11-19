@@ -124,14 +124,14 @@ defmodule Tuist.Slack do
   end
 
   def generate_state_token(account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "slack_state", %{
       type: :account_installation,
       account_id: account_id
     })
   end
 
   def generate_channel_selection_token(project_id, account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "slack_state", %{
       type: :channel_selection,
       project_id: project_id,
       account_id: account_id
@@ -150,11 +150,11 @@ defmodule Tuist.Slack do
         alert_rule_id -> Map.put(payload, :alert_rule_id, alert_rule_id)
       end
 
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", payload)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "slack_state", payload)
   end
 
   def generate_flaky_alert_channel_selection_token(project_id, account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+    Phoenix.Token.sign(Tuist.Web.endpoint(), "slack_state", %{
       type: :flaky_alert_channel_selection,
       project_id: project_id,
       account_id: account_id
@@ -163,7 +163,7 @@ defmodule Tuist.Slack do
 
   def verify_state_token(token) do
     token_max_age_seconds = 600
-    Phoenix.Token.verify(TuistWeb.Endpoint, "slack_state", token, max_age: token_max_age_seconds)
+    Phoenix.Token.verify(Tuist.Web.endpoint(), "slack_state", token, max_age: token_max_age_seconds)
   end
 
   @channel_result_namespace "slack_channel_result"
@@ -184,7 +184,7 @@ defmodule Tuist.Slack do
   """
   def sign_channel_result(%{webhook_url: webhook_url} = payload) when is_binary(webhook_url) do
     if slack_webhook_url?(webhook_url) do
-      {:ok, Phoenix.Token.encrypt(TuistWeb.Endpoint, @channel_result_namespace, payload)}
+      {:ok, Phoenix.Token.encrypt(Tuist.Web.endpoint(), @channel_result_namespace, payload)}
     else
       {:error, :invalid_webhook_url}
     end
@@ -196,7 +196,7 @@ defmodule Tuist.Slack do
   token can't smuggle a non-Slack URL through.
   """
   def verify_channel_result(token) when is_binary(token) do
-    case Phoenix.Token.decrypt(TuistWeb.Endpoint, @channel_result_namespace, token,
+    case Phoenix.Token.decrypt(Tuist.Web.endpoint(), @channel_result_namespace, token,
            max_age: @channel_result_max_age_seconds
          ) do
       {:ok, %{webhook_url: webhook_url} = payload} ->

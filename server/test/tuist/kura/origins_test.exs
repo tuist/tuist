@@ -75,6 +75,19 @@ defmodule Tuist.Kura.OriginsTest do
   end
 
   describe "upsert_many/1" do
+    test "persists a large batch completely and adds replayed counters", %{account: account} do
+      rows = for index <- 1..10_001, do: row(account, "origin-#{index}", index, index * 2)
+
+      assert {:ok, 10_001} = Origins.upsert_many(Enum.reverse(rows))
+      assert {:ok, 10_001} = Origins.upsert_many(rows)
+
+      rollups = Repo.all(OriginRollup)
+      assert length(rollups) == length(rows)
+
+      assert Map.new(rollups, &{&1.origin, {&1.run_count, &1.demand_count}}) ==
+               Map.new(rows, &{&1.origin, {&1.run_count * 2, &1.demand_count * 2}})
+    end
+
     test "inserts rows in account, origin and date order", %{account: first} do
       second = AccountsFixtures.account_fixture()
       earlier = ~D[2025-12-31]
@@ -183,6 +196,42 @@ defmodule Tuist.Kura.OriginsTest do
   end
 
   describe "refresh_hits/1" do
+    test "refreshes a large origin cohort without adding to existing hits", %{account: account} do
+      date = unique_date()
+      window_start = NaiveDateTime.new!(date, ~T[10:00:00])
+
+      events =
+        for index <- 1..10_001 do
+          %{
+            event_id: "large-#{account.id}-#{index}",
+            account_id: account.id,
+            project_id: 0,
+            node_id: "kura-0",
+            region: "eu-west",
+            traffic_plane: "public",
+            direction: "egress",
+            operation: "download",
+            protocol: "grpc",
+            artifact_kind: "reapi",
+            bytes: index * 1024,
+            request_count: index,
+            origin: "origin-#{index}",
+            window_start: window_start,
+            window_seconds: 60,
+            inserted_at: window_start
+          }
+        end
+
+      IngestRepo.insert_all(UsageEvent, events)
+
+      assert {:ok, 10_001} = Origins.refresh_hits([date])
+      assert {:ok, 10_001} = Origins.refresh_hits([date])
+
+      rollups = Repo.all(OriginRollup)
+      assert length(rollups) == length(events)
+      assert Map.new(rollups, &{&1.origin, &1.hit_count}) == Map.new(events, &{&1.origin, &1.request_count})
+    end
+
     test "writes the hits public regions served each origin, leaving runs alone", %{account: account} do
       date = unique_date()
       Origins.upsert_many([Map.put(row(account, "FR", 3, 1), :date, date)])

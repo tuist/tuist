@@ -277,42 +277,36 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["runs_per_day"] >= 25
     end
 
-    test "holds an Air account at one region below its floor" do
-      # Air can hold two, but a second instance is the expensive thing, so its
-      # floor is higher than a paid plan's rather than lower.
+    test "never opens a second Air region, however busy its second site" do
       context =
         context(
           plan: :air,
           primary: "us-east",
           serving: ["us-east"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 300)
         )
 
       assert Placement.evaluate(context) == :none
     end
 
-    test "opens a second Air region once its own traffic clears the floor" do
+    test "gives up the quietest region an Air account holds beyond its primary" do
+      # Held from when Air funded two. The primary stays even though eu-west
+      # is busier; the least used secondary goes first.
       context =
         context(
           plan: :air,
           primary: "us-east",
-          serving: ["us-east"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120)
+          serving: ["us-east", "eu-west", "ap-southeast"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 60) ++ daily("SG", 90, 30)
         )
 
-      assert {:expand, "eu-west", _evidence} = Placement.evaluate(context)
-    end
+      assert {:retire, "ap-southeast", evidence} = Placement.evaluate(context)
+      assert evidence["signal"] == "over_instance_cap"
 
-    test "holds an Air account at two regions" do
-      context =
-        context(
-          plan: :air,
-          primary: "us-east",
-          serving: ["us-east", "eu-west"],
-          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120) ++ daily("JP", 14, 200)
-        )
+      assert Placement.evaluate(%{context | retiring: ["ap-southeast"]}) ==
+               {:retire, "eu-west", %{evidence | "region_traffic" => 5_400}}
 
-      assert Placement.evaluate(context) == :none
+      assert Placement.evaluate(%{context | retiring: ["ap-southeast", "eu-west"]}) == :none
     end
 
     test "holds a region under the floor" do
@@ -327,12 +321,10 @@ defmodule Tuist.Kura.PlacementTest do
       assert Placement.evaluate(context) == :none
     end
 
-    test "asks Air for more than the paid plans before opening a region" do
-      # Air funds two regions and the paid plans five, so Air, which funds the
-      # fewest, is the one that has to see the most traffic before spending a
-      # slot. Pro and Enterprise share a
-      # floor: a second site earning a region is the same amount of traffic
-      # whichever paid plan it is on.
+    test "opens a region for the paid plans alone" do
+      # Pro and Enterprise share a floor: a second site earning a region is the
+      # same amount of traffic whichever paid plan it is on. Air funds one
+      # region, so the same traffic opens nothing for it.
       rollups = daily("US-VA", 14, 500) ++ daily("FR", 14, 30)
 
       assert {:expand, "eu-west", _evidence} =
@@ -629,6 +621,7 @@ defmodule Tuist.Kura.PlacementTest do
       # cache is used.
       context =
         context(
+          plan: :pro,
           primary: "us-east",
           serving: ["us-east", "eu-west"],
           rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5),
@@ -879,6 +872,12 @@ defmodule Tuist.Kura.PlacementTest do
       assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "majority_of_origin_hits_moved"
       assert evidence["share"] == 0.75
+      # The source still serves a quarter of the hits, which keeps it for Pro.
+      # Air holds one region, so its primary moves and the source goes.
+      assert evidence["retire_source"] == false
+
+      assert {:relocate, "us-east", "eu-west", %{"retire_source" => true}} =
+               Placement.evaluate(%{context | plan: :air})
     end
 
     test "does not move the primary on runs the hits contradict" do

@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const PNG_HEADER = Buffer.from('89504e470d0a1a0a', 'hex');
+const PNG_END = Buffer.from('0000000049454e44ae426082', 'hex');
 
 function killGroup(pid) {
   if (!pid) return;
@@ -24,32 +25,41 @@ export async function captureOne({ output, chrome, temporary, name, size, extra 
   await unlink(screenshot).catch(error => { if (error.code !== 'ENOENT') throw error; });
   const diagnostics = openSync(log, 'w', 0o600);
   let child;
+  let timedOut = false;
   try {
     child = spawn(chrome, [
       '--headless', '--no-sandbox', '--disable-gpu',
       '--disable-dev-shm-usage', '--disable-background-networking',
       '--ignore-certificate-errors', '--hide-scrollbars',
       '--no-first-run', '--no-default-browser-check',
-      '--timeout=15000', '--virtual-time-budget=5000',
+      // Virtual time pauses on pending fetches; use the wall-clock page timeout.
+      '--timeout=15000',
       `--user-data-dir=${join(temporary, `profile-${name}`)}`,
       `--window-size=${size}`, `--screenshot=${screenshot}`, ...extra, url,
     ], { stdio: ['ignore', diagnostics, diagnostics], detached: true });
-    let timedOut = false;
     const status = await new Promise((accept, reject) => {
-      const timer = setTimeout(() => { timedOut = true; killGroup(child.pid); }, timeout);
+      const timer = setTimeout(() => {
+        timedOut = true;
+        try { killGroup(child.pid); } catch (error) { reject(error); }
+      }, timeout);
       child.once('error', error => { clearTimeout(timer); reject(error); });
       child.once('close', code => { clearTimeout(timer); accept(code); });
     });
-    const fail = reason => { throw new Error(`Chrome did not capture ${name} (${reason}); see ${log}`); };
-    if (timedOut) fail(`timeout after ${timeout}ms`);
-    if (status !== 0) fail(`exit ${status}`);
+    const fail = reason => {
+      if (timedOut) reason = `timeout after ${timeout}ms`;
+      throw new Error(`Chrome did not capture ${name} (${reason}); see ${log}`);
+    };
+    // Chrome can finish the screenshot but stall in teardown. Reap it at the
+    // deadline, then accept only a PNG whose final IEND chunk reached disk.
+    if (status !== 0 && !timedOut) fail(`exit ${status}`);
     const image = await readFile(screenshot).catch(error => {
       if (error.code === 'ENOENT') fail('missing PNG');
       throw error;
     });
-    if (image.length < 1000 || !image.subarray(0, PNG_HEADER.length).equals(PNG_HEADER)) fail('incomplete or invalid PNG');
+    if (image.length < 1000 || !image.subarray(0, PNG_HEADER.length).equals(PNG_HEADER)
+      || !image.subarray(-PNG_END.length).equals(PNG_END)) fail('incomplete or invalid PNG');
   } finally {
-    killGroup(child?.pid);
+    if (!timedOut) killGroup(child?.pid);
     closeSync(diagnostics);
   }
 }

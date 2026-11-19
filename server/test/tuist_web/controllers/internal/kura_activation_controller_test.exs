@@ -30,6 +30,7 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
   defp activate(conn, host, token) do
     conn
     |> put_req_header("authorization", "Bearer #{token}")
+    |> put_req_header("x-tuist-cache-activation-billing", "1")
     |> post("/_internal/kura/activate", %{host: host})
   end
 
@@ -170,6 +171,13 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     {:ok, token, _} = Cache.issue_cache_token(project)
     server = ready_server(renamed)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => server.url}
+
+    renamed |> Ecto.Changeset.change(current_month_cache_egress_megabytes: 100_001) |> Repo.update!()
+    project = Repo.preload(project, :account, force: true)
+    {:ok, token, _} = Cache.issue_cache_token(project)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(402)
+    assert conn |> activate("#{renamed.name}.cache.tuist.dev", token) |> json_response(402)
+
     stub(Tuist.Kura.Identity, :client_handles, fn _ -> [user.account.name] end)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(403)
   end
@@ -178,6 +186,82 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     stub(Tuist.Billing, :cache_access_blocked?, fn _ -> true end)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(402)
     refute_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
+  test "legacy gateways retain a terminal forbidden refusal", %{conn: conn, account: account, token: token} do
+    stub(Tuist.Billing, :cache_access_blocked?, fn _ -> true end)
+
+    for capability <- [nil, "2"] do
+      request = put_req_header(conn, "authorization", "Bearer #{token}")
+      request = if capability, do: put_req_header(request, "x-tuist-cache-activation-billing", capability), else: request
+      response = post(request, "/_internal/kura/activate", %{host: "#{account.name}.cache.tuist.dev"})
+      assert json_response(response, 403) == %{"error" => "forbidden"}
+    end
+
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+    refute Demand.lifecycle_managed?(account)
+  end
+
+  test "exhausted accounts return payment required for ordinary and exchanged credentials", %{
+    conn: conn,
+    account: account,
+    user: user,
+    project: project,
+    token: earlier_token
+  } do
+    account |> Ecto.Changeset.change(current_month_cache_egress_megabytes: 100_001) |> Repo.update!()
+    project = Repo.preload(project, :account, force: true)
+    {:ok, cache_token, _} = Cache.issue_cache_token(project)
+    {:ok, user_token, _} = Tuist.Authentication.encode_and_sign(user)
+    project_token = Tuist.Projects.create_project_token(project)
+
+    {:ok, {_record, account_token}} =
+      Accounts.create_account_token(%{
+        account: account,
+        name: "exhausted-cache-reader",
+        scopes: ["project:cache:read"],
+        project_ids: [project.id]
+      })
+
+    for token <- [earlier_token, cache_token, user_token, account_token, project_token] do
+      conn = activate(conn, "#{account.name}.cache.tuist.dev", token)
+      assert json_response(conn, 402) == %{"error" => "payment_required"}
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+    end
+
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+    refute Demand.lifecycle_managed?(account)
+  end
+
+  test "billing refusals cannot disclose a foreign tenant or authorize a stale empty-grant token", %{
+    conn: conn,
+    account: account,
+    project: project
+  } do
+    account |> Ecto.Changeset.change(current_month_cache_egress_megabytes: 100_001) |> Repo.update!()
+    project = Repo.preload(project, :account, force: true)
+    {:ok, refused_token, claims} = Cache.issue_cache_token(project)
+
+    {:ok, legacy_token, _} =
+      Tuist.Guardian.encode_and_sign(project, Map.take(claims, ["cache_grants"]), token_type: "cache")
+
+    {:ok, expired_token, _} = Cache.issue_cache_token(project, ttl: -60)
+    other = ProjectsFixtures.project_fixture()
+    {:ok, foreign_token, _} = Cache.issue_cache_token(other)
+
+    assert conn |> activate("#{other.account.name}.cache.tuist.dev", refused_token) |> json_response(403)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", foreign_token) |> json_response(403)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", legacy_token) |> json_response(403)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", expired_token) |> json_response(401)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", "invalid") |> json_response(401)
+
+    account |> Repo.reload!() |> Ecto.Changeset.change(current_month_cache_egress_megabytes: 0) |> Repo.update!()
+    assert conn |> activate("#{account.name}.cache.tuist.dev", refused_token) |> json_response(402)
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+
+    project = Repo.preload(project, :account, force: true)
+    {:ok, refreshed_token, _} = Cache.issue_cache_token(project)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", refreshed_token) |> json_response(202)
   end
 
   test "self-hosted server does not provision managed capacity", %{conn: conn, account: account, token: token} do

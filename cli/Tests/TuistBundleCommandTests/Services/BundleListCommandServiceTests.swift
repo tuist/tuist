@@ -75,7 +75,8 @@ struct BundleListCommandServiceTests {
             gitBranch: .value("main"),
             page: .value(nil),
             pageSize: .value(50),
-            serverURL: .value(serverURL)
+            serverURL: .value(serverURL),
+            tags: .value([])
         ).willReturn(response)
 
         // When
@@ -114,7 +115,8 @@ struct BundleListCommandServiceTests {
             gitBranch: .value("main"),
             page: .value(nil),
             pageSize: .value(50),
-            serverURL: .value(serverURL)
+            serverURL: .value(serverURL),
+            tags: .value([])
         ).willReturn(response)
 
         // When
@@ -160,7 +162,8 @@ struct BundleListCommandServiceTests {
             gitBranch: .value("main"),
             page: .value(nil),
             pageSize: .value(50),
-            serverURL: .value(serverURL)
+            serverURL: .value(serverURL),
+            tags: .value([])
         ).willReturn(response)
 
         // When

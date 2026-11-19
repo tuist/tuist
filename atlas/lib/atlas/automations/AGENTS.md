@@ -47,6 +47,15 @@ subsystem and its device registrations; do not claim Automation delivery through
 
 ## API and MCP primitive interfaces
 
+Portable `Atlas.Signals` sources admit pinned revisions with trigger `signal` and
+only an opaque `signal_id` input. `signals.decide@1` is a local transactional
+write adapter returning IDs/status/priority, not provider evidence. It rechecks
+source ownership, enabled state and current required scopes before opening Orbit
+and queuing generic attention pushes. Exact decisions replay; altered retries
+conflict. Protected signal/candidate getters, source configuration and personal
+business-profile consent remain excluded from generic workflow behaviors, so
+Automation readers cannot obtain captured source evidence through a plan.
+
 `Interfaces` is the shared inventory of operation name, scope, HTTP method/path and
 MCP tool. The router derives API routes from it, and MCP derives its read/write tool
 registrations from it. `Interface` owns the common closed input schemas, dispatch and

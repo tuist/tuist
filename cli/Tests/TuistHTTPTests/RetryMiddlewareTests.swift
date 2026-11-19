@@ -189,12 +189,85 @@ struct RetryMiddlewareTests {
         ) { _, _, _ in
             callCount += 1
             if callCount == 1 {
-                return (HTTPResponse(status: 429), nil)
+                var response = HTTPResponse(status: 429)
+                response.headerFields[.retryAfter] = "0"
+                return (response, nil)
             }
             return (HTTPResponse(status: 200), nil)
         }
 
         #expect(response.status.code == 200)
+        #expect(callCount == 2)
+    }
+
+    @Test(arguments: [false, true], [UInt64(61), 300, .max])
+    func returns_a_cooldown_the_remaining_retries_cannot_wait_out(
+        unforwardedRequest: Bool, retryAfter: UInt64
+    ) async throws {
+        let subject = RetryMiddleware(
+            maxRetries: 2, baseDelayMilliseconds: 0,
+            retryableRequestMethods: unforwardedRequest ? ["GET"] : nil,
+            retriesUnforwardedCacheRequests: unforwardedRequest
+        )
+        var callCount = 0
+
+        let (response, body) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"), body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!, operationID: "test-op"
+        ) { _, _, _ in
+            callCount += 1
+            var response = HTTPResponse(status: 429)
+            response.headerFields[.retryAfter] = String(retryAfter)
+            response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = "pending"
+            return (response, HTTPBody("cooldown"))
+        }
+
+        #expect(response.status.code == 429)
+        #expect(response.headerFields[.retryAfter] == String(retryAfter))
+        #expect(try await String(collecting: #require(body), upTo: .max) == "cooldown")
+        #expect(callCount == 1)
+    }
+
+    @Test(arguments: [false, true], [1, 2])
+    func waits_out_a_cooldown_the_remaining_retries_can_cover(unforwardedRequest: Bool, maxRetries: Int) async {
+        let subject = RetryMiddleware(
+            maxRetries: maxRetries, baseDelayMilliseconds: 0,
+            retryableRequestMethods: unforwardedRequest ? ["GET"] : nil,
+            retriesUnforwardedCacheRequests: unforwardedRequest
+        )
+        // Cancelling during the first response interrupts the wait before the retry, so the request
+        // throws only when the middleware chose to wait instead of returning the response.
+        let request = Task {
+            try await subject.intercept(
+                HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"), body: nil,
+                baseURL: URL(string: "https://test.tuist.dev")!, operationID: "test-op"
+            ) { _, _, _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+                var response = HTTPResponse(status: 429)
+                response.headerFields[.retryAfter] = String(maxRetries * 30)
+                response.headerFields[HTTPField.Name("X-Tuist-Cache-Activation")!] = "pending"
+                return (response, nil)
+            }
+        }
+
+        await #expect(throws: CancellationError.self) { try await request.value }
+    }
+
+    @Test func returns_a_cooldown_once_fewer_retries_remain_than_it_needs() async throws {
+        let subject = RetryMiddleware(maxRetries: 2, baseDelayMilliseconds: 0)
+        var callCount = 0
+
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"), body: nil,
+            baseURL: URL(string: "https://test.tuist.dev")!, operationID: "test-op"
+        ) { _, _, _ in
+            callCount += 1
+            var response = HTTPResponse(status: 429)
+            response.headerFields[.retryAfter] = callCount == 1 ? "0" : "45"
+            return (response, nil)
+        }
+
+        #expect(response.status.code == 429)
         #expect(callCount == 2)
     }
 

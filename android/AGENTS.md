@@ -33,8 +33,33 @@ production.
   configuration-cache reuse, and publishing task graphs with
   `-Dorg.gradle.unsafe.isolated-projects=true`.
 
+## Certificate trust
+
+- API, token-refresh, and Coil clients use `CertificateTrust.clientBuilder`.
+  Keep native platform/enterprise trust and hostname checks authoritative, then
+  reject denied keys in the complete `X509TrustManagerExtensions` evaluated path,
+  including anchors not served by the peer. Do not replace roots or global defaults.
+- Keep `PolicyTrustManager`'s reflective hostname/configuration methods under R8.
+  API 26/27 must not invoke API-28-only `isSameTrustConfiguration`.
+- The app targets API 35 without CT opt-in. Before enabling CT or raising that
+  target, preserve TLS-extension/OCSP SCT inputs during revalidation and qualify
+  CT-enforcing devices; the hostname-only API cannot carry those inputs.
+- Run `./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest`.
+  Robolectric's JVM path adapter is not native Conscrypt qualification. Run
+  `CertificateTrustDeviceTest` on a selected connected device; public controls
+  require `-Pandroid.testInstrumentationRunnerArguments.tuistTrustLive=true`.
+  Browser OAuth remains governed by the external browser/OS.
+
 ## Icons
 
 Keep adaptive background, foreground, and monochrome layers aligned. Render source
 SVGs with `rsvg-convert` at mdpi=108, hdpi=162, xhdpi=216, xxhdpi=324, xxxhdpi=432.
 Only add one-line comments when they explain something non-obvious.
+
+## Localization
+
+User-facing copy lives in `app/src/main/res/values/strings.xml`; read it with
+`stringResource` or `Context.getString`. Write values in Android's quoted form
+(`"Sign in"`), the only form Glossia extracts; `<plurals>` and string arrays are not
+supported. The Glossia GitHub App owns `values-*/strings.xml`; never edit them.
+`L10N.md` configures it, and `validate-localizations.mjs` checks its output.

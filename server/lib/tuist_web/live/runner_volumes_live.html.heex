@@ -19,7 +19,7 @@
         :if={@can_manage}
         variant="secondary"
         size="medium"
-        label={dgettext("dashboard_runners", "Clear volume")}
+        label={dgettext("dashboard_runners", "Delete volume")}
         phx-click="request_delete"
         phx-value-id={@selected.id}
       >
@@ -333,7 +333,7 @@
                 label={"#{TuistWeb.RunnersLive.platform_label(volume.platform)} · #{volume.architecture}"}
                 color="neutral"
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -384,7 +384,6 @@
           />
         </:actions>
         <div data-part="widgets">
-          <% used_change = storage_trend(data.analytics.storage, :used_bytes, @analytics_period) %>
           <% hit_rate_change =
             hit_rate_trend(
               data.analytics.activity.hit_rate,
@@ -394,19 +393,18 @@
             uses_trend(data.analytics.activity.uses, data.analytics.previous_activity.uses) %>
           <.widget
             id="volume-used"
-            legend_color={metric_color("used_bytes")}
-            title={dgettext("dashboard_runners", "Used space")}
-            value={storage_value(data.analytics.storage, :used_bytes)}
-            trend_value={used_change.value}
-            trend_value_label={used_change.value_label}
-            trend_label={used_change.label}
-            trend_type={:neutral}
-            description={
-              storage_description(List.last(data.analytics.storage) || %{}, :unmeasured_copies)
-            }
             selected={@detail_metric == "used_bytes"}
             phx_click="select_detail_metric"
             phx_value_widget="used_bytes"
+            legend_color={metric_color("used_bytes")}
+            title={dgettext("dashboard_runners", "Used space")}
+            value={saved_space(volume, metrics)}
+            description={
+              dgettext(
+                "dashboard_runners",
+                "Size of the current saved cache, independent of the selected date range."
+              )
+            }
           />
           <.widget
             id="volume-hit-rate"
@@ -637,11 +635,11 @@
   </.async_result>
   <.modal
     id="volume-confirm-delete"
-    title={dgettext("dashboard_runners", "Clear volume")}
+    title={dgettext("dashboard_runners", "Delete volume")}
     description={
       dgettext(
         "dashboard_runners",
-        "Clears the saved cache for future jobs. Running jobs can finish."
+        "Deletes the volume and its saved cache. Running jobs can finish; later jobs with the same key start empty."
       )
     }
     on_dismiss="cancel"
@@ -659,7 +657,7 @@
         </:action>
         <:action>
           <.button
-            label={dgettext("dashboard_runners", "Clear volume")}
+            label={dgettext("dashboard_runners", "Delete volume")}
             variant="destructive"
             phx-click="confirm"
           />

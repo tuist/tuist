@@ -47,13 +47,11 @@ PostgreSQL is the primary database; ClickHouse analytics writes use `IngestRepo`
 
 ## Translations
 
-- Use `dgettext/2` for translatable text. Run `mix gettext.extract` after adding/changing or moving translated calls (CI checks source-line references) and commit only `.pot` templates alongside code; `translate.exs` and the `tuistit` bot manage translations.
+- Use `dgettext/2` for translatable text. Run `mise run gettext:extract` (it force-recompiles in its own build path, away from a running dev server) after adding/changing or moving translated calls (CI checks source-line references) and commit only `.pot` templates alongside code; the Glossia GitHub App manages translations.
 - Never run `mix gettext.extract --merge` or edit `.po` files.
 - Currency symbols and monetary amounts are not translatable; surrounding descriptions such as "and up" or "per unit" are. Example: `"0€ " <> dgettext("marketing", "and up")`.
-- Catalog translation is incremental by source-message key; write each successful batch before the next request. Reuse Markdown translations only when source and context hashes match.
-- Restore the unmerged `l10n/update-translations` branch with a three-way merge before model requests; conflicts stop the run before spending tokens. Save validated partial progress even when translation fails.
-- Provider-wide failures stop queued batches across sources and locales; in-flight requests may finish. Keep the translation-step timeout shorter than the job timeout so partial progress can be saved.
-- Run `elixir translate_test.exs` from the repository root when changing translation logic or branch recovery; it uses temporary local repositories.
+- Improve translation quality through inherited `L10N.md` context and `L10N/<locale>.md` guidance. Declare shared glossary terms as a list in `L10N.md` and locale translations as a map in the locale file's frontmatter. Follow the [Glossia configuration](https://glossia.ai/docs/reference/l10n-md) and [glossary](https://glossia.ai/docs/reference/glossary) schemas; the CLI does not translate or validate.
+- Validate changed frontmatter and glossary shapes, preserve source/output mappings and target coverage unless deliberately changing scope, and review the hosted translation results separately from configuration checks.
 
 ## Dependency caching, build and test insights
 - `mix compile` and `mix test` cache supported compiled dependencies and report to the hosted `tuist/server` project through the local `tuist_ex` package. `tuist: [project: "tuist/server", cache: true]` enables caching; the compile alias bootstraps `tuist_ex` and exposes its dependencies without compiling the rest before `tuist.compile` restores cached artifacts. Native/custom compilation and local dependencies still compile through Mix, and unavailable authentication or caching falls back to normal compilation. The test alias keeps database creation, timezone setup, and migrations before `tuist.test`.
@@ -89,8 +87,12 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
   rules are created by hand in Grafana; that document is not provisioning.
 - ClickHouse reads are measured by `Tuist.ClickHouseRepo.PromExPlugin` (count
   and duration by outcome) and LiveView async loads by
-  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
-  a metric nothing queries has its labels aggregated away by Grafana Cloud.
+  `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric.
+  Outside production the collector drops every `tuist_*` metric before it
+  reaches Pulse unless its name matches the hand-maintained non-production
+  keep regex in `infra/helm/k8s-monitoring/values.yaml`, which lists the
+  metrics alerts without a production pin read. An alert alone does not keep
+  a new metric there: extend that regex too. Production keeps them all.
 - `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
   and connection-wait, execution, decoding, and total-duration histograms for
   PostgreSQL and ClickHouse in all runtimes. The `workload` label separates
@@ -113,7 +115,7 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Shards download the exact build and disable compilation during database setup and explicit `--no-download` execution. Do not normalize checkout timestamps to hide invalidation. The guarded project-local compile function must skip SDK bootstrap as well. Load restored paths explicitly before discovering the test task, including in retry processes; discovery otherwise runs before forwarded flags can take effect.
 - Keep the builder's `_build` volume plain. On main, current ClickHouse shards instrument their own downloaded builds with `--cover`; shards do not retain `_build` in a volume. This avoids copying builds or publishing instrumented BEAMs into the builder cache. The builder's volume also owns CLDR downloads, without a nested archive cache.
 - `bash ../.github/scripts/server-db.test.sh` tests migration script forwarding and failure guards without databases.
-- Docker's optional `mix-cache` context retains only the production builds of `tuist`, `tuist_common`, `tuist_ex` and `noora`, never test outputs or fetched/native dependencies. Keep `deps-builder` layer-cached; seed the four project directories through a read-only bind in the compile RUN and let Mix invalidate them normally. Export `mix-cache-export` before assets/release so no old release enters the snapshot. Ordinary builds use an empty seed and require no cache service.
+- Docker's optional `mix-cache` context retains only the production builds of `tuist`, `tuist_common`, `tuist_ex` and `noora` plus `_build/prod/phoenix-colocated`, never test outputs or fetched/native dependencies. Colocated hooks and CSS are written only when their module compiles, so a snapshot without them is never restored: unchanged components would vanish from the asset bundles. Keep `deps-builder` layer-cached; seed the four project directories through a read-only bind in the compile RUN and let Mix invalidate them normally. Export `mix-cache-export` before assets/release so no old release enters the snapshot. Ordinary builds use an empty seed and require no cache service.
 - Keep the Docker `swift-artifacts` scratch stage between the Swift builder and runtime/release consumers. Only the parser executable and Swift runtime libraries belong there, so a cached build does not materialize the toolchain and `.build` tree just to copy shipped artifacts.
 - Docker builds use the repository root context and `Dockerfile.dockerignore`, not `server/.dockerignore`. Keep every Dockerfile COPY input allowed, and exclude nested dependency/build directories and credentials. The fetched dependency stage copies only local package manifests and skips local compilation; local sources compile in the application stage. Preserve per-commit runtime security updates. Explicitly retain the public `priv/static/server/self-host/.env.example` after the general `.env*` exclusion; the Docker smoke test asserts it ships. Bare parent negations re-include their entire subtree, so keep the context allowlist narrow.
 
@@ -129,6 +131,12 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
 
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
+
+LVM region enrollment encrypts all Kura claims by default and selects the
+extended disk resource. BER1 stays on its legacy class until explicitly
+enrolled after rack plugin/host preparation; the account flag alone cannot
+move it onto file-backed encryption. Desired and rendered manifest revisions
+must include both encryption and LVM enrollment identically.
 
 ## Deployment
 

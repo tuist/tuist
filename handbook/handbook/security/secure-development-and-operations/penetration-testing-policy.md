@@ -18,7 +18,7 @@ This policy establishes the requirements for regular penetration testing of Tuis
 
 This policy applies to all systems, applications, and infrastructure owned, operated, or maintained by Tuist GmbH that are business-critical and/or process, store, or transmit Confidential data. It applies to all employees, contractors, and third parties involved in planning, conducting, or responding to penetration testing activities.
 
-This policy operates within Tuist's [shared responsibility model](/security/shared-responsibility-model). Infrastructure providers are responsible for testing the physical and hardware layers they operate, and the managed services they run themselves. Because Tuist GmbH operates its own Kubernetes clusters and its own primary database, the clusters, the node operating systems, and everything above them are Tuist GmbH's to test.
+This policy operates within Tuist's [shared responsibility model](/security/shared-responsibility-model). Infrastructure providers are responsible for testing the physical and hardware layers they operate, and the managed services they run themselves. Because Tuist GmbH operates its own Kubernetes clusters, its primary database, and its analytics database, the clusters, the node operating systems, and everything above them are Tuist GmbH's to test.
 
 ## Policy Statement
 
@@ -61,12 +61,13 @@ In accordance with our [shared responsibility model](/security/shared-responsibi
 - Kubernetes cluster configuration, in-cluster network policy, and workload isolation
 - Node operating systems across the Linux and macOS fleets
 - The in-cluster PostgreSQL and cache services
+- The ClickHouse analytics database we run on bare metal, including its access control and its backups
 - Isolation between customer build jobs running on the macOS fleet
 
 **Infrastructure Provider Responsibility (covered by provider testing):**
 - Physical data center security (Hetzner, Scaleway, OVHcloud)
 - Hardware, host network, and volumetric denial-of-service filtering (Hetzner, Scaleway, OVHcloud, Cloudflare)
-- The managed services providers operate themselves: object storage (Tigris), the analytics database (ClickHouse Cloud), the edge network (Cloudflare), telemetry storage (Grafana Cloud), and the secret vault (1Password)
+- The managed services providers operate themselves: object storage (Tigris), the edge network (Cloudflare), dashboards, alerting and the remaining telemetry storage (Grafana Cloud), and the secret vault (1Password)
 - Infrastructure-level access controls within those services
 
 Note that platform-level patching and cluster network security are not on this list. Under our model they belong to Tuist GmbH, not to a provider.

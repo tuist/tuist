@@ -6,6 +6,36 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
   alias TuistWeb.Plugs.LegacyRedirectsPlug
 
   describe "call/2" do
+    test "keeps translated Once pages unchanged in both representations" do
+      for locale <- ~w(de es ja zh_Hans), representation <- ~w(docs docs-markdown) do
+        conn = %{build_conn() | request_path: "/#{locale}/#{representation}/guides/features/cache/once"}
+        conn = LegacyRedirectsPlug.call(conn, [])
+        refute conn.halted
+        refute conn.status == 301
+      end
+    end
+
+    test "permanently redirects release pages in one hop while preserving locale and query" do
+      for locale <- ["en", "de"],
+          section <- ["cli", "guides/server/self-host"],
+          {old_page, new_page} <- [
+            {"release-channels", "release/channels"},
+            {"release-channels/calendar", "release/calendar"}
+          ] do
+        conn = %{
+          build_conn()
+          | request_path: "/#{locale}/docs/#{section}/#{old_page}",
+            query_string: "source=shared"
+        }
+
+        conn = LegacyRedirectsPlug.call(conn, [])
+
+        assert conn.status == 301
+        assert redirected_to(conn, 301) == "/#{locale}/docs/#{section}/#{new_page}?source=shared"
+        assert conn.halted
+      end
+    end
+
     test "redirects legacy blog post to case study" do
       conn = %{build_conn() | request_path: "/blog/2024/12/16/trendyol"}
 

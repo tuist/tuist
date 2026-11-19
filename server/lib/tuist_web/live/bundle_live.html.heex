@@ -59,9 +59,10 @@
         <div data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_cache", "Name")}</div>
-            <span data-part="label">
-              {@bundle.name}
-            </span>
+            <div data-part="label" class="tuist-project-with-tags">
+              <span>{@bundle.name}</span>
+              <.run_tags tags={@bundle.custom_tags} />
+            </div>
           </div>
           <div data-part="metadata">
             <div data-part="title">
@@ -389,7 +390,7 @@
                 }
                 color="success"
                 style="light-fill"
-                size="large"
+                size="medium"
               />
             </div>
             <.button
@@ -439,20 +440,20 @@
                         size="small"
                       />
                     </div>
-                    <.neutral_button
+                    <.ghost_button
                       data-part="closed-collapsible-button"
                       variant="secondary"
                       size="small"
                     >
                       <.chevron_down />
-                    </.neutral_button>
-                    <.neutral_button
+                    </.ghost_button>
+                    <.ghost_button
                       data-part="open-collapsible-button"
                       variant="secondary"
                       size="small"
                     >
                       <.chevron_up />
-                    </.neutral_button>
+                    </.ghost_button>
                   </div>
                   <div data-part="content">
                     <%= for artifact <- duplicate.artifacts do %>
@@ -582,7 +583,7 @@
                 :asset -> "asset"
                 :font -> "layout_grid"
                 :file -> "file"
-                :directory -> "directory"
+                :directory -> "folder"
                 :unknown -> "stack_2"
               end
             }

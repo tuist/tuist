@@ -5,7 +5,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
-  alias Tuist.MCP.Components.Tools.ClearRunnerVolume
+  alias Tuist.MCP.Components.Tools.DeleteRunnerVolume
   alias Tuist.MCP.Components.Tools.GetRunnerVolume
   alias Tuist.MCP.Components.Tools.ListRunnerJobVolumes
   alias Tuist.MCP.Components.Tools.ListRunnerVolumes
@@ -90,23 +90,23 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
     assert %{"isError" => true} = ListRunnerJobVolumes.call(conn, %{"account_handle" => "acme", "workflow_job_id" => 42})
   end
 
-  test "clear requires account administration and is declared destructive", %{account: account, conn: conn, id: id} do
+  test "delete requires account administration and is declared destructive", %{account: account, conn: conn, id: id} do
     expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
 
-    expect(Query, :run, fn :clear, 1, %{"account_handle" => "acme", "volume_id" => ^id} ->
-      {:ok, %{id: id, cleared: true}}
+    expect(Query, :run, fn :delete, 1, %{"account_handle" => "acme", "volume_id" => ^id} ->
+      {:ok, %{id: id, deleted: true}}
     end)
 
-    assert %{"structuredContent" => %{"cleared" => true}} =
-             ClearRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
+    assert %{"structuredContent" => %{"deleted" => true}} =
+             DeleteRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
 
-    assert %{readOnlyHint: false, destructiveHint: true} = ClearRunnerVolume.annotations()
+    assert %{readOnlyHint: false, destructiveHint: true} = DeleteRunnerVolume.annotations()
   end
 
-  test "read access does not grant clearing", %{account: account, conn: conn, id: id} do
+  test "read access does not grant deletion", %{account: account, conn: conn, id: id} do
     expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> {:error, :forbidden} end)
     reject(&Query.run/3)
-    assert %{"isError" => true} = ClearRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
+    assert %{"isError" => true} = DeleteRunnerVolume.call(conn, %{"account_handle" => "acme", "volume_id" => id})
   end
 
   test "disabled accounts cannot query volumes", %{account: account, conn: conn, id: id} do

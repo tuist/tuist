@@ -91,6 +91,12 @@ puts "Artifacts: #{root}"
 $stdout.sync = true
 requests = []
 rejection = false
+quarantine = { "muted" => [], "skipped" => [] }
+quarantine_requests = []
+quarantine_rejection = false
+plan_id = SecureRandom.uuid
+assignments = []
+shard_override = nil
 token = "cargo-e2e-loopback-only"
 server = WEBrick::HTTPServer.new(BindAddress: "127.0.0.1", Port: 0,
                                 Logger: WEBrick::Log.new(File::NULL, WEBrick::Log::FATAL), AccessLog: [])
@@ -99,8 +105,34 @@ server.mount_proc("/") do |request, response|
   begin
     response["Content-Type"] = "application/json"
     if request.request_method == "GET"
-      check(request.path == "/api/cache/endpoint", "Unexpected GET #{request.path}")
-      response.body = JSON.generate(endpoint: nil)
+      if request.path == "/api/cache/endpoint"
+        response.body = JSON.generate(endpoint: nil)
+      elsif request.path == "/api/metadata/limits"
+        response.status = 404
+        response.body = JSON.generate(message: "Use legacy metadata limits")
+      elsif request.path == "/api/projects/e2e/cargo/tests/test-cases"
+        check(request["Authorization"] == "Bearer #{token}", "Wrong quarantine authorization")
+        state = request.query.fetch("state")
+        page = Integer(request.query.fetch("page"))
+        quarantine_requests << [state, page]
+        entries = quarantine.fetch(state)
+        response.status = 400 if quarantine_rejection
+        response.body = JSON.generate(test_cases: entries.slice((page - 1), 1) || [],
+                                      pagination_metadata: { has_next_page: page < entries.length,
+                                                             has_previous_page: page > 1, page_size: 1 })
+      elsif request.path.start_with?("/api/projects/e2e/cargo/tests/shards/")
+        check(request["Authorization"] == "Bearer #{token}", "Wrong shard authorization")
+        index = Integer(request.path.split("/").last)
+        if index >= assignments.length
+          response.status = 404
+          response.body = JSON.generate(message: "Missing shard")
+        else
+          response.body = JSON.generate(shard_override || { shard_plan_id: plan_id, modules: assignments[index],
+                                                           suites: {}, download_urls: [] })
+        end
+      else
+        raise "Unexpected GET #{request.path}"
+      end
     else
       check(request.request_method == "POST", "Unexpected method")
       check(request["Authorization"] == "Bearer #{token}", "Wrong authorization header")
@@ -114,6 +146,16 @@ server.mount_proc("/") do |request, response|
         end
       end
       payload = JSON.parse(data)
+      if request.path == "/api/projects/e2e/cargo/tests/shards"
+        validate(payload, spec.fetch("components").fetch("schemas").fetch("CreateShardPlanParams"), spec)
+        check(payload.fetch("granularity") == "module", "Not a module plan")
+        modules = payload.fetch("modules")
+        assignments = [modules.values_at(0, 2).compact, modules.values_at(1, 3).compact]
+        requests << { "kind" => "plan", "payload" => payload }
+        response.body = JSON.generate(id: plan_id, reference: payload.fetch("reference"), shard_count: assignments.length,
+                                      shards: assignments.each_with_index.map { |mods, i| { index: i, test_targets: mods, estimated_duration_ms: 1 } })
+        next
+      end
       kind = { "/api/projects/e2e/cargo/tests" => "tests",
                "/api/projects/e2e/cargo/cargo/builds" => "builds" }.fetch(request.path)
       validate(payload, schemas.fetch(kind), spec)
@@ -172,7 +214,7 @@ begin
   check(baseline[0].zero? && requests.empty?, "Native baseline failed or uploaded reports")
   FileUtils.rm_rf(File.join(checkout, "target"))
   summaries = []
-  run = lambda do |name, arguments, code, count, fail: false, reject: false, env: {}, build: "success"|
+  run = lambda do |name, arguments, code, count, fail: false, reject: false, env: {}, build: "success", shard: nil, failures: nil|
     rejection = reject
     current = environment.merge(env)
     current["TUIST_FIXTURE_FAIL"] = "1" if fail
@@ -207,21 +249,26 @@ begin
       check(report["status"] == (code.zero? ? "success" : "failure"), "Wrong test run status")
       cases = report.fetch("test_modules").flat_map { |mod| mod.fetch("test_cases") }
       check(cases.length == count, "#{name}: #{cases.length} cases != #{count}")
-      check(cases.count { |test| test["status"] == "failure" } == (fail ? 1 : 0), "Wrong failed count")
+      check(cases.count { |test| test["status"] == "failure" } == (failures || (fail ? 1 : 0)), "Wrong failed count")
       check(cases.all? { |test| test["duration"].zero? }, "Invented per-test timing")
       check(cases.none? { |test| test["name"].end_with?(" - compile") }, "Unnormalized no_run doctest")
       if name == "selected-member"
         check(report.fetch("test_modules").all? { |mod| mod.fetch("name").start_with?("reporting-member") }, "Misattributed member tests")
         check(report.fetch("test_modules").any? { |mod| mod.fetch("name") == "reporting-member::api" }, "Missing member integration identity")
       end
-      check(!report.key?("enumerated_tests") && !report.key?("shard_plan_id"), "Invented inventory/shard")
+      check(!report.key?("enumerated_tests"), "Invented inventory")
+      if shard.nil?
+        check(!report.key?("shard_plan_id"), "Invented shard")
+      else
+        check(report["shard_plan_id"] == plan_id && report["shard_index"] == shard, "Wrong shard attribution")
+      end
       if count == 10
         modules = report.fetch("test_modules").map { |mod| [mod.fetch("name"), mod] }.to_h
         check(modules.keys.sort == ["tuist-cargo-reporting-fixture", "tuist-cargo-reporting-fixture::api",
                                     "tuist-cargo-reporting-fixture::doc",
                                     "tuist-cargo-reporting-fixture::doctest/tuist_cargo_reporting_fixture"], "Wrong modules")
         docs = modules.fetch("tuist-cargo-reporting-fixture::doctest/tuist_cargo_reporting_fixture").fetch("test_cases")
-        check(docs.length == 5 && docs.count { |test| test["status"] == "skipped" } == 1, "Wrong doctests")
+        check(docs.length == 5 && docs.count { |test| test["status"] == "skipped" } == (name == "skip-quarantine" ? 2 : 1), "Wrong doctests")
       end
       if reject
         check(result[2].include?("Tuist rejected the Cargo test report"), "Rejection was not diagnosed")
@@ -335,6 +382,164 @@ begin
   end
   run.call("rejected-success", ["test", "--offline"], 0, 10, reject: true)
   run.call("rejected-failure", ["test", "--offline", "--no-fail-fast"], 101, 10, fail: true, reject: true)
+  test_case = lambda do |mod, suite, name, state|
+    { id: SecureRandom.uuid, name: name, module: { id: SecureRandom.uuid, name: mod },
+      suite: { id: SecureRandom.uuid, name: suite }, avg_duration: 0, is_flaky: true,
+      is_quarantined: true, state: state, url: "http://127.0.0.1:#{port}/case" }
+  end
+  package = "tuist-cargo-reporting-fixture"
+  docs_module = "#{package}::doctest/tuist_cargo_reporting_fixture"
+  quarantine["muted"] = [test_case.call("other-package", "tests", "optionally_fails", "muted"),
+                           test_case.call(package, "tests", "optionally_fails", "muted")]
+  quarantine_requests.clear
+  run.call("muted-failure", ["test", "--offline"], 0, 10, fail: true)
+  check(quarantine_requests == [["muted", 1], ["muted", 2], ["skipped", 1]], "Quarantine pagination lost a page/state")
+  muted_report = requests.reverse.find { |item| item["kind"] == "tests" }.fetch("payload")
+  failed = muted_report.fetch("test_modules").flat_map { |mod| mod.fetch("test_cases") }.select { |test| test["status"] == "failure" }
+  check(failed.length == 1 && failed[0]["is_quarantined"], "Muted failure was lost instead of attributed")
+  run.call("muted-rejected-upload", ["test", "--offline"], 0, 10, fail: true, reject: true)
+  run.call("muted-existing-no-fail-fast", ["test", "--offline", "--no-fail-fast"], 0, 10, fail: true)
+  begin
+    doctest_line = original_source.lines.length + 2
+    quarantine["muted"] = [test_case.call(docs_module, "doctests", "src/lib.rs - termination_probe (line #{doctest_line})", "muted")]
+    { "signal" => 'unsafe extern "C" { fn raise(signal: i32) -> i32; } unsafe { raise(15); }',
+      "panic" => 'panic!("ordinary muted doctest failure");' }.each do |kind, body|
+      File.write(source, original_source + "\n/// ```standalone_crate\n/// #{body}\n/// ```\npub fn termination_probe() {}\n")
+      result = run.call("muted-doctest-#{kind}", ["test", "--offline", "--doc"], kind == "signal" ? 101 : 0, 6, failures: 1)
+      check(result[1].match?(/Test executable failed \((?:terminated by signal|signal:)/), "Doctest signal was not exercised") if kind == "signal"
+    end
+  ensure
+    File.write(source, original_source)
+    quarantine["muted"] = [test_case.call(package, "tests", "optionally_fails", "muted")]
+  end
+  signal_runner = File.join(root, "signal-runner")
+  File.write(signal_runner, <<~SH)
+    #!/bin/sh
+    for argument do
+      if [ "$argument" = "--list" ]; then exec "$@"; fi
+    done
+    "$@"
+    kill -TERM $$
+  SH
+  File.chmod(0700, signal_runner)
+  host, host_status = Open3.capture2(environment, "rustc", "-vV", unsetenv_others: true)
+  check(host_status.success?, "Could not resolve the Rust host")
+  runner_key = "CARGO_TARGET_#{host.lines.find { |line| line.start_with?('host: ') }.split.last.upcase.tr('-', '_')}_RUNNER"
+  signalled = run.call("muted-signalled-runner", ["test", "--offline", "--lib"], 101, 3, fail: true,
+                       env: { runner_key => signal_runner })
+  check(signalled[2].include?("signal: 15"), "Runner signal was not exercised")
+  run.call("quarantine-disabled", ["test", "--offline"], 101, 3, fail: true, env: { "TUIST_TEST_SKIP_QUARANTINE" => "1" })
+  quarantine_rejection = true
+  unavailable = run.call("quarantine-unavailable", ["test", "--offline"], 101, 3, fail: true)
+  check((unavailable[1] + unavailable[2]).include?("Failed to fetch Cargo quarantine"), "Quarantine fallback lacked a warning")
+  quarantine_rejection = false
+  unsupported = run.call("quarantine-quiet", ["test", "--offline", "--quiet"], 1, nil, build: nil)
+  check(test_lines.call(unsupported[1]).empty?, "Unsupported quarantine mode executed tests")
+  begin
+    File.write(cargo_config, "[term]\nquiet = true\n")
+    run.call("quarantine-configured-quiet", ["test", "--offline"], 1, nil, build: nil)
+  ensure
+    FileUtils.rm_f(cargo_config)
+  end
+  begin
+    File.write(source, original_source + "\n#[test]\nfn unmuted_failure() { panic!(\"not muted\"); }\n")
+    run.call("mixed-failures", ["test", "--offline", "--lib"], 101, 4, fail: true, failures: 2)
+    File.write(source, original_source + "\ncompile_error!(\"cannot mute compilation errors\");\n")
+    run.call("quarantine-compile-failure", ["test", "--offline"], 101, nil, build: nil)
+  ensure
+    File.write(source, original_source)
+  end
+  quarantine["muted"] = []
+  quarantine["skipped"] = [test_case.call(package, "tests", "optionally_fails", "skipped"),
+                             test_case.call(docs_module, "doctests", "src/lib.rs - answer (line 12)", "skipped")]
+  skipped = run.call("skip-quarantine", ["test", "--offline"], 0, 10, env: { "TUIST_FIXTURE_FAIL" => "1" })
+  check(!skipped[1].include?("test tests::optionally_fails ..."), "Skipped unit test ran")
+  check(!skipped[1].include?("test src/lib.rs - answer (line 12)"), "Skipped doctest ran")
+  skipped_report = requests.reverse.find { |item| item["kind"] == "tests" }.fetch("payload")
+  check(skipped_report.fetch("test_modules").flat_map { |mod| mod.fetch("test_cases") }.count { |test| test["is_quarantined"] && test["status"] == "skipped" } == 2,
+        "Skipped quarantine cases missing")
+  exact_docs = run.call("exact-doctest-skip", ["test", "--offline", "--doc", "--", "--exact"], 1, nil, build: nil)
+  check(exact_docs[2].include?("cannot safely skip individual doctests with --exact"), "Exact doctest exclusion was not rejected")
+  check(test_lines.call(exact_docs[1]).empty?, "Exact doctest exclusion executed a skipped example")
+  run.call("skip-filter-intersection", ["test", "--offline", "--lib", "optionally_fails"], 0, 1,
+           env: { "TUIST_FIXTURE_FAIL" => "1" })
+  begin
+    File.write(source, original_source + "\n#[test]\nfn optionally_fails_sibling() {}\n")
+    prefix = run.call("skip-prefix-collision", ["test", "--offline", "--lib", "optionally_fails"], 0, 2)
+    check(prefix[1].include?("test optionally_fails_sibling ... ok"), "Skip excluded a different matching test")
+  ensure
+    File.write(source, original_source)
+  end
+  quarantine["skipped"] = [test_case.call(docs_module, "doctests", "src/lib.rs - answer (line 2)", "skipped")]
+  ambiguous_skip = run.call("ambiguous-doctest-skip", ["test", "--offline", "--doc"], 1, nil, build: nil)
+  check((ambiguous_skip[1] + ambiguous_skip[2]).include?("cannot safely skip"), "Unsafe doctest exclusion was not diagnosed")
+  check(test_lines.call(ambiguous_skip[1]).empty?, "Ambiguous doctest filtering ran tests")
+  manifest = File.join(checkout, "Cargo.toml")
+  manifest_before_bench = File.read(manifest)
+  FileUtils.mkdir_p(File.join(checkout, "benches"))
+  File.write(File.join(checkout, "benches", "custom.rs"), 'fn main() { panic!("custom harness must not run"); }')
+  begin
+    File.write(manifest, manifest_before_bench + "\n[[bench]]\nname = \"custom\"\nharness = false\n")
+    quarantine["skipped"] = [test_case.call(package, "tests", "optionally_fails", "skipped")]
+    run.call("unselected-custom-bench", ["test", "--offline", "--lib"], 0, 3, env: { "TUIST_FIXTURE_FAIL" => "1" })
+    custom = run.call("selected-custom-bench", ["test", "--offline", "--all-targets"], 1, nil, build: nil)
+    check(test_lines.call(custom[1]).empty?, "Selected custom harness executed before rejection")
+    check(custom[2].include?("standard libtest harnesses"), "Selected custom harness was not diagnosed")
+    run.call("unselected-custom-bench-plan", ["test", "--offline", "--lib", "--no-run", "--shard-total", "1"], 0, nil,
+             env: { "TUIST_SHARD_REFERENCE" => "lib-only" }, build: nil)
+    marker = File.join(root, "custom-harness-ran")
+    custom_source = 'fn main() { std::fs::write(std::env::var("TUIST_HARNESS_MARKER").unwrap(), "ran").unwrap(); }'
+    File.write(File.join(checkout, "tests", "custom.rs"), custom_source)
+    File.write(manifest, File.read(manifest) + "\n[[test]]\nname = \"custom\"\nharness = false\n")
+    patterns = run.call("custom-target-pattern-plan", ["test", "--offline", "--test", "cust*", "--no-run", "--shard-total", "1"], 1, nil,
+                        env: { "TUIST_SHARD_REFERENCE" => "custom-pattern", "TUIST_HARNESS_MARKER" => marker }, build: nil)
+    check(patterns[2].include?("target patterns are unsupported") && !File.exist?(marker), "Target pattern executed a custom harness")
+    File.write(source, custom_source)
+    File.write(manifest, File.read(manifest) + "\n[lib]\nharness = false\n")
+    native = command([cargo, "test", "--offline", "--benches", "--no-run"], checkout,
+                     environment.merge("TUIST_HARNESS_MARKER" => marker), root, "native-custom-bench-no-run")
+    check(native[0].zero? && !File.exist?(marker), "Native no-run executed a custom harness")
+    benches = run.call("custom-library-benches-plan", ["test", "--offline", "--benches", "--no-run", "--shard-total", "1"], 1, nil,
+                       env: { "TUIST_SHARD_REFERENCE" => "custom-library", "TUIST_HARNESS_MARKER" => marker }, build: nil)
+    check(benches[2].include?("standard libtest harnesses") && !File.exist?(marker), "--benches executed a custom library harness")
+  ensure
+    File.write(manifest, manifest_before_bench)
+    File.write(source, original_source)
+    FileUtils.rm_rf(File.join(checkout, "benches"))
+    FileUtils.rm_f(File.join(checkout, "tests", "custom.rs"))
+  end
+  quarantine["skipped"] = []
+  planned = run.call("plain-shard-plan", ["test", "--offline", "--no-run", "--shard-total", "2"], 0, nil,
+                     env: { "TUIST_SHARD_REFERENCE" => "cargo-e2e", "TUIST_FIXTURE_FAIL" => "1" }, build: nil)
+  check(JSON.parse(planned[1]).fetch("shard_plan_id") == plan_id, "Missing plan output")
+  check(assignments.flatten.sort == [package, "#{package}::api", "#{package}::doc", docs_module].sort, "Wrong planned modules")
+  outputs = []
+  assignments.each_with_index do |mods, index|
+    count = mods.sum { |mod| mod == package ? 3 : mod == docs_module ? 5 : 1 }
+    result = run.call("plain-shard-#{index}", ["test", "--offline"], 0, count,
+                      env: { "TUIST_SHARD_PLAN_ID" => plan_id, "TUIST_SHARD_INDEX" => index.to_s }, shard: index)
+    outputs += test_lines.call(result[1])
+  end
+  check(outputs.sort == test_lines.call(baseline[1]), "Shards did not execute all tests exactly once")
+  quarantine["muted"] = [test_case.call(package, "tests", "optionally_fails", "muted")]
+  run.call("sharded-quarantine", ["test", "--offline"], 0, 4, fail: true,
+           env: { "TUIST_SHARD_PLAN_ID" => plan_id, "TUIST_SHARD_INDEX" => "0" }, shard: 0)
+  quarantine["muted"] = []
+  shard_override = { shard_plan_id: plan_id, modules: [], suites: {}, download_urls: [] }
+  empty = run.call("empty-shard", ["test", "--offline"], 0, 0,
+                   env: { "TUIST_SHARD_PLAN_ID" => plan_id, "TUIST_SHARD_INDEX" => "0" }, shard: 0)
+  check(test_lines.call(empty[1]).empty?, "Empty shard executed tests")
+  [{ modules: ["unknown-module"], suites: {} }, { modules: [], suites: { package => ["tests"] } }, nil].each_with_index do |override, index|
+    shard_override = override&.merge(shard_plan_id: plan_id, download_urls: [])
+    result = run.call("invalid-shard-#{index}", ["test", "--offline"], 1, nil, build: nil,
+                     env: { "TUIST_SHARD_PLAN_ID" => plan_id, "TUIST_SHARD_INDEX" => (override.nil? ? "99" : "0") })
+    check(test_lines.call(result[1]).empty?, "Invalid shard executed unfiltered tests")
+  end
+  [["test", "--shard-total", "2"], ["test", "--no-run", "--shard-total", "0"],
+   ["test", "--no-run", "--shard-total", "2", "--shard-max", "4"]].each_with_index do |arguments, index|
+    result = run.call("invalid-plan-options-#{index}", arguments, 1, nil, build: nil)
+    check(test_lines.call(result[1]).empty?, "Invalid plan options executed tests")
+  end
   leak_pid = File.join(root, "leaked-child.pid")
   ["leaked-descendant", "periodic-descendant"].each do |scenario|
     started = Time.now
@@ -360,6 +565,37 @@ begin
   File.write(manifest, File.read(manifest).sub("[workspace]", "[workspace]\nmembers = [\"crates/member\"]\ndefault-members = [\".\"]"))
   run.call("selected-member", ["test", "--offline", "-p", "reporting-member"], 0, 2)
   run.call("ambiguous-workspace", ["test", "--offline", "--workspace"], 0, nil)
+  workspace_manifest = File.read(manifest)
+  member_manifest = File.join(member, "Cargo.toml")
+  member_source = File.join(member, "src", "lib.rs")
+  begin
+    File.write(manifest, workspace_manifest + "\n[features]\ndefault = [\"extra\"]\nextra = []\n")
+    File.write(source, original_source + "\npub fn feature_enabled() -> bool { cfg!(feature = \"extra\") }\n")
+    File.write(member_manifest, File.read(member_manifest) + "\n[dependencies]\ntuist-cargo-reporting-fixture = { path = \"../..\", default-features = false }\n")
+    File.write(member_source, "#[test]\nfn feature_regression() { assert!(!tuist_cargo_reporting_fixture::feature_enabled()); }\n")
+    native = command([cargo, "test", "--workspace", "--offline", "--lib"], checkout, environment, root, "native-workspace-features")
+    check(native[0] == 101, "Native workspace feature regression was not exercised")
+    quarantine["muted"] = [test_case.call("unrelated-package", "tests", "unrelated", "muted")]
+    [[], ["--features", "extra"], ["--all-features"]].each_with_index do |features, index|
+      run.call("workspace-feature-unification-#{index}", ["test", "--offline", "--workspace", "--lib", *features], 101, 4, failures: 1)
+    end
+    run.call("single-package-feature-control", ["test", "--offline", "-p", "reporting-member", "--lib"], 0, 1)
+    quarantine["muted"] = []
+    quarantine["skipped"] = [test_case.call(package, "tests", "optionally_fails", "skipped")]
+    rejected = run.call("workspace-skip-feature-safety", ["test", "--offline", "--workspace", "--lib"], 1, nil, build: nil)
+    check(rejected[2].include?("preserve feature unification") && test_lines.call(rejected[1]).empty?, "Unsafe workspace skip selection was not rejected")
+    run.call("default-member-skip", ["test", "--offline", "--lib"], 0, 3, env: { "TUIST_FIXTURE_FAIL" => "1" })
+    run.call("workspace-shard-feature-safety", ["test", "--offline", "--workspace", "--lib", "--no-run", "--shard-total", "2"], 1, nil,
+             env: { "TUIST_SHARD_REFERENCE" => "workspace-unsafe" }, build: nil)
+    File.write(member_manifest, File.read(member_manifest) + "\n[lib]\nharness = false\n")
+    File.write(member_source, 'fn main() { panic!("unselected package must not run"); }')
+    run.call("unselected-package-custom-harness", ["test", "--offline", "-p", package, "--lib"], 0, 3)
+  ensure
+    File.write(manifest, workspace_manifest)
+    File.write(source, original_source)
+    quarantine["muted"] = []
+    quarantine["skipped"] = []
+  end
   dependency = File.join(root, "helper")
   FileUtils.mkdir_p([File.join(dependency, "src"), File.join(dependency, "tests")])
   File.write(File.join(dependency, "Cargo.toml"), <<~TOML)

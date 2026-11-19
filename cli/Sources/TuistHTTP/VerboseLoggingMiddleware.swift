@@ -20,6 +20,7 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         "www-authenticate",
         "x-amz-security-token",
         "x-amz-credential",
+        "x-tuist-runner-grant",
     ]
 
     public init(serviceName: String = "Tuist", maxBodyBytesToLog: Int64 = 64 * 1024) {

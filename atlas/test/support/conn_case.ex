@@ -78,6 +78,17 @@ defmodule AtlasWeb.ConnCase do
     {conn, user}
   end
 
+  @doc """
+  Opens the Client → Atlas consent page for an `/oauth2/authorize` path (with its
+  query) as the signed-in `conn`, then approves it, returning the POST response.
+  """
+  def approve_oauth_authorization(conn, path) do
+    consent = Phoenix.ConnTest.dispatch(conn, AtlasWeb.Endpoint, :get, path, nil)
+    200 = consent.status
+
+    Phoenix.ConnTest.dispatch(conn, AtlasWeb.Endpoint, :post, path, %{"decision" => "allow"})
+  end
+
   @doc "Creates a persisted OAuth access token, including its client, for API/MCP tests."
   def oauth_access_token_fixture(%User{} = user) do
     {:ok, client} =

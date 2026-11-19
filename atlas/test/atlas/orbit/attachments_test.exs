@@ -168,7 +168,7 @@ defmodule Atlas.Orbit.AttachmentsTest do
     assert {:ok, _, "Private attachment contents"} = Attachments.read(owner, thread.id, attachment.id)
     assert {:error, :not_found} = Attachments.discard(member, thread, attachment.id)
     assert {:error, {:invalid_field, :attachment_ids}} = post(member, thread, [attachment.id])
-    assert Repo.aggregate(Message, :count) == 1
+    assert Repo.aggregate(from(m in Message, where: m.kind == "human"), :count) == 1
   end
 
   test "replay returns the original attachments without claiming or validating replacement sources", context do
@@ -184,7 +184,7 @@ defmodule Atlas.Orbit.AttachmentsTest do
     assert Enum.map(replay.attachments, & &1.id) == [second.id, first.id]
     assert Repo.reload!(fresh).status == "pending"
     assert Repo.reload!(foreign).status == "pending"
-    assert Repo.aggregate(Message, :count) == 1
+    assert Repo.aggregate(from(m in Message, where: m.kind == "human"), :count) == 1
   end
 
   test "a mixed invalid claim rolls back the message, sequence, and every attachment", context do
@@ -199,8 +199,8 @@ defmodule Atlas.Orbit.AttachmentsTest do
     for invalid <- [foreign.id, cross_thread.id, expired.id, Ecto.UUID.generate()] do
       assert {:error, {:invalid_field, :attachment_ids}} = post(owner, thread, [good.id, invalid])
       assert Repo.reload!(good).status == "pending"
-      assert Repo.reload!(thread).last_seq == 0
-      assert Repo.aggregate(Message, :count) == 0
+      assert Repo.reload!(thread).last_seq == thread.last_seq
+      assert Repo.aggregate(from(m in Message, where: m.kind == "human"), :count) == 0
     end
 
     assert {:error, :not_found} = Attachments.read(owner, other.id, good.id)
@@ -217,7 +217,7 @@ defmodule Atlas.Orbit.AttachmentsTest do
     end
 
     assert {:error, {:invalid_field, :body}} = post(owner, thread, [])
-    assert Repo.aggregate(Message, :count) == 0
+    assert Repo.aggregate(from(m in Message, where: m.kind == "human"), :count) == 0
   end
 
   test "accepts all four files atomically and preserves caller ordering", %{owner: owner, thread: thread} do
@@ -225,7 +225,8 @@ defmodule Atlas.Orbit.AttachmentsTest do
     assert {:ok, message, :created} = post(owner, thread, Enum.reverse(ids))
     assert Enum.map(message.attachments, & &1.id) == Enum.reverse(ids)
     assert Repo.aggregate(from(a in Attachment, where: a.status == "attached"), :count) == 4
-    {[history], _} = Orbit.list_messages(thread)
+    {items, _} = Orbit.list_messages(thread)
+    assert [history] = Enum.filter(items, &(&1.kind == "human"))
     assert Enum.map(history.attachments, & &1.id) == Enum.reverse(ids)
   end
 

@@ -8,7 +8,10 @@ defmodule Tuist.Accounts.UserNotifier do
 
   alias Tuist.Accounts.User
   alias Tuist.Environment
+  alias Tuist.Locale
   alias Tuist.Mailer
+  alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
@@ -161,7 +164,7 @@ defmodule Tuist.Accounts.UserNotifier do
 
     """
     <!DOCTYPE html>
-    <html lang="#{String.replace(locale, "_", "-")}">
+    <html lang="#{String.replace(locale, "_", "-")}" dir="#{Locale.direction(locale)}">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -290,8 +293,8 @@ defmodule Tuist.Accounts.UserNotifier do
   Deliver instructions to reset a user password.
   """
   def deliver_reset_password_instructions(%{user: user, reset_password_url: reset_password_url}) do
-    deliver(
-      user.email,
+    user.email
+    |> build_email(
       dgettext("dashboard_account", "Reset password instructions"),
       %{
         title: dgettext("dashboard_account", "Did you request to reset your password?"),
@@ -310,6 +313,88 @@ defmodule Tuist.Accounts.UserNotifier do
         ]
       }
     )
+    |> Mailer.deliver_now()
+  rescue
+    # Bamboo raises ArgumentError for missing adapter settings, even with deliver_now/1.
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_mfa_change_notification(user, enabled?) do
+    subject =
+      if enabled?,
+        do: dgettext("dashboard_account", "Two-factor authentication enabled"),
+        else: dgettext("dashboard_account", "Two-factor authentication disabled")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The two-factor authentication settings for your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_passkey_change_notification(user, added?) do
+    subject =
+      if added?,
+        do: dgettext("dashboard_account", "Passkey added"),
+        else: dgettext("dashboard_account", "Passkey removed")
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        dgettext("dashboard_account", "The passkeys that can sign in to your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_recovery_notification(user, event) do
+    {subject, message} =
+      case event do
+        :used ->
+          {dgettext("dashboard_account", "Recovery code used"),
+           dgettext(
+             "dashboard_account",
+             "A recovery code was used to access or change security settings on your Tuist account."
+           )}
+
+        :regenerated ->
+          {dgettext("dashboard_account", "Recovery codes regenerated"),
+           dgettext(
+             "dashboard_account",
+             "New recovery codes were created for your Tuist account. All previous codes are now invalid."
+           )}
+      end
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        message,
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
   @doc """
@@ -413,6 +498,53 @@ defmodule Tuist.Accounts.UserNotifier do
 
   def deliver_air_usage_notification(user, account, notification) do
     user |> air_usage_email(account, notification) |> Mailer.deliver_now()
+  end
+
+  def deliver_runner_prepaid_notification(user, account, notification) do
+    Gettext.with_locale(TuistWeb.Gettext, user.preferred_locale || "en", fn ->
+      subject =
+        dgettext("dashboard_account", "%{account_name}: prepaid runner credits %{threshold}% consumed",
+          account_name: account.name,
+          threshold: notification.threshold
+        )
+
+      status =
+        if notification.threshold == 100 do
+          dgettext(
+            "dashboard_account",
+            "Your prepaid runner credits are exhausted. Further billable runner usage continues at the standard on-demand rates; jobs are not blocked."
+          )
+        else
+          dgettext(
+            "dashboard_account",
+            "You have consumed 80% of your prepaid runner credits. Jobs will continue at the standard on-demand rates after the credits are exhausted."
+          )
+        end
+
+      paid_cents = notification.activation.request["paid_cents"]
+
+      # The ledger and thresholds stay in Stripe's standard-rate units. The
+      # customer sees only the purchase's dollars, capped at the prepaid total;
+      # usage beyond exhaustion is on-demand, not additional prepaid spending.
+      remaining_cents =
+        Prepaid.purchased_value(
+          max(notification.budget_cents - notification.usage_cents, 0),
+          paid_cents,
+          notification.budget_cents
+        )
+
+      usage = Money.to_string(Money.new(paid_cents - remaining_cents, :USD))
+      budget = Money.to_string(Money.new(paid_cents, :USD))
+
+      summary =
+        dgettext("dashboard_account", "%{usage} of %{budget} in runner credits consumed.", usage: usage, budget: budget)
+
+      url = Environment.app_url(path: "/#{account.name}/billing")
+
+      user.email
+      |> build_email(subject, nil, Enum.join([status, summary, url], "\n\n"))
+      |> Mailer.deliver_now()
+    end)
   end
 
   @doc """
@@ -525,6 +657,67 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
+  Tells an account admin to rotate the account's Tuist credentials after a
+  security incident. `kind` is `:revoked` when Tuist already revoked them
+  (see `Tuist.Accounts.CredentialRevocation`), or `:rotate` when the admin
+  should rotate them. `details_url` links the incident write-up, if any.
+  """
+  def deliver_credential_rotation_notice(user, account, kind, details_url \\ nil) do
+    user |> credential_rotation_notice_email(account, kind, details_url) |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def credential_rotation_notice_email(user, account, kind, details_url \\ nil) when kind in [:revoked, :rotate] do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      tokens_url = Environment.app_url(path: "/#{account.name}/settings/tokens")
+
+      {subject, opening} =
+        case kind do
+          :revoked ->
+            {dgettext("dashboard_account", "We revoked the Tuist credentials of %{account_name}",
+               account_name: account.name
+             ),
+             dgettext(
+               "dashboard_account",
+               "As a precaution after a security incident, we revoked the credentials of %{account_name}: browser sessions, CLI sign-ins, account tokens, project tokens and legacy tokens. Members need to sign in again.",
+               account_name: account.name
+             )}
+
+          :rotate ->
+            {dgettext("dashboard_account", "Rotate the Tuist credentials of %{account_name}", account_name: account.name),
+             dgettext(
+               "dashboard_account",
+               "As a precaution after a security incident, we recommend rotating the credentials of %{account_name}: revoke its account and project tokens and create new ones.",
+               account_name: account.name
+             )}
+        end
+
+      paragraphs =
+        [
+          opening,
+          dgettext(
+            "dashboard_account",
+            "Create new tokens and update them wherever they are used, such as the TUIST_TOKEN variable of your CI. Where your CI supports it, use OpenID Connect instead, which needs no stored token."
+          )
+        ] ++
+          if(details_url,
+            do: [dgettext("dashboard_account", "Read more about the incident: %{url}", url: details_url)],
+            else: []
+          )
+
+      build_email(user.email, subject, %{
+        title: subject,
+        paragraphs: paragraphs,
+        button: {dgettext("dashboard_account", "Manage tokens"), tokens_url},
+        note: dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
+      })
+    end)
+  end
+
+  @doc """
   Tells an account admin that a subscription payment failed. It makes no
   promise about how long the plan is kept: that is how long Stripe keeps
   retrying, a setting that can change.
@@ -604,7 +797,14 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   defp air_usage_label(:runner_minutes, usage, limit),
-    do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+    do:
+      dgettext(
+        "dashboard_account",
+        "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})",
+        usage: delimit(usage),
+        limit: delimit(limit),
+        linux: delimit(Allowance.free_monthly_minutes(:linux))
+      )
 
   defp air_usage_label(:cache_egress_megabytes, usage, limit) do
     dgettext("dashboard_account", "%{usage} of %{limit} of cache egress used",

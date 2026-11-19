@@ -1,7 +1,7 @@
 defmodule Atlas.Orbit.Progress do
   @moduledoc """
   Payload-free Condukt compaction activity for the authorized Phoenix snapshot.
-  Completion notices explain actual pruning without deleting thread history.
+  Completion notices report compacted context without claiming its adoption.
   """
 
   import Ecto.Query
@@ -17,23 +17,29 @@ defmodule Atlas.Orbit.Progress do
   @handler_id "atlas-orbit-compaction"
 
   def attach do
-    :telemetry.attach_many(
+    :telemetry.attach(
       @handler_id,
-      [[:condukt, :compact, :start], [:condukt, :compact, :stop]],
+      [:condukt, :compact, :stop],
       &__MODULE__.handle_event/4,
       nil
     )
   end
 
+  # Background work does not block ordinary inference. A callback stop means
+  # its summary is ready, not necessarily adopted: Condukt owns that boundary.
+  # Keep the run running and report only successful, changed callbacks.
   def handle_event(
-        [:condukt, :compact, phase],
+        [:condukt, :compact, :stop],
         _measurements,
         %{agent: Agent, session_id: session_id} = metadata,
         _config
       ) do
+    changed? = metadata[:changed] == true
+
     case Repo.one(from run in Run, where: run.session_id == ^session_id and run.status == "running") do
       nil -> :ok
-      run -> record_activity(run, phase, metadata[:changed] == true)
+      %Run{activity: nil} when not changed? -> :ok
+      run -> record_activity(run, changed?)
     end
   rescue
     _exception -> Logger.warning("orbit activity update failed: progress_error")
@@ -43,18 +49,17 @@ defmodule Atlas.Orbit.Progress do
 
   def handle_event(_event, _measurements, _metadata, _config), do: :ok
 
-  defp record_activity(run, phase, changed?) do
+  defp record_activity(run, changed?) do
     result =
       Runs.with_attempt(run.id, run.resume_count, fn thread, current ->
         if is_nil(current.cancel_requested_at) and current.session_id == run.session_id do
-          activity = if phase == :start, do: "compacting"
-          current |> Ecto.Changeset.change(activity: activity) |> Repo.update!()
+          current |> Ecto.Changeset.change(activity: nil) |> Repo.update!()
 
-          if phase == :stop and changed? do
+          if changed? do
             Orbit.append!(thread, %{
               kind: "system",
               run_id: current.id,
-              body: "Context compacted. Older tool results were shortened; thread history is unchanged."
+              body: "A compacted version of older context is ready. Thread history is unchanged."
             })
           end
 

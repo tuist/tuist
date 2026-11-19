@@ -8,6 +8,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.NoSuchFileException
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.Locale
 
@@ -33,7 +34,7 @@ class CredentialStore(
         val credFile = credentialFile(hostname)
         if (!exists(credFile)) return null
         return try {
-            val credentials = Gson().fromJson(credFile.readText(), Credentials::class.java)
+            val credentials = Gson().fromJson(Files.readString(credFile.toPath()), Credentials::class.java)
             if (rejectInvalid && (credentials?.accessToken.isNullOrBlank() || credentials?.rejected == true)) {
                 throw IllegalArgumentException("Missing access token")
             }
@@ -50,8 +51,15 @@ class CredentialStore(
 
     fun write(serverURL: URI, credentials: Credentials) {
         val hostname = serverURL.host ?: return
+        val credFile = credentialFile(hostname)
         credentialsDir.mkdirs()
-        credentialFile(hostname).writeText(Gson().toJson(credentials))
+        val temporaryFile = Files.createTempFile(credentialsDir.toPath(), ".credentials-", ".json")
+        try {
+            Files.writeString(temporaryFile, Gson().toJson(credentials))
+            Files.move(temporaryFile, credFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            Files.deleteIfExists(temporaryFile)
+        }
     }
 
     private fun credentialFile(hostname: String): File {
@@ -90,6 +98,20 @@ class CredentialStore(
         false
     } catch (e: Exception) {
         throw IllegalStateException("Could not inspect Tuist credentials in $file; fix directory access before publishing.", e)
+    }
+
+    internal fun refreshLockFile(serverURL: URI): File {
+        val storageKey = serverURL.host?.let {
+            File(credentialsDir, "${it.lowercase(Locale.ROOT).trimEnd('.')}.json")
+                .toPath().toAbsolutePath().normalize().toString()
+        }
+            ?: serverURL.toString()
+        // Match the Swift client's credential-refresh key and flock, including URL aliases sharing the same file.
+        var hash = 14695981039346656037uL
+        for (byte in storageKey.toByteArray(Charsets.UTF_8)) {
+            hash = (hash xor byte.toUByte().toULong()) * 1099511628211uL
+        }
+        return File(XdgPaths.stateHome(), "tuist/cached_value_store/credential-refresh-${hash.toString(16)}.lock")
     }
 
     companion object {

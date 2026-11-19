@@ -1,0 +1,79 @@
+name: Kura Certificate Trust
+
+on:
+  pull_request:
+    paths:
+      - kura/src/**
+      - kura/test/certificate-trust/**
+      - kura/Cargo.toml
+      - kura/Cargo.lock
+      - kura/BUILD.bazel
+      - kura/bazel/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/controls/**
+      - .github/workflows/kura-certificate-trust.yml
+  push:
+    branches: [main]
+    paths:
+      - kura/src/**
+      - kura/test/certificate-trust/**
+      - kura/Cargo.toml
+      - kura/Cargo.lock
+      - kura/BUILD.bazel
+      - kura/bazel/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/controls/**
+      - .github/workflows/kura-certificate-trust.yml
+  workflow_dispatch:
+    inputs:
+      public_controls:
+        description: Also execute credential-free public endpoints and OpenSSL identity opt-ins
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  linux-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: kura
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: bazel node
+          working_directory: kura
+          env: false
+      - name: Check policy synchronization and bounded production factory inventory
+        run: mise exec -- node --test test/certificate-trust/wiring.test.mjs
+      - name: Execute native stores and actual TLS fixtures
+        run: |
+          mise exec -- bazel test //:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all
+          mkdir -p "$RUNNER_TEMP/kura-native-receipt"
+          cp bazel-testlogs/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/default.xml"
+          cp bazel-testlogs/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/default.log"
+      - name: Execute explicit public and identity-format qualification
+        if: inputs.public_controls
+        run: |
+          mise exec -- bazel test //:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all \
+            --test_arg=--ignored --test_arg=public_controls_fail_for_certificates --test_arg=valid_pkcs1_and_sec1_identities \
+            --test_env=TUIST_TRUST_LIVE=1 --test_env=KURA_TRUST_OPENSSL=/usr/bin/openssl
+          cp bazel-testlogs/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/opt-in.xml"
+          cp bazel-testlogs/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/opt-in.log"
+      - name: Record source and platform
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/kura-native-receipt"
+          git rev-parse HEAD > "$RUNNER_TEMP/kura-native-receipt/SOURCE"
+          uname -a > "$RUNNER_TEMP/kura-native-receipt/platform.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kura-native-linux-${{ github.sha }}
+          path: ${{ runner.temp }}/kura-native-receipt

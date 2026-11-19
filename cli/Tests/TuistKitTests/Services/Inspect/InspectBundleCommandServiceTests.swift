@@ -7,6 +7,8 @@ import Rosalind
 import Testing
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistGit
 import TuistKit
 import TuistServer
@@ -58,7 +60,8 @@ struct InspectBundleCommandServiceTests {
                 appBundleReport: .any,
                 gitCommitSHA: .any,
                 gitBranch: .any,
-                gitRef: .any
+                gitRef: .any,
+                tags: .any
             )
             .willReturn(.init(
                 app_bundle_id: "dev.tuist",
@@ -101,7 +104,8 @@ struct InspectBundleCommandServiceTests {
                 configuration: nil,
                 platforms: [],
                 derivedDataPath: nil,
-                json: false
+                json: false,
+                tags: ["paid", "production"]
             )
 
             // Then
@@ -112,7 +116,8 @@ struct InspectBundleCommandServiceTests {
                     appBundleReport: .any,
                     gitCommitSHA: .any,
                     gitBranch: .any,
-                    gitRef: .value("refs/pull/1/merge")
+                    gitRef: .value("refs/pull/1/merge"),
+                    tags: .value(["paid", "production"])
                 )
                 .called(1)
 
@@ -120,6 +125,18 @@ struct InspectBundleCommandServiceTests {
                 .gitInfo(workingDirectory: .value(temporaryDirectory))
                 .called(1)
         }
+    }
+
+    @Test(.withMockedEnvironment())
+    func parsesBundleTagsFromEnvironmentAndExplicitOptions() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_BUNDLE_TAGS"] = "paid,production"
+
+        let fromEnvironment = try InspectBundleCommand.parse(["App.ipa"])
+        #expect(fromEnvironment.tags == ["paid", "production"])
+
+        let explicit = try InspectBundleCommand.parse(["App.aab", "--tags", "free", "staging"])
+        #expect(explicit.tags == ["free", "staging"])
     }
 
     @Test(.inTemporaryDirectory)

@@ -241,6 +241,109 @@ scheduler/controller-manager startup retries during these reboots included local
 API TLS timeouts, but that does not establish the earlier join delay's cause.
 Keep the 90-second stability gate and collect its reset timestamps on future joins.
 
+### CVE-2026-98432: prepared 1.13.11 → 1.13.12 upgrade
+
+**This procedure has not been executed. Merging it does not upgrade or reboot
+any node.** The management reconciler applies configuration with `--mode
+no-reboot`; changing its `talosctl` image does not install a new OS. The
+Hetzner snapshot selector only affects new servers. Neither is a substitute
+for the explicit Talos upgrade below.
+
+[Talos 1.13.12](https://github.com/siderolabs/talos/releases/tag/v1.13.12)
+ships Linux **6.18.57**. The [upstream CVE advisory](https://git.kernel.org/pub/scm/linux/security/vulns.git/plain/cve/published/2026/CVE-2026-98432.mbox)
+identifies **6.18.56** as the first fixed release in that kernel series.
+This is a same-minor OS patch upgrade, not a Kubernetes upgrade. It also
+updates containerd and other OS components, so kernel version alone is not
+an availability check.
+
+The Image Factory's existing empty-extension hcloud schematic resolves to
+this immutable installer index (checked on 2026-11-02). Its linux/amd64
+manifest declares Talos `v1.13.12`:
+
+```text
+factory.talos.dev/hcloud-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba@sha256:ff47c001bf6299a29d1d666d7b41cfd2cfa28bea34e6b75f96a2e9dcafe8501a
+```
+
+**Human operator only, using existing authorized management access.** Do not
+retrieve an admin kubeconfig for an agent. Set `KUBECONFIG` to the management
+cluster and `TALOSCONFIG` to the operator's existing management Talos identity;
+check both contexts before proceeding. Use `talosctl` **1.13.11** for this
+upgrade, matching the starting OS. Arrange a maintenance window without
+concurrent management reconciliation or node maintenance, and confirm working
+Hetzner console/recovery access independent of the cluster and tailnet.
+
+Before the first upgrade, and again before each subsequent node:
+
+1. Confirm the inventory above still matches all three nodes, their system
+   UUIDs, architecture, hcloud platform and schematic. Record Talos/kernel
+   versions, Kubernetes versions and etcd member IDs. Stop on drift rather
+   than substituting an installer or adding nodes.
+2. Require three healthy voting etcd members with private advertised URLs,
+   three Ready nodes, all private API load-balancer targets healthy, all
+   Deployments Available and sufficient webhook replicas/PDB disruption
+   allowance. Require the three static control-plane pods on every node to
+   remain Ready with unchanged UIDs/restart counts for 90 seconds, as in
+   `reconcile-talos.sh`'s stability gate. Historical HA results are not a
+   current preflight.
+3. Run `infra/mise/tasks/mgmt/verify-etcd-snapshot.sh` without its deletion
+   flag; require fresh successful snapshot uploads and confirm the operator
+   can recover the backup. Run
+   `infra/mise/tasks/mgmt/check-pod-network.sh`; require DNS and all-pairs pod
+   HTTP to pass. These tasks create bounded verification Jobs/Pods.
+4. Confirm a healthy **different** Talos endpoint can proxy to the target.
+   Keep the other two members online. Start with a non-leader member and
+   observe API availability and controller health throughout the reboot.
+
+Run **one** upgrade, then stop for acceptance. For example, target node 2
+through node 3 after confirming their live identities and the gates above:
+
+```bash
+talosctl --endpoints 100.110.48.87 --nodes 10.0.1.12 upgrade \
+  --image factory.talos.dev/hcloud-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba@sha256:ff47c001bf6299a29d1d666d7b41cfd2cfa28bea34e6b75f96a2e9dcafe8501a \
+  --legacy --preserve --drain --drain-timeout=10m --wait --timeout=30m
+```
+
+Retain the previously qualified legacy upgrade path. The [Talos 1.13 upgrade
+guide](https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
+warns that the new API can omit `extraKernelArgs` on GRUB installations;
+do not combine the security update with a bootloader migration. Do not use
+`--force`, `--no-reboot`, disable draining, bypass PDBs, or send an upgrade
+to multiple nodes. Staging an image without rebooting does not patch the
+running kernel.
+
+After the reboot, require the original node name, system UUID, private IP,
+hcloud platform and etcd member ID, Talos **1.13.12** and running Linux
+**6.18.57**, and unchanged Kubernetes versions. Inspect `talosctl version`,
+`talosctl uname`, PlatformMetadata and HostnameStatus through the healthy
+sibling endpoint. Require all preflight health and network gates again,
+including a fresh 90-second stability window, normal API error/latency and
+controller reconciliation, and a schedulable node. A successful upgrade
+command or a single Ready sample is insufficient.
+
+Only after accepting that node, choose the next target and a different
+healthy endpoint from the inventory, rerun the preflight, and issue a new
+single-node command. Repeat for the third node. Do not automate this as a
+three-node loop. Record per-node before/after evidence; mixed versions mean
+the rollout is incomplete.
+
+**Abort on a failed gate or a 30-minute upgrade timeout.** Do not retry the
+upgrade blindly: inspect its actual state and leave both healthy siblings
+untouched. Talos retains the previous boot image; if the target API works,
+the operator can use `talosctl --endpoints <healthy-sibling> --nodes
+<failed-node> rollback`. Otherwise use the independent Hetzner console and
+the retained boot entry. Rollback reboots and restores the vulnerable OS;
+it is emergency recovery, not CVE closure. Never reset a member, bootstrap
+etcd, remove an etcd member or rebuild a joined node as routine rollback.
+
+After all three pass, separately publish and qualify a **clean**
+`talos-v1.13.12` hcloud snapshot using the provisioning procedure below
+(substitute `v1.13.12` in the URL, description and label). Only then change
+`hetzner.yaml`'s snapshot selector and align the reconciler/snapshot Job's
+`talosctl` images. Until that follow-up lands, new servers still boot the
+older image and require this upgrade; do not add or replace members from
+it as part of this trial. This management-only rollout does not patch
+Ubuntu workload nodes, bare-metal hosts or Linux guests.
+
 ### Backup credential rollout and verification
 
 `../etcd-snapshot.yaml` now declares a Talos ServiceAccount named

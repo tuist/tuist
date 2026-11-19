@@ -655,6 +655,46 @@ impl PersistentFile {
         Ok(())
     }
 
+    /// Writes `bodies` back to back from `offset`. On Linux this is one
+    /// vectored write per call, so concurrent writers to the same segment take
+    /// the file's inode lock once per group instead of once per body.
+    pub fn write_all_vectored_at(&self, bodies: &[&[u8]], offset: u64) -> Result<(), io::Error> {
+        #[cfg(target_os = "linux")]
+        {
+            use std::io::IoSlice;
+
+            const IOV_MAX: usize = 1024;
+            let mut slices: Vec<IoSlice<'_>> =
+                bodies.iter().map(|body| IoSlice::new(body)).collect();
+            let mut remaining = &mut slices[..];
+            let mut offset = offset;
+            // Drops leading empty bodies, so an all-empty group writes nothing.
+            IoSlice::advance_slices(&mut remaining, 0);
+            while !remaining.is_empty() {
+                let batch = remaining.len().min(IOV_MAX);
+                match rustix::io::pwritev(&self.file, &remaining[..batch], offset) {
+                    Ok(0) => return Err(io::Error::from(io::ErrorKind::WriteZero)),
+                    Ok(written) => {
+                        offset = offset.saturating_add(written as u64);
+                        IoSlice::advance_slices(&mut remaining, written);
+                    }
+                    Err(rustix::io::Errno::INTR) => {}
+                    Err(error) => return Err(error.into()),
+                }
+            }
+            Ok(())
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let mut offset = offset;
+            for body in bodies {
+                self.write_all_at(body, offset)?;
+                offset = offset.saturating_add(body.len() as u64);
+            }
+            Ok(())
+        }
+    }
+
     pub fn sync_data(&self) -> Result<(), io::Error> {
         sync_segment_data(&self.file)
     }

@@ -4,11 +4,11 @@ defmodule TuistWeb.RateLimit.OutageTest do
 
   alias Tuist.Environment
   alias Tuist.PromEx.RateLimit, as: RateLimitMetrics
+  alias Tuist.RateLimit.InMemory
+  alias Tuist.RateLimit.PersistentFixedWindow
+  alias Tuist.RateLimit.PersistentTokenBucket
   alias TuistTestSupport.TelemetryCapture
   alias TuistWeb.RateLimit
-  alias TuistWeb.RateLimit.InMemory
-  alias TuistWeb.RateLimit.PersistentFixedWindow
-  alias TuistWeb.RateLimit.PersistentTokenBucket
 
   setup do
     stub(Environment, :redis_url, fn -> "redis://unavailable" end)

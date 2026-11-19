@@ -229,13 +229,18 @@ defmodule Tuist.Kura.Origins do
       end)
 
     with_existing_accounts(rows, fn rows ->
-      {count, _} =
-        Repo.insert_all(OriginRollup, sort_by_conflict_key(rows),
-          conflict_target: [:account_id, :origin, :date],
-          on_conflict: {:replace, [:hit_count, :updated_at]}
-        )
+      rows
+      |> sort_by_conflict_key()
+      |> Enum.chunk_every(1_000)
+      |> Enum.reduce(0, fn batch, total ->
+        {count, _} =
+          Repo.insert_all(OriginRollup, batch,
+            conflict_target: [:account_id, :origin, :date],
+            on_conflict: {:replace, [:hit_count, :updated_at]}
+          )
 
-      count
+        total + count
+      end)
     end)
   end
 
@@ -282,21 +287,25 @@ defmodule Tuist.Kura.Origins do
         |> Map.put(:updated_at, now)
       end)
 
-    {count, _} =
-      Repo.insert_all(OriginRollup, rows,
-        conflict_target: [:account_id, :origin, :date],
-        on_conflict:
-          from(rollup in OriginRollup,
-            update: [
-              set: [
-                demand_count: fragment("? + EXCLUDED.demand_count", rollup.demand_count),
-                run_count: fragment("? + EXCLUDED.run_count", rollup.run_count),
-                updated_at: fragment("EXCLUDED.updated_at")
+    rows
+    |> Enum.chunk_every(1_000)
+    |> Enum.reduce(0, fn batch, total ->
+      {count, _} =
+        Repo.insert_all(OriginRollup, batch,
+          conflict_target: [:account_id, :origin, :date],
+          on_conflict:
+            from(rollup in OriginRollup,
+              update: [
+                set: [
+                  demand_count: fragment("? + EXCLUDED.demand_count", rollup.demand_count),
+                  run_count: fragment("? + EXCLUDED.run_count", rollup.run_count),
+                  updated_at: fragment("EXCLUDED.updated_at")
+                ]
               ]
-            ]
-          )
-      )
+            )
+        )
 
-    count
+      total + count
+    end)
   end
 end

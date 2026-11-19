@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Server do
   alias Tuist.Environment
   alias Tuist.MCP.Components.Prompts
   alias Tuist.MCP.Components.Tools
+  alias Tuist.MCP.Feedback
 
   # Backed by the hosted Typesense search service, so only offered on the
   # Tuist-hosted installation.
@@ -20,6 +21,14 @@ defmodule Tuist.MCP.Server do
   @tools [
     Tools.GetGradleIntegrationGuide,
     Tools.GetBazelIntegrationGuide,
+    Tools.QueryPulse,
+    Tools.GetPulseAnalytics,
+    Tools.QueryPulseMetrics,
+    Tools.ListPulseLabels,
+    Tools.SearchPulseLogs,
+    Tools.SearchPulseTraces,
+    Tools.GetPulseTrace,
+    Tools.GetPulseErrorIssue,
     Tools.ListAccounts,
     Tools.GetOrganization,
     Tools.ListAccountTokens,
@@ -29,6 +38,12 @@ defmodule Tuist.MCP.Server do
     Tools.AddOrganizationMember,
     Tools.InviteOrganizationMember,
     Tools.CancelOrganizationInvitation,
+    Tools.ListNotificationEvents,
+    Tools.ListNotificationConditionOptions,
+    Tools.ListNotificationRules,
+    Tools.CreateNotificationRule,
+    Tools.UpdateNotificationRule,
+    Tools.DeleteNotificationRule,
     Tools.ListRunnerJobs,
     Tools.GetRunnerJob,
     Tools.ListRunnerJobSteps,
@@ -45,7 +60,27 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerVolumeJobs,
     Tools.ListRunnerJobVolumes,
     Tools.GetRunnerVolumeAnalytics,
-    Tools.ClearRunnerVolume,
+    Tools.DeleteRunnerVolume,
+    Tools.ListSandboxes,
+    Tools.GetSandbox,
+    Tools.CreateSandbox,
+    Tools.GetSandboxAnalytics,
+    Tools.PauseSandbox,
+    Tools.ResumeSandbox,
+    Tools.ArchiveSandbox,
+    Tools.DeleteSandbox,
+    Tools.ListAmpWorkspaceConnections,
+    Tools.ConnectAmpWorkspace,
+    Tools.DisconnectAmpWorkspace,
+    Tools.ListClaudeEnvironments,
+    Tools.ConnectClaudeEnvironment,
+    Tools.GetOrganizationAIConfiguration,
+    Tools.RemoveOrganizationAIProvider,
+    Tools.SaveOrganizationAIModel,
+    Tools.RemoveOrganizationAIModel,
+    Tools.SetOrganizationAIDefaultModel,
+    Tools.SaveOrganizationAITaskRoute,
+    Tools.RemoveOrganizationAITaskRoute,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -56,6 +91,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListXcodeBuildFiles,
     Tools.ListXcodeBuildSteps,
     Tools.GetXcodeBuildStep,
+    Tools.GetBuildTrace,
     Tools.ListXcodeBuildIssues,
     Tools.ListXcodeBuildCacheTasks,
     Tools.ListXcodeBuildCASOutputs,
@@ -72,6 +108,8 @@ defmodule Tuist.MCP.Server do
     Tools.GetBazelInvocationLog,
     Tools.ListBazelCacheEvents,
     Tools.GetBazelCacheEvent,
+    Tools.GetRemoteExecutionActivity,
+    Tools.GetRemoteExecutionUsage,
     Tools.ListCargoBuilds,
     Tools.GetCargoBuild,
     Tools.ListMixBuilds,
@@ -95,6 +133,10 @@ defmodule Tuist.MCP.Server do
     Tools.GetCoverage,
     Tools.ListCoverageFiles,
     Tools.GetCoverageFile,
+    Tools.ListCoverageBranches,
+    Tools.ListCoverageCommits,
+    Tools.ListCoverageRuns,
+    Tools.ListCoverageTargets,
     Tools.ListBundles,
     Tools.GetBundle,
     Tools.GetBundleArtifactTree,
@@ -108,6 +150,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListProjectNotificationAlerts,
     Tools.ListXcodeModuleCacheTargets,
     Tools.ListXcodeTestTargets,
+    Tools.ListSelectiveTestingTests,
+    Tools.ListSelectiveTestingChangedFiles,
     Tools.ListProjects,
     Tools.GetProject,
     Tools.ListProjectTokens,
@@ -149,7 +193,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.42.0",
+      version: "1.75.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
@@ -161,7 +205,9 @@ defmodule Tuist.MCP.Server do
   defp tools do
     hosted_tools = if Environment.tuist_hosted?(), do: @hosted_tools, else: []
     codebase_tools = if codebase_search_enabled?(), do: @codebase_tools, else: []
-    hosted_tools ++ codebase_tools ++ @tools
+    # Reports are published to Atlas, Tuist's internal support system.
+    feedback_tools = if Environment.tuist_hosted?() and Feedback.enabled?(), do: [Tools.ReportFeedback], else: []
+    hosted_tools ++ codebase_tools ++ feedback_tools ++ @tools
   end
 
   defp prompts, do: if(codebase_search_enabled?(), do: @codebase_prompts ++ @prompts, else: @prompts)

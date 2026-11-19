@@ -1,0 +1,5 @@
+[
+  { "sku": "coffee", "name": "Coffee", "price_cents": 350, "description": "Filter coffee" },
+  { "sku": "tea", "name": "Tea", "price_cents": 300, "description": "Green tea" },
+  { "sku": "cake", "name": "Cake", "price_cents": 450, "description": "Carrot cake" }
+]

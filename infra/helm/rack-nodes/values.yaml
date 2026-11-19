@@ -36,3 +36,13 @@ runnersFleet:
   xcodeVersions: []
   xcodeOverrides: {}
   runnerImageSemver: ""
+
+# The Kura cache fleets whose pools the rented CSI plugin serves.
+ovhFleet:
+  enabled: false
+ovhFleets: {}
+vultrFleets: {}
+
+kuraVolumesCSI:
+  enabled: false
+  rackPools: []

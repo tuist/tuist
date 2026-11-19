@@ -76,13 +76,60 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> post_metrics("runner-pod-1", %{
-          "samples" => [sample(1_750_000_000.0, %{"cpu_usage_percent" => 88.0})]
+          "samples" => [
+            sample(1_750_000_000.0, %{
+              "cpu_usage_percent" => 88.0,
+              "oom_kill_count" => 1,
+              "oom_victim_process" => "java",
+              "oom_victim_memory_bytes" => 27_917_287_424,
+              "oom_victim_container" => "gradle-build",
+              "oom_victim_image" => "gradle:8-jdk21@sha256:ab"
+            })
+          ]
         })
 
       assert response(conn, 204)
 
-      assert [%{timestamp: 1_750_000_000.0, cpu_usage_percent: cpu}] = JobMetrics.list_for_job(33_001)
+      assert [
+               %{
+                 timestamp: 1_750_000_000.0,
+                 cpu_usage_percent: cpu,
+                 oom_kill_count: 1,
+                 oom_victim_process: "java",
+                 oom_victim_memory_bytes: 27_917_287_424,
+                 oom_victim_container: "gradle-build",
+                 oom_victim_image: "gradle:8-jdk21@sha256:ab"
+               }
+             ] = JobMetrics.list_for_job(33_001)
+
       assert_in_delta cpu, 88.0, 0.01
+    end
+
+    test "drops a victim name the job could have forged into markup or a long string", %{conn: conn} do
+      # The job can write the file the sampler reads the names from.
+      account = account_fixture()
+      session(account, 33_003, "runner-pod-3", "runner-3")
+      prove_execution(account, "runner-3", 33_003)
+      runner_token_stub("runner-pod-3")
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-3", %{
+          "samples" => [
+            sample(1_750_000_000.0, %{
+              "oom_kill_count" => 1,
+              "oom_victim_process" => "java",
+              "oom_victim_container" => "<script>",
+              "oom_victim_image" => String.duplicate("a", 129)
+            })
+          ]
+        })
+
+      assert response(conn, 204)
+
+      assert [%{oom_victim_process: "java", oom_victim_container: "", oom_victim_image: ""}] =
+               JobMetrics.list_for_job(33_003)
     end
 
     test "records under the executed job, not the job the Pod was minted for", %{conn: conn} do
@@ -138,7 +185,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       assert JobMetrics.list_for_job(33_002) == []
     end
 
-    test "returns 204 without recording when the Pod has no session", %{conn: conn} do
+    test "returns 202 without recording when the Pod has no session", %{conn: conn} do
       runner_token_stub("unclaimed-pod")
       reject(&JobMetrics.record/3)
 
@@ -147,7 +194,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
         |> put_req_header("authorization", "Bearer valid-token")
         |> post_metrics("unclaimed-pod", %{"samples" => [sample(1_750_000_000.0)]})
 
-      assert response(conn, 204)
+      assert response(conn, 202)
     end
 
     test "does not attribute an idle runner's samples before GitHub proves execution", %{conn: conn} do
@@ -164,7 +211,35 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
         |> put_req_header("authorization", "Bearer valid-token")
         |> post_metrics("runner-pod-idle", %{"samples" => [sample(1_750_000_000.0)]})
 
-      assert response(conn, 204)
+      assert response(conn, 202)
+    end
+
+    test "records samples resent after GitHub proves execution, including the ones it answered 202", %{conn: conn} do
+      account = account_fixture()
+      session(account, 33_040, "runner-pod-late", "runner-late")
+      runner_token_stub("runner-pod-late")
+
+      first =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-late", %{"samples" => [sample(1_750_000_000.0)]})
+
+      assert response(first, 202)
+      assert JobMetrics.list_for_job(33_040) == []
+
+      prove_execution(account, "runner-late", 33_040)
+
+      second =
+        build_conn()
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-late", %{
+          "samples" => [sample(1_750_000_000.0), sample(1_750_000_015.0)]
+        })
+
+      assert response(second, 204)
+
+      assert [%{timestamp: 1_750_000_000.0}, %{timestamp: 1_750_000_015.0}] =
+               Enum.sort_by(JobMetrics.list_for_job(33_040), & &1.timestamp)
     end
 
     test "returns 400 when a sample is missing its timestamp", %{conn: conn} do

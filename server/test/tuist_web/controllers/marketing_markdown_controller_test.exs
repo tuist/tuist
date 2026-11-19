@@ -9,6 +9,14 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
 
   @endpoint TuistWeb.Endpoint
 
+  test "redirects old Once marketing URLs without changing representation or losing queries" do
+    for prefix <- ["", "/marketing-markdown"] do
+      conn = get(build_conn(), "#{prefix}/build-systems/once?source=shared&tab=setup")
+      assert redirected_to(conn, 301) == "#{prefix}/build-systems/struo?source=shared&tab=setup"
+      refute get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+    end
+  end
+
   test "every decision guide has a header-free Markdown URL" do
     for path <- MarketingMarkdown.paths() do
       conn = get(build_conn(), MarketingMarkdown.alternate_path(path))
@@ -21,6 +29,11 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
       assert get_resp_header(conn, "vary") == []
       assert get_resp_header(conn, "set-cookie") == []
       assert get_resp_header(conn, "cloudflare-cdn-cache-control") == []
+
+      assert get_resp_header(conn, "link") == [
+               ~s(<#{Tuist.Environment.app_url(path: path)}>; rel="canonical")
+             ]
+
       assert [tokens] = get_resp_header(conn, "x-markdown-tokens")
       assert String.to_integer(tokens) > 0
     end
@@ -46,6 +59,7 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
 
       assert response(conn, 404) == "Page not found"
       assert get_resp_header(conn, "cache-control") == ["no-store"]
+      assert get_resp_header(conn, "link") == []
     end
   end
 
@@ -55,6 +69,7 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
       assert response(conn, 200) == MarketingMarkdown.source("/" <> path)
       refute conn.resp_body == MarketingMarkdown.get("/" <> path)
       assert get_resp_header(conn, "content-language") == ["en"]
+      assert get_resp_header(conn, "link") == []
     end
 
     conn = get(build_conn(), "/marketing-markdown/source/cache")

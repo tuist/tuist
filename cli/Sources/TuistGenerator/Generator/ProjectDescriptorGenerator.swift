@@ -93,7 +93,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: Project,
         graphTraverser: GraphTraversing
     ) async throws -> ProjectDescriptor {
-        Logger.current.notice("Generating project \(project.name)")
+        Logger.current.info("Generating project \(project.name)")
 
         Logger.current.debug("Setting up workspace data for project \(project.name)")
         let selfRef = XCWorkspaceDataFileRef(location: .current(""))
@@ -161,6 +161,8 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             pbxproj: pbxproj,
             pbxProject: pbxProject
         )
+
+        try fileElements.finalizeBuildFileReferences(in: pbxproj, mainGroup: groups.sortedMain)
 
         Logger.current.debug("Creating GeneratedProject for project \(project.name)")
         let generatedProject = GeneratedProject(

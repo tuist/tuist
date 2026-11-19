@@ -1,9 +1,11 @@
+import TuistConfig
 import TuistLogging
 import TuistSupport
 
 public struct TestIdentifier: CustomStringConvertible, Hashable {
     enum Error: FatalError {
         case invalidTestIdentifier(value: String)
+        case targetTagsUnavailable
 
         // Error description
 
@@ -11,6 +13,8 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
             switch self {
             case let .invalidTestIdentifier(value):
                 return "Invalid test identifiers \(value). The expected format is TestTarget[/TestClass[/TestMethod]]."
+            case .targetTagsUnavailable:
+                return "The test products do not contain target tags. Rebuild them with this version of Tuist to filter tests by tag."
             }
         }
 
@@ -18,7 +22,7 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
 
         var type: ErrorType {
             switch self {
-            case .invalidTestIdentifier:
+            case .invalidTestIdentifier, .targetTagsUnavailable:
                 return .abort
             }
         }
@@ -64,6 +68,21 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
             class: getSafely(1),
             method: getSafely(2)
         )
+    }
+
+    /// Expands a target tag query while preserving any suite or test method filter.
+    /// Named identifiers are unchanged, including when reading legacy test products without tags.
+    public func resolvingTargetQuery(targetTags: [String: Set<String>]?) throws -> [TestIdentifier] {
+        guard case let .tagged(tag) = TargetQuery(stringLiteral: target) else {
+            return [self]
+        }
+        guard let targetTags else {
+            throw Error.targetTagsUnavailable
+        }
+        return try targetTags.keys.sorted().compactMap { name in
+            guard targetTags[name]?.contains(tag) == true else { return nil }
+            return try TestIdentifier(target: name, class: `class`, method: method)
+        }
     }
 
     private static func description(target: String, class: String?, method: String?) -> String {

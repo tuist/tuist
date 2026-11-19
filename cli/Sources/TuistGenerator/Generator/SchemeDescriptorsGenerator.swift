@@ -169,8 +169,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
-        let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
-            TestPlanDescriptor.from(
+        let testPlanSideEffects: [SideEffectDescriptor] = try scheme.testAction?.testPlans?.compactMap { plan in
+            try TestPlanDescriptor.from(
                 testPlan: plan,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
@@ -1222,6 +1222,7 @@ extension TestAction {
 
 enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
     case duplicateGeneratedTestPlanPath(AbsolutePath)
+    case unresolvedTestPlanCoverageTarget(plan: AbsolutePath, target: TargetReference)
 
     var type: ErrorType { .abort }
 
@@ -1231,6 +1232,12 @@ enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
             """
             Multiple generated test plans resolve to the same path \(path.pathString). \
             Give each plan a distinct name or pin one of them to an explicit path.
+            """
+        case let .unresolvedTestPlanCoverageTarget(plan, target):
+            """
+            Cannot resolve coverage target '\(target.name)' at \(target.projectPath.pathString) \
+            for generated test plan \(plan.pathString). \
+            Use a workspace scheme to collect coverage from targets in other projects.
             """
         }
     }

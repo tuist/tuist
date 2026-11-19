@@ -12,6 +12,8 @@ import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistGenerator
+import TuistLoggerTesting
+import TuistLogging
 import TuistOpener
 import TuistServer
 import TuistSupport
@@ -52,7 +54,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .any,
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         cacheStorageFactory = .init()
@@ -337,7 +340,8 @@ struct GenerateServiceTests {
             )
 
             // Then
-            try TuistTest.expectLogs("Total time taken: 0.234s")
+            try TuistTest.expectLogs("Total time taken: 0.234s", at: .info, ==)
+            #expect(Logger.testingLogHandler.collected[.notice, <=].isEmpty)
         }
     }
 
@@ -376,7 +380,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -416,7 +421,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -456,7 +462,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .none },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -505,7 +512,8 @@ struct GenerateServiceTests {
                 configuration: .any,
                 cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .value(.all)
             )
             .called(1)
     }
@@ -691,7 +699,8 @@ struct GenerateServiceOutdatedDependenciesTests {
                 configuration: .any,
                 cacheProfile: .any,
                 cacheStorage: .any,
-                coverage: .any
+                coverage: .any,
+                sdkSelection: .any
             )
             .willReturn(generator)
         given(cacheStorageFactory)

@@ -32,6 +32,17 @@ defmodule TuistWeb.PublicAccountLiveTest do
         get(conn, "/does-not-exist-#{System.unique_integer([:positive])}")
       end
     end
+
+    test "get a rendered 404 for a percent-encoded malformed UTF-8 handle", %{conn: conn, account: account} do
+      for path <- ["/%c0", "/%c0/", "/%C0", "/#{account.name}%C0/projects"] do
+        {404, _headers, body} =
+          assert_error_sent :not_found, fn ->
+            get(conn, path)
+          end
+
+        assert body =~ "Page not found"
+      end
+    end
   end
 
   describe "signed-out visitors on a public account" do
@@ -80,7 +91,8 @@ defmodule TuistWeb.PublicAccountLiveTest do
             ~p"/#{account.name}/settings/tokens",
             ~p"/#{account.name}/runners/profiles"
           ] do
-        assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, path)
+        assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+        assert destination == ~p"/users/log_in?#{%{return_to: path}}"
       end
     end
   end
@@ -129,7 +141,8 @@ defmodule TuistWeb.PublicAccountLiveTest do
             ~p"/#{account.name}/runners/jobs",
             ~p"/#{account.name}/projects"
           ] do
-        assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, path)
+        assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+        assert destination == ~p"/users/log_in?#{%{return_to: path}}"
       end
     end
   end

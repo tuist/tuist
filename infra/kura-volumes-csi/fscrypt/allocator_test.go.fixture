@@ -1,0 +1,159 @@
+// Compiled into the pinned #14825 diskallocator package only in the disposable
+// VM workflow. This adapter proves reuse of its policy; it is not a production
+// inventory, CSI client, durable admission ledger or allocator implementation.
+package diskallocator
+
+import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+type probeQuota struct {
+	Used uint64 `json:"used"`
+	Hard uint64 `json:"hard"`
+}
+type probeBackend struct {
+	t                     *testing.T
+	helper, device, mount string
+	projects              map[string]string
+}
+
+func (b *probeBackend) command(args ...string) []byte {
+	b.t.Helper()
+	out, err := exec.Command(b.helper, args...).CombinedOutput()
+	if err != nil {
+		b.t.Fatalf("probe %s: %v: %s", args[0], err, out)
+	}
+	return out
+}
+func (b *probeBackend) quota(id string) probeQuota {
+	var q probeQuota
+	if err := json.Unmarshal(b.command("get", b.device, b.projects[id]), &q); err != nil {
+		b.t.Fatal(err)
+	}
+	return q
+}
+func (b *probeBackend) Read(volumes []Volume) ([]Sample, uint64, error) {
+	var space struct {
+		Available uint64 `json:"available"`
+	}
+	if err := json.Unmarshal(b.command("space", b.mount), &space); err != nil {
+		return nil, 0, err
+	}
+	active := map[string]bool{}
+	samples := []Sample{}
+	var used uint64
+	for _, v := range volumes {
+		q := b.quota(v.ID)
+		active[v.ID] = true
+		samples = append(samples, Sample{Volume: v, Used: q.Used, Current: q.Hard})
+		used += q.Used
+	}
+	// Complete inventory is known only because this filesystem belongs to this
+	// two-project test. Production must discover and charge every retained record.
+	for id := range b.projects {
+		if !active[id] {
+			q := b.quota(id)
+			if q.Hard > q.Used {
+				space.Available = subtract(space.Available, q.Hard-q.Used)
+			}
+		}
+	}
+	return samples, min(10*GiB, subtract(used+space.Available, 2*GiB)), nil
+}
+func (b *probeBackend) SetLimit(v Volume, limit uint64) error {
+	b.command("set", b.device, b.projects[v.ID], strconv.FormatUint(limit, 10), "65536")
+	if b.quota(v.ID).Hard != limit {
+		b.t.Fatal("quota readback disagrees")
+	}
+	return nil
+}
+func TestFscryptPolicyIntegration(t *testing.T) {
+	if os.Getenv("KURA_FSCRYPT_DISPOSABLE_VM") != "1" {
+		t.Skip("disposable VM only")
+	}
+	root, helper, device := os.Getenv("KURA_FSCRYPT_MOUNT"), os.Getenv("KURA_FSCRYPT_HELPER"), os.Getenv("KURA_FSCRYPT_DEVICE")
+	if !strings.HasPrefix(root, "/tmp/kura-fscrypt-") || !strings.HasPrefix(helper, filepath.Dir(root)+"/") || !strings.HasPrefix(device, "/dev/loop") {
+		t.Fatal("not a private fixture")
+	}
+	b := &probeBackend{t, helper, device, root, map[string]string{"a": "1", "b": "2"}}
+	volumes := []Volume{{ID: "a", Path: filepath.Join(root, "a"), Floor: 4 * GiB, Ceiling: 8 * GiB}, {ID: "b", Path: filepath.Join(root, "b"), Floor: 4 * GiB, Ceiling: 8 * GiB}}
+	b.SetLimit(volumes[0], 6*GiB)
+	b.SetLimit(volumes[1], 4*GiB)
+	write := func(id, name string, mib int) {
+		t.Helper()
+		args := []string{"--reuid=1000", "--regid=1000", "--clear-groups", "--", helper, "confined", "dd", "if=/dev/zero", "of=" + filepath.Join(root, id, name), "bs=1M", "count=" + strconv.Itoa(mib), "conv=fsync", "status=none"}
+		if out, err := exec.Command("setpriv", args...).CombinedOutput(); err != nil {
+			t.Fatalf("write: %v: %s", err, out)
+		}
+	}
+	write("a", "policy-held", 5120)
+	write("b", "policy-demand", 3584)
+	file := filepath.Join(root, "a", "policy-held")
+	held, err := os.Open(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	if err = os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	agent := Agent{Backend: b, ControlDir: t.TempDir()}
+	budgets, err := agent.Reconcile(volumes, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.quota("b").Hard != 4*GiB {
+		t.Fatal("B spent A's held allocation")
+	}
+	t.Logf("held donor: A used=%d limit=%d; B limit=%d", b.quota("a").Used, b.quota("a").Hard, b.quota("b").Hard)
+	if err = held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("sync", "-f", root).CombinedOutput(); err != nil {
+		t.Fatalf("sync: %v: %s", err, out)
+	}
+	// New process state and expired demand history: kernel grants remain the
+	// authority; no in-memory record can invent capacity following restart.
+	agent = Agent{Backend: b, ControlDir: agent.ControlDir}
+	budgets, err = agent.Reconcile(volumes, time.Now().Add(6*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.quota("a").Hard != 4*GiB || b.quota("b").Hard != 6*GiB {
+		t.Fatalf("expected 4/6 GiB redistribution, got %d/%d", b.quota("a").Hard, b.quota("b").Hard)
+	}
+	for _, budget := range budgets {
+		if !budget.AllowWrites || budget.Current > budget.Ceiling {
+			t.Fatalf("invalid budget: %+v", budget)
+		}
+	}
+	write("b", "policy-borrowed", 1536)
+	if b.quota("b").Used <= 4*GiB {
+		t.Fatal("B did not use transferred grant")
+	}
+	t.Logf("after reclaim/restart: A limit=%d; B used=%d limit=%d", b.quota("a").Hard, b.quota("b").Used, b.quota("b").Hard)
+	// Deleting only inventory does not free a retained project's commitment.
+	_, full, err := b.Read(volumes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, retained, err := b.Read(volumes[1:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retained >= full {
+		t.Fatal("retained A commitment was not charged")
+	}
+	for _, name := range []string{"policy-demand", "policy-borrowed"} {
+		if err = os.Remove(filepath.Join(root, "b", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

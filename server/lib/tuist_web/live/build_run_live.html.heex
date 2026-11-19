@@ -1,7 +1,7 @@
 <%= if Tuist.Projects.Project.gradle_project?(@selected_project) do %>
   {TuistWeb.GradleBuildLive.render(assigns)}
 <% else %>
-  <div id="build-run">
+  <div id="build-run" phx-hook="PageFavicon" data-favicon-status={@run.status}>
     <.button
       label={dgettext("dashboard_builds", "Build Runs")}
       data-part="back-button"
@@ -103,7 +103,7 @@
           size="medium"
           disabled
         >
-          <:icon_left><.external_link /></:icon_left>
+          <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
         </.button>
         <.button
           :if={@run.status == "processing"}
@@ -122,7 +122,7 @@
           size="medium"
           target="_blank"
         >
-          <:icon_left><.external_link /></:icon_left>
+          <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
         </.button>
       </div>
     </div>
@@ -216,6 +216,9 @@
         url={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
         }
+        trace_url={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/trace.json"
+        }
       />
     </section>
     <%= if @selected_tab == "overview" and @run.status != "processing" do %>
@@ -253,14 +256,14 @@
                   label={dgettext("dashboard_builds", "Passed")}
                   color="success"
                   style="fill"
-                  size="large"
+                  size="medium"
                 />
                 <.badge
                   :if={@run.status == "failure"}
                   label={dgettext("dashboard_builds", "Failed")}
                   color="destructive"
                   style="fill"
-                  size="large"
+                  size="medium"
                 />
                 <.badge
                   :if={@run.status == "failed_processing"}
@@ -306,7 +309,7 @@
                       else: @run.category |> String.capitalize()
                   }
                   style="fill"
-                  size="large"
+                  size="medium"
                 />
               </div>
               <div data-part="metadata">
@@ -328,6 +331,9 @@
       <TuistWeb.Components.BuildMetadata.environment_metadata
         values={@run.custom_values || %{}}
         fields={[
+          {dgettext("dashboard_builds", "Tuist CLI version"), @run.tuist_version},
+          {dgettext("dashboard_builds", "Tuist generator version"),
+           if(@tuist_generation_version != @run.tuist_version, do: @tuist_generation_version)},
           {dgettext("dashboard_builds", "Xcode version"), @run.xcode_version},
           {dgettext("dashboard_builds", "macOS version"), @run.macos_version},
           {dgettext("dashboard_builds", "Mac device"),

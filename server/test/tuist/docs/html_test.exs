@@ -19,6 +19,12 @@ defmodule Tuist.Docs.HTMLTest do
   end
 
   describe "wrap_tables/1" do
+    test "keeps the whitespace that separates inline elements" do
+      html = ~s(<p><strong>Bold</strong> <a href="#a">link</a> <code>a</code>\n<em>b</em></p>)
+
+      assert HTML.wrap_tables(html) == html
+    end
+
     test "wraps table nodes without mutating Phoenix component tags around them" do
       html = """
       <Noora.Alert.alert status="warning" title="1 > 0">

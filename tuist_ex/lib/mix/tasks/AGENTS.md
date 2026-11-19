@@ -25,9 +25,11 @@ in `test/tuist_ex/dependency_cache_test.exs`.
 
 `mix tuist.setup --project account/project` delegates source editing to
 `TuistEx.ProjectSetup`. Install the compile bootstrap and test wrapper together.
-Use ordinary Mix aliases, not SDK function captures: the SDK is not necessarily
-loaded in the parent on cold parallel builds. Preserve Phoenix test preparation
-and environment-dependent alias expressions; never freeze their current value.
+Install a project-local `compile/1` function, not an SDK function capture: the
+SDK is not necessarily loaded in the parent on cold parallel builds. It compiles
+the SDK subtree only when a dependency is not ok or is local. Preserve Phoenix
+test preparation and environment-dependent alias expressions; never freeze their
+current value.
 
 - Preserve unrelated aliases, options, comments and file permissions.
 - Refuse customized compile actions and unsupported source shapes without writing.

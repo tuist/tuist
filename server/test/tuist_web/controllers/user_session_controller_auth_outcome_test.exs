@@ -3,10 +3,14 @@ defmodule TuistWeb.UserSessionControllerAuthOutcomeTest do
   # level, which is shared state. ExUnit runs sync tests after the async ones,
   # so nothing else is in flight while it is lowered.
   use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
+    # The login bucket is keyed by client address, which every test shares, so
+    # earlier sign-in tests in the suite can exhaust it and log `rate_limited`.
+    stub(TuistWeb.RateLimit.Auth, :hit, fn _conn -> {:allow, 1} end)
     %{user: user_fixture(preload: [:account])}
   end
 

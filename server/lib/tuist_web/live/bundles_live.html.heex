@@ -364,7 +364,7 @@
             }
           >
             <:col :let={bundle} label={dgettext("dashboard_cache", "Name")}>
-              <.text_and_description_cell label={bundle.name} />
+              <.project_with_tags_cell label={bundle.name} tags={bundle.custom_tags} />
             </:col>
             <:col :let={bundle} label={dgettext("dashboard_cache", "Branch")}>
               <.text_cell icon="git_branch" label={bundle.git_branch || "None"} />

@@ -1,0 +1,29 @@
+# NEW store on the dedicated OVH Gravelines ADVANCE-4 host (RAID10, ~3.4 TiB
+# XFS /data), deployed with the server.
+replicas: 1
+region: ""
+nodeSelector:
+  node.cluster.x-k8s.io/pool: shard-storage
+privateNetwork: pn-2024093
+externalSecrets:
+  enabled: false
+generateCredentials: true
+target:
+  id: gra-production-v1
+  site: gra
+  enabled: true
+  privateNetworkReady: true
+storage:
+  # The PVC (and the XFS quota the provisioner set from it) was created at
+  # 3Ti and cannot be resized. The host quota is lowered to 2Ti by hand so the
+  # RustFS pilot on this host gets 1 TB; reservation follows that quota.
+  size: 3Ti
+  reservation: 2Ti
+lifecycle:
+  expirationDays: 3
+archiveBucket: sandbox-archives
+archiveBudgetGiB: 500
+sandboxNamespace: tuist-sandboxes
+actionsCache:
+  bucket: actions-cache
+  maxGB: 500

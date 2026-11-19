@@ -1,5 +1,7 @@
 defmodule Tuist.Shards.ImmutableReportConcurrencyTest do
-  use ExUnit.Case, async: true
+  # Independent connections commit outside the sandbox and affect global counts.
+  # Keep concurrent writers within each test, but isolate them from other modules.
+  use ExUnit.Case, async: false
 
   alias Tuist.IngestRepo
 

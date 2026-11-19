@@ -11,8 +11,8 @@ defmodule TuistWeb.API.RunnerVolumesController do
 
   plug TuistWeb.Plugs.LoaderPlug
   plug TuistWeb.Plugs.CastAndValidate, json_render_error_v2: true, render_error: TuistWeb.RenderAPIErrorPlug
-  plug AuthorizationPlug, {:account, :runners} when action != :clear
-  plug AuthorizationPlug, {:account, :runners, :update} when action == :clear
+  plug AuthorizationPlug, {:account, :runners} when action not in [:delete, :clear]
+  plug AuthorizationPlug, {:account, :runners, :update} when action in [:delete, :clear]
 
   tags ["Runners"]
 
@@ -81,9 +81,24 @@ defmodule TuistWeb.API.RunnerVolumesController do
     }
   )
 
+  operation(:delete,
+    summary:
+      "Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.",
+    operation_id: "deleteRunnerVolume",
+    parameters: RunnerVolumes.parameters(:delete),
+    responses: %{
+      ok: {"Runner volume data", "application/json", RunnerVolumes.response(:delete)},
+      bad_request: {"Invalid parameters", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"Volume or job not found, or runners disabled", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
   operation(:clear,
-    summary: "Clear saved volume contents. Running jobs retain their copies but cannot save them.",
+    summary: "Deprecated: use deleteRunnerVolume.",
     operation_id: "clearRunnerVolume",
+    deprecated: true,
     parameters: RunnerVolumes.parameters(:clear),
     responses: %{
       ok: {"Runner volume data", "application/json", RunnerVolumes.response(:clear)},
@@ -94,7 +109,7 @@ defmodule TuistWeb.API.RunnerVolumesController do
     }
   )
 
-  for action <- [:list, :show, :jobs, :job_volumes, :analytics, :clear] do
+  for action <- [:list, :show, :jobs, :job_volumes, :analytics, :delete, :clear] do
     def unquote(action)(%{assigns: %{selected_account: account}} = conn, params) do
       params = Map.new(params, fn {key, value} -> {to_string(key), value} end)
       conn = put_resp_header(conn, "cache-control", "private, no-store")

@@ -404,8 +404,14 @@ defmodule Tuist.Kura.Rollouts do
 
       nil ->
         case latest_rollout() do
-          %Rollout{image_tag: ^tag} = rollout -> rollout
-          previous -> create_rollout(tag, previous)
+          %Rollout{image_tag: ^tag} = rollout ->
+            rollout
+
+          %Rollout{} = previous ->
+            if held_by_expedite?(previous), do: previous, else: create_rollout(tag, previous)
+
+          nil ->
+            create_rollout(tag, nil)
         end
     end
   end
@@ -424,8 +430,26 @@ defmodule Tuist.Kura.Rollouts do
   # lifts, so a deliberate rollback to an older tag still takes effect —
   # delayed, at most, by the remainder of the window. Tags that are not
   # comparable versions keep the previous behaviour.
+  #
+  # An explicit expedite (the deploy's `kura_expedite` input, a rollback to a
+  # proven tag) is the operator's decision and cannot wait out that window:
+  # the cohort carrying it supersedes at once, and while its rollout settles
+  # no other cohort displaces it, newer tag or not. Otherwise an old pod still
+  # on the tag being rolled back would supersede the rollback on its next
+  # tick and hold the bad tag for the whole window.
   defp supersedable?(%Rollout{} = active, tag) do
-    settled?(active) or newer_tag?(tag, active.image_tag)
+    cond do
+      held_by_expedite?(active) -> false
+      expedited_by_deploy_input?(tag) -> true
+      true -> settled?(active) or newer_tag?(tag, active.image_tag)
+    end
+  end
+
+  # An expedited rollback can complete within its settle window, when the
+  # fleet converges quickly; the old cohort must not mint a fresh rollout of
+  # the tag it rolled back from either.
+  defp held_by_expedite?(%Rollout{} = rollout) do
+    not settled?(rollout) and expedited_by_deploy_input?(rollout)
   end
 
   defp settled?(%Rollout{inserted_at: inserted_at}) do
@@ -522,6 +546,12 @@ defmodule Tuist.Kura.Rollouts do
     end
   end
 
+  defp expedited_by_deploy_input?(%Rollout{id: id}) do
+    RolloutEvent
+    |> where([e], e.kura_rollout_id == ^id and e.action == "expedited" and e.actor == "deploy-input")
+    |> Repo.exists?()
+  end
+
   defp expedited_by_deploy_input?(tag), do: Environment.kura_rollout_expedite_tag() == tag
 
   # The tag the fleet was on before this rollout: the previous rollout's
@@ -591,19 +621,20 @@ defmodule Tuist.Kura.Rollouts do
   defp insert_wave_assignments(rollout, assignments) do
     timestamp = now()
 
-    rows =
-      Enum.map(assignments, fn {account_id, wave} ->
-        %{
-          id: Ecto.UUID.generate(),
-          kura_rollout_id: rollout.id,
-          account_id: account_id,
-          wave: wave,
-          inserted_at: timestamp,
-          updated_at: timestamp
-        }
-      end)
+    assignments
+    |> Stream.map(fn {account_id, wave} ->
+      %{
+        id: Ecto.UUID.generate(),
+        kura_rollout_id: rollout.id,
+        account_id: account_id,
+        wave: wave,
+        inserted_at: timestamp,
+        updated_at: timestamp
+      }
+    end)
+    |> Stream.chunk_every(1_000)
+    |> Enum.each(&Repo.insert_all(RolloutWaveAssignment, &1))
 
-    {_count, _} = Repo.insert_all(RolloutWaveAssignment, rows)
     :ok
   end
 

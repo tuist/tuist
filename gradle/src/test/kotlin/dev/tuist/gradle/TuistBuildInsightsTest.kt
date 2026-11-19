@@ -212,6 +212,29 @@ class TuistBuildInsightsTest {
     }
 
     @Test
+    fun `credential-free reports omit failure messages that older servers refuse`() {
+        val failure = FailureReport("Execution failed for task ':app:compileJava'.", truncated = false)
+        val report = buildReport(
+            id = "test-id",
+            taskOutcomes = listOf(
+                TaskOutcomeData(":app:compileJava", TaskOutcome.FAILED, false, 10, null, null, null, failure = failure)
+            ),
+            buildFailed = true,
+            totalDurationMs = 10,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider(),
+            configurationOperations = listOf(
+                ConfigurationOperationReportEntry("project", ":", ":app", 5, "2026-02-06T10:00:00Z", failure = failure)
+            )
+        )
+
+        assertTrue(Gson().toJson(report).contains("\"failure\":{\"message\":\"Execution failed for task"))
+        val unsigned = Gson().toJson(report.withoutFailureMessages())
+        assertFalse(unsigned.contains("\"failure\":"), unsigned)
+        assertTrue(unsigned.contains(":app:compileJava"), unsigned)
+    }
+
+    @Test
     fun `buildReport includes cache and setup diagnostics`() {
         val report = buildReport(
             id = "test-id",

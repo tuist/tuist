@@ -12,6 +12,7 @@ defmodule TuistWeb.API.GitHistoryController do
 
   alias OpenApiSpex.Schema
   alias Tuist.GitHistory
+  alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Schemas.Error
 
@@ -206,15 +207,7 @@ defmodule TuistWeb.API.GitHistoryController do
 
         GitHistory.record_commits(repository_id, body.object_format, commits)
 
-        for head <- Map.get(body, :branch_heads) || [] do
-          GitHistory.record_branch_head(
-            repository_id,
-            head.branch,
-            head.sha,
-            project.default_branch,
-            Map.get(head, :observed_at)
-          )
-        end
+        GitHistory.record_branch_heads(repository_id, Map.get(body, :branch_heads) || [], project.default_branch)
 
         send_resp(conn, :no_content, "")
     end
@@ -250,8 +243,12 @@ defmodule TuistWeb.API.GitHistoryController do
 
   def missing_listings(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     case repository_id(project, body.repository_url) do
-      nil -> bad_request(conn)
-      repository_id -> json(conn, %{missing: GitHistory.missing_listings(repository_id, body.shas)})
+      nil ->
+        bad_request(conn)
+
+      repository_id ->
+        missing = GitHistory.missing_listings(repository_id, body.shas)
+        json(conn, %{missing: missing -- Runs.write_file_changes(project, repository_id, missing)})
     end
   end
 

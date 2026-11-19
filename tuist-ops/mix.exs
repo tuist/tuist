@@ -25,6 +25,8 @@ defmodule TuistOps.MixProject do
 
   defp deps do
     [
+      {:castore, "~> 1.0.22"},
+      {:certifi, "~> 2.18", override: true},
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10"},

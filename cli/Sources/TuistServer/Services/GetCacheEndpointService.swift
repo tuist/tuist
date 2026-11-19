@@ -3,6 +3,10 @@ import Mockable
 import OpenAPIRuntime
 import TuistHTTP
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 public struct CacheEndpointResolution: Equatable, Sendable {
     public let endpoint: String?
     public let maxAge: TimeInterval?
@@ -63,7 +67,19 @@ public struct GetCacheEndpointService: GetCacheEndpointServicing {
     public func getCacheEndpoint(
         serverURL: URL
     ) async throws -> CacheEndpointResolution {
-        let client = Client.authenticated(serverURL: serverURL)
+        let networkTrusted = try await ServerCacheAccessMode.usesNetworkTrust(serverURL: serverURL)
+        let discoverySession = networkTrusted ? URLSession.tuistDiscovery : nil
+        defer { discoverySession?.finishTasksAndInvalidate() }
+        let client: Client
+        if let discoverySession {
+            client = Client(
+                serverURL: serverURL,
+                transport: TuistURLSessionTransport(session: discoverySession),
+                middlewares: [RetryMiddleware()]
+            )
+        } else {
+            client = Client.authenticated(serverURL: serverURL)
+        }
 
         let response = try await client.getCacheEndpoint(.init())
 

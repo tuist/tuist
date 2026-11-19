@@ -10,7 +10,29 @@ defmodule Tuist.Docs.Redirects do
 
   @docs_path_regex ~r{^/(?<locale>[^/]+)/docs(?<rest>/.*)?$}
 
+  # Only English source pages moved; published translations keep their slugs.
+  @struo_redirects Map.new(
+                     for representation <- ~w(docs docs-markdown),
+                         {from, to} <- [
+                           {"get-started/once-project", "get-started/struo-project"},
+                           {"features/cache/once", "features/cache/struo"},
+                           {"features/build-insights/once", "features/build-insights/struo"},
+                           {"features/test-insights/once", "features/test-insights/struo"},
+                           {"features/test-insights/flaky-tests/once", "features/test-insights/flaky-tests/struo"},
+                           {"features/test-sharding/once", "features/test-sharding/struo"},
+                           {"features/previews/once", "features/previews/struo"},
+                           {"features/runners/once", "features/runners/struo"}
+                         ],
+                         do: {"/en/#{representation}/guides/#{from}", "/en/#{representation}/guides/#{to}"}
+                   )
+
   @rules [
+    # Release navigation
+    {:exact, "/cli/release-channels", "/cli/release/channels"},
+    {:exact, "/cli/release-channels/calendar", "/cli/release/calendar"},
+    {:exact, "/guides/server/self-host/release-channels", "/guides/server/self-host/release/channels"},
+    {:exact, "/guides/server/self-host/release-channels/calendar", "/guides/server/self-host/release/calendar"},
+
     # Legacy docs.tuist.io pages
     {:exact, "/documentation/tuist/installation", "/guides/install-tuist"},
     {:exact, "/documentation/tuist/project-structure", "/guides/features/projects/directory-structure"},
@@ -90,6 +112,7 @@ defmodule Tuist.Docs.Redirects do
     # Examples and project description references
     {:exact, "/guides/examples/generated-projects", "/references/examples/generated-projects"},
     {:exact, "/references/examples", "/references/examples/generated-projects"},
+    {:exact, "/references/examples/xcode_app", "/references/examples/generated-projects/xcode_app"},
     {:prefix, "/reference/examples/", "/references/examples/generated-projects/"},
     {:prefix, "/guides/examples/generated-projects/", "/references/examples/generated-projects/"},
     {:exact_absolute, "/reference/project-description",
@@ -169,6 +192,8 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/quick-start/get-started", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/guides/quick-start/add-dependencies", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/guides/quick-start/gather-insights", "/tutorials/xcode/create-a-generated-project"},
+    {:exact, "/guides/quick-start/create-a-project", "/tutorials/xcode/create-a-generated-project"},
+    {:exact, "/guides/quick-start/optimize-workflows", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/xcode/get-started", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/xcode/add-dependencies", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/xcode/gather-insights", "/tutorials/xcode/create-a-generated-project"},
@@ -185,6 +210,13 @@ defmodule Tuist.Docs.Redirects do
   def resolve(request_path, query_string \\ "")
 
   def resolve(request_path, query_string) when is_binary(request_path) do
+    case Map.fetch(@struo_redirects, request_path) do
+      {:ok, destination} -> {:ok, append_query_string(destination, query_string)}
+      :error -> resolve_legacy(request_path, query_string)
+    end
+  end
+
+  defp resolve_legacy(request_path, query_string) do
     case Regex.named_captures(@docs_path_regex, request_path) do
       %{"locale" => locale, "rest" => rest} ->
         rest = rest || ""

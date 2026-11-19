@@ -26,6 +26,31 @@ defmodule Atlas.Accounts.EventRouting do
   end
 
   @doc """
+  Finds the Atlas account that owns the given account handles.
+
+  Returns nil unless the handles resolve to exactly one account, so a caller
+  passing every organization a user belongs to never guesses between them.
+  """
+  def find_account_by_handles(handles) when is_list(handles) do
+    handles = handles |> Enum.filter(&is_binary/1) |> Enum.map(&String.downcase/1) |> Enum.uniq()
+
+    AccountHandle
+    |> join(:inner, [account_handle], account in Account, on: account.id == account_handle.account_id, as: :account)
+    |> account_kind_filter(:account)
+    |> where([account_handle], fragment("lower(?)", account_handle.handle) in ^handles)
+    |> preload([_account_handle, account: account], account: account)
+    |> Repo.all()
+    |> Enum.uniq_by(& &1.account_id)
+    |> case do
+      [account_handle] ->
+        %{account: account_handle.account, matched_on: %{"type" => "account_handle", "value" => account_handle.handle}}
+
+      _account_handles ->
+        nil
+    end
+  end
+
+  @doc """
   Finds a non-account row matching any of the given email addresses.
 
   This is used by ingestion agents to stop before creating a new account for

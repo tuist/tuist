@@ -5,7 +5,7 @@
   /* Seam between the bar and the code box (the grouped variant uses 6px —
      see code-group.css). */
   gap: 4px;
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: 8px;
   background: var(--noora-surface-background-primary);
   /* No shell padding: the code box sticks to the component's edges and the
@@ -32,27 +32,20 @@
   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 }
 
-/* The button itself is Noora's neutral button (large): its class provides
-   the surface, hover/active states and radius. Only the fixed 32px box, the
-   icon-swap and the "Copied" tooltip are ours. */
+/* The button itself is Noora's ghost button (large, icon-only): its class
+   provides the surface, hover/active states, radius, 8px padding, and 16px
+   icon. Only the fixed 32px box, the icon-swap and the "Copied" tooltip are
+   ours. */
 [data-part="code-window"] > [data-part="bar"] > [data-part="copy"] {
   display: inline-grid;
   position: relative;
   place-items: center;
   box-sizing: border-box;
-  padding: 0;
   width: 32px;
   height: 32px;
   /* Rapid clicks escalate to double/triple-click selection, which would
      otherwise spill onto the code's first line. */
   user-select: none;
-}
-
-/* Sized here because the icons sit inside the data-part spans, out of reach
-   of Noora's direct-child `> svg` size rules. */
-[data-part="code-window"] > [data-part="bar"] > [data-part="copy"] svg {
-  width: var(--noora-icon-size-large);
-  height: var(--noora-icon-size-large);
 }
 
 /* "Copied" bubble above the button while the check is flashed (the JS holds
@@ -119,7 +112,7 @@
      clip would let the ring's corner arcs survive and stack into a darker
      curve). */
   clip-path: inset(-8px 0 0 0 round 0 0 8px 8px);
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   /* Flush with the shell's edges, so the corners match its 8px radius. */
   border-radius: 8px;
   background: var(--noora-surface-background-tertiary);

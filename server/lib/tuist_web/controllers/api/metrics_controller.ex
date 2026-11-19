@@ -361,7 +361,7 @@ defmodule TuistWeb.API.MetricsController do
   )
 
   def build_health(%{assigns: %{selected_project: project}} = conn, _params)
-      when project.build_system not in [:xcode, :gradle, :bazel, :once] do
+      when project.build_system not in [:xcode, :gradle, :bazel, :once, :cargo] do
     bad_request(conn, "Build health metrics are not supported for this project's build system.")
   end
 
@@ -421,7 +421,7 @@ defmodule TuistWeb.API.MetricsController do
   )
 
   def build_health_dimension_values(%{assigns: %{selected_project: project}} = conn, _params)
-      when project.build_system not in [:xcode, :gradle, :bazel, :once] do
+      when project.build_system not in [:xcode, :gradle, :bazel, :once, :cargo] do
     bad_request(conn, "Build health metrics are not supported for this project's build system.")
   end
 

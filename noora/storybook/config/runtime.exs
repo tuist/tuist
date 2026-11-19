@@ -21,6 +21,10 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  # The release filesystem is read-only; /tmp is a writable volume in Kubernetes.
+  # Tzdata seeds this directory from its bundled database and keeps updates enabled.
+  config :tzdata, :data_dir, "/tmp/tzdata"
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want

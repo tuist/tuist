@@ -96,7 +96,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   end
 
   defp handle_webhook_result(:ok, project), do: mark_reported(project)
-  defp handle_webhook_result({:error, :webhook_revoked}, project), do: handle_revoked_webhook(project)
+  defp handle_webhook_result({:error, :webhook_revoked}, project), do: clear_report_destination(project, :webhook_revoked)
 
   defp handle_webhook_result({:error, {:bad_request, status, body, request_body}}, project),
     do: handle_bad_request(project, status, body, request_body)
@@ -127,24 +127,6 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   end
 
   defp configured_destination(_), do: :unconfigured
-
-  # 404 from Slack means the webhook URL is permanently dead (revoked, or
-  # the channel/app no longer exists). Drop the destination so we stop
-  # retrying — the user will need to re-OAuth the channel to restore
-  # delivery. Transient failures (5xx, network) bubble up as `{:error, _}`
-  # so Oban retries the job.
-  defp handle_revoked_webhook(project) do
-    Logger.warning("Clearing revoked Slack webhook for project #{project.id}")
-
-    case Projects.update_project(project, %{
-           slack_channel_id: nil,
-           slack_channel_name: nil,
-           slack_webhook_url: nil
-         }) do
-      {:ok, _project} -> {:discard, :webhook_revoked}
-      {:error, reason} -> {:error, reason}
-    end
-  end
 
   # Any other 4xx is a client-side error we don't recognize — Slack is
   # telling us our request is wrong, so it likely is a bug on our side
@@ -194,14 +176,44 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     end
   end
 
-  defp handle_post_message_error("channel_not_found", project) do
-    Logger.warning("Clearing missing Slack report channel for project #{project.id}")
+  defp handle_post_message_error("channel_not_found", project), do: clear_report_destination(project, :channel_not_found)
+  defp handle_post_message_error("is_archived", project), do: clear_report_destination(project, :is_archived)
+  defp handle_post_message_error(reason, _project), do: {:error, reason}
 
-    case Projects.update_project(project, %{slack_channel_id: nil, slack_channel_name: nil}) do
-      {:ok, _project} -> {:discard, :channel_not_found}
+  # Lock only after delivery, and clear only the destination that failed:
+  # channel selection may have replaced it while the Slack request was in flight.
+  defp clear_report_destination(%Project{slack_channel_id: channel_id, slack_webhook_url: webhook_url} = project, reason) do
+    result =
+      Repo.transaction(fn ->
+        current_project =
+          Repo.one(
+            from(p in Project,
+              where: p.id == ^project.id and p.account_id == ^project.account_id,
+              lock: "FOR UPDATE"
+            )
+          )
+
+        case current_project do
+          %Project{slack_channel_id: ^channel_id, slack_webhook_url: ^webhook_url} ->
+            Logger.warning("Clearing unavailable Slack report destination for project #{project.id}: #{reason}")
+
+            case Projects.update_project(current_project, %{
+                   slack_channel_id: nil,
+                   slack_channel_name: nil,
+                   slack_webhook_url: nil
+                 }) do
+              {:ok, _project} -> :ok
+              {:error, error} -> Repo.rollback(error)
+            end
+
+          _ ->
+            :ok
+        end
+      end)
+
+    case result do
+      {:ok, _project} -> {:discard, reason}
       {:error, reason} -> {:error, reason}
     end
   end
-
-  defp handle_post_message_error(reason, _project), do: {:error, reason}
 end

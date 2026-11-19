@@ -8,6 +8,107 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
   alias Tuist.Alerts
   alias Tuist.Alerts.AlertRule
   alias TuistTestSupport.Fixtures.AlertsFixtures
+  alias TuistTestSupport.Fixtures.BundlesFixtures
+
+  describe "scheduled report" do
+    test "shows the saved schedule below the title and stops showing it when disabled", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          report_frequency: :daily,
+          report_days_of_week: [2, 4],
+          report_schedule_time: ~U[2026-11-10 14:00:00Z]
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      assert has_element?(lv, "#report-content-title", "Included in reports")
+      assert has_element?(lv, "[aria-labelledby=report-content-title] h4", "Bundles")
+      assert has_element?(lv, "#report-delivery-title", "Delivery")
+      assert has_element?(lv, "[aria-labelledby=report-delivery-title] [data-part=slack-section]")
+      assert has_element?(lv, "[aria-labelledby=report-delivery-title] h4", "Schedule")
+      assert has_element?(lv, "h4 + [data-part=schedule-summary]", "Daily • Tue, Thu • 2 PM (Etc/UTC)")
+      assert render(lv) =~ "Configure scheduled report"
+
+      render_hook(lv, "update_schedule_form_frequency", %{"frequency" => "never"})
+      render_hook(lv, "save_schedule", %{})
+
+      assert has_element?(lv, "h4 + [data-part=schedule-summary]", "Not scheduled")
+      refute has_element?(lv, "[data-part=schedule-summary]", "Tue, Thu")
+      assert Tuist.Repo.reload!(project).report_frequency == :never
+    end
+  end
+
+  describe "report bundle filter" do
+    test "offers uploaded tags and retains a saved tag no longer in uploads", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["debug", "production"])
+      {:ok, project} = Tuist.Projects.update_project(project, %{report_bundle_tag: "retired"})
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      html = render_hook(lv, "reset_report_bundle_filter", %{"open" => true})
+
+      labels =
+        html
+        |> Floki.parse_document!()
+        |> Floki.find("#report-bundle-tag-dropdown-content-portal [data-part=item]")
+        |> Floki.attribute("data-label")
+
+      assert labels == ["All bundles", "debug", "production", "retired"]
+
+      html = render_hook(lv, "search_report_bundle_tags", %{"tag_search" => "PROD"})
+      assert html =~ "data-label=\"production\""
+      refute html =~ "data-label=\"debug\""
+      assert Tuist.Repo.reload!(project).report_bundle_tag == "retired"
+
+      html = render_hook(lv, "search_report_bundle_tags", %{"tag_search" => ""})
+      assert html =~ "data-label=\"debug\""
+    end
+
+    test "saves, validates and clears a custom tag", %{conn: conn, organization: organization, project: project} do
+      path = ~p"/#{organization.account.name}/#{project.name}/settings/notifications"
+      {:ok, lv, html} = live(conn, path)
+      assert html =~ "All bundles"
+
+      render_hook(lv, "save_report_bundle_filter", %{"report" => %{"report_bundle_tag" => " production "}})
+      assert Tuist.Repo.reload!(project).report_bundle_tag == "production"
+
+      {:ok, lv, html} = live(conn, path)
+      assert html =~ "production"
+
+      html = render_hook(lv, "save_report_bundle_filter", %{"report" => %{"report_bundle_tag" => "bad tag"}})
+      assert html =~ "has invalid format"
+      assert Tuist.Repo.reload!(project).report_bundle_tag == "production"
+
+      render_hook(lv, "save_report_bundle_filter", %{"report" => %{"report_bundle_tag" => ""}})
+      assert is_nil(Tuist.Repo.reload!(project).report_bundle_tag)
+      assert render(lv) =~ "All bundles"
+    end
+
+    test "dismissing discards the draft without changing the saved tag", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      for {event, params} <- [
+            {"close_report_bundle_filter", %{}},
+            {"reset_report_bundle_filter", %{"open" => false}}
+          ] do
+        render_hook(lv, "validate_report_bundle_filter", %{"report" => %{"report_bundle_tag" => "draft"}})
+        html = render_hook(lv, event, params)
+        refute html =~ "value=\"draft\""
+        assert is_nil(Tuist.Repo.reload!(project).report_bundle_tag)
+      end
+    end
+  end
 
   describe "delete_alert_rule" do
     test "does not allow deleting an alert rule belonging to a different project", %{

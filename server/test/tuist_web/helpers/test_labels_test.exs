@@ -119,28 +119,28 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
                "mix test · clickhouse-floor"
     end
 
-    test "keeps plain Cargo tests distinct from nextest" do
+    test "preserves explicit plain Cargo test commands" do
       project = %Project{build_system: :cargo}
       assert TestLabels.test_run_label(project, "cargo test") == "cargo test"
       assert TestLabels.test_run_label(project, "cargo test · ci") == "cargo test · ci"
     end
 
-    test "names Cargo runs after the complete nextest test command" do
+    test "uses a runner-neutral label for legacy Cargo runs" do
       project = %Project{build_system: :cargo}
 
       for label <- [nil, "", "nextest", "nextest run", "cargo nextest run"] do
-        assert TestLabels.test_run_label(project, label) == "cargo nextest run"
+        assert TestLabels.test_run_label(project, label) == "Cargo tests"
       end
     end
 
     test "preserves Cargo execution variants without interpreting them as subcommands" do
       project = %Project{build_system: :cargo}
-      assert TestLabels.test_run_label(project, "ci") == "cargo nextest run · ci"
-      assert TestLabels.test_run_label(project, "test") == "cargo nextest run · test"
-      assert TestLabels.test_run_label(project, "cargo nextest run · cargo test") == "cargo nextest run · cargo test"
+      assert TestLabels.test_run_label(project, "ci") == "Cargo tests · ci"
+      assert TestLabels.test_run_label(project, "test") == "Cargo tests · test"
+      assert TestLabels.test_run_label(project, "cargo nextest run · cargo test") == "Cargo tests · cargo test"
 
       assert TestLabels.test_run_label(project, "cargo nextest run · cargo test · ci") ==
-               "cargo nextest run · cargo test · ci"
+               "Cargo tests · cargo test · ci"
     end
 
     test "names other runs by their scheme, or Unknown without one" do
@@ -151,9 +151,11 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
   end
 
   describe "coverage_target_label/1 and coverage_targets_label/1" do
-    test "call a Mix project's targets applications" do
+    test "call a Mix project's targets applications and a Cargo project's packages" do
       assert TestLabels.coverage_target_label(%Project{build_system: :mix}) == "Application"
       assert TestLabels.coverage_targets_label(%Project{build_system: :mix}) == "Applications"
+      assert TestLabels.coverage_target_label(%Project{build_system: :cargo}) == "Package"
+      assert TestLabels.coverage_targets_label(%Project{build_system: :cargo}) == "Packages"
       assert TestLabels.coverage_target_label(%Project{build_system: :xcode}) == "Target"
       assert TestLabels.coverage_targets_label(%Project{build_system: :xcode}) == "Targets"
     end

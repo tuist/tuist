@@ -554,6 +554,9 @@ defmodule TuistWeb.BuildEntityLive do
       :mix ->
         root <> "/builds/mix-builds/#{parent}"
 
+      :cargo ->
+        root <> "/builds/cargo-builds/#{parent}"
+
       :xcode when assigns.resource.kind == "module" ->
         if String.starts_with?(row.execution_id, "build_target:"),
           do: root <> "/builds/build-runs/#{parent}",
@@ -609,11 +612,15 @@ defmodule TuistWeb.BuildEntityLive do
   defp identity_label("action_index"), do: dgettext("dashboard_builds", "Declared action index")
   defp identity_label("path"), do: dgettext("dashboard_builds", "Path")
   defp identity_label("module"), do: dgettext("dashboard_builds", "Module")
+  defp identity_label("source"), do: dgettext("dashboard_builds", "Crate root")
+  defp identity_label("name"), do: dgettext("dashboard_builds", "Crate name")
+  defp identity_label("kind"), do: dgettext("dashboard_builds", "Crate kind")
   defp identity_label(key), do: key
 
   defp observations_label(assigns) do
     case {assigns.resource.system, assigns.resource.kind} do
       {:mix, _} -> dgettext("dashboard_builds", "Compilations")
+      {:cargo, "crate"} -> dgettext("dashboard_builds", "Compilations")
       {:xcode, "module"} -> dgettext("dashboard_builds", "Module builds")
       _ -> dgettext("dashboard_builds", "Executions")
     end
@@ -757,11 +764,23 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp inventory_count_label(assigns, :observations) do
     case {assigns.resource.system, assigns.resource.kind} do
-      {:xcode, _} -> dgettext("dashboard_builds", "Module builds")
-      {:gradle, _} -> dgettext("dashboard_builds", "Task executions")
-      {system, _} when system in [:once, :bazel] -> dgettext("dashboard_builds", "Action executions")
-      {:mix, "file"} -> dgettext("dashboard_builds", "File compilations")
-      {:mix, "module"} -> dgettext("dashboard_builds", "Module compilations")
+      {:xcode, _} ->
+        dgettext("dashboard_builds", "Module builds")
+
+      {:gradle, _} ->
+        dgettext("dashboard_builds", "Task executions")
+
+      {system, _} when system in [:once, :bazel] ->
+        dgettext("dashboard_builds", "Action executions")
+
+      {:mix, "file"} ->
+        dgettext("dashboard_builds", "File compilations")
+
+      {:mix, "module"} ->
+        dgettext("dashboard_builds", "Module compilations")
+
+      {:cargo, "crate"} ->
+        dgettext("dashboard_builds", "Crate compilations")
     end
   end
 
@@ -773,6 +792,13 @@ defmodule TuistWeb.BuildEntityLive do
       _ -> dgettext("dashboard_builds", "Failed compilations")
     end
   end
+
+  defp inventory_count_description(%{resource: %{system: :cargo}}, :observations),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Recorded rustc invocations, not per-file compilations or cache hits. Only crates with a reported root, name and kind are included."
+      )
 
   defp inventory_count_description(%{resource: %{system: :xcode}}, :observations),
     do:
@@ -821,6 +847,12 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp inventory_count_description(assigns, :failures) do
     case assigns.resource.kind do
+      "crate" ->
+        dgettext(
+          "dashboard_builds",
+          "Recorded rustc invocation failures during the selected period. Unknown outcomes are not counted as successes or failures."
+        )
+
       "task" ->
         dgettext(
           "dashboard_builds",
@@ -849,6 +881,12 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp inventory_count_description(assigns, :entities) do
     case assigns.resource.kind do
+      "crate" ->
+        dgettext(
+          "dashboard_builds",
+          "Distinct crates with recorded activity during the selected period. The chart shows distinct crates per day, not a cumulative total. Identity uses recorded root, name and kind, not a complete workspace inventory. Paths are not normalized; build configurations are not distinguished. Missing observations do not establish removals."
+        )
+
       "task" ->
         dgettext(
           "dashboard_builds",
@@ -889,10 +927,20 @@ defmodule TuistWeb.BuildEntityLive do
       {:mix, "file"} ->
         dgettext("dashboard_builds", "%{percentile} compilation duration", percentile: percentile)
 
+      {:cargo, "crate"} ->
+        dgettext("dashboard_builds", "%{percentile} compilation duration", percentile: percentile)
+
       _ ->
         dgettext("dashboard_builds", "%{percentile} execution duration", percentile: percentile)
     end
   end
+
+  defp inventory_duration_description(%{resource: %{system: :cargo}}),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Measured duration of each rustc invocation, not per-source-file timing, total build time or cache-hit time. Genuine measured zeros are included."
+      )
 
   defp inventory_duration_description(%{resource: %{system: :xcode}}),
     do:

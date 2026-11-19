@@ -1,0 +1,455 @@
+<div id="ai-subscriptions-settings">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Settings")}
+  </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
+  <div data-part="section-header">
+    <div data-part="header">
+      <h2 data-part="subtitle">
+        {dgettext("dashboard_account", "Subscriptions")}
+      </h2>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_account",
+          "Connect your Claude or ChatGPT subscription so AI features run inference on your subscription's tokens."
+        )}
+      </span>
+    </div>
+  </div>
+
+  <.card_section id="claude-subscription" data-part="subscription-card-section">
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">Claude</span>
+        <span :if={not @claude.connected} data-part="subtitle">
+          {dgettext("dashboard_account", "Use your Claude Pro or Max subscription in threads.")}
+        </span>
+        <span :if={@claude.connected} data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Connected. Threads run on your Claude subscription. Updated %{date}.",
+            date: Calendar.strftime(@claude.updated_at, "%b %-d, %Y")
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
+        <.button
+          :if={not @claude.connected}
+          id="connect-claude"
+          type="button"
+          label={dgettext("dashboard_account", "Connect")}
+          variant="primary"
+          phx-click="open-claude-modal"
+        />
+        <.button
+          :if={@claude.connected}
+          id="disconnect-claude"
+          type="button"
+          label={dgettext("dashboard_account", "Disconnect")}
+          variant="secondary"
+          phx-click="confirm-disconnect"
+          phx-value-provider="claude"
+        />
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section
+    :if={@chatgpt.connected or @chatgpt.login_available}
+    id="chatgpt-subscription"
+    data-part="subscription-card-section"
+  >
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">ChatGPT</span>
+        <span :if={not @chatgpt.connected} data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Use your ChatGPT Plus, Pro, or Team subscription in threads."
+          )}
+        </span>
+        <span :if={@chatgpt.connected} data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Connected. Threads run on your ChatGPT subscription. Updated %{date}.",
+            date: Calendar.strftime(@chatgpt.updated_at, "%b %-d, %Y")
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
+        <.button
+          :if={not @chatgpt.connected}
+          id="connect-chatgpt"
+          type="button"
+          label={dgettext("dashboard_account", "Connect")}
+          variant="primary"
+          phx-click="open-chatgpt-modal"
+          disabled={@chatgpt_starting?}
+        />
+        <.button
+          :if={@chatgpt.connected}
+          id="disconnect-chatgpt"
+          type="button"
+          label={dgettext("dashboard_account", "Disconnect")}
+          variant="secondary"
+          phx-click="confirm-disconnect"
+          phx-value-provider="chatgpt"
+        />
+      </div>
+    </div>
+  </.card_section>
+
+  <div data-part="section-header">
+    <div data-part="header">
+      <h2 data-part="subtitle">
+        {dgettext("dashboard_account", "MCP servers")}
+      </h2>
+      <span data-part="description">
+        {dgettext(
+          "dashboard_account",
+          "Connect MCP servers so AI features can use their tools on your behalf. Tuist manages the sessions for you, so your connections are portable."
+        )}
+      </span>
+    </div>
+    <.button
+      id="add-mcp-server"
+      type="button"
+      label={dgettext("dashboard_account", "Add server")}
+      variant="secondary"
+      phx-click="open-mcp-modal"
+    />
+  </div>
+
+  <.alert
+    :if={@mcp_error && not @mcp_modal_open?}
+    id="mcp-server-error"
+    status="error"
+    type="secondary"
+    size="small"
+    title={@mcp_error}
+  />
+
+  <.card_section
+    :if={@mcp_servers == []}
+    id="mcp-servers-empty"
+    data-part="subscription-card-section"
+  >
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="subtitle">
+          {dgettext("dashboard_account", "No MCP servers yet.")}
+        </span>
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section
+    :for={server <- @mcp_servers}
+    id={"mcp-server-#{server.id}"}
+    data-part="subscription-card-section"
+  >
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">{server.name}</span>
+        <span data-part="subtitle">
+          <span data-part="url">{server.url}</span>
+          ·
+          <%= if server.connected do %>
+            {dgettext("dashboard_account", "Connected. Updated %{date}.",
+              date: Calendar.strftime(server.updated_at, "%b %-d, %Y")
+            )}
+          <% else %>
+            {dgettext("dashboard_account", "Not connected.")}
+          <% end %>
+        </span>
+      </div>
+      <div data-part="actions">
+        <.button
+          id={"connect-mcp-server-#{server.id}"}
+          type="button"
+          label={
+            if server.connected,
+              do: dgettext("dashboard_account", "Reconnect"),
+              else: dgettext("dashboard_account", "Connect")
+          }
+          variant={if server.connected, do: "secondary", else: "primary"}
+          phx-click="connect-mcp-server"
+          phx-value-id={server.id}
+          disabled={not is_nil(@mcp_authorizing)}
+        />
+        <.button
+          id={"remove-mcp-server-#{server.id}"}
+          type="button"
+          label={dgettext("dashboard_account", "Remove")}
+          variant="secondary"
+          phx-click="confirm-remove-mcp-server"
+          phx-value-id={server.id}
+        />
+      </div>
+    </div>
+  </.card_section>
+
+  <.form
+    for={@mcp_form}
+    id="mcp-server-form"
+    phx-submit="add-mcp-server"
+    autocomplete="off"
+  >
+    <.modal
+      id="add-mcp-server-modal"
+      title={dgettext("dashboard_account", "Add MCP server")}
+      header_size="large"
+      on_dismiss="close-mcp-modal"
+    >
+      <:trigger :let={attrs}>
+        <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+      </:trigger>
+      <.line_divider />
+      <div data-part="subscription-form">
+        <.alert
+          :if={@mcp_error && @mcp_modal_open?}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@mcp_error}
+        />
+        <p>
+          {dgettext(
+            "dashboard_account",
+            "Tuist signs in to the server with OAuth. You approve access on the server's sign-in page and come back here."
+          )}
+        </p>
+        <.text_input
+          field={@mcp_form[:url]}
+          id="mcp-server-url"
+          type="basic"
+          input_type="url"
+          label={dgettext("dashboard_account", "Server URL")}
+          placeholder="https://example.com/mcp"
+          required
+          show_required
+        />
+        <.text_input
+          field={@mcp_form[:name]}
+          id="mcp-server-name"
+          type="basic"
+          label={dgettext("dashboard_account", "Name")}
+          placeholder="My server"
+          hint={dgettext("dashboard_account", "Defaults to the server's host name.")}
+        />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_account", "Cancel")}
+            variant="secondary"
+            phx-click="close-mcp-modal"
+          />
+          <.button
+            id="save-mcp-server"
+            type="submit"
+            label={dgettext("dashboard_account", "Add and sign in")}
+            variant="primary"
+            disabled={not is_nil(@mcp_authorizing)}
+          />
+        </div>
+      </div>
+    </.modal>
+  </.form>
+
+  <.modal
+    id="remove-mcp-server-modal"
+    title={dgettext("dashboard_account", "Remove MCP server")}
+    description={
+      dgettext(
+        "dashboard_account",
+        "Tuist deletes the server and the session it stored for it. To revoke the access itself, do so on the server."
+      )
+    }
+    header_size="large"
+    on_dismiss="cancel-remove-mcp-server"
+  >
+    <:trigger :let={attrs}>
+      <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+    </:trigger>
+    <.line_divider />
+    <div data-part="subscription-form">
+      <div data-part="actions">
+        <.button
+          type="button"
+          label={dgettext("dashboard_account", "Cancel")}
+          variant="secondary"
+          phx-click="cancel-remove-mcp-server"
+        />
+        <.button
+          id="confirm-remove-mcp-server"
+          type="button"
+          label={dgettext("dashboard_account", "Remove")}
+          variant="primary"
+          phx-click="remove-mcp-server"
+        />
+      </div>
+    </div>
+  </.modal>
+
+  <.form
+    for={@claude_form}
+    id="claude-subscription-form"
+    phx-submit="save-claude"
+    autocomplete="off"
+  >
+    <.modal
+      id="connect-claude-modal"
+      title={dgettext("dashboard_account", "Connect Claude")}
+      header_size="large"
+      on_dismiss="close-claude-modal"
+    >
+      <:trigger :let={attrs}>
+        <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+      </:trigger>
+      <.line_divider />
+      <div data-part="subscription-form">
+        <.alert
+          :if={@claude_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@claude_error}
+        />
+        <ol>
+          <li>{dgettext("dashboard_account", "Install Claude Code on your computer.")}</li>
+          <li>
+            {dgettext(
+              "dashboard_account",
+              "Run the following command and sign in with your Claude account."
+            )}
+            <.terminal id="claude-setup-token" command="claude setup-token" />
+          </li>
+          <li>{dgettext("dashboard_account", "Paste the token it prints below.")}</li>
+        </ol>
+        <.text_input
+          field={@claude_form[:token]}
+          id="claude-token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_account", "Claude token")}
+          placeholder="sk-ant-oat01-…"
+          required
+          show_required
+          hint={dgettext("dashboard_account", "Stored encrypted and never shown again.")}
+        />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_account", "Cancel")}
+            variant="secondary"
+            phx-click="close-claude-modal"
+          />
+          <.button
+            id="save-claude"
+            type="submit"
+            label={dgettext("dashboard_account", "Connect")}
+            variant="primary"
+          />
+        </div>
+      </div>
+    </.modal>
+  </.form>
+
+  <.modal
+    id="connect-chatgpt-modal"
+    title={dgettext("dashboard_account", "Connect ChatGPT")}
+    header_size="large"
+    on_dismiss="close-chatgpt-modal"
+  >
+    <:trigger :let={attrs}>
+      <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+    </:trigger>
+    <.line_divider />
+    <div data-part="subscription-form">
+      <.alert
+        :if={@chatgpt_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={@chatgpt_error}
+      />
+      <p :if={is_nil(@chatgpt_login) and is_nil(@chatgpt_error)}>
+        {dgettext("dashboard_account", "Requesting a sign-in code from OpenAI…")}
+      </p>
+      <ol :if={@chatgpt_login} id="chatgpt-device-login">
+        <li>
+          {dgettext(
+            "dashboard_account",
+            "Open ChatGPT and sign in with the account that has your subscription."
+          )}
+        </li>
+        <li>
+          {dgettext("dashboard_account", "Enter this one-time code:")}
+          <code id="chatgpt-user-code" data-part="code">{@chatgpt_login.user_code}</code>
+        </li>
+      </ol>
+      <p :if={@chatgpt_login}>
+        {dgettext(
+          "dashboard_account",
+          "This page updates once you approve. The code expires in 15 minutes; only enter it if you started this sign-in."
+        )}
+      </p>
+      <div data-part="actions">
+        <.button
+          type="button"
+          label={dgettext("dashboard_account", "Cancel")}
+          variant="secondary"
+          phx-click="close-chatgpt-modal"
+        />
+        <.button
+          :if={@chatgpt_login}
+          id="chatgpt-verification-link"
+          label={dgettext("dashboard_account", "Open ChatGPT")}
+          variant="primary"
+          href={@chatgpt_login.verification_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+      </div>
+    </div>
+  </.modal>
+
+  <.modal
+    id="disconnect-subscription-modal"
+    title={dgettext("dashboard_account", "Disconnect")}
+    description={
+      dgettext(
+        "dashboard_account",
+        "Tuist deletes the credentials it stored for this subscription. To revoke the access itself, do so in your Claude or OpenAI account."
+      )
+    }
+    header_size="large"
+    on_dismiss="cancel-disconnect"
+  >
+    <:trigger :let={attrs}>
+      <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+    </:trigger>
+    <.line_divider />
+    <div data-part="subscription-form">
+      <div data-part="actions">
+        <.button
+          type="button"
+          label={dgettext("dashboard_account", "Cancel")}
+          variant="secondary"
+          phx-click="cancel-disconnect"
+        />
+        <.button
+          id="confirm-disconnect"
+          type="button"
+          label={dgettext("dashboard_account", "Disconnect")}
+          variant="primary"
+          phx-click="disconnect"
+        />
+      </div>
+    </div>
+  </.modal>
+</div>

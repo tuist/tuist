@@ -16,7 +16,15 @@ export class TimelineMetrics {
   constructor(samples, labels = { in: "In", out: "Out", read: "Read", write: "Write" }) {
     this.samples = [
       ...new Map(samples.filter((s) => Number.isFinite(s.offset_ms)).map((s) => [s.offset_ms, s])).values(),
-    ].sort((a, b) => a.offset_ms - b.offset_ms);
+    ]
+      .map((sample) => ({
+        ...sample,
+        disk_used_bytes:
+          Number.isFinite(sample.disk_total_bytes) && Number.isFinite(sample.disk_available_bytes)
+            ? sample.disk_total_bytes - sample.disk_available_bytes
+            : null,
+      }))
+      .sort((a, b) => a.offset_ms - b.offset_ms);
     const intervals = this.samples
       .slice(1)
       .map((s, i) => s.offset_ms - this.samples[i].offset_ms)
@@ -57,6 +65,14 @@ export class TimelineMetrics {
         unit: "MiB/s",
         divisor: MIB,
         max: this.maximum(["disk_bytes_read", "disk_bytes_written"]),
+      },
+      {
+        key: "disk-space",
+        fields: ["disk_used_bytes", "disk_total_bytes"],
+        names: [labels.used || "Used", labels.total || "Total"],
+        unit: "GB",
+        divisor: GB,
+        max: this.maximum(["disk_total_bytes", "disk_used_bytes"]),
       },
     ];
   }

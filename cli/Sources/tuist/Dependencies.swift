@@ -36,7 +36,7 @@ private func initEnv() throws {
     if let cargoArguments = CargoCommand.delegatedArguments(in: CommandLine.arguments) {
         arguments = Array(CommandLine.arguments.prefix(CommandLine.arguments.count - cargoArguments.count - 1))
     } else {
-        arguments = CommandLine.arguments
+        arguments = CommandLineArguments.beforePassthrough(CommandLine.arguments)
     }
     if arguments.contains("--quiet"), arguments.contains("--verbose") {
         throw DependenciesError.exclusiveOptionError("quiet", "verbose")

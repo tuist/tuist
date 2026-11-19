@@ -146,6 +146,15 @@ stop_registry_server() {
   fi
 }
 
+# Succeeds when the scratch directory holds the example.registryfoo 1.0.0 download. SwiftPM 6.4.2
+# stores downloads under a per-registry directory (`<host>-<hash>/example/registryfoo/1.0.0`),
+# earlier releases directly under `registry/downloads`, so match the release at either depth.
+has_registryfoo_download() {
+  local downloads="$1/.build/registry/downloads"
+  [[ -d "${downloads}" ]] || return 1
+  [[ -n "$(find "${downloads}" -maxdepth 5 -path '*/example/registryfoo/1.0.0/Package.swift' -print -quit)" ]]
+}
+
 write_registry_package_archive() {
   local tmp="$1"
   local registry_dir="$2"
@@ -1060,6 +1069,75 @@ scenario_restore_symlinks_checkouts_on_ci_when_configured() {
   echo "checkout-symlink=present"
 }
 
+scenario_restore_does_not_start_git_maintenance() {
+  local tmp revision
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
+  prepare_isolated_state "${tmp}"
+  mkdir -p "${tmp}/Dependency" "${tmp}/App" "${tmp}/template"
+
+  python3 - "${tmp}/Dependency" <<'PY'
+import pathlib, sys
+root = pathlib.Path(sys.argv[1])
+root.joinpath("Package.swift").write_text('// swift-tools-version:6.0\nimport PackageDescription\nlet package = Package(name: "Dependency")\n')
+for i in range(10000):
+    root.joinpath(f"file-{i}").write_text(f"blob {i}\n" * 5)
+PY
+  scoped_env "${tmp}" /usr/bin/git -C "${tmp}/Dependency" init -q || return 1
+  scoped_env "${tmp}" /usr/bin/git -C "${tmp}/Dependency" add . || return 1
+  scoped_env "${tmp}" /usr/bin/git -C "${tmp}/Dependency" -c user.name=Test -c user.email=test@example.com \
+    -c maintenance.auto=false commit -qm Initial || return 1
+  revision="$(scoped_env "${tmp}" /usr/bin/git -C "${tmp}/Dependency" rev-parse HEAD)" || return 1
+  printf '// swift-tools-version:6.0\nimport PackageDescription\nlet package = Package(name: "App")\n' >"${tmp}/App/Package.swift"
+  jq -n --arg location "file://${tmp}/Dependency" --arg revision "${revision}" \
+    '{version: 3, pins: [{identity: "dependency", kind: "remoteSourceControl", location: $location, state: {revision: $revision}}]}' \
+    >"${tmp}/App/Package.resolved"
+
+  # Fresh repositories inherit this configuration. Unpack enough loose objects to
+  # trigger a real automatic repack, including the bitmap-ref-tips_* race on macOS.
+  cat >"${tmp}/template/config" <<'EOF'
+[gc]
+  auto = 1
+  autoDetach = true
+[fetch]
+  unpackLimit = 100000
+[repack]
+  writeBitmaps = true
+EOF
+
+  # Control: prove this Git version/configuration actually triggers maintenance.
+  # Keep the control synchronous so its repack cannot outlive the fixture. Some Git
+  # versions warn about unreachable loose objects during that repack; only SwifterPM's
+  # stderr is under test.
+  scoped_env "${tmp}" env GIT_TEMPLATE_DIR="${tmp}/template" \
+    /usr/bin/git init -q "${tmp}/control" || return 1
+  scoped_env "${tmp}" env GIT_TRACE2_EVENT="${tmp}/control-trace.json" \
+    /usr/bin/git -C "${tmp}/control" -c maintenance.autoDetach=false -c gc.autoDetach=false \
+    fetch -q --depth=1 "file://${tmp}/Dependency" "${revision}" 2>/dev/null || return 1
+  python3 - "${tmp}/control-trace.json" <<'PY' || return 1
+import json, sys
+events = [json.loads(line) for line in open(sys.argv[1])]
+assert any(event.get("event") == "child_start" and "repack" in event.get("argv", []) for event in events)
+PY
+
+  scoped_env "${tmp}" env GIT_TEMPLATE_DIR="${tmp}/template" \
+    GIT_TRACE2_EVENT="${tmp}/restore-trace.json" "${SWIFTERPM_BIN}" \
+    --package-path "${tmp}/App" --scratch-path "${tmp}/scratch" --cache-path "${tmp}/cache" \
+    --disable-sandbox --disable-package-info-cache --quiet restore >/dev/null || return 1
+
+  python3 - "${tmp}/restore-trace.json" <<'PY' || return 1
+import json, sys
+events = [json.loads(line) for line in open(sys.argv[1])]
+assert not any(event.get("event") == "child_start" and "maintenance" in event.get("argv", []) for event in events)
+PY
+  local checkout="${tmp}/scratch/checkouts/Dependency"
+  cmp "${tmp}/Dependency/Package.swift" "${checkout}/Package.swift" || return 1
+  cmp "${tmp}/Dependency/file-9999" "${checkout}/file-9999" || return 1
+  test ! -e "${checkout}/.git" || return 1
+  echo "restore=ok"
+  echo "automatic-maintenance=absent"
+}
+
 scenario_resolves_swiftpm_external_complex() {
   local tmp
   tmp="$(mktemp -d)"
@@ -1156,7 +1234,7 @@ scenario_replace_scm_with_registry_uses_registry() {
   kind="$(jq -r '.pins[0].kind' "${package_dir}/Package.resolved")"
   test "${identity}" = "example.registryfoo" || return 1
   test "${kind}" = "registry" || return 1
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  has_registryfoo_download "${package_dir}" || return 1
   test ! -e "${package_dir}/.build/checkouts/RegistryFoo" || return 1
 
   # The first resolve has no lockfile, so native SwiftPM downloads the release
@@ -1170,24 +1248,14 @@ scenario_replace_scm_with_registry_uses_registry() {
   test "$(cat "${marker}")" = "${checksum}" || return 1
 
   # A seeded entry whose checksum no longer matches the registry is stale, so
-  # the restore downloads the release itself and keeps the archive.
+  # the restore downloads the release itself. The archive is deleted once
+  # extracted: the cache keeps only the release's sources.
   printf 'stale checksum' >"${marker}"
   rm -rf "${package_dir}/.build/registry"
   restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  has_registryfoo_download "${package_dir}" || return 1
   test "$(cat "${marker}")" = "${checksum}" || return 1
-
-  local archive
-  archive="$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print | head -n 1)"
-  test -n "${archive}" || return 1
-
-  # A kept archive that fails checksum validation is downloaded again.
-  printf 'corrupt archive' >"${archive}"
-  printf 'stale checksum' >"${marker}"
-  rm -rf "${package_dir}/.build/registry"
-  restore_registry_package "${tmp}" "${package_dir}" "${registry_url}" || return 1
-  test -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
-  test "$(file_sha256 "${archive}")" = "${checksum}" || return 1
+  test -z "$(find "${tmp}/cache/registry/archives" -type f -name '*.zip' -print)" || return 1
 
   stop_registry_server
   echo "identity=${identity}"
@@ -1196,7 +1264,7 @@ scenario_replace_scm_with_registry_uses_registry() {
   echo "checkout=absent"
   echo "registry-cache=seeded"
   echo "stale-cache-redownload=ok"
-  echo "corrupt-archive-redownload=ok"
+  echo "registry-archive=removed"
 }
 
 restore_registry_package() {
@@ -1264,7 +1332,7 @@ scenario_replace_scm_with_registry_falls_back_to_scm_when_registry_has_no_versio
   test "${location}" = "${dependency_dir}" || return 1
   test "${version}" = "1.0.0" || return 1
   test -e "${package_dir}/.build/checkouts/LocalRegistryFoo/Package.swift" || return 1
-  test ! -e "${package_dir}/.build/registry/downloads/example/registryfoo/1.0.0/Package.swift" || return 1
+  ! has_registryfoo_download "${package_dir}" || return 1
 
   stop_registry_server
   echo "identity=${identity}"
@@ -1660,10 +1728,13 @@ JSON
   write_legacy_swift_wrapper "${tmp}" || return 1
   local command phase
   local force_arguments=()
-  for phase in cold warm validation missing-pin update; do
+  for phase in cold warm validation forced-missing-pin missing-pin update; do
     command=resolve
     force_arguments=()
     if [[ "${phase}" = validation ]]; then
+      force_arguments=(--force-resolved-versions)
+    elif [[ "${phase}" = forced-missing-pin ]]; then
+      rm -rf "${tmp}/cache" "${package_dir}/.build"
       force_arguments=(--force-resolved-versions)
     elif [[ "${phase}" = missing-pin ]]; then
       rm -rf "${tmp}/cache/sources/example.registryfoo" "${package_dir}/.build"
@@ -1698,7 +1769,7 @@ assert requests and all(request["authorized"] for request in requests), requests
 assert any(request["path"].endswith(".zip") for request in requests), requests
 PY
   test "$?" = 0 || return 1
-  echo "authenticated-${authentication_type}=cold,warm,validation,missing-pin,update"
+  echo "authenticated-${authentication_type}=cold,warm,validation,forced-missing-pin,missing-pin,update"
 }
 
 Describe "registry authentication regression coverage"
@@ -1803,6 +1874,14 @@ Describe "swifterpm resolve against SwiftPM dependency graph fixtures"
     The output should include "checkout-symlink=present"
   End
 
+  It "restores a cold Git snapshot without racing automatic maintenance"
+    When call scenario_restore_does_not_start_git_maintenance
+    The status should be success
+    The stderr should be blank
+    The output should include "restore=ok"
+    The output should include "automatic-maintenance=absent"
+  End
+
   It "matches SwiftPM's external complex transitive graph scenario"
     When call scenario_resolves_swiftpm_external_complex
     The status should be success
@@ -1865,14 +1944,14 @@ Describe "swifterpm registry integration"
   It "authenticates token registry requests on a legacy toolchain across cache states and updates"
     When call scenario_authenticated_registry_on_legacy_toolchain token
     The status should be success
-    The output should include "authenticated-token=cold,warm,validation,missing-pin,update"
+    The output should include "authenticated-token=cold,warm,validation,forced-missing-pin,missing-pin,update"
     The stderr should equal ""
   End
 
   It "authenticates basic registry requests on a legacy toolchain across cache states and updates"
     When call scenario_authenticated_registry_on_legacy_toolchain basic
     The status should be success
-    The output should include "authenticated-basic=cold,warm,validation,missing-pin,update"
+    The output should include "authenticated-basic=cold,warm,validation,forced-missing-pin,missing-pin,update"
     The stderr should equal ""
   End
 
@@ -1885,7 +1964,7 @@ Describe "swifterpm registry integration"
     The output should include "checkout=absent"
     The output should include "registry-cache=seeded"
     The output should include "stale-cache-redownload=ok"
-    The output should include "corrupt-archive-redownload=ok"
+    The output should include "registry-archive=removed"
   End
 
   It "falls back to source control when a registry identifier has no versions"

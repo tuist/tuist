@@ -34,16 +34,15 @@ defmodule Tuist.Marketing.MDExConverter do
       unsafe: true
     ],
     syntax_highlight: [
-      # light-dark() token colors so code blocks follow the page's
-      # color-scheme, same as the docs (see Tuist.DocsLoader).
-      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+      # CSS classes, colored with Noora tokens by assets/shared/css/syntax.css.
+      formatter: :html_linked
     ]
   ]
 
   def convert(_path, body, _attrs, _opts), do: body
 
   def compile_markdown(markdown, path, live?) do
-    document = build_document(markdown)
+    document = build_document(markdown, path)
     html = MDEx.to_html!(document)
 
     template =
@@ -54,7 +53,7 @@ defmodule Tuist.Marketing.MDExConverter do
     {html, template}
   end
 
-  defp build_document(markdown) do
+  defp build_document(markdown, path) do
     [markdown: markdown]
     |> Keyword.merge(@mdex_options)
     |> MDEx.new()
@@ -63,7 +62,36 @@ defmodule Tuist.Marketing.MDExConverter do
       katex_block_attrs: &katex_block_attrs/1,
       katex_inline_attrs: &katex_inline_attrs/1
     )
-    |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
+    |> MDEx.Document.append_steps(
+      wrap_tables: &wrap_tables(&1, path),
+      wrap_code_blocks: &wrap_code_blocks/1
+    )
+  end
+
+  defp wrap_tables(document, path) do
+    {document, _index} =
+      MDEx.traverse_and_update(document, 0, fn
+        %MDEx.Table{} = table, index ->
+          html = MDEx.to_html!(%MDEx.Document{nodes: [table]}, @mdex_options)
+          id = "marketing-markdown-table-#{:erlang.phash2(path)}-#{index}"
+
+          block = %MDEx.HtmlBlock{
+            literal: """
+            <div id="#{id}" class="noora-table" phx-hook="NooraTable" phx-no-curly-interpolation>
+              <div data-part="scroll-container">#{html}</div>
+              <div data-part="scrollbar" aria-hidden="true"><div data-part="scrollbar-content"></div></div>
+              <div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>
+            </div>
+            """
+          }
+
+          {block, index + 1}
+
+        node, index ->
+          {node, index}
+      end)
+
+    document
   end
 
   defp katex_block_attrs(sequence) do
@@ -158,6 +186,7 @@ defmodule Tuist.Marketing.MDExConverter do
     highlighted_html =
       "```#{info}\n#{literal}```"
       |> MDEx.to_html!(@mdex_options)
+      |> close_tokens_before_line_breaks()
       |> protect_highlight_whitespace()
 
     copy_source = literal |> String.trim() |> Markdown.html_escape()
@@ -169,13 +198,48 @@ defmodule Tuist.Marketing.MDExConverter do
       <div class="code-window" phx-no-curly-interpolation>\
       <div data-part="bar">\
       <div data-part="language">#{language}</div>\
-      <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
+      <div data-part="copy" class="noora-ghost-button" data-variant="secondary" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
       </div>\
       <template data-part="copy-source">#{copy_source}</template>\
       <div data-part="code">#{highlighted_html}</div>\
       </div>
       """
     }
+  end
+
+  # The highlighter can carry a token across lines (a Rust `///` doc comment,
+  # a shell line continuation, or a diff hunk, for example), so its `<span>`
+  # opens in one line's wrapper and closes in a later one. Browsers tolerate
+  # it, but HEEx rejects the markup in live posts. At each line break, close
+  # the spans still open and reopen them in the next line, so every line's
+  # markup is balanced and keeps its token classes.
+  @line_break ~r/\n<\/div><div class="l-line"[^>]*>/
+  @span_tag ~r/<span\b[^>]*>|<\/span>/
+
+  defp close_tokens_before_line_breaks(html) do
+    {parts, _open} =
+      @line_break
+      |> Regex.split(html, include_captures: true)
+      |> Enum.map_reduce([], fn part, open ->
+        if Regex.match?(@line_break, part) do
+          reopened = open |> Enum.reverse() |> Enum.join()
+          {String.duplicate("</span>", length(open)) <> part <> reopened, open}
+        else
+          {part, track_open_spans(part, open)}
+        end
+      end)
+
+    Enum.join(parts)
+  end
+
+  defp track_open_spans(content, open) do
+    @span_tag
+    |> Regex.scan(content)
+    |> Enum.reduce(open, fn
+      ["</span>"], [_ | rest] -> rest
+      ["</span>"], [] -> []
+      [tag], stack -> [tag | stack]
+    end)
   end
 
   defp protect_highlight_whitespace(html) do

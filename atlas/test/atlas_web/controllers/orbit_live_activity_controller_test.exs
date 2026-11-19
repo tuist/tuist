@@ -43,6 +43,8 @@ defmodule AtlasWeb.OrbitLiveActivityControllerTest do
     api: api,
     user: user
   } do
+    Repo.query!("SET LOCAL TIME ZONE 'Asia/Kathmandu'")
+
     runs =
       for {offset, title} <- [
             {40, "  Cash\t\nflow\u00A0\u200B\u202E\u0001 forecast  "},

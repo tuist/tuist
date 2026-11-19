@@ -25,6 +25,8 @@ defmodule Slack.MixProject do
 
   defp deps do
     [
+      {:castore, "~> 1.0.22"},
+      {:certifi, "~> 2.18", override: true},
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10"},
@@ -44,6 +46,7 @@ defmodule Slack.MixProject do
       {:plug, "~> 1.18"},
       {:req, "~> 0.5"},
       {:swoosh, "~> 1.16"},
+      {:gen_smtp, "~> 1.3"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false}
     ]
   end

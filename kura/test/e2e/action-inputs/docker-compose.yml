@@ -1,0 +1,41 @@
+name: kura-action-inputs-e2e
+
+# One standalone Kura node and a client that uploads an action's input tree,
+# then checks GetTree and the x-tuist-action-inputs batch read over the network.
+services:
+  kura:
+    # In CI the e2e-images job has already built and tagged kura:e2e; local
+    # runs rebuild it from source (see run.sh).
+    image: ${KURA_IMAGE:-kura:e2e}
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+      additional_contexts:
+        certificate-trust: ../../../../infra/certificate-trust
+    environment:
+      KURA_PORT: "4000"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_TENANT_ID: "e2e"
+      KURA_REGION: "local"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_NODE_URL: "http://kura:7443"
+      KURA_OTEL_SERVICE_NAME: "kura-e2e"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "e2e"
+      KURA_AUTH_ENABLED: "false"
+      RUST_LOG: "warn"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/ready >/dev/null"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+
+  client:
+    build: ./client
+    image: kura-action-inputs-client
+    depends_on:
+      kura:
+        condition: service_healthy
+    environment:
+      KURA_GRPC_ADDRESS: "kura:4000"
+      KURA_INSTANCE: "e2e/action-inputs"

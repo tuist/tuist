@@ -1,0 +1,4 @@
+# Tuist CLI configuration for publishing IPAs that Struo cannot publish itself
+# (see `preview:ios-device`). Struo reads its project from struo.toml.
+project = "tuist/luft"
+url = "https://tuist.dev"

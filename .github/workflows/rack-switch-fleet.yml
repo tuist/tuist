@@ -77,7 +77,7 @@ jobs:
     outputs:
       environments: ${{ steps.environments.outputs.environments }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
           # Only what this needs. Installing the whole toolchain to run jq and
@@ -139,7 +139,7 @@ jobs:
         run: mise run rack:prep-test
 
       # The stick renders its seed with the operator's Go renderer.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: infra/cluster-api-provider-tuist/go.mod
           cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
@@ -205,14 +205,14 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       ENVIRONMENT: ${{ matrix.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked jq kubectl"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

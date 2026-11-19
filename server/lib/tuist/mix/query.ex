@@ -47,6 +47,7 @@ defmodule Tuist.Mix.Query do
       status: build.status,
       duration_ms: build.duration_ms,
       is_ci: build.is_ci,
+      tuist_version: presence(build.tuist_version),
       elixir_version: presence(build.elixir_version),
       otp_version: presence(build.otp_version),
       mix_env: presence(build.mix_env),

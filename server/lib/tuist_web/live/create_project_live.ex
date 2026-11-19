@@ -100,7 +100,8 @@ defmodule TuistWeb.CreateProjectLive do
                   <:item value="gradle" label="Gradle" />
                   <:item value="bazel" label="Bazel" />
                   <:item value="mix" label="Mix (Elixir)" />
-                  <:item value="once" label="Once" />
+                  <:item value="cargo" label="Cargo (Rust)" />
+                  <:item value="once" label="Struo" />
                 </.select>
               </div>
               <.button

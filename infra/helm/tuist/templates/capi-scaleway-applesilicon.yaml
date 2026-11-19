@@ -41,8 +41,6 @@ rules:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
       - tuistclusters
-      - scalewayelasticmetalmachines
-      - scalewayelasticmetalmachinetemplates
       - ovhdedicatedmachines
       - ovhdedicatedmachinetemplates
       - vultrmachines
@@ -64,8 +62,6 @@ rules:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
       - tuistclusters/status
-      - scalewayelasticmetalmachines/status
-      - scalewayelasticmetalmachines/finalizers
       - ovhdedicatedmachines/status
       - ovhdedicatedmachines/finalizers
       - vultrmachines/status
@@ -279,6 +275,11 @@ rules:
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
     verbs: [get, patch]
+  # Maintenance evicts only processor Pods in this release's namespace.
+  # Keep this out of the ClusterRole; no new node or Machine access is needed.
+  - apiGroups: [""]
+    resources: [pods/eviction]
+    verbs: [create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -411,7 +412,7 @@ spec:
     metadata:
       annotations:
         # Scrape the operator's controller-runtime + custom metrics
-        # (capt_scaleway_applesilicon_machine_phase) into Grafana Cloud via
+        # (capt_scaleway_applesilicon_machine_phase) into Pulse via
         # the k8s-monitoring chart's annotation autodiscovery. Without this
         # the :8080 endpoint is served but never scraped, so the
         # machine-stuck-Failed alert has no metric to fire on.
@@ -441,6 +442,7 @@ spec:
             {{- if .Values.capi.ovhPrivateNetwork.enabled }}
             - --ovh-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
             {{- end }}
+            - --ovh-runner-egress-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-runner-egress") }}
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
             {{- end }}
@@ -615,9 +617,7 @@ spec:
             {{- end }}
             {{- with .Values.macosFleet.vmCachePrivateNetwork.name }}
             # Name of the Scaleway Private Network carrying the kura
-            # runner-cache NodePort endpoints — the same name the kura
-            # fleet attaches to, so the minis and the Elastic Metal
-            # cache node share one PN per env. The operator resolves it
+            # runner-cache NodePort endpoints, one PN per env. The operator resolves it
             # to an ID, attaches every mini, resolves the per-host VLAN,
             # and bootstrap materializes the VLAN interface + VM egress
             # pass + NAT — the data plane dispatch's node-port
@@ -671,6 +671,11 @@ spec:
             {{- end }}
             {{- end }}
           env:
+            # The manager holds about 130 MB of host binaries plus the
+            # cluster-wide informer caches. Collect harder as it nears the
+            # container limit rather than being OOM-killed mid-roll.
+            - name: GOMEMLIMIT
+              value: "800MiB"
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see
             # capi-scaleway-applesilicon-external-secrets.yaml). For
@@ -749,8 +754,8 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
+              memory: "512Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "1Gi"
 {{- end }}

@@ -10,9 +10,14 @@ cleanup() {
 trap cleanup EXIT
 cp "$FIXTURE/Cargo.toml" "$FIXTURE/Cargo.lock" "$ROOT/"
 cp -R "$FIXTURE/src" "$ROOT/src"
+touch "$ROOT/not-a-state-directory"
+test "$(XDG_STATE_HOME="$ROOT/not-a-state-directory" "$TUIST_CLI_BINARY" cargo __compiler rustc --print sysroot)" = "$(rustc --print sysroot)"
 mkdir -p "$ROOT/cache"
+# Cargo passes loader variables such as DYLD_FALLBACK_LIBRARY_PATH, which bypass caching. SIP strips them from this
+# /bin/sh wrapper, but not on machines with SIP off, so drop them as `tuist cargo`'s hook client does.
 cat > "$ROOT/wrapper" <<'WRAPPER'
 #!/bin/sh
+for name in $(env | sed -n 's/^\(DYLD_[A-Za-z_]*\)=.*/\1/p'); do unset "$name"; done
 printf '%s\n' "$@" > "$TUIST_CARGO_SESSION/compiler-$$.args"
 printf '%s\n' "CARGO_HOME=${CARGO_HOME-}" "CARGO_MANIFEST_DIR=${CARGO_MANIFEST_DIR-}" "OUT_DIR=${OUT_DIR-}" > "$TUIST_CARGO_SESSION/compiler-$$.context"
 exec "$TUIST_CLI_BINARY" cargo __compiler "$@"
@@ -40,7 +45,10 @@ hits = sum(r['hits'] for r in reports)
 misses = sum(r['misses'] for r in reports)
 assert (hits, misses) == ((1, 0) if scenario == 'warm' else (0, 1)), (scenario, hits, misses)
 records = [json.loads(line) for p in Path(directory).glob('cache-details/*.ndjson') for line in p.read_text().splitlines()]
-tasks = [r for r in records if r['record'] == 'task']
+tasks = [r for r in records if r['record'] == 'task' and r['status'] != 'unconsulted']
+# The binary, which the per-crate cache does not take, still counts as a compilation that did not use it.
+unconsulted = [r['name'] for r in records if r['record'] == 'task' and r['status'] == 'unconsulted']
+assert unconsulted == ['tuist_cargo_cache_smoke'], records
 assert len(tasks) == 1 and tasks[0]['status'] == ('hit' if scenario == 'warm' else 'miss'), tasks
 observations = [json.loads(p.read_text()) for p in Path(directory).glob('*.json')]
 assert len(observations) == (1 if scenario == 'warm' else 2), (scenario, observations)

@@ -121,7 +121,19 @@ defmodule TuistWeb.BuildEntityLiveTest do
       assert overview =~ observation.parent_id
       assert_history_presentation(view, resource, observation)
 
-      assert has_element?(view, "#entity-duration") == BuildEntityLabels.durations?(resource.system, resource.kind)
+      if resource.system == :cargo do
+        assert has_element?(
+                 view,
+                 "#build-entity-history a[href='/#{account.name}/#{project.name}/builds/cargo-builds/#{observation.parent_id}']"
+               )
+
+        assert has_element?(view, "[data-part=badges]", "Crate root: src/lib.rs")
+        assert has_element?(view, "[data-part=badges]", "Crate kind: lib")
+      end
+
+      assert has_element?(view, "#entity-duration") ==
+               BuildEntityLabels.durations?(resource.system, resource.kind)
+
       refute has_element?(view, "#entity-hit-rate")
       assert overview =~ BuildEntityLabels.recent(resource.system, resource.kind)
 
@@ -168,6 +180,8 @@ defmodule TuistWeb.BuildEntityLiveTest do
       {count, units, failure, duration} =
         Map.fetch!(
           %{
+            cargo_crates:
+              {"Recorded rustc invocations", "crates", "rustc invocation", "Measured duration of each rustc invocation"},
             xcode_modules:
               {"Module builds with recorded compilation work", "modules", "module build",
                "Measured compilation time for module builds, not total build time."},
@@ -628,6 +642,7 @@ defmodule TuistWeb.BuildEntityLiveTest do
         {:xcode_modules, %{label: "AppScheme", source: :xcode_build}, "AppScheme"},
         {:once_actions, %{label: "once build //app:binary"}, "once build //app:binary"},
         {:bazel_actions, %{label: "bazel build //app:lib"}, "bazel build //app:lib"},
+        {:cargo_crates, %{label: "cargo build"}, "cargo build"},
         {:mix_modules, %{label: "mix compile"}, "mix compile"}
       ] do
     test "#{key} use the native human-readable build context in Recent activity and History", context do
@@ -1627,6 +1642,7 @@ defmodule TuistWeb.BuildEntityLiveTest do
 
   defp inventory_headers(resource) do
     native = %{
+      cargo_crates: ["Crate", "Crate kind"],
       bazel_actions: ["Action", "Target", "Action type"],
       gradle_tasks: ["Task", "Root project", "Build path", "Task type"],
       xcode_modules: ["Module"],

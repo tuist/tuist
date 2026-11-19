@@ -15,6 +15,7 @@ import TuistLoader
 import TuistLogging
 import TuistPlugin
 import TuistProcess
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistXcodeBuildProducts
@@ -30,9 +31,12 @@ import XcodeGraph
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
         case sourcesChangedDuringBuild(target: String)
         case coverageWithoutProject(AbsolutePath)
+        case restrictedDestinationRequiresModernCache
 
         var errorDescription: String? {
             switch self {
+            case .restrictedDestinationRequiresModernCache:
+                return "Restricted destinations require modern per-SDK caching. Disable TUIST_LEGACY_MODULE_CACHE or use --destination all."
             case let .sourcesChangedDuringBuild(target):
                 return "Sources for \(target) changed while warming the cache. Run the warm again with stable inputs."
             case let .coverageWithoutProject(path):
@@ -102,6 +106,7 @@ import XcodeGraph
         private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
         private let commandRunner: CommandRunning
         private let coverageBuildSourcesService: CoverageBuildSourcesService
+        private let rootDirectoryLocator: RootDirectoryLocating
 
         public init() {
             let contentHasher = ContentHasher()
@@ -137,7 +142,8 @@ import XcodeGraph
             scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
             foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator(),
             commandRunner: CommandRunning = CommandRunner(),
-            coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
+            coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService(),
+            rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -156,6 +162,7 @@ import XcodeGraph
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
             self.commandRunner = commandRunner
             self.coverageBuildSourcesService = coverageBuildSourcesService
+            self.rootDirectoryLocator = rootDirectoryLocator
             buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
         }
 
@@ -168,8 +175,12 @@ import XcodeGraph
             generateOnly: Bool,
             noUpload: Bool,
             cacheProfile: String?,
-            scratchDirectory: String?
+            scratchDirectory: String?,
+            destination: CacheDestination = .all
         ) async throws {
+            if destination != .all, Environment.current.isLegacyModuleCacheEnabled {
+                throw CacheWarmCommandServiceError.restrictedDestinationRequiresModernCache
+            }
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let scratchDirectoryPath: AbsolutePath?
             if let scratchDirectory {
@@ -242,7 +253,8 @@ import XcodeGraph
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage,
-                coverage: coverage
+                coverage: coverage,
+                sdkSelection: destination.sdkSelection
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
@@ -264,44 +276,63 @@ import XcodeGraph
             Logger.current
                 .notice("Targets to be cached: \(cacheableTargetNames.sorted().joined(separator: ", "))")
 
-            let targetsToBinaryCache = cacheableTargets.reduce(into: [Platform: Set<TargetQuery>]()) { acc, next in
-                for platform in next.0.target.supportedPlatforms {
-                    var platformTargets = acc[platform, default: Set()]
-                    platformTargets.insert(TargetQuery(stringLiteral: next.0.target.name))
-                    acc[platform] = platformTargets
-                }
-            }
-            let (projectPath, updatedGraph, _) = try await generatorFactory
-                .binaryCacheWarming(
-                    config: config,
-                    targetsToBinaryCache: targetsToBinaryCache,
-                    configuration: configuration,
-                    cacheStorage: cacheStorage,
-                    targetHashes: hashedGraph.targetHashes,
-                    coverage: coverage
-                )
-                .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
-
-            if generateOnly {
-                return
-            }
-
-            Logger.current.info("Building cacheable targets")
-
-            try await archive(
-                updatedGraph,
-                projectPath: projectPath,
-                configuration: configuration,
-                hashesByTargetToBeCached: cacheableTargets,
+            let plan = try await CacheWarmPlan.make(
+                targets: cacheableTargets,
                 fingerprints: hashedGraph.fingerprints,
-                cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
-                noUpload: noUpload,
-                isReleaseConfiguration: isReleaseConfiguration,
-                instrumentationSettings: instrumentationSettings,
-                scratchDirectory: scratchDirectoryMode
+                sdkSelection: destination.sdkSelection,
+                generateOnly: generateOnly,
+                useSDKs: !Environment.current.isLegacyModuleCacheEnabled,
+                storage: cacheStorage,
+                preserving: Set(hashedGraph.localHits.keys.map(\.hash))
             )
+            for batch in plan.batches {
+                let targetsToBinaryCache = batch.targets.reduce(into: [Platform: Set<TargetQuery>]()) { acc, next in
+                    for platform in next.0.target.supportedPlatforms {
+                        if let variant = batch.variant, platform != variant.platform { continue }
+                        acc[platform, default: []].insert(TargetQuery(stringLiteral: next.0.target.name))
+                    }
+                }
+                let (projectPath, updatedGraph, _) = try await generatorFactory
+                    .binaryCacheWarming(
+                        config: config,
+                        targetsToBinaryCache: targetsToBinaryCache,
+                        configuration: configuration,
+                        cacheStorage: cacheStorage,
+                        targetHashes: hashedGraph.targetHashes,
+                        coverage: coverage,
+                        sdkSelection: batch.variant.map(BinaryCacheSDKSelection.variant) ?? .all
+                    )
+                    .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
+
+                if generateOnly { continue }
+
+                Logger.current.info("Building cacheable targets")
+                let batchScratch: CacheWarmScratchDirectory
+                if case let .callerOwned(path) = scratchDirectoryMode, let variant = batch.variant {
+                    batchScratch = .callerOwned(path.appending(components: "sdks", variant.rawValue))
+                } else {
+                    batchScratch = scratchDirectoryMode
+                }
+                try await archive(
+                    updatedGraph,
+                    projectPath: projectPath,
+                    configuration: configuration,
+                    hashesByTargetToBeCached: batch.targets,
+                    fingerprints: batch.fingerprints,
+                    cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
+                    noUpload: noUpload,
+                    isReleaseConfiguration: isReleaseConfiguration,
+                    instrumentationSettings: instrumentationSettings,
+                    scratchDirectory: batchScratch,
+                    variant: batch.variant
+                )
+            }
+            if generateOnly { return }
 
             if !noUpload {
+                for hits in plan.localHits {
+                    try await republishIfNeeded(hits, cacheStorage: cacheStorage)
+                }
                 try await republishIfNeeded(hashedGraph.localHits, cacheStorage: cacheStorage)
             }
 
@@ -324,6 +355,53 @@ import XcodeGraph
             let roots = UploadResultBundleService.rootSpellings(of: root, coveredFilePaths: [])
                 .filter { $0 != InstrumentedBinaryCacheWarm.sourceRootPlaceholder }
             return InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: InstrumentedBinaryCacheWarm.sourceRoots(roots))
+        }
+
+        /// The alias cached binaries record for the repository root in their debug information. Xcode 27's
+        /// compilation-cache prefix mapping (`XcodeCachePrefixMappingWorkspaceMapper`) records the same one, so both
+        /// builds read the same in every checkout, and the consumer's debugger maps it to its own root.
+        static let debugPrefixMapAlias = "/^root"
+
+        /// The root spellings to record as `/^root`, or none when the compilation cache already prefix-maps the
+        /// root: its scanner rewrites every input path, and an absolute flag would put the checkout back in the key.
+        private func debugPrefixMapRoots(graph: Graph) async throws -> [String] {
+            guard !graph.projects.values.contains(where: {
+                $0.settings.base["TUIST_PREFIX_MAPPING_ROOT_DIR"] != nil
+            }) else { return [] }
+            let root = try await rootDirectoryLocator.locate(from: graph.workspace.path)
+                ?? graph.workspace.xcWorkspacePath.parentDirectory
+            return InstrumentedBinaryCacheWarm.sourceRoots([root.pathString])
+        }
+
+        /// Debug-information-only prefix maps (`-debug-prefix-map`, `-fdebug-prefix-map`), which leave coverage
+        /// mappings and code untouched. Command-line settings replace each other, so a coverage warm's flag settings
+        /// gain a reference instead of being overridden.
+        ///
+        /// Static archives' objects would otherwise reference the warm's temporary `.pcm` files for Clang types
+        /// (`-gmodules`, and Swift's breadcrumbs for imported Clang modules), which no consumer has: their types are
+        /// embedded instead, as for any redistributed static archive.
+        static func debugPrefixMapSettings(roots: [String], merging settings: [String]) -> [String] {
+            guard !roots.isEmpty else { return settings }
+            let swiftFlags = ["-no-clang-module-breadcrumbs"] + roots.map {
+                "-debug-prefix-map \(SettingValue.quoted("\($0)=\(debugPrefixMapAlias)"))"
+            }
+            let cFlags = roots.map { SettingValue.quoted("-fdebug-prefix-map=\($0)=\(debugPrefixMapAlias)") }
+            var settings = settings + [
+                "CLANG_ENABLE_MODULE_DEBUGGING=NO",
+                "TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_SWIFT_FLAGS=\(swiftFlags.joined(separator: " "))",
+                "TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_CFLAGS=\(cFlags.joined(separator: " "))",
+            ]
+            for (setting, flags) in [
+                ("OTHER_SWIFT_FLAGS", "SWIFT_FLAGS"), ("OTHER_CFLAGS", "CFLAGS"), ("OTHER_CPLUSPLUSFLAGS", "CFLAGS"),
+            ] {
+                let reference = " $(TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_\(flags))"
+                if let index = settings.firstIndex(where: { $0.hasPrefix("\(setting)=") }) {
+                    settings[index] += reference
+                } else {
+                    settings.append("\(setting)=$(inherited)\(reference)")
+                }
+            }
+            return settings
         }
 
         private func republishIfNeeded(
@@ -367,7 +445,8 @@ import XcodeGraph
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
             instrumentationSettings: [String],
-            scratchDirectory: CacheWarmScratchDirectory
+            scratchDirectory: CacheWarmScratchDirectory,
+            variant: BinaryCacheVariant?
         ) async throws {
             switch scratchDirectory {
             case .temporary:
@@ -384,7 +463,8 @@ import XcodeGraph
                             isReleaseConfiguration: isReleaseConfiguration,
                             instrumentationSettings: instrumentationSettings,
                             in: temporaryDirectory,
-                            compilationCacheCASArgument: compilationCacheCASArgument
+                            compilationCacheCASArgument: compilationCacheCASArgument,
+                            variant: variant
                         )
                     } catch {
                         throw diskExhaustionError(for: error, scratchDirectory: temporaryDirectory) ?? error
@@ -402,7 +482,8 @@ import XcodeGraph
                         isReleaseConfiguration: isReleaseConfiguration,
                         instrumentationSettings: instrumentationSettings,
                         in: path,
-                        compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
+                        compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path),
+                        variant: variant
                     )
                 } catch {
                     throw diskExhaustionError(for: error, scratchDirectory: path) ?? error
@@ -440,7 +521,8 @@ import XcodeGraph
             isReleaseConfiguration: Bool,
             instrumentationSettings: [String],
             in scratchDirectory: AbsolutePath,
-            compilationCacheCASArgument: XcodeBuildArgument
+            compilationCacheCASArgument: XcodeBuildArgument,
+            variant: BinaryCacheVariant?
         ) async throws {
             let binariesSchemes = graph.workspace.schemes
                 .filter { $0.name.contains("Binaries-Cache") && $0.name != "Binaries-Cache-Catalyst" }
@@ -459,6 +541,13 @@ import XcodeGraph
                 .filter { $0.name.contains("Macros-Cache") }
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
+
+            let debugPrefixMapRoots = try await debugPrefixMapRoots(graph: graph)
+            let instrumentationSettings = Self.debugPrefixMapSettings(
+                roots: debugPrefixMapRoots,
+                merging: instrumentationSettings
+            )
+            let debugPrefixMappings = debugPrefixMapRoots.map { [Self.debugPrefixMapAlias: $0] }
 
             var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
             let derivedDataPath = scratchDirectory.appending(component: "derived-data")
@@ -493,7 +582,7 @@ import XcodeGraph
             }
 
             var binaryArtifactDirectories: [Platform: Set<AbsolutePath>] = [:]
-            for (scheme, _) in binariesSchemes {
+            for (scheme, _) in binariesSchemes where variant != .catalyst {
                 try await buildBinarySchemes(
                     scheme,
                     configuration: configuration,
@@ -505,11 +594,12 @@ import XcodeGraph
                     isReleaseConfiguration: isReleaseConfiguration,
                     compilationCacheCASArgument: compilationCacheCASArgument,
                     instrumentationSettings: instrumentationSettings,
-                    reservedProductsDirectoryNames: reservedProductsDirectoryNames
+                    reservedProductsDirectoryNames: reservedProductsDirectoryNames,
+                    variant: variant
                 )
             }
 
-            if let catalystScheme {
+            if let catalystScheme, variant == nil || variant == .catalyst {
                 try await buildCatalystScheme(
                     catalystScheme,
                     configuration: configuration,
@@ -552,7 +642,8 @@ import XcodeGraph
                 cacheableTargets: hashesByTargetToBeCached,
                 binaryArtifactDirectories: binaryArtifactDirectories,
                 scratchDirectory: scratchDirectory,
-                debuggingMetadata: debuggingMetadata
+                debuggingMetadata: debuggingMetadata,
+                debugPrefixMappings: debugPrefixMappings
             ))
 
             artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
@@ -568,7 +659,8 @@ import XcodeGraph
                     artifactsToStore,
                     fingerprints: fingerprints,
                     cacheStorage: cacheStorage,
-                    scratchDirectory: scratchDirectory
+                    scratchDirectory: scratchDirectory,
+                    requiresSDKSlices: variant != nil
                 )
             } catch let error as CacheUploadError {
                 let targets = Set(artifactsToStore.map { CacheStorableItem(name: $0.graphTarget.target.name, hash: $0.hash) })
@@ -767,7 +859,8 @@ import XcodeGraph
             cacheableTargets: [(GraphTarget, String)],
             binaryArtifactDirectories: [Platform: Set<AbsolutePath>],
             scratchDirectory: AbsolutePath,
-            debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata]
+            debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata],
+            debugPrefixMappings: [[String: String]]
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             let cacheableTargets = cacheableTargets.filter {
                 $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
@@ -777,27 +870,43 @@ import XcodeGraph
             // target-specific output path, so the operations are independent. We run them with
             // bounded concurrency to cut the wall-clock time of this phase on projects with many
             // cacheable targets, while keeping the input order so artifact storage stays deterministic.
-            return try await cacheableTargets.concurrentCompactMap(
+            let built: [CacheGraphTargetBuiltArtifact] = try await cacheableTargets.concurrentCompactMap(
                 maxConcurrentTasks: Self.maxConcurrentXCFrameworkCreations
             ) { cacheableTarget in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
-                let slices = try await platformBinaryArtifacts.concurrentCompactMap { artifactDirectory -> XCFrameworkSlice? in
-                    let artifactPath = artifactDirectory.appending(
-                        components: [cacheableTarget.0.target.productNameWithExtension]
-                    )
-                    guard try await fileSystem.exists(artifactPath) else { return nil }
-                    let debugSymbolsPath = artifactDirectory.appending(
-                        component: "\(cacheableTarget.0.target.productNameWithExtension).dSYM"
-                    )
-                    return XCFrameworkSlice(
-                        artifactPath: artifactPath,
-                        publicHeadersPath: try await libraryPublicHeadersPath(
-                            for: cacheableTarget.0.target,
-                            artifactDirectory: artifactDirectory
-                        ),
-                        debugSymbolsPath: try await fileSystem.exists(debugSymbolsPath) ? debugSymbolsPath : nil
-                    )
+                let slices: [XCFrameworkSlice]
+                do {
+                    slices = try await platformBinaryArtifacts.concurrentCompactMap { artifactDirectory -> XCFrameworkSlice? in
+                        let artifactPath = artifactDirectory.appending(
+                            components: [cacheableTarget.0.target.productNameWithExtension]
+                        )
+                        guard try await fileSystem.exists(artifactPath) else { return nil }
+                        let debugSymbolsPath = artifactDirectory.appending(
+                            component: "\(cacheableTarget.0.target.productNameWithExtension).dSYM"
+                        )
+                        let exportedHeaders = try await SwiftPackageHeadersExporter(fileSystem: fileSystem).export(
+                            target: cacheableTarget.0.target, artifact: artifactPath
+                        )
+                        let publicHeaders: AbsolutePath?
+                        if let exportedHeaders {
+                            publicHeaders = exportedHeaders
+                        } else {
+                            publicHeaders = try await libraryPublicHeadersPath(
+                                for: cacheableTarget.0.target, artifactDirectory: artifactDirectory
+                            )
+                        }
+                        return XCFrameworkSlice(
+                            artifactPath: artifactPath,
+                            publicHeadersPath: publicHeaders,
+                            debugSymbolsPath: try await fileSystem.exists(debugSymbolsPath) ? debugSymbolsPath : nil
+                        )
+                    }
+                } catch let error as SwiftPackageHeadersExportError {
+                    AlertController.current.warning(.alert(
+                        "Skipping \(cacheableTarget.0.target.name): \(error.localizedDescription)"
+                    ))
+                    return nil
                 }
 
                 let xcframeworkPath = scratchDirectory.appending(components: [
@@ -819,7 +928,8 @@ import XcodeGraph
                 if let metadata = debuggingMetadata[cacheableTarget.0],
                    try await !writeDebuggingMetadata(
                        metadata, target: cacheableTarget.0, artifact: xcframeworkPath,
-                       productsDirectories: Set(platformBinaryArtifacts)
+                       productsDirectories: Set(platformBinaryArtifacts),
+                       debugPrefixMappings: debugPrefixMappings
                    )
                 { return nil }
 
@@ -860,13 +970,22 @@ import XcodeGraph
                     metadata: .init()
                 )
             }
+            let skipped = Set(cacheableTargets.map(\.0.target.name)).subtracting(built.map(\.graphTarget.target.name))
+            if !skipped.isEmpty {
+                let names = skipped.sorted().joined(separator: ", ")
+                AlertController.current.warning(.alert(
+                    "\(skipped.count) of \(cacheableTargets.count) built targets were not stored and keep building from source: \(names)"
+                ))
+            }
+            return built
         }
 
         func writeDebuggingMetadata(
             _ metadata: CachedModuleDebuggingMetadata,
             target: GraphTarget,
             artifact: AbsolutePath,
-            productsDirectories: Set<AbsolutePath>
+            productsDirectories: Set<AbsolutePath>,
+            debugPrefixMappings: [[String: String]] = []
         ) async throws -> Bool {
             try Task.checkCancellation()
             let current = try await CachedModuleDebuggingMetadata.capture(
@@ -889,7 +1008,7 @@ import XcodeGraph
                 guard !info.libraries.isEmpty else {
                     throw DebuggingMetadataError.unavailableSymbols("The XCFramework contains no library slices")
                 }
-                var prefixMappings: [[String: String]] = []
+                var prefixMappings = debugPrefixMappings
                 for directory in productsDirectories.sorted() {
                     let prefixMap = directory.appending(
                         components: "tuist-prefix-maps", "\(target.project.xcodeProjPath.basenameWithoutExt).build",
@@ -906,28 +1025,52 @@ import XcodeGraph
                     var inputs = try await fileSystem.glob(
                         directory: slice, include: ["dSYMs/*.dSYM/Contents/Resources/DWARF/*"]
                     ).collect()
+                    let linkedDebugSymbols = !inputs.isEmpty
                     if inputs.isEmpty {
                         let product = slice.appending(library.path)
                         inputs =
                             [product.extension == "framework" ? product
                                 .appending(component: product.basenameWithoutExt) : product]
                     }
-                    let output: String
+                    func dwarfdump(_ arguments: [String]) async throws -> String {
+                        do {
+                            return try await commandRunner.capture(
+                                arguments: ["/usr/bin/xcrun", "dwarfdump"] + arguments + inputs.map(\.pathString)
+                            )
+                        } catch {
+                            try Task.checkCancellation()
+                            if error is CancellationError { throw error }
+                            throw DebuggingMetadataError.unavailableSymbols(error.localizedDescription)
+                        }
+                    }
+                    let output = metadata.sources.isEmpty ? "" : try await dwarfdump(["--show-sources"])
+                    let debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init)
+                        .filter { $0.hasPrefix("/") })
+                    let recorded: CachedModuleDebuggingMetadata
                     do {
-                        output = metadata.sources.isEmpty ? "" : try await commandRunner.capture(
-                            arguments: ["/usr/bin/xcrun", "dwarfdump", "--show-sources"] + inputs.map(\.pathString)
+                        recorded = try await metadata.recording(
+                            debugSources: debugSources, prefixMappings: prefixMappings,
+                            linkedDebugSymbols: linkedDebugSymbols,
+                            staticBinary: target.target.product.isStatic && !linkedDebugSymbols ? inputs.first : nil,
+                            fileSystem: fileSystem
                         )
-                    } catch {
-                        try Task.checkCancellation()
-                        if error is CancellationError { throw error }
-                        throw DebuggingMetadataError.unavailableSymbols(error.localizedDescription)
+                    } catch DebuggingMetadataError.missingSources where !linkedDebugSymbols {
+                        // An object compiled from sources without code keeps their compile unit but lists no
+                        // line-table source, so only its compile unit names show the symbols are present.
+                        let units = try await dwarfdump(["--debug-info", "--recurse-depth=0"])
+                        recorded = try await metadata.recording(
+                            debugSources: debugSources, prefixMappings: prefixMappings,
+                            compileUnits: Set(units.split(whereSeparator: \.isNewline).compactMap { line in
+                                let name = line.trimmingCharacters(in: .whitespaces)
+                                guard name.hasPrefix("DW_AT_name"), let start = name.firstIndex(of: "\"") else { return nil }
+                                let path = name[name.index(after: start)...].dropLast(2)
+                                return path.hasPrefix("/") ? String(path) : nil
+                            }),
+                            fileSystem: fileSystem
+                        )
                     }
                     try await fileSystem.writeAsJSON(
-                        metadata.recording(
-                            debugSources: Set(output.split(whereSeparator: \.isNewline).map(String.init)
-                                .filter { $0.hasPrefix("/") }),
-                            prefixMappings: prefixMappings, fileSystem: fileSystem
-                        ), at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
+                        recorded, at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
                     )
                 }
                 return true
@@ -1008,7 +1151,8 @@ import XcodeGraph
             isReleaseConfiguration: Bool,
             compilationCacheCASArgument: XcodeBuildArgument,
             instrumentationSettings: [String],
-            reservedProductsDirectoryNames: Set<String>
+            reservedProductsDirectoryNames: Set<String>,
+            variant: BinaryCacheVariant?
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
@@ -1016,7 +1160,7 @@ import XcodeGraph
             try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             // Simulator
-            if platform.hasSimulators {
+            if platform.hasSimulators, variant == nil || variant == .iosSimulator {
                 let simulatorArtifactsDirectory = platformArtifactsDirectory.appending(component: "simulator")
                 try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
@@ -1071,6 +1215,8 @@ import XcodeGraph
                     reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
+
+            if variant == .iosSimulator { return }
 
             // Device
             Logger.current.info("Building scheme \(scheme.name) for device", metadata: .section)
@@ -1278,7 +1424,8 @@ import XcodeGraph
             _ artifacts: [CacheGraphTargetBuiltArtifact],
             fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
-            scratchDirectory: AbsolutePath
+            scratchDirectory: AbsolutePath,
+            requiresSDKSlices: Bool
         ) async throws -> [CacheStorableTarget] {
             try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "Metadatas"))
             let storableTargets = Dictionary(
@@ -1287,7 +1434,10 @@ import XcodeGraph
                         acc[CacheStorableTarget(
                             target: next.graphTarget,
                             hash: next.hash,
-                            metadata: .init(binaryCacheFingerprints: fingerprints[next.hash] ?? [:])
+                            metadata: .init(
+                                binaryCacheFingerprints: fingerprints[next.hash] ?? [:],
+                                requiresSDKSlices: requiresSDKSlices
+                            )
                         )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = scratchDirectory.appending(
@@ -1314,7 +1464,8 @@ import XcodeGraph
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring,
-            coverage: BinaryCacheCoverage
+            coverage: BinaryCacheCoverage,
+            sdkSelection: BinaryCacheSDKSelection
         ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1373,7 +1524,10 @@ import XcodeGraph
             let requestedItems = Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
                 name: $0.key.target.name,
                 hash: $0.value.hash,
-                metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
+                metadata: .init(
+                    binaryCacheFingerprints: sdkSelection.fingerprints($0.value.binaryCacheFingerprints),
+                    requiresSDKSlices: sdkSelection != .all && !$0.value.binaryCacheFingerprints.isEmpty
+                )
             ) })
             let cacheItems = try await cacheStorage.fetch(requestedItems, cacheCategory: .binaries)
 

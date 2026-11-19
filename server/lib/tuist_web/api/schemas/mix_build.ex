@@ -35,6 +35,7 @@ defmodule TuistWeb.API.Schemas.MixBuild do
         status: %Schema{type: :string, enum: ["success", "failure"]},
         duration_ms: %Schema{type: :integer},
         is_ci: %Schema{type: :boolean},
+        tuist_version: %Schema{type: :string, nullable: true, description: "The reporting tuist_ex library version."},
         elixir_version: nullable_string(),
         otp_version: nullable_string(),
         mix_env: nullable_string(),

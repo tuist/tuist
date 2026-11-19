@@ -59,7 +59,17 @@ defmodule Tuist.AuthenticationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When/Then
-    assert Authentication.authenticated_subject(project.token) == project
+    assert Authentication.authenticated_subject(project.token).id == project.id
+  end
+
+  test "authenticated_subject does not match a project by its stored legacy token digest" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    stored = Repo.one!(from(p in "projects", where: p.id == ^project.id, select: %{hash: p.token_hash}))
+
+    # Then
+    assert stored.hash == :crypto.hash(:sha256, project.token)
+    assert is_nil(Authentication.authenticated_subject(Base.encode16(stored.hash, case: :lower)))
   end
 
   test "authenticated_subject returns the project associated to the token" do
@@ -68,7 +78,7 @@ defmodule Tuist.AuthenticationTest do
     token = Projects.create_project_token(project)
 
     # When/Then
-    assert token |> Authentication.authenticated_subject() |> Repo.preload(:account) == project
+    assert (token |> Authentication.authenticated_subject() |> Repo.preload(:account)).id == project.id
   end
 
   test "authenticated_subject return the authenticated account associated to the token" do

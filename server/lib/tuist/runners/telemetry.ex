@@ -20,6 +20,11 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_job_running, do: [:tuist, :runners, :job, :running]
   def event_name_job_completed, do: [:tuist, :runners, :job, :completed]
   def event_name_job_requeued, do: [:tuist, :runners, :job, :requeued]
+
+  # GitHub named the runner a job ran on. Carries the job's queue time to
+  # that runner's claim, which is what the runners dashboard reports, and
+  # whether its account's concurrency limit held it back.
+  def event_name_job_executed, do: [:tuist, :runners, :job, :executed]
   def event_name_dispatch_request, do: [:tuist, :runners, :dispatch, :request]
 
   # Which cache-volume residency outcome decided the candidate handed to a

@@ -10,6 +10,22 @@ defmodule Tuist.OIDC.Workload do
   @algorithms ~w(RS256 RS384 RS512 PS256 PS384 PS512 ES256 ES384 EdDSA)
   @maximum_response_bytes 65_536
 
+  # Verification only: this does not issue a Tuist credential or grant CI access.
+  def verify_identity(token, %OIDCTrustPolicy{} = policy) when is_binary(token) and byte_size(token) <= 16_384 do
+    with {:ok, header, _hints} <- peek(token),
+         %{"keys" => keys} <- fetch_jwks(policy.jwks_url),
+         {:ok, claims} <- verify(token, header, keys),
+         true <- OIDCTrustPolicy.matches?(policy, claims) do
+      {:ok, claims}
+    else
+      _ -> {:error, :invalid_signature}
+    end
+  rescue
+    _ -> {:error, :invalid_signature}
+  end
+
+  def verify_identity(_, _), do: {:error, :invalid_signature}
+
   def claims(_token, _issuer, account_handle) when account_handle in [nil, ""], do: {:error, :oidc_account_required}
 
   def claims(token, issuer, account_handle) do

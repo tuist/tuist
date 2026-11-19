@@ -402,6 +402,9 @@ enum PackageResolver {
         if dependencies.contains(where: { $0.kind == .sourceControl }) {
             expectedIdentities.formUnion(transformedIdentities)
         }
+        guard let registryPaths = try? await RegistryDownloadPaths(pins: resolved.pins, scratchDir: scratchDir) else {
+            return
+        }
         var identitiesToInspect = Array(expectedIdentities)
         var inspectedIdentities = Set<String>()
         while let identity = identitiesToInspect.popLast() {
@@ -422,6 +425,7 @@ enum PackageResolver {
                 pin,
                 scratchDir: scratchDir,
                 cacheRoot: cacheRoot,
+                registryPaths: registryPaths,
                 disableSandbox: disableSandbox
             ), let dependencies = try? ManifestParser.dependencies(manifest) else {
                 return
@@ -460,11 +464,12 @@ enum PackageResolver {
         _ pin: ResolvedPin,
         scratchDir: URL,
         cacheRoot: URL,
+        registryPaths: RegistryDownloadPaths,
         disableSandbox: Bool
     ) async throws -> Any? {
         var candidates: [URL] = []
         if PinKind.isRegistry(pin.kind),
-           let subpath = try? PinKind.registryDownloadSubpath(pin)
+           let subpath = try? registryPaths.subpath(for: pin)
         {
             candidates.append(
                 scratchDir
@@ -693,6 +698,8 @@ enum PackageResolver {
     /// output is captured (not forwarded) so that, on the non-zero exit, the
     /// SwiftPM out-of-date diagnostic on stderr becomes the `ToolError` message
     /// instead of a bare exit code.
+    /// A pass is recorded under its inputs (`ResolvedFileValidation`) and reused for the same
+    /// inputs, in this or another scratch directory.
     static func assertResolvedFileUpToDate(
         packageDir: URL,
         scratchDir: URL?,
@@ -705,24 +712,126 @@ enum PackageResolver {
         let scratch = scratchDir ?? packageDir.appendingPathComponent(".build")
         let scratchLock = try await PathLock.acquire(at: scratch.appendingPathComponent(".swifterpm.lock"))
         defer { withExtendedLifetime(scratchLock) {} }
-        _ = try await NativeWorkspace.prepare(scratchDir: scratch)
-        // The restored workspace makes this a no-fetch validation. Legacy environment
-        // providers are irrelevant here, and refusing them would break warm installs.
-        // Use the manifest environment so rotating fetch credentials cannot invalidate
-        // SwiftPM's native manifest cache or change the graph being validated.
-        try await runNativeResolution(
+        let validationKey = await ResolvedFileValidation.key(
             packageDir: packageDir,
-            scratchDir: scratchDir,
-            cacheDir: cacheDir,
+            scratchDir: scratch,
             registryConfigurationPath: registryConfigurationPath,
             defaultRegistryURL: defaultRegistryURL,
             disableSandbox: disableSandbox,
-            scmToRegistryTransformation: scmToRegistryTransformation,
-            authentication: .native,
-            environment: Environment.manifestValues,
-            forceResolvedVersions: true,
-            forwardOutput: false
+            scmToRegistryTransformation: scmToRegistryTransformation
         )
+        if let validationKey, await ResolvedFileValidation.isRecorded(key: validationKey, cacheDir: cacheDir) {
+            Environment.debugHandler?("Package.resolved passed SwiftPM's validation with the same inputs before; skipping it")
+            return
+        }
+        try await PhaseTiming.measure("validating Package.resolved with SwiftPM") {
+            _ = try await NativeWorkspace.prepare(scratchDir: scratch)
+            // The restored workspace makes this a no-fetch validation. Legacy environment
+            // providers are irrelevant here, and refusing them would break warm installs.
+            // Use the manifest environment so rotating fetch credentials cannot invalidate
+            // SwiftPM's native manifest cache or change the graph being validated.
+            try await runNativeResolution(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                cacheDir: cacheDir,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL,
+                disableSandbox: disableSandbox,
+                scmToRegistryTransformation: scmToRegistryTransformation,
+                authentication: .native,
+                environment: Environment.manifestValues,
+                forceResolvedVersions: true,
+                forwardOutput: false
+            )
+        }
+        // Inputs that changed while SwiftPM ran, including prebuilts it recorded, were not the
+        // ones validated under this key.
+        if let validationKey,
+           await ResolvedFileValidation.key(
+               packageDir: packageDir,
+               scratchDir: scratch,
+               registryConfigurationPath: registryConfigurationPath,
+               defaultRegistryURL: defaultRegistryURL,
+               disableSandbox: disableSandbox,
+               scmToRegistryTransformation: scmToRegistryTransformation
+           ) == validationKey
+        {
+            await ResolvedFileValidation.record(key: validationKey, cacheDir: cacheDir)
+        }
+    }
+
+    /// The restoration path cannot fetch prebuilts (`WorkspacePrebuilts`), so without this a warm install into a scratch
+    /// directory that has none recorded, such as a fresh checkout, builds swift-syntax from source although SwiftPM would
+    /// have downloaded its prebuilt `MacroSupport`. SwiftPM records prebuilts whenever it resolves, and the forced-lockfile
+    /// validation resolves against the restored workspace without fetching sources, so run it when a source-control
+    /// swift-syntax pin has no recorded prebuilt. It only runs again for the same inputs when it recorded some, since a
+    /// validation that left the prebuilts unchanged is reused. Prebuilts are an optimization, so failures only warn, and only
+    /// when SwiftPM recorded none. Preparing the workspace detaches links into legacy shared Git checkouts for SwiftPM to
+    /// fetch again, which it can't do without the fetch credentials, so after a failure the restored links are put back.
+    static func recordMissingPrebuilts(
+        resolved: ResolvedPins,
+        packageDir: URL,
+        scratchDir: URL,
+        cacheDir: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation
+    ) async throws {
+        let prebuiltIdentity = "swift-syntax"
+        func recordsPrebuilts() async throws -> Bool {
+            try await WorkspaceRestorer.existingWorkspacePrebuilts(scratchDir: scratchDir).contains {
+                ($0["identity"] as? String)?.lowercased() == prebuiltIdentity
+            }
+        }
+        guard resolved.pins.contains(where: {
+            PinKind.isSourceControl($0.kind) && $0.identity.lowercased() == prebuiltIdentity
+        }),
+            !(try await recordsPrebuilts())
+        else { return }
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        func checkoutNames() async throws -> Set<String> {
+            guard try await fileSystem.exists(checkouts.absolutePath) else { return [] }
+            return Set(try await fileSystem.contentsOfDirectory(at: checkouts).map(\.lastPathComponent))
+        }
+        let restoredLinks = try await fileSystem.exists(checkouts.absolutePath)
+            ? try await fileSystem.contentsOfDirectory(at: checkouts).filter { fileSystem.isSymlink($0) }
+            .map { ($0.lastPathComponent, $0.resolvingSymlinksInPath()) }
+            : []
+        do {
+            try await assertResolvedFileUpToDate(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                cacheDir: cacheDir,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL,
+                disableSandbox: disableSandbox,
+                scmToRegistryTransformation: scmToRegistryTransformation
+            )
+        } catch {
+            try Task.checkCancellation()
+            let remainingCheckouts = try await checkoutNames()
+            for (name, destination) in restoredLinks where !remainingCheckouts.contains(name) {
+                if !(try await fileSystem.exists(checkouts.absolutePath)) {
+                    try await fileSystem.makeDirectory(at: checkouts.absolutePath, options: [.createTargetParentDirectories])
+                }
+                try await fileSystem.createSymbolicLink(
+                    from: checkouts.appendingPathComponent(name).absolutePath,
+                    to: destination.absolutePath
+                )
+            }
+            // SwiftPM records prebuilts while it resolves, before the forced-lockfile check that can fail, for example on
+            // a lockfile another Xcode wrote. This path doesn't force the lockfile, so only the prebuilts matter.
+            if try await recordsPrebuilts() {
+                Environment.debugHandler?(
+                    "SwiftPM recorded swift-syntax's prebuilts, then failed to validate Package.resolved: \(error)"
+                )
+            } else {
+                Environment.warningHandler?(
+                    "could not record SwiftPM's prebuilts, so swift-syntax builds from source: \(error)"
+                )
+            }
+        }
     }
 
     private static func normalizeLoadedResolvedFile(
@@ -768,7 +877,7 @@ enum PackageResolver {
         guard try await fileSystem.exists(url.appendingPathComponent("Package.swift").absolutePath) else {
             return nil
         }
-        return url.standardizedFileURL
+        return url.syntacticallyStandardizedFileURL
     }
 
     static func sourceControlKind(location: String) async throws -> String {

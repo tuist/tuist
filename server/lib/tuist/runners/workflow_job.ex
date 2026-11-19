@@ -53,6 +53,9 @@ defmodule Tuist.Runners.WorkflowJob do
     field :site, :string
     field :runner_name, :string
     field :executed_workflow_job_id, :integer
+    # The claim time of the runner GitHub ran this job on. `claimed_at` is
+    # the claim-generation handle and moves with the job between claims.
+    field :executor_claimed_at, :utc_datetime_usec
     field :log_archived_at, :utc_datetime_usec
 
     belongs_to :account, Account

@@ -61,9 +61,9 @@ defmodule Tuist.Application.RuntimeChildren do
   worker and re-sends itself `:init_worker` with no backoff, so the pool
   stays up and retries forever (measured at ~120 failures per second on
   both xcresult-processor replicas), burning CPU on hosts whose only job
-  is CPU-bound xcresult parsing and flooding Sentry. `start_pool/1` cannot
-  intercept it: `NimblePool.start_link/2` has already returned `{:ok, pid}`
-  by then, so the `:ignore` branch never runs.
+  is CPU-bound xcresult parsing and flooding Sentry. In `:web` mode,
+  `Tuist.OpenGraphImageRenderer.start_pool/1` checks for Chrome before
+  starting the pool and returns `:ignore` when there is none.
   """
   def open_graph_image_renderer(:web) do
     [
@@ -86,6 +86,37 @@ defmodule Tuist.Application.RuntimeChildren do
   def marketing_stats(_), do: []
 
   @doc """
+  Child specs for hosting durable agent sessions, gated on pod mode.
+
+  `Tuist.Agents.Hosts` always starts, as the supervisor kinds start their
+  session processes under. The runner that claims sessions starts in
+  `:agents`, and in `:web` unless `delegated?` (dedicated agents pods
+  exist), so a self-hosted install without them still runs its agents. It
+  goes last of the two so it stops first and drains its sessions while
+  their supervisor is up. `runner_opts` with `enabled: false` (tests) leaves
+  it out.
+
+  A web pod's runner stops after the preStop wait and the endpoint drain, so
+  it gets 15 seconds, up to 10 of them waiting for sessions, instead of an
+  agents pod's 30 and 25: a session still draining when the pod is killed
+  only waits out its lease before another host resumes it.
+  """
+  def agents(mode, delegated?, runner_opts) do
+    hosts = {DynamicSupervisor, name: Tuist.Agents.Hosts, strategy: :one_for_one}
+    {shutdown, drain_ms} = if mode == :web, do: {15_000, 10_000}, else: {30_000, 25_000}
+
+    runner =
+      runner_opts
+      |> Keyword.delete(:enabled)
+      |> Keyword.put_new(:drain_ms, drain_ms)
+      |> then(&Supervisor.child_spec({Tuist.Agents.Runner, &1}, shutdown: shutdown))
+
+    runner? = mode == :agents or (mode == :web and not delegated?)
+
+    if runner? and Keyword.get(runner_opts, :enabled, true), do: [hosts, runner], else: [hosts]
+  end
+
+  @doc """
   Child spec for the readiness listener, gated on pod mode.
 
   Returns a listener serving `Tuist.Readiness.Plug` on
@@ -95,6 +126,7 @@ defmodule Tuist.Application.RuntimeChildren do
   """
   def readiness_server(:xcresult_processor) do
     [
+      {Tuist.XcresultDrain, []},
       {Plug.Cowboy, scheme: :http, plug: Tuist.Readiness.Plug, options: [port: Tuist.Readiness.port(), ip: {0, 0, 0, 0}]}
     ]
   end

@@ -31,6 +31,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> maybe_filter_kinds(commands)
       |> maybe_filter_period(opts)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> maybe_with_failure_category(project_id, opts)
       |> apply_flop_filters(Map.get(flop_params, :filters, []))
 
@@ -83,6 +84,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> maybe_filter_kinds(commands)
       |> maybe_filter_period(opts)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> select([r], %{
         total: count(r.id),
         successful:
@@ -127,6 +129,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
       |> where([r], not is_nil(r.wall_ms) and r.wall_ms > 0)
       |> order_by([r], desc: r.started_at)
@@ -189,6 +192,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
       |> group_by([r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
       |> select([r], %{
@@ -307,6 +311,7 @@ defmodule Tuist.OnceEvents.Analytics do
     |> maybe_filter_kinds(Keyword.get(opts, :commands))
     |> maybe_filter_period(opts)
     |> maybe_filter_environment(opts)
+    |> maybe_filter_status(opts)
   end
 
   defp insight_column(:host), do: :host_class
@@ -349,6 +354,14 @@ defmodule Tuist.OnceEvents.Analytics do
   defp maybe_filter_environment(query, opts) do
     case Keyword.get(opts, :is_ci) do
       is_ci when is_boolean(is_ci) -> where(query, [r], r.is_ci == ^is_ci)
+      _ -> query
+    end
+  end
+
+  # `:status` selects the same runs as the listing's Status filter.
+  defp maybe_filter_status(query, opts) do
+    case Keyword.get(opts, :status) do
+      status when status in ["success", "failure"] -> apply_flop_filter(%{field: :status, op: :==, value: status}, query)
       _ -> query
     end
   end

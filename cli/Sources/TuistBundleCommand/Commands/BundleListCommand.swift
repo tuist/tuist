@@ -35,6 +35,12 @@ public struct BundleListCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var gitBranch: String?
 
+    @Option(
+        parsing: .upToNextOption,
+        help: "Filter bundles by tags. Returns bundles containing ALL specified tags."
+    )
+    var tags: [String] = []
+
     @Flag(
         help: "The output in JSON format.",
         envKey: .bundleListJson
@@ -48,7 +54,8 @@ public struct BundleListCommand: AsyncParsableCommand, NooraReadyCommand {
             project: project,
             path: path,
             gitBranch: gitBranch,
-            json: json
+            json: json,
+            tags: tags
         )
     }
 }

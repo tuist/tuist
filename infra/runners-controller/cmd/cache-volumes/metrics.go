@@ -25,6 +25,10 @@ type volumeMetrics struct {
 	reserve     prometheus.Gauge
 	maintenance prometheus.Gauge
 	checkouts   prometheus.Gauge
+	prefetched  *prometheus.CounterVec
+	actions     *prometheus.CounterVec
+	actionsSize *prometheus.CounterVec
+	actionsTime *prometheus.HistogramVec
 	logger      *slog.Logger
 }
 
@@ -38,8 +42,12 @@ func newVolumeMetrics(logger *slog.Logger, reserve uint64) *volumeMetrics {
 		reserve:     prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_filesystem_reserve_bytes", Help: "Free-space reserve required for new allocations."}),
 		maintenance: prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_maintenance_last_success_timestamp_seconds", Help: "Last successful reconciliation, or zero before the first success."}),
 		checkouts:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cached_checkouts_ready", Help: "1 while this host builds and serves cached checkouts, 0 while it lacks git or git-lfs."}),
+		prefetched:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "tuist_runner_cache_volume_prefetched_bytes_total", Help: "Used bytes of the saved heads background prefetch installed, by why: job (a job started without it), prewarm or recent (the server's listing)."}, []string{"reason"}),
+		actions:     prometheus.NewCounterVec(prometheus.CounterOpts{Name: "tuist_runner_actions_cache_operations_total", Help: "GitHub Actions cache operations by result: a lookup is a hit or miss, lookup_github is GitHub's answer to a lookup the mirror missed, enabled is whether a job's account uses the mirror, a store is a finished upload copied to the store."}, []string{"operation", "result"}),
+		actionsSize: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "tuist_runner_actions_cache_bytes_total", Help: "GitHub Actions cache bytes received from jobs (upload), copied to the store (store) or relayed from it (download)."}, []string{"operation", "result"}),
+		actionsTime: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "tuist_runner_actions_cache_operation_duration_seconds", Help: "GitHub Actions cache operation duration, including unsuccessful attempts.", Buckets: []float64{0.005, 0.025, 0.1, 0.5, 2, 10, 60, 300}}, []string{"operation"}),
 	}
-	m.registry.MustRegister(m.operations, m.duration, m.free, m.capacity, m.reserve, m.maintenance, m.checkouts)
+	m.registry.MustRegister(m.operations, m.duration, m.free, m.capacity, m.reserve, m.maintenance, m.checkouts, m.prefetched, m.actions, m.actionsSize, m.actionsTime)
 	m.reserve.Set(float64(reserve))
 	return m
 }
@@ -68,6 +76,24 @@ func (m *volumeMetrics) observe(o cachevolumes.Observation) {
 		m.logger.Log(context.Background(), level, "cache volume operation", fields...)
 	}
 }
+
+// installed counts a master background prefetch installed. The saved head's used
+// bytes bound what its compressed archive moved over the network.
+func (m *volumeMetrics) installed(reason string, bytes int64) {
+	if bytes > 0 {
+		m.prefetched.WithLabelValues(reason).Add(float64(bytes))
+	}
+}
 func (m *volumeMetrics) handler() http.Handler {
 	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{})
+}
+
+// actionsCache records a GitHub Actions cache operation. Jobs make many, so
+// only failures reach the log (from the mirror itself).
+func (m *volumeMetrics) actionsCache(operation, result string, bytes int64, start time.Time) {
+	m.actions.WithLabelValues(operation, result).Inc()
+	m.actionsTime.WithLabelValues(operation).Observe(time.Since(start).Seconds())
+	if bytes > 0 {
+		m.actionsSize.WithLabelValues(operation, result).Add(float64(bytes))
+	}
 }

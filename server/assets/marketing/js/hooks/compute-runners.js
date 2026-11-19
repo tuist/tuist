@@ -174,13 +174,15 @@ export const RunnerGrid = {
     };
 
     this.resize = () => {
-      const rect = this.canvas.getBoundingClientRect();
+      // Layout size, not getBoundingClientRect: on tablets the home scene
+      // is scaled with a CSS transform (see home.css), and the cells are laid
+      // out in unscaled scene px.
       // The canvas spans the whole scene and is cleared and redrawn on every
       // tick; at DPR 3 that is ~2.8M pixels per redraw on a phone. 2 keeps
       // the hairline strokes crisp at a fraction of the fill cost.
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      this.w = Math.max(1, Math.round(rect.width));
-      this.h = Math.max(1, Math.round(rect.height));
+      this.w = Math.max(1, this.canvas.clientWidth);
+      this.h = Math.max(1, this.canvas.clientHeight);
       this.canvas.width = this.w * dpr;
       this.canvas.height = this.h * dpr;
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

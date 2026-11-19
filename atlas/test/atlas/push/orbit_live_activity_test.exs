@@ -47,7 +47,7 @@ defmodule Atlas.Push.OrbitLiveActivityTest do
     %{user: user, id: id, client_id: client_id, now: now, params: params}
   end
 
-  test "queued -> tools -> compaction -> completion is truthful, silent, ordered and fenced", ctx do
+  test "queued -> tools -> legacy compaction -> completion is truthful, silent, ordered and fenced", ctx do
     %{user: user, id: id, now: now, params: params} = ctx
     {thread, run} = run(user, "queued", "Cash flow forecast")
     assert :ok = deliver(id)
@@ -115,7 +115,7 @@ defmodule Atlas.Push.OrbitLiveActivityTest do
                      }}
 
     Repo.transaction(fn -> Orbit.touch!(tool, %{tool_status: "succeeded"}) end)
-    Progress.handle_event([:condukt, :compact, :start], %{}, %{agent: Agent, session_id: run.session_id}, nil)
+    Repo.update!(Ecto.Changeset.change(run, activity: "compacting"))
     at(now, 2)
     assert :ok = deliver(id)
 

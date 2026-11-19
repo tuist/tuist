@@ -1,4 +1,4 @@
-<div id="gradle-build">
+<div id="gradle-build" phx-hook="PageFavicon" data-favicon-status={@build.status}>
   <.button
     label={dgettext("dashboard_gradle", "Build Runs")}
     data-part="back-button"
@@ -34,14 +34,14 @@
           label={List.first(@build.custom_tags)}
           color="success"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :for={tag <- Enum.slice(@build.custom_tags || [], 1..-1//1)}
           label={tag}
           color="information"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
       <.link_button
@@ -99,6 +99,9 @@
       url={
         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/timeline.json"
       }
+      trace_url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/trace.json"
+      }
     />
   </section>
   <%= if @selected_tab == "overview" do %>
@@ -117,21 +120,21 @@
                 label={dgettext("dashboard_gradle", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@build.status == "failure"}
                 label={dgettext("dashboard_gradle", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@build.status == "cancelled"}
                 label={dgettext("dashboard_gradle", "Cancelled")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -207,6 +210,7 @@
     <TuistWeb.Components.BuildMetadata.environment_metadata
       values={@build.custom_values || %{}}
       fields={[
+        {dgettext("dashboard_gradle", "Tuist Gradle plugin version"), @build.tuist_version},
         {dgettext("dashboard_gradle", "Gradle Version"), @build.gradle_version},
         {dgettext("dashboard_gradle", "Java Version"), @build.java_version}
       ]}

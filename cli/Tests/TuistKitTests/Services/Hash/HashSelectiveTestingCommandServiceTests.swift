@@ -80,7 +80,8 @@ struct HashSelectiveTestingCommandServiceTests {
                     cacheStorage: .any,
                     destination: .value(nil),
                     schemeName: .value(nil),
-                    coverage: .any
+                    coverage: .any,
+                    sdkSelection: .any
                 )
                 .called(1)
         }
@@ -131,7 +132,8 @@ struct HashSelectiveTestingCommandServiceTests {
             cacheStorage: .any,
             destination: .any,
             schemeName: .any,
-            coverage: .any
+            coverage: .any,
+            sdkSelection: .any
         ).willReturn(generator)
         given(configLoader)
             .loadConfig(path: .any)

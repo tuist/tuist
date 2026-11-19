@@ -661,39 +661,41 @@ defmodule Tuist.Builds.AnalyticsTest do
   end
 
   describe "selective_testing_analytics/4" do
-    test "returns selective testing analytics for the last three days" do
-      # Given
+    test "pools the avoided tests over the tests in scope across the period's runs" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
+      # 160 of 200 and 5 of 5: pooled 165 / 205, not the 90% mean of the
+      # runs' rates.
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: ["C"],
-        created_at: ~N[2024-04-30 03:00:00]
+        avoided_tests: 160,
+        scope_tests: 200,
+        ran_at: ~N[2024-04-30 03:00:00]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["E", "F"],
-        remote_test_target_hits: [],
-        created_at: ~N[2024-04-30 03:00:00]
+        avoided_tests: 5,
+        scope_tests: 5,
+        ran_at: ~N[2024-04-30 04:00:00]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: [],
-        remote_test_target_hits: ["B"],
-        created_at: ~N[2024-04-27 03:00:00]
+        avoided_tests: 1,
+        scope_tests: 4,
+        ran_at: ~N[2024-04-29 03:00:00]
       )
 
-      # When
+      # Before the period.
+      RunsFixtures.run_selection_fixture(
+        project_id: project.id,
+        avoided_tests: 0,
+        scope_tests: 100,
+        ran_at: ~N[2024-04-27 03:00:00]
+      )
+
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
@@ -701,47 +703,28 @@ defmodule Tuist.Builds.AnalyticsTest do
           end_datetime: DateTime.utc_now()
         )
 
-      # Then
-      assert got.values == [0, 0, 0.5]
-      assert got.hit_rate == 0.5
+      assert got.values == [0.0, 0.25, 165 / 205]
+      assert got.hit_rate == 166 / 209
     end
 
-    test "returns selective testing analytics for tuist xcodebuild test" do
-      # Given
+    test "counts the avoided tests of an impact run its test runs share once" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
+      impact_run_id = UUIDv7.generate()
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "xcodebuild",
-        subcommand: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: ["C"],
-        created_at: ~N[2024-04-30 03:00:00]
-      )
+      # Two shards of one selection that avoided 50 tests: one executed 50
+      # tests, the other 30.
+      for executed <- [50, 30] do
+        RunsFixtures.run_selection_fixture(
+          project_id: project.id,
+          strategy: "coverage",
+          test_impact_run_id: impact_run_id,
+          avoided_tests: 50,
+          scope_tests: 50 + executed,
+          ran_at: ~N[2024-04-30 03:00:00]
+        )
+      end
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "xcodebuild",
-        subcommand: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["E", "F"],
-        remote_test_target_hits: [],
-        created_at: ~N[2024-04-30 03:00:00]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "xcodebuild",
-        subcommand: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: [],
-        remote_test_target_hits: ["B"],
-        created_at: ~N[2024-04-27 03:00:00]
-      )
-
-      # When
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
@@ -749,47 +732,42 @@ defmodule Tuist.Builds.AnalyticsTest do
           end_datetime: DateTime.utc_now()
         )
 
-      # Then
-      assert got.values == [0, 0, 0.5]
-      assert got.hit_rate == 0.5
+      assert got.hit_rate == 50 / 130
     end
 
-    test "returns selective testing analytics for the last three days for ci only" do
-      # Given
+    test "keeps the latest computation of a run and filters by environment" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
+      test_run_id = UUIDv7.generate()
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: ["C"],
-        created_at: ~N[2024-04-30 03:00:00],
-        is_ci: true
+        test_run_id: test_run_id,
+        is_ci: true,
+        avoided_tests: 0,
+        scope_tests: 10,
+        ran_at: ~N[2024-04-30 03:00:00],
+        inserted_at: ~N[2024-04-30 03:01:00]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["A", "B", "C"],
-        remote_test_target_hits: [],
-        created_at: ~N[2024-04-30 03:00:00],
-        is_ci: false
+        test_run_id: test_run_id,
+        is_ci: true,
+        avoided_tests: 8,
+        scope_tests: 10,
+        ran_at: ~N[2024-04-30 03:00:00],
+        inserted_at: ~N[2024-04-30 03:05:00]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: [],
-        remote_test_target_hits: ["B"],
-        created_at: ~N[2024-04-29 03:00:00],
-        is_ci: true
+        is_ci: false,
+        avoided_tests: 0,
+        scope_tests: 10,
+        ran_at: ~N[2024-04-30 03:00:00]
       )
 
-      # When
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
@@ -798,78 +776,40 @@ defmodule Tuist.Builds.AnalyticsTest do
           is_ci: true
         )
 
-      # Then
-      assert got.values == [0, 0.5, 0.5]
-      assert got.hit_rate == 0.5
+      assert got.hit_rate == 0.8
     end
 
-    test "excludes command events after the selected period from the summary" do
+    test "reads 0.0 for a period without selections" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: [],
-        created_at: ~N[2024-04-29 09:00:00]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: ["A", "B"],
-        remote_test_target_hits: [],
-        created_at: ~N[2024-04-30 09:00:00]
-      )
 
       got =
         Analytics.selective_testing_analytics(
           project_id: project.id,
-          start_datetime: ~U[2024-04-29 00:00:00Z],
-          end_datetime: ~U[2024-04-29 23:59:59Z]
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
         )
 
-      assert got.hit_rate == 0.5
+      assert got.hit_rate == 0.0
+      assert got.trend == 0.0
+      assert got.values == [0.0, 0.0, 0.0]
     end
   end
 
   describe "selective_testing_analytics_with_percentiles/1" do
-    test "returns selective testing analytics with percentile values" do
-      # Given
+    test "reads the percentiles of the runs' rates, higher being better" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: ["C"],
-        created_at: ~N[2024-04-30 03:00:00]
-      )
+      for {avoided, hour} <- [{10, 1}, {50, 2}, {90, 3}] do
+        RunsFixtures.run_selection_fixture(
+          project_id: project.id,
+          avoided_tests: avoided,
+          scope_tests: 100,
+          ran_at: NaiveDateTime.new!(~D[2024-04-30], Time.new!(hour, 0, 0))
+        )
+      end
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["E", "F"],
-        remote_test_target_hits: [],
-        created_at: ~N[2024-04-30 03:00:00]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: [],
-        remote_test_target_hits: ["B"],
-        created_at: ~N[2024-04-27 03:00:00]
-      )
-
-      # When
       got =
         Analytics.selective_testing_analytics_with_percentiles(
           project_id: project.id,
@@ -877,24 +817,13 @@ defmodule Tuist.Builds.AnalyticsTest do
           end_datetime: DateTime.utc_now()
         )
 
-      # Then
-      assert got.values == [0, 0, 0.5]
       assert got.hit_rate == 0.5
-      assert Map.has_key?(got, :p50)
-      assert Map.has_key?(got, :p90)
-      assert Map.has_key?(got, :p99)
-      assert Map.has_key?(got, :p50_values)
-      assert Map.has_key?(got, :p90_values)
-      assert Map.has_key?(got, :p99_values)
-      assert is_float(got.p50)
-      assert is_float(got.p90)
-      assert is_float(got.p99)
-      assert is_list(got.p50_values)
-      assert is_list(got.p90_values)
-      assert is_list(got.p99_values)
+      assert_in_delta got.p50, 50.0, 0.01
+      # p90 is the rate 90% of runs reached or beat: near the lowest.
+      assert got.p90 < got.p50
       assert length(got.p50_values) == length(got.dates)
-      assert length(got.p90_values) == length(got.dates)
-      assert length(got.p99_values) == length(got.dates)
+      assert_in_delta List.last(got.p50_values), 0.5, 0.0001
+      assert Enum.take(got.p90_values, 2) == [0.0, 0.0]
     end
   end
 
@@ -3789,29 +3718,28 @@ defmodule Tuist.Builds.AnalyticsTest do
   end
 
   describe "selective_testing_scatter_data/1" do
-    test "returns individual event hit rates grouped by environment" do
+    test "returns each run's effectiveness grouped by environment" do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B", "C", "D"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: ["B"],
         is_ci: false,
-        created_at: ~N[2024-04-30 03:00:00]
+        avoided_tests: 30,
+        scope_tests: 60,
+        ran_at: ~N[2024-04-30 03:00:00]
       )
 
-      CommandEventsFixtures.command_event_fixture(
+      RunsFixtures.run_selection_fixture(
         project_id: project.id,
-        name: "test",
-        test_targets: ["A", "B"],
-        local_test_target_hits: ["A"],
-        remote_test_target_hits: ["B"],
         is_ci: true,
-        created_at: ~N[2024-04-29 10:00:00]
+        avoided_tests: 7,
+        scope_tests: 7,
+        ran_at: ~N[2024-04-29 10:00:00]
       )
+
+      # Nothing in scope: no rate.
+      RunsFixtures.run_selection_fixture(project_id: project.id, scope_tests: 0, ran_at: ~N[2024-04-29 11:00:00])
 
       got =
         Analytics.selective_testing_scatter_data(
@@ -3821,43 +3749,15 @@ defmodule Tuist.Builds.AnalyticsTest do
         )
 
       assert got.truncated == false
-      series = Enum.sort_by(got.series, & &1.name)
-      assert [local_series, ci_series] = series
+      assert [local_series, ci_series] = Enum.sort_by(got.series, & &1.name)
       assert ci_series.name == true
       assert local_series.name == false
 
-      assert [ci_point] = ci_series.data
-      assert [_ts, ci_hit_rate] = ci_point.value
+      assert [%{value: [_ts, ci_hit_rate], meta: %{is_ci: true}}] = ci_series.data
       assert ci_hit_rate == Decimal.new("100.0")
-      assert ci_point.meta.is_ci == true
 
-      assert [local_point] = local_series.data
-      assert [_ts2, local_hit_rate] = local_point.value
+      assert [%{value: [_ts2, local_hit_rate]}] = local_series.data
       assert local_hit_rate == Decimal.new("50.0")
-    end
-
-    test "only includes events with test_targets_count > 0" do
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      project = ProjectsFixtures.project_fixture()
-
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "test",
-        test_targets: [],
-        local_test_target_hits: [],
-        remote_test_target_hits: [],
-        is_ci: false,
-        created_at: ~N[2024-04-30 03:00:00]
-      )
-
-      got =
-        Analytics.selective_testing_scatter_data(
-          project_id: project.id,
-          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
-          end_datetime: DateTime.utc_now()
-        )
-
-      assert got.series == []
     end
   end
 

@@ -2,7 +2,8 @@ defmodule Tuist.Tests.TestRunDestination do
   @moduledoc """
   A run destination records one device/simulator a test run executed on
   (for example `iPad (A16)` on `iOS Simulator 26.4`). Stored in ClickHouse
-  and associated to a `Tuist.Tests.Test` via `test_run_id`.
+  and associated to a `Tuist.Tests.Test` via `test_run_id`. Case runs from an
+  attributable report reference this row through `test_run_destination_id`.
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable

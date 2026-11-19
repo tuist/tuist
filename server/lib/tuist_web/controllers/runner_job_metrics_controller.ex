@@ -27,7 +27,12 @@ defmodule TuistWeb.RunnerJobMetricsController do
   runner's samples on a job executing elsewhere, and would drop the
   real samples of a Pod running a job it didn't claim (which may hold
   no live claim at all). Samples for a Pod with no proven execution —
-  warm, idle, or not yet assigned — are a no-op.
+  warm, idle, or not yet assigned — are not recorded and get a 202, so
+  the sampler keeps them and sends them again with its next batch. The
+  binding arrives with the `in_progress` webhook, which GitHub can
+  deliver minutes after the job's first step; a sampler that dropped
+  the 202'd samples would lose the job's start (its free disk before
+  checkout and cache restores).
 
   ## Contract
 
@@ -43,14 +48,23 @@ defmodule TuistWeb.RunnerJobMetricsController do
             "network_bytes_in": 10485760,
             "network_bytes_out": 5242880,
             "disk_used_bytes": 48318382080,
-            "disk_total_bytes": 68719476736
+            "disk_total_bytes": 68719476736,
+            "oom_kill_count": 1,              // OOM kills since the job started
+            // The process killed last, once oom_kill_count > 0 (Linux
+            // cache-volume pools only):
+            "oom_victim_process": "java",
+            "oom_victim_memory_bytes": 27917287424,
+            "oom_victim_container": "gradle-build", // "docker-build" for a build step
+            "oom_victim_image": "gradle:8-jdk21"
           }
         ]
       }
 
-  Every metric field but `timestamp` is optional and defaults to 0,
-  so a Linux-only or macOS-only collector can omit what it can't
-  measure. Delivery is at-least-once; the ReplacingMergeTree
+  Every metric field but `timestamp` is optional and defaults to 0
+  (or `""` for the `oom_victim_` names), so a Linux-only or macOS-only
+  collector can omit what it can't measure. The job can write the file
+  the victim's names come from, so a name that is not at most 128 of
+  `[A-Za-z0-9._/:@-]` is dropped rather than stored. Delivery is at-least-once; the ReplacingMergeTree
   `(workflow_job_id, timestamp)` key collapses re-POSTed batches.
   """
 
@@ -68,15 +82,19 @@ defmodule TuistWeb.RunnerJobMetricsController do
     memory_used_bytes memory_total_bytes
     network_bytes_in network_bytes_out
     disk_used_bytes disk_total_bytes
+    oom_kill_count oom_victim_memory_bytes
   )a
+  @name_fields ~w(oom_victim_process oom_victim_container oom_victim_image)a
+  @safe_name ~r/\A[A-Za-z0-9._\/:@-]{1,128}\z/
 
   @doc """
   `POST /api/internal/runners/pods/:pod_name/metrics`
 
   Responses:
 
-    * 204 — samples recorded (or an empty batch / a Pod with no live
-      claim, both treated as a no-op).
+    * 204 — samples recorded (or an empty batch).
+    * 202 — not recorded: no job is proven to run on the Pod yet. The
+      sampler resends them until it gets a 204.
     * 400 — malformed body (samples not a list / sample missing a
       numeric `timestamp`).
     * 401 — missing or invalid SA bearer token / wrong principal.
@@ -91,19 +109,17 @@ defmodule TuistWeb.RunnerJobMetricsController do
           send_resp(conn, :no_content, "")
 
         :error ->
-          # No proven binding yet (or none coming). Samples taken before
-          # `in_progress` is delivered and drained through Oban are dropped
-          # rather than charted on a guess, so a job's startup ramp can be
-          # missing under webhook latency. Counted so the loss is visible
-          # rather than silent — the samplers are fail-open and never
-          # resend, so this is unrecoverable data.
+          # No proven binding yet (or none coming). The samples are not
+          # charted on a guess; the 202 tells the sampler to keep them
+          # and resend them once `in_progress` binds the Pod to its job.
+          # Samplers built before the 202 drop them, so count them.
           :telemetry.execute(
             Telemetry.event_name_recovery(),
             %{count: length(samples)},
             %{kind: "metrics_dropped_awaiting_attribution"}
           )
 
-          send_resp(conn, :no_content, "")
+          send_resp(conn, :accepted, "")
       end
     else
       {:error, :missing_bearer} ->
@@ -161,11 +177,22 @@ defmodule TuistWeb.RunnerJobMetricsController do
         {field, numeric(Map.get(sample, Atom.to_string(field), 0))}
       end)
 
-    {:ok, Map.put(metrics, :timestamp, timestamp)}
+    names =
+      Map.new(@name_fields, fn field ->
+        {field, safe_name(Map.get(sample, Atom.to_string(field)))}
+      end)
+
+    {:ok, metrics |> Map.merge(names) |> Map.put(:timestamp, timestamp)}
   end
 
   defp parse_sample(_), do: {:error, {:invalid_field, "sample timestamp"}}
 
   defp numeric(value) when is_number(value), do: value
   defp numeric(_), do: 0
+
+  defp safe_name(value) when is_binary(value) do
+    if Regex.match?(@safe_name, value), do: value, else: ""
+  end
+
+  defp safe_name(_), do: ""
 end

@@ -84,6 +84,11 @@ spec:
     # floor, and rolling replacements double the spend during the
     # rollout window. Same call the other two fleets make.
     type: OnDelete
+    # A scale-down retires the oldest hosts, the ones on the oldest macOS,
+    # rather than random ones. Only the deletion order: the rollout stays
+    # OnDelete, and CAPI copies this onto the MachineSet whatever the type.
+    rollingUpdate:
+      deletePolicy: Oldest
   selector:
     matchLabels:
       cluster.x-k8s.io/cluster-name: {{ $clusterName }}

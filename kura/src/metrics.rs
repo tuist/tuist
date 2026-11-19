@@ -121,6 +121,7 @@ pub struct MetricsInner {
     sync_forward_cursor_lag_seconds: Family<SyncPeerLabels, Gauge>,
     sync_forward_fell_behind: Family<SyncReasonLabels, Counter>,
     sync_forward_drain_timeout: Counter,
+    relaxed_durability_sync_failures: Counter,
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
@@ -128,6 +129,10 @@ pub struct MetricsInner {
     region_listing_bound_lag_seconds: Gauge,
     region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
     region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
+    migration_bridge_armed: Gauge,
+    migration_bridge_ready: Gauge,
+    migration_bridge_last_proof_age_seconds: Gauge,
+    migration_reproof_failures: Counter,
     region_sync_last_cycle_duration_seconds: Family<SyncRegionLabels, Gauge>,
     peer_clock_skew_seconds: Family<SyncPeerLabels, Gauge>,
     gateway_role: Family<GatewayRoleLabels, Gauge>,
@@ -138,6 +143,7 @@ pub struct MetricsInner {
     multipart_upload_admissions: Family<MultipartAdmissionLabels, Counter>,
     multipart_upload_admission_duration: Histogram,
     tmp_dir_bytes: Gauge,
+    data_dir_bytes: Family<DataDirComponentLabels, Gauge>,
     discovered_peer_nodes: Gauge,
     backfill_horizon_age_ms: Gauge,
     backfill_listing_pages: Counter,
@@ -568,8 +574,13 @@ pub mod shed_kind {
     // carry at normal memory pressure. It sheds on an idle pool, so it stays
     // apart from `REAPI_MATERIALIZATION`, which means the pool was full.
     pub const REAPI_REQUEST_BUDGET: &str = "reapi_request_budget";
+    // A segment rotation refused because the data volume had less free space
+    // than the rotation needs. Counted in the store, so it covers every write
+    // surface (HTTP answers 429, gRPC answers INTERNAL). Each one is an
+    // upload the client does not retry, so it alerts with the HTTP kinds.
+    pub const DISK_FULL: &str = "disk_full";
 
-    pub const ALL: [&str; 9] = [
+    pub const ALL: [&str; 10] = [
         RESPONSE_STREAM,
         MULTIPART_UPLOADS,
         MULTIPART_STORAGE,
@@ -579,6 +590,7 @@ pub mod shed_kind {
         REAPI_WRITE_DECODE,
         REAPI_MATERIALIZATION,
         REAPI_REQUEST_BUDGET,
+        DISK_FULL,
     ];
 }
 
@@ -718,6 +730,7 @@ impl Metrics {
         let sync_forward_cursor_lag_seconds = Family::<SyncPeerLabels, Gauge>::default();
         let sync_forward_fell_behind = Family::<SyncReasonLabels, Counter>::default();
         let sync_forward_drain_timeout = Counter::default();
+        let relaxed_durability_sync_failures = Counter::default();
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
@@ -725,6 +738,10 @@ impl Metrics {
         let region_listing_bound_lag_seconds = Gauge::default();
         let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
+        let migration_bridge_armed = Gauge::default();
+        let migration_bridge_ready = Gauge::default();
+        let migration_bridge_last_proof_age_seconds = Gauge::default();
+        let migration_reproof_failures = Counter::default();
         let region_sync_last_cycle_duration_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let peer_clock_skew_seconds = Family::<SyncPeerLabels, Gauge>::default();
         let gateway_role = Family::<GatewayRoleLabels, Gauge>::default();
@@ -736,6 +753,7 @@ impl Metrics {
         let multipart_upload_admission_duration =
             Histogram::new(exponential_buckets(0.001, 2.0, 14));
         let tmp_dir_bytes = Gauge::default();
+        let data_dir_bytes = Family::<DataDirComponentLabels, Gauge>::default();
         let discovered_peer_nodes = Gauge::default();
         let backfill_horizon_age_ms = Gauge::default();
         let backfill_listing_pages = Counter::default();
@@ -1315,6 +1333,11 @@ impl Metrics {
             sync_forward_drain_timeout.clone(),
         );
         registry.register(
+            "kura_relaxed_durability_sync_failures_total",
+            "Periodic relaxed-durability syncs that failed",
+            relaxed_durability_sync_failures.clone(),
+        );
+        registry.register(
             "kura_sync_pull_links",
             "Pull links this node keeps open, by link kind",
             sync_pull_links.clone(),
@@ -1348,6 +1371,26 @@ impl Metrics {
             "kura_region_sync_bytes_fetched_total",
             "Bytes fetched by region sync, by origin region",
             region_sync_bytes_fetched.clone(),
+        );
+        registry.register(
+            "kura_migration_bridge_armed",
+            "Whether a storage-migration write bridge is armed on this source (1) or not (0)",
+            migration_bridge_armed.clone(),
+        );
+        registry.register(
+            "kura_migration_bridge_ready",
+            "Whether the storage-migration bridge has proven every write since its feed pin on its current destination process",
+            migration_bridge_ready.clone(),
+        );
+        registry.register(
+            "kura_migration_bridge_last_proof_age_seconds",
+            "Seconds since an armed storage-migration bridge last proved the feed on its destination; 0 while unarmed",
+            migration_bridge_last_proof_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_migration_reproof_failures_total",
+            "Failed attempts to re-prove a rebound storage-migration destination",
+            migration_reproof_failures.clone(),
         );
         registry.register(
             "kura_region_sync_last_cycle_duration_seconds",
@@ -1398,6 +1441,11 @@ impl Metrics {
             "kura_tmp_dir_bytes",
             "Bytes currently held under the staging tmp directory",
             tmp_dir_bytes.clone(),
+        );
+        registry.register(
+            "kura_data_dir_bytes",
+            "Bytes allocated on the data volume by component (ring_segments, retired_segments, rocksdb, multipart, blobs, tmp, other)",
+            data_dir_bytes.clone(),
         );
         registry.register(
             "kura_discovered_peer_nodes",
@@ -1991,6 +2039,7 @@ impl Metrics {
                 sync_forward_cursor_lag_seconds,
                 sync_forward_fell_behind,
                 sync_forward_drain_timeout,
+                relaxed_durability_sync_failures,
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
@@ -1998,6 +2047,10 @@ impl Metrics {
                 region_listing_bound_lag_seconds,
                 region_sync_entries_listed,
                 region_sync_bytes_fetched,
+                migration_bridge_armed,
+                migration_bridge_ready,
+                migration_bridge_last_proof_age_seconds,
+                migration_reproof_failures,
                 region_sync_last_cycle_duration_seconds,
                 peer_clock_skew_seconds,
                 gateway_role,
@@ -2008,6 +2061,7 @@ impl Metrics {
                 multipart_upload_admissions,
                 multipart_upload_admission_duration,
                 tmp_dir_bytes,
+                data_dir_bytes,
                 discovered_peer_nodes,
                 backfill_horizon_age_ms,
                 backfill_listing_pages,
@@ -2769,6 +2823,10 @@ impl Metrics {
         self.sync_forward_drain_timeout.inc();
     }
 
+    pub fn record_relaxed_durability_sync_failure(&self) {
+        self.relaxed_durability_sync_failures.inc();
+    }
+
     pub fn update_sync_pull_links(&self, link: &str, count: usize) {
         self.sync_pull_links
             .get_or_create(&SyncLinkLabels {
@@ -2829,6 +2887,19 @@ impl Metrics {
                 region: region.to_owned(),
             })
             .inc_by(bytes);
+    }
+
+    // ---- Storage-migration bridge ----
+
+    pub fn update_migration_bridge(&self, armed: bool, ready: bool, last_proof_age: Duration) {
+        self.migration_bridge_armed.set(i64::from(armed));
+        self.migration_bridge_ready.set(i64::from(ready));
+        self.migration_bridge_last_proof_age_seconds
+            .set(i64::try_from(last_proof_age.as_secs()).unwrap_or(i64::MAX));
+    }
+
+    pub fn record_migration_reproof_failure(&self) {
+        self.migration_reproof_failures.inc();
     }
 
     pub fn set_region_sync_last_cycle_duration(&self, region: &str, duration: Duration) {
@@ -2901,6 +2972,14 @@ impl Metrics {
 
     pub fn update_tmp_dir_bytes(&self, bytes: u64) {
         self.tmp_dir_bytes.set(bytes as i64);
+    }
+
+    pub fn update_data_dir_bytes(&self, component: &str, bytes: u64) {
+        self.data_dir_bytes
+            .get_or_create(&DataDirComponentLabels {
+                component: component.to_owned(),
+            })
+            .set(bytes as i64);
     }
 
     pub fn update_discovered_peer_nodes(&self, count: usize) {
@@ -3755,6 +3834,11 @@ struct SegmentHandleEvictionLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct SegmentGenerationLabels {
     generation: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct DataDirComponentLabels {
+    component: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -4768,6 +4852,7 @@ mod tests {
         metrics.record_manifest_cache_evictions("capacity", 1);
         metrics.record_manifest_index_rebuild("ok", Duration::from_millis(3));
         metrics.update_multipart_uploads(2, 256);
+        metrics.update_data_dir_bytes("rocksdb", 4096);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
@@ -4894,6 +4979,7 @@ mod tests {
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_multipart_upload_capacity 256"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
+        assert!(rendered.contains("kura_data_dir_bytes{component=\"rocksdb\"} 4096"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
         assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
         assert!(rendered.contains("kura_replication_bandwidth_effective_limit_bytes_per_second"));

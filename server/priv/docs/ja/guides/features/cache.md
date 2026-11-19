@@ -1,33 +1,68 @@
 ---
 {
-  "title": "Cache",
-  "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, and Gradle cache."
+  "title": "キャッシュ",
+  "titleTemplate": ":title · 機能 · ガイド · Tuist",
+  "description": "Tuist Cache を使って、Xcode、Gradle、Bazel、Elixir、Rust、Once のビルド時間を最適化します。"
 }
 ---
-# Cache {#cache}
+# キャッシュ {#cache}
 
-Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
+ビルド成果物は環境間で共有されないため、同じコードを何度も再ビルドせざるを得ません。Tuist のキャッシング機能は成果物をリモートで共有するため、チームと CI はすでにビルド済みのものを再ビルドすることなく、より高速なビルドを実現できます。ビルドシステム間でのローカルおよびリモートビルドキャッシュの仕組みや、Xcode 独自のキャッシュについては、<.localized_link href="/references/concepts/build-cache">ビルドキャッシュとは？</.localized_link> を参照してください。キャッシュを選択する前にビルドが遅い理由を特定するには、[低速なビルド](https://tuist.dev/solutions/slow-builds) を参照してください。
 
-Pick the caching solution that matches your build system:
+プロジェクトやデプロイモデルに合ったキャッシュワークフローを学びましょう：
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Module cache"
-        details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
-        linkText="Set up module cache"
-        link="/guides/features/cache/module-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Xcode cache"
-        details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
-        linkText="Set up Xcode cache"
-        link="/guides/features/cache/xcode-cache"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
-        title="Gradle cache"
-        details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
-        linkText="Set up Gradle cache"
-        link="/guides/features/cache/gradle-cache"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="モジュールキャッシュ"
+    details="Tuist の生成プロジェクトを使用するプロジェクト向けに、個々のモジュールをバイナリとしてキャッシュします。Tuist のプロジェクト生成が必要です。"
+    link="/guides/features/cache/module-cache"
+/>
+  <.home_card
+    title="Xcode キャッシュ"
+    details="Xcode のコンパイル成果物を環境間で共有します。任意の Xcode プロジェクトで動作し、プロジェクト生成は不要です。"
+    link="/guides/features/cache/xcode-cache"
+/>
+  <.home_card
+    title="Gradle キャッシュ"
+    details="Gradle ビルドキャッシュの成果物をリモートで共有します。パフォーマンス可視化のためのビルドインサイトを含みます。"
+    link="/guides/features/cache/gradle-cache"
+/>
+  <.home_card
+    title="Bazel キャッシュ"
+    details="Bazel を Tuist の Remote Execution API キャッシュに向けて、チームと CI 間でアクション出力を共有します。"
+    link="/guides/features/cache/bazel-cache"
+/>
+  <.home_card
+    title="Elixir キャッシュ"
+    details="サポートされている Elixir 依存関係のキャッシングを有効にし、Mix を引き続き使用できます。ダッシュボードでキャッシュヒットと転送を確認できます。"
+    link="/guides/features/cache/elixir"
+/>
+  <.home_card
+    title="Rust キャッシュ（実験的）"
+    details="サポートされている Rust のコンパイル出力とビルドスクリプトの実行を、ローカルおよび Kura 経由で再利用します。キャッシングの有効化方法とキャッシュアクティビティの確認方法を学びます。"
+    supported_for="rust"
+    link="/guides/features/cache/rust"
+/>
+  <.home_card
+    title="Once キャッシュ"
+    details="Once のネイティブ Tuist プロバイダーを使用して、キャッシュされたスクリプトおよびグラフアクションの結果を開発者マシンと CI 間で共有します。"
+    link="/guides/features/cache/once"
+/>
+  <.home_card
+    title="セルフホスティング"
+    details="CI、オフィス、またはリージョンのコンピューティングに近い場所にキャッシュノードを実行し、それらをホスト型またはセルフホスト型の Tuist に接続します。"
+    link="/guides/features/cache/self-hosting"
+/>
+</.home_cards>
+
+> [!TIP]
+> **Tuist Runners で最速**
+>
+> <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> では、キャッシュはランナーのプライベートネットワーク上に共存し、開発者マシンが使用するものと同じキャッシュを共有するため、CI ジョブは別途ウォームアップする必要なく、すぐにウォームヒットを利用できます。
+
+
+## CI へのアップロードを制限 {#restrict-uploads-to-ci}
+
+アカウント管理者は、CI がキャッシュ成果物をアップロードできるようにしながら、開発者を読み取り専用に設定できます。Tuist でアカウントの **キャッシュ** 設定を開き、**キャッシュアップロードアクセス** を **CI とアカウントトークンのみ** に設定します。その後、ログインセッションで認証されたメンバーはキャッシュからダウンロードできますが、アップロードには CI OIDC 認証または `project:cache:write` や `ci` などのキャッシュ書き込みスコープを持つアカウントトークンが必要です。
+
+CI が信頼できるキャッシュプロデューサーであり、ローカルマシンはキャッシュの消費のみを行う場合に使用します。この設定はキャッシュアップロードの認可にのみ影響します。

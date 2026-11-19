@@ -12,6 +12,7 @@ defmodule TuistWeb.API.MixController do
   alias TuistWeb.API.Schemas.MixBuild
   alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.ReportActorPlug
   alias TuistWeb.Plugs.ReportPublishingPlug
 
@@ -143,7 +144,9 @@ defmodule TuistWeb.API.MixController do
                  network_bytes_in: %Schema{type: :integer, minimum: 0, maximum: @int64},
                  network_bytes_out: %Schema{type: :integer, minimum: 0, maximum: @int64},
                  disk_bytes_read: %Schema{type: :integer, minimum: 0, maximum: @int64},
-                 disk_bytes_written: %Schema{type: :integer, minimum: 0, maximum: @int64}
+                 disk_bytes_written: %Schema{type: :integer, minimum: 0, maximum: @int64},
+                 disk_total_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64, nullable: true},
+                 disk_available_bytes: %Schema{type: :integer, minimum: 0, maximum: @int64, nullable: true}
                },
                required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes]
              }
@@ -446,6 +449,7 @@ defmodule TuistWeb.API.MixController do
     |> Map.merge(%{
       project_id: project.id,
       account_id: publisher_id(conn),
+      tuist_version: Headers.get_build_integration_version(conn, :mix),
       is_ci: body[:is_ci] || false,
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),

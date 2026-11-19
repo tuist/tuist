@@ -65,7 +65,8 @@ defmodule Tuist.MCP.Components.Tools.MixBuildTools do
       })
       |> object()
 
-    object(Map.put(build()["properties"], "cache", cache))
+    build = build()
+    %{build | "properties" => Map.put(build["properties"], "cache", cache), "required" => ["cache" | build["required"]]}
   end
 
   defp build do
@@ -88,6 +89,10 @@ defmodule Tuist.MCP.Components.Tools.MixBuildTools do
       "inserted_at" => %{"type" => "string"}
     })
     |> object()
+    |> Map.update!(
+      "properties",
+      &Map.put(&1, "tuist_version", Map.put(@nullable_string, "description", "The reporting tuist_ex library version."))
+    )
   end
 
   defp object(properties) do

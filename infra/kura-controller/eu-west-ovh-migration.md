@@ -217,7 +217,10 @@ Evaluate these instant PromQL queries at `2026-09-25T15:35:00Z` in
 `grafanacloud-prom` to reproduce the host-memory and public-transmit peaks and
 the pod request inventory. For a refresh, also verify that the node selector
 still identifies precisely the public EU-West fleet; it will no longer do so
-after moving that fleet to OVH.
+after moving that fleet to OVH. Grafana Cloud's metrics storage is being
+retired and production Pulse holds metrics only from 2026-11-14 23:00 UTC, so
+once Cloud is gone these figures cannot be reproduced at their original
+timestamp; run a refresh against the Tuist Pulse Metrics data source instead.
 
 ```promql
 # Simultaneous regional host-memory peak, GiB.
@@ -474,8 +477,8 @@ separately cancel the five subscriptions after matching provider server IDs.
 The previously unaccounted-for server `133116` is not owned by these fleets and
 is not cancelled or wiped by this change.
 
-Keep `kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache
-pool), its private network, and the Apple Silicon fleet intact. Keep the existing
+`kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache pool)
+was out of scope here; it was retired separately in November 2026. Keep the existing
 `kura-dedibox` pool selector and `scw-local-nvme` StorageClass: despite their
 names, OVH runtime scheduling and live local volumes still depend on them.
 Renaming them requires a separate coordinated migration, not a textual cleanup.

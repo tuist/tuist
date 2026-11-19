@@ -27,6 +27,11 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "category" => %{"type" => ["string", "null"]},
         "scheme" => %{"type" => "string"},
         "configuration" => %{"type" => "string"},
+        "tuist_version" => %{"type" => ["string", "null"], "description" => "The reporting Tuist CLI version."},
+        "tuist_generation_version" => %{
+          "type" => ["string", "null"],
+          "description" => "The Tuist CLI version that generated the associated project."
+        },
         "xcode_version" => %{"type" => "string"},
         "macos_version" => %{"type" => "string"},
         "model_identifier" => %{"type" => "string"},
@@ -50,7 +55,8 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "cas_output_download_bytes" => %{"type" => "integer"},
         "cas_output_upload_bytes" => %{"type" => "integer"},
         "inserted_at" => %{"type" => "string"},
-        "archive_url" => %{"type" => "string"}
+        "archive_url" => %{"type" => "string"},
+        "side_quests" => Tuist.MCP.SideQuests.schema()
       },
       "required" => [
         "id",
@@ -81,6 +87,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
 
   alias Tuist.Builds
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.SideQuests
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Storage
 
@@ -110,34 +117,42 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
              "Build not found: #{build_run_id}"
            ) do
       cas_output_metrics = Builds.cas_output_metrics(build.id)
+      generation_versions = Tuist.CommandEvents.get_generation_versions(project.id, [Map.get(build, :generation_id)])
 
       {:ok,
-       %{
-         id: build.id,
-         actor: Tuist.ReportActor.actor(build),
-         duration: build.duration,
-         status: to_string(build.status),
-         category: if(build.category != "", do: build.category),
-         scheme: build.scheme,
-         configuration: build.configuration,
-         xcode_version: build.xcode_version,
-         macos_version: build.macos_version,
-         model_identifier: build.model_identifier,
-         custom_metadata: %{tags: Map.get(build, :custom_tags) || [], values: Map.get(build, :custom_values) || %{}},
-         is_ci: build.is_ci,
-         git_branch: build.git_branch,
-         git_commit_sha: build.git_commit_sha,
-         git_ref: build.git_ref,
-         cacheable_tasks_count: build.cacheable_tasks_count,
-         cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
-         cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
-         cas_output_download_count: cas_output_metrics.download_count,
-         cas_output_upload_count: cas_output_metrics.upload_count,
-         cas_output_download_bytes: cas_output_metrics.download_bytes,
-         cas_output_upload_bytes: cas_output_metrics.upload_bytes,
-         inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc),
-         archive_url: archive_url(build, project)
-       }}
+       SideQuests.put_for_xcode_build(
+         %{
+           id: build.id,
+           actor: Tuist.ReportActor.actor(build),
+           tuist_version: if(Map.get(build, :tuist_version) != "", do: Map.get(build, :tuist_version)),
+           tuist_generation_version: Map.get(generation_versions, Map.get(build, :generation_id)),
+           duration: build.duration,
+           status: to_string(build.status),
+           category: if(build.category != "", do: build.category),
+           scheme: build.scheme,
+           configuration: build.configuration,
+           xcode_version: build.xcode_version,
+           macos_version: build.macos_version,
+           model_identifier: build.model_identifier,
+           custom_metadata: %{tags: Map.get(build, :custom_tags) || [], values: Map.get(build, :custom_values) || %{}},
+           is_ci: build.is_ci,
+           git_branch: build.git_branch,
+           git_commit_sha: build.git_commit_sha,
+           git_ref: build.git_ref,
+           cacheable_tasks_count: build.cacheable_tasks_count,
+           cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
+           cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
+           cas_output_download_count: cas_output_metrics.download_count,
+           cas_output_upload_count: cas_output_metrics.upload_count,
+           cas_output_download_bytes: cas_output_metrics.download_bytes,
+           cas_output_upload_bytes: cas_output_metrics.upload_bytes,
+           inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc),
+           archive_url: archive_url(build, project)
+         },
+         conn.assigns,
+         project,
+         build
+       )}
     end
   end
 

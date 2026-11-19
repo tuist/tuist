@@ -1,0 +1,67 @@
+name: Pulse Metric Split
+
+# Runs .github/scripts/pulse-metric-split.sh against one environment's Pulse.
+# The split is permanent, so it only runs where the chart already enables GC
+# (cluster.gc.environments); the script refuses elsewhere.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Pulse environment
+        required: true
+        type: choice
+        options: [staging, canary, production]
+      mode:
+        description: "status: placement; measure: rows per planned range; split: partition the metric table; rewrite: rewrite one day of pre-split history"
+        required: true
+        type: choice
+        options: [status, measure, split, rewrite]
+      rewrite_day:
+        description: UTC day or inclusive range for rewrite, such as 2026-11-10 or 2026-11-10..2026-11-16
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 90
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}-observability
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/pulse-config
+      PULSE_REWRITE_DAY: ${{ inputs.rewrite_day }}
+      MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v4
+      - name: Load selected deployment identity in CI only
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
+          op document get "kubeconfig: tuist-$DEPLOY_ENV" --vault "tuist-k8s-$DEPLOY_ENV" --output "$KUBECONFIG"
+      - name: Run ${{ inputs.mode }}
+        run: bash .github/scripts/pulse-metric-split.sh "$MODE"
+      - name: Remove probe
+        if: always()
+        run: |
+          if [[ -f "$KUBECONFIG" ]]; then
+            kubectl -n observability delete pod "pulse-rollout-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --ignore-not-found --wait=false || true
+          fi

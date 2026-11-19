@@ -1,0 +1,62 @@
+<.security_settings_frame
+  title={dgettext("dashboard_auth", "Remove passkey?")}
+  subtitle={
+    dgettext("dashboard_auth", "Remove %{name} from your Tuist account.", name: @passkey.name)
+  }
+>
+  <.alert
+    type="secondary"
+    status="warning"
+    size="large"
+    title={dgettext("dashboard_auth", "Your other sessions will be signed out")}
+    description={
+      dgettext(
+        "dashboard_auth",
+        "This browser stays signed in."
+      )
+    }
+  />
+  <div data-part="passkey-removal-guidance">
+    <p>
+      {dgettext(
+        "dashboard_auth",
+        "The saved credential will remain in your password manager or on your security key."
+      )}
+    </p>
+    <p :if={@last_passkey?}>
+      {dgettext(
+        "dashboard_auth",
+        "This is your last passkey. Make sure you can sign in another way, or set a password using password reset first."
+      )}
+    </p>
+  </div>
+  <.reauthentication_notice
+    :if={!@fresh_session?}
+    return_to={~p"/users/settings/passkeys/#{@passkey.id}/delete"}
+  />
+  <form
+    :if={@fresh_session?}
+    method="post"
+    action={~p"/users/settings/passkeys/#{@passkey.id}/delete"}
+    data-part="form"
+  >
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="confirm" value="true" />
+    <div data-part="actions">
+      <.button
+        id="confirm-passkey-removal"
+        type="submit"
+        variant="destructive"
+        size="large"
+        label={dgettext("dashboard_auth", "Remove passkey")}
+      />
+      <.link_button
+        id="cancel-passkey-removal"
+        href={~p"/users/settings/passkeys"}
+        variant="primary"
+        size="large"
+        label={dgettext("dashboard_auth", "Cancel")}
+      />
+    </div>
+  </form>
+</.security_settings_frame>

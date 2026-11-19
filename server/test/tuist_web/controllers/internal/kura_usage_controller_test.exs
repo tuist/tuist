@@ -8,9 +8,12 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore.LoadLimiter
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.StorageSnapshot
+  alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -34,6 +37,14 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     stub(Clients, :get_client, fn
       "00000000-0000-0000-0000-000000000001" -> kura_client
       _ -> nil
+    end)
+
+    # Each async test represents a separate replica's admission pool.
+    limiter = Module.concat(__MODULE__, "Pool#{System.unique_integer([:positive])}")
+    start_supervised!({LoadLimiter, name: limiter, max_concurrency: 1, max_pending_loads: 1, load_timeout: 3_000})
+
+    stub(Usage, :ingest_batch, fn events, evictions, snapshots, account ->
+      Mimic.call_original(Usage, :ingest_batch, [events, evictions, snapshots, account, [limiter: limiter]])
     end)
 
     {:ok, kura_client: kura_client}
@@ -204,6 +215,50 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
     assert snapshot_row.account_id == account.id
     assert snapshot_row.ring_budget_bytes == 26_843_545_600
+  end
+
+  test "a partial ClickHouse failure returns 503 and a full replay does not inflate usage", %{
+    conn: conn,
+    kura_client: client
+  } do
+    account = AccountsFixtures.organization_fixture().account
+    event = build_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second) - 60})
+
+    payload = %{
+      "schema_version" => 1,
+      "events" => [event],
+      "evictions" => [build_eviction(%{"tenant_id" => account.name})],
+      "storage_snapshots" => [build_snapshot(%{"tenant_id" => account.name})]
+    }
+
+    stub(IngestRepo, :insert_all, fn
+      StorageSnapshot, _rows, _opts -> raise DBConnection.ConnectionError, "unavailable"
+      schema, rows, opts -> Mimic.call_original(IngestRepo, :insert_all, [schema, rows, opts])
+    end)
+
+    failed =
+      conn
+      |> put_req_header("authorization", authorization_header(client.id, client.secret))
+      |> post("/_internal/kura/usage", payload)
+
+    assert %{"error" => "ingestion_unavailable"} = json_response(failed, 503)
+    assert get_resp_header(failed, "retry-after") == ["1"]
+    assert [_] = ClickHouseRepo.all(UsageEvent)
+    assert [_] = ClickHouseRepo.all(EvictionEvent)
+    assert ClickHouseRepo.all(StorageSnapshot) == []
+
+    stub(IngestRepo, :insert_all, fn schema, rows, opts ->
+      Mimic.call_original(IngestRepo, :insert_all, [schema, rows, opts])
+    end)
+
+    recovered =
+      conn
+      |> put_req_header("authorization", authorization_header(client.id, client.secret))
+      |> post("/_internal/kura/usage", payload)
+
+    assert %{"accepted" => 1} = json_response(recovered, 202)
+    assert Usage.recent_request_counts_by_account([account.id]) == %{account.id => 2}
+    assert [_] = ClickHouseRepo.all(StorageSnapshot)
   end
 
   test "storage telemetry from a self-hosted credential is discarded, not persisted", %{conn: conn} do

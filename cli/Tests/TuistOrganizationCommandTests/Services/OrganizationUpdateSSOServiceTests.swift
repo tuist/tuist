@@ -11,6 +11,7 @@ struct OrganizationUpdateSSOServiceTests {
     private let updateOrganizationService: MockUpdateOrganizationServicing
     private let subject: OrganizationUpdateSSOService
     private let configLoader: MockConfigLoading
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let serverURL: URL
 
     init() {
@@ -18,9 +19,11 @@ struct OrganizationUpdateSSOServiceTests {
         configLoader = MockConfigLoading()
         serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
+        given(serverEnvironmentService).url(configServerURL: .value(serverURL)).willReturn(serverURL)
 
         subject = OrganizationUpdateSSOService(
             updateOrganizationService: updateOrganizationService,
+            serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
     }

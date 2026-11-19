@@ -14,6 +14,8 @@ defmodule Atlas.Users.User do
     field :email, :string
     field :name, :string
     field :description, :string, default: "", redact: true
+    field :business_profile, :map, default: %{}
+    field :coding_preferences, :map, default: %{}, redact: true
 
     field :time_off_location_id, Atlas.UUIDv7, read_after_writes: true
     belongs_to :time_off_location, Location, define_field: false

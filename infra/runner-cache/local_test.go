@@ -163,6 +163,110 @@ func TestColdHostStartsEmptyAndRestartDoesNotReformat(t *testing.T) {
 		t.Fatal("retry lost writes", r.downloads)
 	}
 }
+func TestColdStartRecordsWhyTheHostHadNoCopy(t *testing.T) {
+	coldReason := func(t *testing.T, b *LocalImages, slot Slot) string {
+		t.Helper()
+		store, err := Open(b.Root, b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		if warm, err := store.Acquire(context.Background(), slot.Identity, "job", slot.PodUID); err != nil || warm {
+			t.Fatal("expected an empty start", warm, err)
+		}
+		slots, err := store.Snapshot()
+		if err != nil || len(slots) != 1 {
+			t.Fatal(slots, err)
+		}
+		return slots[0].ColdReason
+	}
+	next := func(id string, generation int64) Slot {
+		slot := warmSlot(id, "pod-"+id)
+		slot.Scope = strings.Repeat("a", 64)
+		slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = head(generation).BaseGeneration, head(generation).ImageDigest, head(generation).ContentDigest
+		return slot
+	}
+
+	t.Run("never held", func(t *testing.T) {
+		b, _ := newLocal(t)
+		if reason := coldReason(t, b, next(first, 2)); reason != ColdNotOnHost {
+			t.Fatalf("cold reason = %q", reason)
+		}
+	})
+
+	t.Run("evicted", func(t *testing.T) {
+		b, _ := newLocal(t)
+		installMaster(t, b, second, strings.Repeat("a", 64), 1, time.Now().Add(-8*24*time.Hour))
+		if err := b.Maintain(); err != nil {
+			t.Fatal(err)
+		}
+		if reason := coldReason(t, b, next(first, 2)); reason != ColdEvicted+EvictExpired {
+			t.Fatalf("cold reason = %q", reason)
+		}
+	})
+
+	t.Run("evicted, then held again", func(t *testing.T) {
+		b, _ := newLocal(t)
+		installMaster(t, b, second, strings.Repeat("a", 64), 1, time.Now().Add(-8*24*time.Hour))
+		if err := b.Maintain(); err != nil {
+			t.Fatal(err)
+		}
+		installMaster(t, b, third, strings.Repeat("a", 64), 2, time.Now())
+		slot := next(first, 2)
+		if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil || b.Cold(slot) || b.ColdReason(slot) != "" {
+			t.Fatal("a warm attach reported a cold reason", err, b.ColdReason(slot))
+		}
+	})
+
+	t.Run("downloading", func(t *testing.T) {
+		b, _ := newLocal(t)
+		remote := &headTransfer{heads: map[string]Identity{}, errs: map[string]error{}, started: make(chan struct{}), release: make(chan struct{})}
+		b.Transfer = remote
+		slot := next(first, 2)
+		prefetched := make(chan error, 1)
+		go func() { prefetched <- b.Prefetch(context.Background(), slot) }()
+		<-remote.started
+		reason := coldReason(t, b, slot)
+		close(remote.release)
+		<-prefetched
+		if reason != ColdDownloading {
+			t.Fatalf("cold reason = %q", reason)
+		}
+	})
+}
+
+func TestSealTrimsABranchAfterItsWriteBackCheck(t *testing.T) {
+	var events []string
+	b, _ := newLocal(t)
+	b.Trim = func(string) error { events = append(events, "trim"); return nil }
+	b.Check = func(string, string) error { events = append(events, "check"); return nil }
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	// The check's syncfs must see any write-back error before anything else syncs.
+	if strings.Join(events, ",") != "check,trim" {
+		t.Fatal("trim must follow the write-back check on the mounted branch:", events)
+	}
+
+	b, remote := newLocal(t)
+	b.Trim = func(string) error { return errors.New("not supported") }
+	failed := Slot{Identity: identity(second), PodUID: "q"}
+	failedPath := t.TempDir()
+	if err := b.Attach(context.Background(), failed, failedPath); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, failedPath)
+	if err := b.Seal(failed, failedPath); err != nil || remote.uploads != 1 {
+		t.Fatal("a failed trim stopped publication", err, remote.uploads)
+	}
+}
+
 func TestRejectsFilesystemWithoutReflinksAndLowSpace(t *testing.T) {
 	b, _ := newLocal(t)
 	b.Run = func(context.Context, string, ...string) ([]byte, error) { return nil, errors.New("unsupported") }
@@ -514,5 +618,60 @@ func TestPrefetchOnlyInstallsMasterAndNextJobReusesIt(t *testing.T) {
 	}
 	if remote.downloads != 1 {
 		t.Fatal("redownloaded existing master")
+	}
+}
+
+// A speculative prefetch only uses free space above the reserve and a checkout
+// volume's capacity, never evicts a resident master, and marks a lineage no job used here as speculative until a
+// job clones it.
+func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
+	b, remote := newLocal(t)
+	remote.source = filepath.Join(t.TempDir(), "published")
+	if err := os.WriteFile(remote.source, []byte("saved contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	resident := Slot{Identity: identity(first)}
+	resident.Scope = strings.Repeat("d", 64)
+	resident.BaseGeneration = 1
+	resident.ImageDigest = strings.Repeat("c", 40)
+	resident.ContentDigest = strings.Repeat("b", 64)
+	master := b.master(resident)
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("resident"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	wanted := Slot{Identity: identity(first), PodName: "job", PodUID: "pod"}
+	wanted.BaseGeneration = 1
+	wanted.ImageDigest = strings.Repeat("c", 40)
+	wanted.ContentDigest = strings.Repeat("b", 64)
+	wanted.HeadSizeBytes = 1_000
+	// The restore needs twice the head, 2,000 bytes, on top of a checkout
+	// volume's capacity, which is more than the 10-byte reserve.
+	var free uint64
+	b.FreeBytes = func(string) (uint64, error) { return free, nil }
+
+	for _, refused := range []uint64{10 + 2_000, CheckoutCapacity + 1_999} {
+		free = refused
+		if err := b.PrefetchSpare(context.Background(), wanted); !errors.Is(err, ErrCapacity) {
+			t.Fatal("speculative prefetch without room for the restore above a checkout's capacity", free, err)
+		}
+	}
+	if !b.HasMaster(resident.Identity) || remote.downloads != 0 {
+		t.Fatal("speculative prefetch evicted a resident master or downloaded")
+	}
+	free = CheckoutCapacity + 2_000
+	if err := b.PrefetchSpare(context.Background(), wanted); err != nil {
+		t.Fatal(err)
+	}
+	if !b.HasMaster(wanted.Identity) || !b.HasMaster(resident.Identity) || !speculative(b.master(wanted)) {
+		t.Fatal("speculative prefetch did not install a speculative master beside the resident one")
+	}
+	if err := b.Attach(context.Background(), wanted, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if speculative(b.master(wanted)) || remote.downloads != 1 {
+		t.Fatal("a job's clone left the master speculative or downloaded again", remote.downloads)
 	}
 }

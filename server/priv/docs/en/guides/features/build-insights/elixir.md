@@ -9,7 +9,9 @@
 
 Tuist's Hex package can send build analytics to Tuist. Build times, the dependency graph between your files, and how both evolve over time give you what you need to optimize your build graph and make the most of all the cores available in the environment where the compilation takes place.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your builds {#report-your-builds}
@@ -30,7 +32,7 @@ Identifiers must be 1–128 bytes of non-space printable ASCII. Invalid override
 
 ## Credential-free reporting on a private network {#network-trusted-publishing}
 
-After an operator configures `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>, configure your destination. The SDK automatically discovers whether the instance permits credential-free reporting when credentials are absent. The instance setting covers every supported project and has no dashboard toggle:
+After an operator configures `TUIST_NETWORK_TRUSTED_INSIGHTS_ACCESS=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-access">self-hosting guide</.localized_link>, configure your destination. The SDK automatically discovers whether the instance permits credential-free reporting when credentials are absent. The instance setting covers every supported project and has no dashboard toggle:
 
 ```elixir
 tuist: [

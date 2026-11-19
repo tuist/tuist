@@ -9,6 +9,7 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   def plural(:once, "action"), do: dgettext("dashboard_builds", "Actions")
   def plural(:mix, "file"), do: dgettext("dashboard_builds", "Files")
   def plural(:mix, "module"), do: dgettext("dashboard_builds", "Modules")
+  def plural(:cargo, "crate"), do: dgettext("dashboard_builds", "Crates")
 
   def singular(:gradle, "task"), do: dgettext("dashboard_builds", "Task")
   def singular(:xcode, "module"), do: dgettext("dashboard_builds", "Module")
@@ -16,15 +17,18 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   def singular(:once, "action"), do: dgettext("dashboard_builds", "Action")
   def singular(:mix, "file"), do: dgettext("dashboard_builds", "File")
   def singular(:mix, "module"), do: dgettext("dashboard_builds", "Module")
+  def singular(:cargo, "crate"), do: dgettext("dashboard_builds", "Crate")
 
   def search_placeholder(_system, "task"), do: dgettext("dashboard_builds", "Search tasks...")
   def search_placeholder(_system, "action"), do: dgettext("dashboard_builds", "Search actions...")
   def search_placeholder(_system, "file"), do: dgettext("dashboard_builds", "Search files...")
   def search_placeholder(_system, "module"), do: dgettext("dashboard_builds", "Search modules...")
+  def search_placeholder(_system, "crate"), do: dgettext("dashboard_builds", "Search crates...")
 
   def inventory_fields(:gradle, "task"), do: ~w(root_project_name build_path task_type)
   def inventory_fields(:bazel, "action"), do: ~w(target_label mnemonic)
   def inventory_fields(:once, "action"), do: ~w(target_id)
+  def inventory_fields(:cargo, "crate"), do: ~w(kind)
   def inventory_fields(_system, _kind), do: []
 
   def identity_value(%{"build_path" => ":"}, "build_path"), do: dgettext("dashboard_builds", "Root build")
@@ -52,18 +56,25 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   defp primary_field(:xcode, "module"), do: "target"
   defp primary_field(:mix, "file"), do: "path"
   defp primary_field(:mix, "module"), do: "module"
+  defp primary_field(:cargo, "crate"), do: "source"
   defp primary_field(_system, _kind), do: nil
 
   def history(:xcode, "module"), do: dgettext("dashboard_builds", "Builds")
   def history(:mix, _kind), do: dgettext("dashboard_builds", "Compilations")
+  def history(:cargo, "crate"), do: dgettext("dashboard_builds", "Compilations")
   def history(_system, _kind), do: dgettext("dashboard_builds", "Executions")
 
   def empty_history(:xcode, "module"), do: dgettext("dashboard_builds", "No builds in this period")
+
   def empty_history(:mix, _kind), do: dgettext("dashboard_builds", "No compilations in this period")
+
+  def empty_history(:cargo, "crate"), do: dgettext("dashboard_builds", "No compilations in this period")
+
   def empty_history(_system, _kind), do: dgettext("dashboard_builds", "No executions in this period")
 
   def recent(:xcode, "module"), do: dgettext("dashboard_builds", "Recent builds")
   def recent(:mix, _kind), do: dgettext("dashboard_builds", "Recent compilations")
+  def recent(:cargo, "crate"), do: dgettext("dashboard_builds", "Recent compilations")
   def recent(_system, _kind), do: dgettext("dashboard_builds", "Recent executions")
 
   def durations?(:mix, "module"), do: false
@@ -72,7 +83,7 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   def visible_identity(:once, "action", identity), do: Map.drop(identity, ~w(capability action_index))
   def visible_identity(_system, _kind, identity), do: identity
 
-  def type_field?(field), do: field in ~w(task_type mnemonic)
+  def type_field?(field), do: field in ~w(task_type mnemonic kind)
 
   def parent(:gradle, _kind), do: dgettext("dashboard_builds", "Project")
   def parent(:bazel, _kind), do: dgettext("dashboard_builds", "Command")
@@ -83,6 +94,7 @@ defmodule TuistWeb.Helpers.BuildEntityLabels do
   def duration(:xcode, "module"), do: dgettext("dashboard_builds", "Module build duration")
   def duration(:mix, "module"), do: dgettext("dashboard_builds", "File compilation duration")
   def duration(:mix, "file"), do: dgettext("dashboard_builds", "Compilation duration")
+  def duration(:cargo, "crate"), do: dgettext("dashboard_builds", "Compilation duration")
   def duration(_system, _kind), do: dgettext("dashboard_builds", "Duration")
 
   def environment("ci"), do: dgettext("dashboard_builds", "CI")

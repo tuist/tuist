@@ -1,0 +1,107 @@
+# Explicit managed environment.
+environment: staging
+# cluster: frontends, metasrv on etcd, datanodes on a replicated Kafka WAL. Every
+# workload cluster (staging, canary, production) runs it.
+# standalone: one StatefulSet with a local raft-engine WAL. Only management,
+# which has no volume provisioner, runs it.
+topology: cluster
+# Staging/canary only: moves an installed standalone backend to the cluster
+# topology without dropping reads or writes. pulse-deployment.yml sets it.
+#   serving: the cluster runs beside the standalone pod, which still backs
+#     Service `pulse`; Service `pulse-frontend` reaches the cluster for checks.
+#   draining: Service `pulse` selects the frontends; standalone stays for rollback.
+#   "": standalone is removed; its volume claim is retained.
+migration:
+  standalone: ""
+dashboard:
+  enabled: false
+# Environments whose Pulse has the write-only `sentry` user, from
+# PULSE_SENTRY_WRITER/password, for the tuist chart's sentryPulse copies (needs
+# dashboard.enabled). Add an environment only once that item exists in its
+# vault: a missing item fails pulse-dashboard-auth and stops the deploy. Pulse
+# loads users at startup, so a deploy (which restarts the frontends) or a
+# frontend restart is needed after the item is created or rotated. Keep the
+# password to letters and digits: it is placed in DSNs unescaped and the user
+# file splits on `=`.
+sentryWriter:
+  environments: [staging, canary, production]
+# Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md). Deploys use
+# the newest canary in the commit; this pin covers commits without one.
+image: ghcr.io/tuist/pulse:1.44.0-canary.4
+storage:
+  bucket: tuist-pulso-staging
+  endpoint: https://t3.storage.dev
+  region: auto
+  prefix: pulse/
+persistence:
+  storageClass: hcloud-volumes
+  size: 10Gi
+# Standalone pod.
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+# Distributed topology. Quorum members (etcd, Kafka, metasrv) are fixed at three
+# and every component is spread one replica per node. The cluster writes under
+# <storage.prefix>distributed/, so it never shares objects with a standalone
+# backend that used the same bucket. These requests size staging and canary,
+# whose whole standalone backend used about 600 MiB and 0.05 CPU;
+# values-production.yaml sizes production.
+cluster:
+  # Environments whose metasrv and datanodes run object-storage GC. Splitting a
+  # table (ALTER TABLE ... PARTITION ON) requires GC, and after the first split
+  # metasrv refuses to start with GC off, so never remove an environment once
+  # it has split a table. Until metasrv and datanodes run the same setting,
+  # datanode heartbeats fail and writes are rejected, so the deploy switches it
+  # with a coordinated stop (.github/scripts/pulse-gc-flip.sh).
+  gc:
+    environments: [staging, canary, production]
+  frontend:
+    replicas: 2
+    # Set only by pulse-gc-flip.sh's deploy: runs no frontends, so writers
+    # queue and retry while metasrv and datanodes switch GC.
+    stopped: false
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {memory: 1Gi}
+  metasrv:
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}
+  datanode:
+    replicas: 3
+    # Environments whose datanodes restart one at a time with their regions
+    # moved away first (.github/scripts/pulse-datanode-rollout.sh), so reads
+    # and writes do not fail while a datanode is down. Elsewhere the
+    # StatefulSet rolls itself and each restart waits for region failover.
+    drainedRolloutEnvironments: [staging, canary, production]
+    # Local data is a rebuildable cache: acknowledged writes live in the Kafka
+    # WAL until flushed to object storage, so a datanode may start empty.
+    cacheSize: 10Gi
+    writeCacheSize: 1GB
+    # Memtables of every region on the datanode share this buffer; when it
+    # fills, the largest region flushes. Each flush is a new SST file, and a
+    # scan reserves a row group per overlapping file (see values-production.yaml).
+    writeBufferSize: 128MB
+    writeBufferRejectSize: 256MB
+    resources:
+      requests: {cpu: 250m, memory: 768Mi}
+      limits: {memory: 2Gi}
+  etcd:
+    image: quay.io/coreos/etcd:v3.6.16@sha256:a9c7cc12156f4b26ca41f0b57ba5b76c45037ff6c1e47ea3d68cb7908d48a965
+    storageSize: 10Gi
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}
+  kafka:
+    image: docker.io/apache/kafka:4.3.2@sha256:852a0d49fc4e656b022e7f23785411802c9a088c78a7c5e39f33969de9c227a7
+    # KRaft cluster ID, fixed at first format. Never change it on a live cluster.
+    clusterId: BU3lmXwlRG6RgWY0S-ihGg
+    heap: 512m
+    # Hetzner's smallest volume.
+    storageSize: 10Gi
+    resources:
+      requests: {cpu: 250m, memory: 768Mi}
+      limits: {memory: 1536Mi}

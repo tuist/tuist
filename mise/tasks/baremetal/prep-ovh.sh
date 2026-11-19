@@ -24,6 +24,11 @@
 # box can be prepped with no cluster access. Falls back to the in-cluster
 # <fleet>-ssh Secret for fleets still on controller-minted keys. OVH_ENDPOINT
 # selects the entity (default ovh-us).
+#
+# This task is for people. The CAPI operator also preps a box renamed
+# prep-<adoptDisplayNamePrefix> (controllers/linux/ovh_pool_prep.go), which is
+# how agents prep: one approved rename through Atlas (infra/AGENTS.md, "From an
+# Amp orb"), so the OVH_API token never reaches them.
 
 set -euo pipefail
 

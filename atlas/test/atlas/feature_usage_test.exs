@@ -8,6 +8,7 @@ defmodule Atlas.FeatureUsageTest do
   alias Atlas.FeatureUsage
   alias Atlas.FeatureUsage.Catalog
   alias Atlas.FeatureUsage.Collector
+  alias Atlas.FeatureUsage.Snapshot
   alias Atlas.Repo
 
   setup :verify_on_exit!
@@ -220,6 +221,20 @@ defmodule Atlas.FeatureUsageTest do
       only_cache = FeatureUsage.list_recent_stops(feature: "cache")
       assert Enum.map(only_cache, & &1.feature) == ["cache"]
       assert hd(only_cache).account.id == account.id
+    end
+
+    test "list_recent_stops leaves out features removed from the catalog" do
+      account = account_with_handle!()
+
+      Repo.insert!(%Snapshot{
+        account_id: account.id,
+        feature: "retired_feature",
+        active: false,
+        active_previous: true,
+        computed_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      refute Enum.any?(FeatureUsage.list_recent_stops(), &(&1.feature == "retired_feature"))
     end
 
     test "list_tracked_account_ids returns accounts with a Tuist handle" do

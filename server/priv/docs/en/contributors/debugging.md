@@ -9,7 +9,7 @@
 
 Being open is a practical advantage: the code is available, you can run it locally, and you can use coding agents to answer questions faster and debug potential bugs in the codebase.
 
-If you find missing or incomplete documentation while debugging, update the English docs under `docs/` and open a PR.
+If you find missing or incomplete documentation while debugging, update the English docs under `server/priv/docs/en` and open a PR.
 
 ## Capture thread dumps on CI {#thread-dump-ci}
 

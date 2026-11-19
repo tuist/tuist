@@ -76,7 +76,10 @@ jobs:
           {
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
-            echo "${IMAGE}:latest"
+            # Branch dispatches are staging candidates, not the default image.
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "${IMAGE}:latest"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6

@@ -8,10 +8,13 @@ source="${directory}/runner-macos-host-alert-rules.json"
 
 jq -e 'all(.[];
   .condition == "C" and .labels.severity == "warning" and
-  .noDataState == "OK" and .execErrState == "Error" and
+  .noDataState == "OK" and .execErrState == "KeepLast" and
   (.data[] | select(.refId == "C") | .model |
     .expression == "A" and .type == "threshold" and
     .conditions[0].evaluator == {params: [0], type: "gt"}))' "${source}" >/dev/null
+# test-pulse-environment-copies.sh keeps the other copies in step with these.
+jq 'map(select(.data[0].datasourceUid == "cg3i1jh2k1v5sb"))' "${source}" > "${temporary}/production.json"
+source="${temporary}/production.json"
 jq '{groups: [{name: "Runner host health", interval: "1m", rules: map({
   alert: .uid, expr: ("(" + (.data[] | select(.refId == "A") | .model.expr) + ") > 0"),
   for: .for, labels: .labels

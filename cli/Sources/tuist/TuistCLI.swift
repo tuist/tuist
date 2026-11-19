@@ -2,6 +2,7 @@ import Foundation
 import Path
 import SwifterPMCore
 import TuistAlert
+import TuistCargoCommand
 import TuistConstants
 import TuistSupport
 
@@ -9,6 +10,11 @@ import TuistSupport
 @_documentation(visibility: private)
 private enum TuistCLI {
     static func main() async throws {
+        if let arguments = CargoCommand.delegatedArguments(in: CommandLine.arguments),
+           ["__compiler", "__native", "__script"].contains(arguments.first ?? "")
+        {
+            exit(await CargoCommand.runHook(arguments))
+        }
         try await SwifterPM.withWarningHandler({ AlertController.current.warning(.alert("\($0)")) }) {
             let statusReporter = ProgramStatusReporter()
             try await ProgramStatusReporter.$current.withValue(statusReporter) {

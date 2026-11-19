@@ -1,24 +1,30 @@
 defmodule Tuist.Runners.JobReportToken do
-  @moduledoc "Job-scoped reporting credentials for GitLab, with compatibility for existing Buildkite agents."
+  @moduledoc "Job-scoped reporting credentials for GitLab and API jobs, with compatibility for existing Buildkite agents."
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.GitLab.Cache
   alias Tuist.Runners.GitLab.Job
 
   @salt "runner_gitlab_report"
+  @api_salt "runner_api_report"
   @max_age 12 * 60 * 60
 
   def mint(job, payload \\ nil)
 
   def mint(%Job{workflow_job_id: id, account_id: account_id, url: url}, payload) do
     claims = Map.merge(%{workflow_job_id: id, account_id: account_id}, cache_scope(url, payload))
-    Phoenix.Token.sign(TuistWeb.Endpoint, @salt, claims)
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @salt, claims)
+  end
+
+  def mint(%APIJobs.Job{workflow_job_id: id, account_id: account_id}, _payload) do
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @api_salt, %{workflow_job_id: id, account_id: account_id})
   end
 
   def verify(token) when is_binary(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @salt, token, max_age: @max_age) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @salt, token, max_age: @max_age) do
       {:ok, %{workflow_job_id: id, account_id: account_id} = identity} ->
         if Repo.exists?(from(j in Job, where: j.workflow_job_id == ^id and j.account_id == ^account_id)),
           do: {:ok, Map.put(identity, :provider, :gitlab)},
@@ -28,11 +34,26 @@ defmodule Tuist.Runners.JobReportToken do
         {:error, :expired}
 
       _ ->
-        ReportToken.verify(token)
+        verify_api(token)
     end
   end
 
   def verify(_), do: {:error, :invalid}
+
+  defp verify_api(token) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @api_salt, token, max_age: @max_age) do
+      {:ok, %{workflow_job_id: id, account_id: account_id} = identity} ->
+        if Repo.exists?(from(j in APIJobs.Job, where: j.workflow_job_id == ^id and j.account_id == ^account_id)),
+          do: {:ok, Map.put(identity, :provider, :api)},
+          else: {:error, :invalid}
+
+      {:error, :expired} ->
+        {:error, :expired}
+
+      _ ->
+        ReportToken.verify(token)
+    end
+  end
 
   # The instance comes from the connection the job was acquired through. The
   # coordinator sets the project and ref protection in the job response, where

@@ -4,7 +4,11 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
 
   alias Tuist.MCP.Components.Tools.GetCoverage
   alias Tuist.MCP.Components.Tools.GetCoverageFile
+  alias Tuist.MCP.Components.Tools.ListCoverageBranches
+  alias Tuist.MCP.Components.Tools.ListCoverageCommits
   alias Tuist.MCP.Components.Tools.ListCoverageFiles
+  alias Tuist.MCP.Components.Tools.ListCoverageRuns
+  alias Tuist.MCP.Components.Tools.ListCoverageTargets
   alias Tuist.Tests.Coverage.Commits
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -44,6 +48,11 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
 
   defp structured(%{"structuredContent" => content}), do: content
 
+  defp unsupported_handles(conn, handles) do
+    project = ProjectsFixtures.project_fixture(account_id: conn.assigns.current_subject.account.id, build_system: :bazel)
+    Map.put(handles, "project_handle", project.name)
+  end
+
   describe "get_coverage" do
     test "reads the default branch's latest complete commit", %{conn: conn, handles: handles} do
       assert %{"branch" => "main", "git_commit_sha" => "a", "complete" => true, "coverage" => 66.7} =
@@ -68,17 +77,15 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
                GetCoverage.call(conn, Map.put(handles, "git_commit_sha", "c"))
     end
 
-    test "is not available while the account does not have code coverage", %{conn: conn, handles: handles} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
-
+    test "is not available for a project whose build system has no coverage", %{conn: conn, handles: handles} do
       assert %{
                "isError" => true,
-               "content" => [%{"text" => "Code coverage is in early access and is not enabled for this account."}]
-             } = GetCoverage.call(conn, handles)
+               "content" => [%{"text" => "Code coverage isn't available for this project's build system."}]
+             } = GetCoverage.call(conn, unsupported_handles(conn, handles))
     end
 
-    test "refuses someone without access to the project before saying anything else", %{handles: handles} do
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+    test "refuses someone without access to the project before saying anything else", %{conn: conn, handles: handles} do
+      handles = unsupported_handles(conn, handles)
       other = AccountsFixtures.user_fixture(preload: [:account])
       conn = %Plug.Conn{assigns: %{current_subject: other}}
 
@@ -128,6 +135,51 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
                "content" => [%{"text" => "No coverage of Sources/Missing.swift is kept for commit a." <> _}]
              } =
                GetCoverageFile.call(conn, Map.put(handles, "path", "Sources/Missing.swift"))
+    end
+  end
+
+  describe "coverage history" do
+    test "list_coverage_branches lists the default branch first", %{conn: conn, handles: handles} do
+      assert %{"default_branch" => "main", "branches" => ["main"]} =
+               conn |> ListCoverageBranches.call(handles) |> structured()
+    end
+
+    test "list_coverage_commits pages a branch's commits by cursor", %{conn: conn, handles: handles} do
+      first = conn |> ListCoverageCommits.call(Map.put(handles, "page_size", 1)) |> structured()
+
+      assert %{
+               "branch" => "main",
+               "commits" => [%{"git_commit_sha" => "b", "status" => "in_progress"}],
+               "pagination" => %{"has_next_page" => true}
+             } = first
+
+      assert %{"commits" => [%{"git_commit_sha" => "a", "status" => "complete"}]} =
+               conn
+               |> ListCoverageCommits.call(
+                 Map.merge(handles, %{"page_size" => 1, "after" => first["pagination"]["end_cursor"]})
+               )
+               |> structured()
+
+      assert %{"commits" => [%{"git_commit_sha" => "a"}]} =
+               conn |> ListCoverageCommits.call(Map.put(handles, "status", "complete")) |> structured()
+    end
+
+    test "list_coverage_runs lists a commit's runs", %{conn: conn, handles: handles} do
+      assert %{"runs" => [%{"git_commit_sha" => "a", "scheme" => "App", "status" => "full"}]} =
+               conn |> ListCoverageRuns.call(Map.put(handles, "git_commit_sha", "a")) |> structured()
+    end
+
+    test "list_coverage_targets lists a branch's latest complete commit's targets", %{conn: conn, handles: handles} do
+      assert %{"git_commit_sha" => "a", "targets" => [%{"name" => "App"}, %{"name" => "Feature"}]} =
+               conn |> ListCoverageTargets.call(handles) |> structured()
+    end
+
+    test "are not available for a project whose build system has no coverage", %{conn: conn, handles: handles} do
+      handles = unsupported_handles(conn, handles)
+
+      for tool <- [ListCoverageBranches, ListCoverageCommits, ListCoverageRuns, ListCoverageTargets] do
+        assert %{"isError" => true} = tool.call(conn, handles)
+      end
     end
   end
 end

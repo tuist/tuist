@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - .github/actions/install/**
+      - .github/actions/cache-volume/attach.sh
       - .github/workflows/install-action.yml
       - ci/cache-volume/publish.sh
       - mise/tasks/release/check.sh
@@ -31,16 +32,16 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         hit: ['true', 'false']
-        backend: [volume, github]
+        backend: [volume, github, external]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     env:
       TEST_CACHE_KEY: install-action-test-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.backend }}-${{ matrix.hit }}
       EXPECTED_BACKEND: ${{ matrix.backend }}
-      EXPECTED_MATERIALIZATION: ${{ matrix.backend == 'volume' && 'symlink' || 'copy' }}
+      EXPECTED_MATERIALIZATION: ${{ matrix.backend == 'github' && 'copy' || 'symlink' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
       - run: node --test .github/actions/install/action.test.mjs
@@ -94,7 +95,7 @@ jobs:
           bash .github/actions/install/prepare.sh
           mkdir -p install-fixture/Tuist/.build
           echo restored > install-fixture/Tuist/.build/archive-marker
-      - uses: actions/cache/save@v4
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: matrix.backend == 'github' && matrix.hit == 'true'
         with:
           path: ${{ steps.archive-plan.outputs.archive-path }}
@@ -102,6 +103,11 @@ jobs:
       - name: Remove the seeded fixture before restoring it
         if: matrix.backend == 'github' && matrix.hit == 'true'
         run: rm -r install-fixture/Tuist/.build
+      - name: Seed a .build directory persisted by the runner
+        if: matrix.backend == 'external' && matrix.hit == 'true'
+        run: |
+          mkdir -p install-fixture/Tuist/.build
+          echo persisted > install-fixture/Tuist/.build/persisted-marker
       - uses: ./.github/actions/install
         id: install
         env:
@@ -109,13 +115,15 @@ jobs:
         with:
           path: install-fixture
           cache-key: ${{ env.TEST_CACHE_KEY }}
+          cache: ${{ matrix.backend == 'external' && 'external' || 'auto' }}
       - name: Verify composite outputs and unconditional installation
         shell: bash
         env:
           CACHE_HIT: ${{ steps.install.outputs.cache-hit }}
           CACHE_PATH: ${{ steps.install.outputs.cache-path }}
           CACHE_BACKEND: ${{ steps.install.outputs.cache-backend }}
-          EXPECTED_HIT: ${{ matrix.hit }}
+          EXPECTED_HIT: ${{ matrix.backend != 'external' && matrix.hit || 'false' }}
+          SEEDED: ${{ matrix.hit }}
         run: |
           test "$CACHE_HIT" = "$EXPECTED_HIT"
           test "$CACHE_BACKEND" = "$EXPECTED_BACKEND"
@@ -124,8 +132,11 @@ jobs:
           if [[ "$EXPECTED_BACKEND" == github && "$EXPECTED_HIT" == true ]]; then
             test "$(cat install-fixture/Tuist/.build/archive-marker)" = restored
           fi
+          if [[ "$EXPECTED_BACKEND" == external && "$SEEDED" == true ]]; then
+            test "$(cat install-fixture/Tuist/.build/persisted-marker)" = persisted
+          fi
       - run: bash .github/actions/install/scripts/package.sh "$RUNNER_TEMP/install-action"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: install-action-${{ matrix.os }}-${{ matrix.backend }}-${{ matrix.hit }}
           path: ${{ runner.temp }}/install-action/
@@ -139,7 +150,7 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -161,7 +172,7 @@ jobs:
         run: |
           test -n "$GH_TOKEN"
           gh api repos/tuist/install --jq '.permissions.push' | grep -qx true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.check.outputs.install-action-should-release == 'true'
         with:
           repository: tuist/install
@@ -183,7 +194,7 @@ jobs:
         run: bash ci/cache-volume/publish.sh "$RUNNER_TEMP/install-action" distribution "$VERSION" "$SOURCE_COMMIT"
       - name: Record release in the monorepo
         if: steps.check.outputs.install-action-should-release == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           token: ${{ github.token }}
           target_commitish: ${{ steps.prepare.outputs.source-commit }}

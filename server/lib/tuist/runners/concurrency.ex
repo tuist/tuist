@@ -17,14 +17,26 @@ defmodule Tuist.Runners.Concurrency do
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.ConcurrencyHistory
   alias Tuist.Runners.ConcurrencyLimit
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
 
   @platforms [:linux, :macos]
-  @default_limits %{
+  # Paid plans start at two baseline macOS guests and 32 Linux vCPUs, and
+  # `ConcurrencySizing` grows them from there. Air never grows, so it starts
+  # at what one job of the largest Linux shape and one baseline macOS guest
+  # need. The database trigger `create_default_runner_concurrency_limits`
+  # inserts the Air values for every new account and must change with them.
+  @paid_limits %{
     linux: %{vcpus: 32, memory_gb: 64},
-    macos: %{vcpus: 12, memory_gb: 28}
+    macos: %{vcpus: 16, memory_gb: 48}
   }
+  @air_limits %{
+    linux: %{vcpus: 16, memory_gb: 64},
+    macos: %{vcpus: 8, memory_gb: 24}
+  }
+  @paid_plans [:pro, :enterprise]
   @limit_form_fields [
     :runner_linux_vcpus_limit,
     :runner_linux_memory_gb_limit,
@@ -32,6 +44,13 @@ defmodule Tuist.Runners.Concurrency do
     :runner_macos_memory_gb_limit
   ]
   @limit_form_types Map.new(@limit_form_fields, &{&1, :integer})
+
+  @doc """
+  The limits an account on `plan` starts with, per platform. New accounts
+  have no subscription and start on Air's.
+  """
+  def default_limits(plan) when plan in @paid_plans, do: @paid_limits
+  def default_limits(_plan), do: @air_limits
 
   @doc """
   Returns platform summaries with current claimed resources and limits.
@@ -102,12 +121,23 @@ defmodule Tuist.Runners.Concurrency do
 
     peaks = bucket_peaks(account_id, start_dt, end_dt, bucket)
 
+    history_start =
+      case bucket do
+        :hour -> floor_to_hour(start_dt)
+        :day -> DateTime.new!(DateTime.to_date(start_dt), ~T[00:00:00], "Etc/UTC")
+      end
+
+    history = ConcurrencyHistory.between(account_id, history_start, end_dt)
+
     %{
       dates: dates,
       linux: peak_usage(Map.get(peaks, :linux, %{}), dates, bucket),
-      macos: peak_usage(Map.get(peaks, :macos, %{}), dates, bucket)
+      macos: peak_usage(Map.get(peaks, :macos, %{}), dates, bucket),
+      limits: ConcurrencyHistory.series(history, dates)
     }
   end
+
+  def topic(account_id), do: "runner_concurrency:#{account_id}"
 
   @doc """
   Purely checks whether `requested` fits within `limit` after `used`.
@@ -254,6 +284,82 @@ defmodule Tuist.Runners.Concurrency do
     account_ids |> Enum.uniq() |> Map.new(&{&1, 0})
   end
 
+  @doc """
+  Whether the account's concurrency limit held a job of shape `requested`
+  back at any instant between `from` and `to`: the account's runner
+  sessions open at that instant, plus the job, exceed its limit for
+  `platform`.
+
+  The whole window counts, not only its ends. Under a sustained limit a
+  job can be enqueued while a slot is free and claimed just after one
+  frees, yet spend the wait in between behind its own account's runners;
+  GitHub hands each freed slot to any of the account's queued jobs, so
+  which one waits is not the fleet's doing.
+
+  Usage only rises when a session opens, so its peak over the window is
+  at `from` or at a session start inside it. Those instants are checked
+  against the sessions overlapping the window, read in one query.
+
+  Reads sessions rather than claims because it looks back, and a claim is
+  gone once released. A session opens with its claim's timestamp, so it
+  covers the same window admission counted, and a little after.
+
+  An account without a limit row, or a job without a shape, reads `false`:
+  neither is a limit the account chose.
+  """
+  def limit_held?(account_id, platform, %{vcpus: _, memory_gb: _} = requested, %DateTime{} = from, %DateTime{} = to)
+      when is_integer(account_id) and platform in @platforms do
+    with true <- valid_capacity?(requested),
+         {:ok, _current_limit} <- limit_for_platform(account_id, platform) do
+      sessions = sessions_overlapping(account_id, platform, from, to)
+      history = ConcurrencyHistory.between(account_id, from, to)
+
+      sessions
+      |> Enum.map(& &1.started_at)
+      |> Enum.concat(Enum.map(Enum.filter(history, &(&1.platform == platform)), & &1.recorded_at))
+      |> Enum.filter(&(DateTime.after?(&1, from) and not DateTime.after?(&1, to)))
+      |> then(&[from | &1])
+      |> Enum.any?(fn instant ->
+        case ConcurrencyHistory.at(history, platform, instant) do
+          nil -> false
+          limit -> not fits?(usage_at(sessions, instant), limit, requested)
+        end
+      end)
+    else
+      _ -> false
+    end
+  end
+
+  def limit_held?(_account_id, _platform, _requested, _from, _to), do: false
+
+  defp sessions_overlapping(account_id, platform, from, to) do
+    oldest_open = DateTime.add(from, -RunnerSessions.max_session_lifetime_seconds(), :second)
+
+    Repo.all(
+      from(session in RunnerSession,
+        where:
+          session.account_id == ^account_id and session.platform == ^platform and session.started_at <= ^to and
+            session.started_at > ^oldest_open and (is_nil(session.ended_at) or session.ended_at > ^from),
+        select: map(session, [:started_at, :ended_at, :vcpus, :memory_gb])
+      )
+    )
+  end
+
+  # The six-hour bound applies per instant, as it does to an open session
+  # whose close was never recorded.
+  defp usage_at(sessions, instant) do
+    oldest_open = DateTime.add(instant, -RunnerSessions.max_session_lifetime_seconds(), :second)
+
+    sessions
+    |> Enum.filter(fn session ->
+      not DateTime.after?(session.started_at, instant) and DateTime.after?(session.started_at, oldest_open) and
+        (is_nil(session.ended_at) or DateTime.after?(session.ended_at, instant))
+    end)
+    |> Enum.reduce(%{vcpus: 0, memory_gb: 0}, fn session, usage ->
+      %{vcpus: usage.vcpus + session.vcpus, memory_gb: usage.memory_gb + session.memory_gb}
+    end)
+  end
+
   defp limits_for_accounts([], _platform), do: %{}
 
   defp limits_for_accounts(account_ids, platform) do
@@ -295,7 +401,7 @@ defmodule Tuist.Runners.Concurrency do
   def create_default_limits(%Account{id: account_id}) do
     Enum.reduce_while(@platforms, {:ok, []}, fn platform, {:ok, limits} ->
       attrs =
-        @default_limits
+        @air_limits
         |> Map.fetch!(platform)
         |> Map.merge(%{account_id: account_id, platform: platform})
 
@@ -306,6 +412,61 @@ defmodule Tuist.Runners.Concurrency do
         {:error, changeset} -> {:halt, {:error, changeset}}
       end
     end)
+  end
+
+  @doc """
+  Raises `account`'s limits to at least `plan`'s defaults, recorded in the
+  limit history with source `plan`. Never lowers a limit: a downgrade keeps
+  what the account had, like every other grant (see `ConcurrencySizing`).
+  Idempotent, so subscription webhook redeliveries change nothing.
+  """
+  def raise_to_plan_defaults(%Account{id: account_id}, plan) do
+    now = DateTime.utc_now(:second)
+
+    {:ok, changed} =
+      Repo.transaction(fn ->
+        # Read by the history trigger, scoped to this transaction.
+        Repo.query!(
+          "SELECT set_config('tuist.runner_concurrency_source', 'plan', true), set_config('tuist.runner_concurrency_reason', $1, true)",
+          ["#{plan} plan defaults"]
+        )
+
+        plan
+        |> default_limits()
+        |> Enum.reduce(0, fn {platform, %{vcpus: vcpus, memory_gb: memory_gb}}, changed ->
+          {count, _} =
+            Repo.update_all(
+              from(limit in ConcurrencyLimit,
+                where:
+                  limit.account_id == ^account_id and limit.platform == ^platform and
+                    (limit.vcpus < ^vcpus or limit.memory_gb < ^memory_gb),
+                update: [
+                  set: [
+                    vcpus: fragment("GREATEST(?, ?)", limit.vcpus, ^vcpus),
+                    memory_gb: fragment("GREATEST(?, ?)", limit.memory_gb, ^memory_gb),
+                    updated_at: ^now
+                  ]
+                ]
+              ),
+              []
+            )
+
+          changed + count
+        end)
+        |> tap(fn _ ->
+          # `is_local` lasts until the outermost transaction ends, so clear it
+          # for any caller that wraps this in a larger one.
+          Repo.query!(
+            "SELECT set_config('tuist.runner_concurrency_source', '', true), set_config('tuist.runner_concurrency_reason', '', true)"
+          )
+        end)
+      end)
+
+    if changed > 0 do
+      Tuist.PubSub.broadcast(%{account_id: account_id}, topic(account_id), :runner_concurrency_limits_changed)
+    end
+
+    :ok
   end
 
   @doc """

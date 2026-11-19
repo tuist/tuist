@@ -1,0 +1,13 @@
+load("@rules_android//android:rules.bzl", "android_binary")
+load("@rules_tuist//:android.bzl", "android_preview")
+
+android_binary(
+    name = "app",
+    srcs = ["java/dev/tuist/preview/MainActivity.java"],
+    manifest = "AndroidManifest.xml",
+)
+
+android_preview(
+    name = "preview",
+    app = ":app",
+)

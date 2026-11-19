@@ -241,6 +241,39 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert has_element?(view, "#once-configuration-insights-type-dropdown")
   end
 
+  test "the build Status filter scopes the analytics and is offered on build pages only", %{
+    conn: conn,
+    path: path,
+    organization: organization,
+    project: project
+  } do
+    started_at = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+    {:ok, run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "build",
+        command_display: "once build broken",
+        started_at: started_at
+      })
+
+    {:ok, _} =
+      OnceEvents.finalize_run(run, %{finalization: "finalized", exit_status: 1, wall_ms: 9000, finalized_at: started_at})
+
+    opts = [commands: ["build"]]
+    assert Analytics.summary(project.id, Keyword.put(opts, :status, "success")).average_duration_ms == 2000.0
+    assert Analytics.summary(project.id, Keyword.put(opts, :status, "failure")).average_duration_ms == 9000.0
+    assert Analytics.summary(project.id, opts).total == 4
+
+    {:ok, view, _} = live(conn, path <> "?analytics-build-status=success")
+    render_async(view, 2_000)
+    assert has_element?(view, "#once-analytics-status-dropdown")
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs")
+    refute has_element?(view, "#once-analytics-status-dropdown")
+  end
+
   test "run broadcasts coalesce into one reload of the listing", %{
     conn: conn,
     organization: organization,

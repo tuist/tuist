@@ -1,0 +1,90 @@
+---
+{
+  "title": "用 iPhone App 執行預覽",
+  "titleTemplate": ":title · Previews · Tuist",
+  "description": "透過 Tuist iOS App 尋找、篩選並存取 Apple 預覽。"
+}
+---
+# 用 iPhone App 執行預覽
+
+安裝 [App Store 上嘅 Tuist iOS App](https://apps.apple.com/us/app/tuist/id6748460335)，以查找同存取你嘅 Apple 預覽。發佈流程嘅簽署同裝置資格要求仍然適用。
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
+    <img src="/images/guides/features/tuist-app.png" style="width: 220px; padding-top: 8px;" />
+    <a href="https://apps.apple.com/us/app/tuist/id6748460335" target="_blank" style="padding-top: 10px;">
+        <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="喺 App Store 下載" style="height: 40px;">
+    </a>
+</div>
+
+按應用程式名稱或版本說明搜尋，然後選擇軌道以篩選預覽。選擇 **全部** 以瀏覽所有軌道，包括沒有軌道嘅預覽。打開預覽以閱讀完整嘅版本說明。
+
+## 客戶端同伺服器兼容性 {#client-and-server-compatibility}
+
+保持 Tuist App 為最新版本。如果你自行託管 Tuist，請更新你嘅伺服器以使用軌道篩選同版本說明。你仍然可以喺舊版伺服器上瀏覽未經篩選嘅預覽。
+
+## App 內更新通知 {#in-app-update-notifications}
+
+[Tuist SDK](https://github.com/tuist/sdk) 令你嘅 Apple App 能夠偵測較新嘅預覽並通知測試人員。佢會檢查同一個 **預覽軌道** 內嘅更新。對於使用 `tuist share --track` 發佈嘅預覽，佢會使用該明確軌道。如果沒有明確軌道，則使用 git 分支，因此從 `main` 構建嘅預覽只會通知來自 `main` 嘅較新預覽。
+
+### 安裝 {#sdk-installation}
+
+將 Tuist SDK 添加為 Swift Package 依賴項：
+
+```swift
+.package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
+```
+
+### 監控更新 {#sdk-monitor-updates}
+
+使用 `monitorPreviewUpdates` 定期檢查新嘅預覽版本：
+
+```swift
+import TuistSDK
+
+struct MyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .task {
+                    TuistSDK(
+                        fullHandle: "myorg/myapp",
+                        apiKey: "your-api-key"
+                    )
+                    .monitorPreviewUpdates()
+                }
+        }
+    }
+}
+```
+
+### 單次更新檢查 {#sdk-single-check}
+
+用於手動檢查更新：
+
+```swift
+let sdk = TuistSDK(
+    fullHandle: "myorg/myapp",
+    apiKey: "your-api-key"
+)
+
+if let preview = try await sdk.checkForUpdate() {
+    print("New version available: \(preview.version ?? "unknown")")
+}
+```
+
+### 停止更新監控 {#sdk-stop-monitoring}
+
+`monitorPreviewUpdates` 返回一個可以取消嘅 `Task`：
+
+```swift
+let task = sdk.monitorPreviewUpdates { preview in
+    // Handle update
+}
+
+// Later, to stop monitoring:
+task.cancel()
+```
+
+> [!NOTE]
+> 更新檢查會喺模擬器同 App Store 構建中自動停用。

@@ -1,0 +1,4 @@
+*
+!Dockerfile
+!dispatch.sh
+!run-provider.sh

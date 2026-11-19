@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistCache
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
@@ -62,6 +63,45 @@ struct StaticXCFrameworkModuleMapGraphMapperPlatformConditionTests {
         // Then
         #expect(gotGraph == graph.withTargetSettings(["App": [:], "Consumer": [:]], at: fixture.projectPath))
         #expect(gotSideEffects.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func map_when_a_bundle_declares_mac_but_is_consumed_by_ios_tests() async throws {
+        let fixture = try await makeFixture()
+        let dynamicFramework: GraphDependency = .testXCFramework(
+            path: fixture.temporaryDirectory.appending(component: "Renderer.xcframework")
+        )
+        let graph: Graph = .test(
+            name: "App",
+            path: fixture.projectPath,
+            projects: [
+                fixture.projectPath: .test(
+                    path: fixture.projectPath,
+                    targets: [
+                        .test(name: "App", destinations: [.iPhone], product: .app),
+                        .test(name: "Helper", destinations: [.mac], product: .bundle),
+                        .test(name: "Tests", destinations: [.iPhone], product: .uiTests),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: fixture.projectPath): [dynamicFramework, fixture.nativeRenderer],
+                .target(name: "Helper", path: fixture.projectPath): [
+                    .target(name: "App", path: fixture.projectPath), dynamicFramework,
+                ],
+                .target(name: "Tests", path: fixture.projectPath): [.target(name: "Helper", path: fixture.projectPath)],
+                dynamicFramework: [fixture.nativeRenderer],
+            ]
+        )
+
+        let (mapped, effects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        let fallback = fixture.vendorModuleMapSettings(sdkCondition: "sdk=macosx*")
+        #expect(mapped == graph.withTargetSettings(
+            ["App": [:], "Helper": fallback, "Tests": fallback],
+            at: fixture.projectPath
+        ))
+        #expect(effects == fixture.derivedModuleMapSideEffects)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -157,7 +197,8 @@ struct StaticXCFrameworkModuleMapGraphMapperPlatformConditionTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let settings = fixture.vendorModuleMapSettings(sdkCondition: nil)
+        let settings = fixture.vendorModuleMapSettings(sdkCondition: "sdk=iphoneos*")
+            .merging(fixture.vendorModuleMapSettings(sdkCondition: "sdk=iphonesimulator*")) { _, new in new }
         #expect(gotGraph == graph.withTargetSettings(["App": settings, "Consumer": settings], at: fixture.projectPath))
         #expect(gotSideEffects == fixture.derivedModuleMapSideEffects)
     }
@@ -238,6 +279,47 @@ struct StaticXCFrameworkModuleMapGraphMapperPlatformConditionTests {
             at: fixture.projectPath
         ))
         #expect(gotSideEffects == fixture.derivedModuleMapSideEffects)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func portableModuleWithDifferentArtifactNameKeepsItsOriginalTree() async throws {
+        let fixture = try await makeFixture()
+        guard case let .xcframework(original) = fixture.nativeRenderer else {
+            Issue.record("Expected an XCFramework fixture")
+            return
+        }
+        let fileSystem = FileSystem()
+        let headers = original.path.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.remove(headers.appending(component: "module.modulemap"))
+        let module = headers.appending(component: "AliasedModule")
+        try await fileSystem.makeDirectory(at: module)
+        let moduleMap = module.appending(component: "module.modulemap")
+        try await fileSystem.writeText("module AliasedModule {}", at: moduleMap)
+        try await fileSystem.writeText(
+            "{\"publicDirectory\":\"AliasedModule/TuistHeaders/include\"}",
+            at: module.appending(component: SwiftPackageHeadersExporter.metadataFileName)
+        )
+        let portable = GraphDependency.testXCFramework(
+            path: original.path, infoPlist: original.infoPlist, linking: .static, moduleMaps: [moduleMap]
+        )
+        let wrapper = GraphDependency
+            .testXCFramework(path: fixture.temporaryDirectory.appending(component: "Wrapper.xcframework"))
+        let graph = Graph.test(
+            path: fixture.projectPath,
+            projects: [fixture.projectPath: .test(path: fixture.projectPath, targets: [.test(name: "Consumer")])],
+            dependencies: [
+                .target(name: "Consumer", path: fixture.projectPath): [wrapper],
+                wrapper: [portable],
+            ]
+        )
+        let (mapped, effects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let settings = try #require(mapped.projects[fixture.projectPath]?.targets["Consumer"]?.settings?.base)
+        #expect(settings["HEADER_SEARCH_PATHS"] == .array([
+            "\"$(SRCROOT)/../NativeRenderer.xcframework/ios-arm64/Headers\"",
+        ]))
+        #expect(settings["OTHER_C_FLAGS"] == nil)
+        #expect(settings["OTHER_SWIFT_FLAGS"] == nil)
+        #expect(effects.isEmpty)
     }
 
     private struct Fixture {

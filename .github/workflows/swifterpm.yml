@@ -23,7 +23,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist'
     steps:
@@ -38,13 +38,15 @@ jobs:
           working_directory: swifterpm
           cache: "false"
           github_token: ${{ github.token }}
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       - name: Test
         working-directory: swifterpm
         run: mise run test:unit -- --config=ci
 
   e2e:
     name: E2E
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 45
     if: github.repository == 'tuist/tuist'
     steps:

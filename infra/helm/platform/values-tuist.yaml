@@ -1,6 +1,9 @@
 # Production workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist.
 
+disableMultipathTCP:
+  enabled: true
+
 cacheDNS:
   enabled: true
   activationIngressClass: nginx-grpc
@@ -183,9 +186,6 @@ kura-ap-southeast-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-kura-runners-ingress-nginx:
-  enabled: true
-
 # The BER1 rack's cache gateway, on its storage node (values.yaml).
 kura-ber1-runners-ingress-nginx:
   enabled: true
@@ -264,6 +264,9 @@ kura-us-central-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
+ipv4OptionsTcpDrop:
+  enabled: true
+
 # The gateways above are host-network, so a region with more than one box needs
 # this to let a gateway reach Kura pods on the other boxes. Without it those
 # requests are dropped by the per-instance NetworkPolicy and answer 504.
@@ -272,3 +275,11 @@ kuraGatewayNetworkPolicy:
 
 clusterPortsHostPolicy:
   enabled: true
+
+# luft.work serves the Luft web edge (infra/helm/luft-web), which runs only in
+# this cluster, so only production runs its external-dns. The Cloudflare token
+# in `cloudflare-api-token` needs Zone.DNS:Edit on luft.work for both it and the
+# letsencrypt-cloudflare DNS-01 solver.
+luftDNS:
+  enabled: true
+  ownerId: tuist-production-luft

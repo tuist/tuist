@@ -472,9 +472,20 @@ defmodule Tuist.Runners.Buildkite do
 
       {:ok, 0}
     else
-      case Dispatch.resolve_dispatch_target(account, [queue_key]) do
-        {:ok, target} ->
-          do_reserve_and_enqueue(installation, account, queue_key, fresh, target)
+      with {:ok, target} <- Dispatch.resolve_dispatch_target(account, [queue_key]),
+           :ok <- Dispatch.check_shape_fits_limit(account, target) do
+        do_reserve_and_enqueue(installation, account, queue_key, fresh, target)
+      else
+        {:error, :shape_exceeds_limit} ->
+          # Left unreserved: the account's limit could never admit the queue's
+          # shape, so reserving would only hold the jobs until they time out.
+          Logger.info("runners: buildkite queue shape exceeds the account's concurrency limit",
+            account: account.name,
+            queue: queue_key,
+            count: length(fresh)
+          )
+
+          {:ok, 0}
 
         {:error, reason} ->
           # The queue exists on Buildkite but names no Tuist profile. That
@@ -861,7 +872,9 @@ defmodule Tuist.Runners.Buildkite do
   defp describe_error(:not_found), do: "Buildkite does not recognize this stack. Check the organization and cluster."
 
   defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
+
   defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
+
   defp describe_error(:no_profiles), do: "The account has no runner profiles to map queues onto."
   defp describe_error(reason), do: inspect(reason)
 end

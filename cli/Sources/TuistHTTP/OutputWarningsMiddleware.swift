@@ -39,10 +39,17 @@ public struct OutputWarningsMiddleware: ClientMiddleware {
         else {
             return (response, body)
         }
-        guard let warningsData = warnings.data(using: .utf8),
+        let trimmedWarnings = warnings.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedWarnings.isEmpty else {
+            return (response, body)
+        }
+        guard let warningsData = trimmedWarnings.data(using: .utf8),
               let data = Data(base64Encoded: warningsData)
         else {
             throw OutputWarningsMiddlewareError.couldntConvertToData
+        }
+        guard !data.isEmpty else {
+            return (response, body)
         }
 
         guard let json = try JSONSerialization

@@ -16,7 +16,11 @@ defmodule TuistWeb.Previews.RunButton do
             Enum.map(@preview.app_builds, & &1.type) |> Enum.member?(:ipa)} do
         {"iOS", true} ->
           {"itms-services" |> String.to_atom(),
-           "//?action=download-manifest&url=#{url(~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/manifest.plist")}"}
+           TuistWeb.Helpers.PreviewInstallURLs.itms_services_path(
+             @preview.project.account.name,
+             @preview.project.name,
+             @preview
+           )}
 
         {"iOS", _} ->
           nil
@@ -25,7 +29,7 @@ defmodule TuistWeb.Previews.RunButton do
           {:tuist,
            "open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{@preview.id}&full_handle=#{@preview.project.account.name}/#{@preview.project.name}"}
       end %>
-    <%= if not is_nil(href) do %>
+    <%= if not is_nil(href) and not Tuist.AppBuilds.desktop_preview?(@preview) do %>
       <.button icon_only variant="secondary" size="small" href={href} {@rest}>
         <.player_play />
       </.button>

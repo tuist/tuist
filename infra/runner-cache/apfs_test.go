@@ -215,7 +215,8 @@ func TestAPFSRefusesReplacedGuestImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	exposed := filepath.Join(path, "cache.sparseimage")
-	if err := os.Remove(exposed); err != nil {
+	// Keep the old inode allocated so the replacement cannot reuse it.
+	if err := os.Rename(exposed, exposed+".original"); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(exposed, []byte("different inode"), 0600); err != nil {

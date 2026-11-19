@@ -1,0 +1,78 @@
+#!/bin/bash
+# Bitrise CLI agent-mode `do_on_build_start` hook, named in the
+# `~/.bitrise/agent-config.yml` dispatch-poll writes before it connects
+# the agent.
+#
+# Identical on the macOS and Linux fleets. Keep the two copies in step.
+#
+# The agent is bound to its pool, not to the build this runner claimed, so
+# this hook is how Tuist learns which build it took. It runs with the
+# build's BITRISE_BUILD_SLUG and BITRISE_APP_SLUG in its environment, and
+# reports them with the job-scoped report token dispatch minted. That token
+# and the watchdog's files are read from the job env file the runner staged
+# beside the agent config, since what the agent passes through to its builds
+# is not documented.
+#
+# The Bitrise CLI fails the build when this hook exits non-zero, so every
+# path below exits 0. A report that never lands costs the build its
+# dashboard attribution, never the build itself.
+
+set -u
+
+JOB_ENV="${TUIST_RUNNER_JOB_ENV:-${HOME:-}/.bitrise/tuist-runner-job.env}"
+
+if [ -r "${JOB_ENV}" ]; then
+  # shellcheck disable=SC1090
+  . "${JOB_ENV}"
+fi
+
+# Two latches for the runner's idle watchdog: this kills it outright, and
+# the marker stops one whose pid could not be read the next time it looks.
+if [ -n "${TUIST_RUNNER_JOB_STARTED_MARKER:-}" ]; then
+  touch "${TUIST_RUNNER_JOB_STARTED_MARKER}" 2>/dev/null || true
+fi
+if [ -n "${TUIST_RUNNER_WATCHDOG_PID_FILE:-}" ]; then
+  watchdog_pid="$(cat "${TUIST_RUNNER_WATCHDOG_PID_FILE}" 2>/dev/null || true)"
+  [ -n "${watchdog_pid}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+fi
+
+if [ -z "${TUIST_RUNNER_REPORT_TOKEN:-}" ] || [ -z "${TUIST_RUNNER_REPORT_URL:-}" ] ||
+  [ -z "${BITRISE_BUILD_SLUG:-}" ] || [ -z "${BITRISE_APP_SLUG:-}" ]; then
+  echo "tuist: build start not reported (missing report credential or build identity)"
+  exit 0
+fi
+
+# Bitrise slugs are hexadecimal, so they need no JSON escaping; anything
+# else is not a slug and is not sent.
+case "${BITRISE_BUILD_SLUG}${BITRISE_APP_SLUG}" in
+  *[!A-Za-z0-9_-]*)
+    echo "tuist: build start not reported (unexpected build identity)"
+    exit 0
+    ;;
+esac
+
+body="{\"build_slug\":\"${BITRISE_BUILD_SLUG}\",\"app_slug\":\"${BITRISE_APP_SLUG}\"}"
+
+for attempt in 1 2 3 4 5; do
+  status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+    --request POST \
+    --header "Authorization: Bearer ${TUIST_RUNNER_REPORT_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --data "${body}" \
+    "${TUIST_RUNNER_REPORT_URL}/jobs/bitrise/started" 2>/dev/null) || status="000"
+
+  case "${status}" in
+    2??)
+      exit 0
+      ;;
+    4??)
+      echo "tuist: build start report refused (HTTP ${status})"
+      exit 0
+      ;;
+  esac
+
+  sleep "${attempt}"
+done
+
+echo "tuist: build start report failed (HTTP ${status})"
+exit 0

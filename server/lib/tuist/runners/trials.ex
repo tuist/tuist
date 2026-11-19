@@ -84,9 +84,9 @@ defmodule Tuist.Runners.Trials do
   Returns `{:ok, account}` having stamped the end, or `{:error, reason}`
   if the account was not on a trial.
   """
-  def cancel(%Account{} = account) do
+  def cancel(%Account{} = account, ended_at \\ DateTime.utc_now()) do
     if on_trial?(account) do
-      transition(account, %{runner_trial_ended_at: DateTime.utc_now()})
+      transition(account, %{runner_trial_ended_at: ended_at})
     else
       {:error, :not_on_trial}
     end

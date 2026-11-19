@@ -160,7 +160,7 @@ defmodule Atlas.OrbitTest do
       assert {:error, :not_found} = Orbit.fetch(member, thread.id)
 
       bodies = thread |> Orbit.list_messages() |> elem(0) |> Enum.map(& &1.body)
-      assert Enum.any?(bodies, &String.contains?(&1, "added"))
+      assert "#{other.name} joins the conversation." in bodies
       assert Enum.any?(bodies, &String.contains?(&1, "left"))
     end
 
@@ -281,7 +281,9 @@ defmodule Atlas.OrbitTest do
 
       assert {:ok, same} = Orbit.open_for_signal(%{attrs | summary: "Still elevated."})
       assert same.id == thread.id
-      assert thread |> Orbit.list_messages() |> elem(0) |> Enum.count(&(&1.kind == "system")) == 2
+      messages = thread |> Orbit.list_messages() |> elem(0)
+      assert Enum.count(messages, &(&1.notice_kind == "joined")) == 1
+      assert Enum.count(messages, &(&1.body in ["Errors doubled in the last hour.", "Still elevated."])) == 2
     end
 
     test "refuse participants who could not see the signal" do

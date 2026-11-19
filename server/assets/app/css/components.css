@@ -2,6 +2,7 @@
 @import "./components/chart_type_toggle.css";
 @import "./components/empty_state.css";
 @import "./components/json_input.css";
+@import "./components/dashboard_search.css";
 @import "./components/resource_card.css";
 @import "./components/empty_card_section.css";
 @import "./components/error_card_section.css";
@@ -10,6 +11,7 @@
 @import "./components/ci_context_card.css";
 @import "./components/module_cache_tab.css";
 @import "./components/selective_testing_tab.css";
+@import "./components/coverage_selection.css";
 @import "./components/percentile_dropdown_widget.css";
 @import "./components/public_project_cta_banner.css";
 @import "./components/widget.css";

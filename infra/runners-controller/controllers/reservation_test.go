@@ -2,6 +2,11 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +20,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
 const reservationFleet = "runners-macos"
@@ -418,6 +424,30 @@ func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
 	}
 	if isReserved(nodeByName(t, r, "m4-a")) {
 		t.Error("should not reserve the host that would have to pull the image")
+	}
+}
+
+// Between hosts that converge equally soon and hold the image, the one with
+// no macOS sandbox session wins: a session resumes only on its own Mac.
+func TestReservation_PrefersAHostHoldingNoSandboxSession(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	held := m4Node("m4-a")
+	held.Labels[podtemplate.MacosSandboxSessionsLabel] = "true"
+
+	r := reservationReconciler(pool, smallPool(), held, m4Node("m4-b"), starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host holding no sandbox session")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host whose session can resume only there")
 	}
 }
 
@@ -1204,6 +1234,34 @@ func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
 	}
 }
 
+// A nested-virtualization pool reasons about the KVM-proven hosts only,
+// the same set its Pods' nodeSelector restricts the scheduler to.
+func TestFleetNodesOfANestedVirtualizationPoolAreTheKVMHosts(t *testing.T) {
+	node := func(name string, kvm bool) *corev1.Node {
+		labels := map[string]string{fleetNodePoolLabel: "runners-linux", nodeOSLabel: "linux"}
+		if kvm {
+			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels}}
+	}
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node("kvm", true), node("plain", false)).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme}
+
+	pool := &tuistv1.RunnerPool{Spec: tuistv1.RunnerPoolSpec{OS: "linux", FleetSelector: "runners-linux", RuntimeClass: "kata-qemu"}}
+	all, err := r.fleetNodes(context.Background(), pool)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("plain pool fleet = %d nodes (err %v), want both", len(all), err)
+	}
+
+	pool.Spec.NestedVirtualization = true
+	kvm, err := r.fleetNodes(context.Background(), pool)
+	if err != nil || len(kvm) != 1 || kvm[0].Name != "kvm" {
+		t.Fatalf("nested pool fleet = %v (err %v), want only the KVM host", kvm, err)
+	}
+}
+
 // Every image keeps a warm runner, so on a quiet fleet each host can hold an
 // idle one. A host holding only idle runners clears at once, so the starved
 // shape takes it after idleHostReservationGrace rather than reservationGrace.
@@ -1225,6 +1283,130 @@ func TestReservation_TakesAnIdleHostEarly(t *testing.T) {
 	}
 	if isReserved(nodeByName(t, r, "m4-1")) {
 		t.Error("the host running a job should not be reserved")
+	}
+}
+
+func TestReservation_FastReclaim(t *testing.T) {
+	type fixture struct {
+		sibling *tuistv1.RunnerPool
+		pending *corev1.Pod
+		victims []*corev1.Pod
+		nodes   []*corev1.Node
+		extra   []client.Object
+		signals scaling.Signals
+	}
+	for _, tc := range []struct {
+		name          string
+		change        func(*fixture)
+		freshClaim    bool
+		failedSignals bool
+		want          bool
+	}{
+		{name: "surplus warm runners yield at five seconds", want: true},
+		{name: "before five seconds", change: func(f *fixture) {
+			f.pending.Status.Conditions[0].LastTransitionTime = metav1.NewTime(reservationNow.Add(-4 * time.Second))
+		}},
+		{name: "not a capacity rejection", change: func(f *fixture) { f.pending.Status.Conditions[0].Message = "untolerated taint" }},
+		{name: "queue drained", change: func(f *fixture) { f.signals.Queued = 0 }},
+		{name: "withheld only", change: func(f *fixture) { f.signals = scaling.Signals{Withheld: 100} }},
+		{name: "signals unavailable", failedSignals: true},
+		{name: "no surplus", change: func(f *fixture) { f.sibling.Spec.Replicas = 2 }},
+		{name: "not enough surplus to clear host", change: func(f *fixture) { f.sibling.Spec.Replicas = 1 }},
+		{name: "manual pool", change: func(f *fixture) { f.sibling.Spec.Autoscaling.Enabled = false }},
+		{name: "busy runner", change: func(f *fixture) { f.victims[0].Labels["tuist.dev/runner-pool-owner"] = "acme" }},
+		{name: "claimed since cached target selection", freshClaim: true},
+		{name: "newly warm runner", change: func(f *fixture) {
+			f.victims[0].Status.ContainerStatuses[0].State.Running.StartedAt = metav1.NewTime(reservationNow.Add(-time.Minute))
+		}},
+		{name: "booting runner", change: func(f *fixture) {
+			f.victims[0].Status.Phase = corev1.PodPending
+			f.victims[0].Status.ContainerStatuses = nil
+		}},
+		{name: "stale runner", change: func(f *fixture) { f.victims[0].Spec.Containers[0].Image = "old-image" }},
+		{name: "already marked for reclaim", change: func(f *fixture) {
+			f.victims[0].Annotations = map[string]string{preemptedForAnnotation: f.pending.Labels["tuist.dev/runner-pool"], preemptedAtAnnotation: reservationNow.Format(time.RFC3339)}
+		}},
+		{name: "already freeing", change: func(f *fixture) {
+			f.victims[0].Finalizers = []string{"test"}
+			stamp := metav1.NewTime(reservationNow.Add(-time.Second))
+			f.victims[0].DeletionTimestamp = &stamp
+		}},
+		{name: "bound idle runner can serve the queue", change: func(f *fixture) {
+			f.extra = append(f.extra, placedPod("own-idle", largePool().Name, "m4-1", ""))
+		}},
+		{name: "native sandboxes hold both VM slots", change: func(f *fixture) {
+			for _, node := range f.nodes {
+				node.Status.Allocatable[corev1.ResourceCPU] = resource.MustParse("24")
+				node.Status.Allocatable[corev1.ResourceMemory] = resource.MustParse("64Gi")
+			}
+			for _, name := range []string{"native-a", "native-b"} {
+				pod := placedPod(name, "", "m4-0", "")
+				pod.Namespace = "tuist-sandboxes"
+				pod.Labels = map[string]string{macosSandboxRole: "execution"}
+				pod.Spec.Containers = []corev1.Container{{Name: "execution", Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("1Gi"),
+				}}}}
+				f.extra = append(f.extra, pod)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := largePool()
+			f := fixture{
+				sibling: smallPool(), pending: pendingPod("large-pending", pool.Name, 5*time.Second),
+				nodes: []*corev1.Node{m4Node("m4-0"), m4Node("m4-1")}, signals: scaling.Signals{Queued: 1},
+			}
+			f.sibling.Spec.Autoscaling = &tuistv1.RunnerPoolAutoscaling{Enabled: true}
+			f.pending.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionFalse,
+				Reason: "Unschedulable", Message: insufficientCPU, LastTransitionTime: metav1.NewTime(reservationNow.Add(-5 * time.Second))}}
+			f.pending.Spec.Containers = []corev1.Container{{Name: "runner", Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+				corev1.ResourceCPU: resource.MustParse("12"), corev1.ResourceMemory: resource.MustParse("28Gi"),
+			}}}}
+			for _, name := range []string{"warm-a", "warm-b"} {
+				pod := bootedMacOSPod(name, f.sibling.Name, "m4-0", reservationNow.Add(-time.Hour))
+				pod.Spec.Containers = []corev1.Container{{Name: "runner", Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("6"), corev1.ResourceMemory: resource.MustParse("14Gi"),
+				}}}}
+				pod.Status.ContainerStatuses = []corev1.ContainerStatus{{Name: "runner", State: corev1.ContainerState{
+					Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(reservationNow.Add(-time.Hour))},
+				}}}
+				f.victims = append(f.victims, pod)
+			}
+			if tc.change != nil {
+				tc.change(&f)
+			}
+			objects := []client.Object{pool, f.sibling, f.pending, f.nodes[0], f.nodes[1], f.victims[0], f.victims[1]}
+			objects = append(objects, f.extra...)
+			r := reservationReconciler(objects...)
+			if tc.freshClaim {
+				f.victims[0].Labels["tuist.dev/runner-pool-owner"] = "acme"
+				r.APIReader = fake.NewClientBuilder().WithScheme(r.Scheme).WithObjects(objects...).Build()
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if tc.failedSignals {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(f.signals)
+			}))
+			defer server.Close()
+			token := filepath.Join(t.TempDir(), "token")
+			if err := os.WriteFile(token, []byte("test-token"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r.SignalsClient = scaling.NewClient(server.URL)
+			r.SignalsClient.TokenPath = token
+			err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*f.pending})
+			if (err != nil) != tc.failedSignals {
+				t.Fatalf("reconcileReservation: %v", err)
+			}
+			if got := isReserved(nodeByName(t, r, "m4-0")); got != tc.want {
+				t.Errorf("reserved = %v, want %v", got, tc.want)
+			}
+			if isReserved(nodeByName(t, r, "m4-1")) {
+				t.Error("must not reserve a different host")
+			}
+		})
 	}
 }
 
@@ -1424,5 +1606,119 @@ func TestReservation_AFreshCacheVolumeAgentDoesNotHoldBackTheEarlyPath(t *testin
 
 	if !isReserved(nodeByName(t, r, "rl-0")) {
 		t.Error("a host holding only an idle runner and the cache-volume agent should be reserved before reservationGrace")
+	}
+}
+
+func reserveFor(node *corev1.Node, pool *tuistv1.RunnerPool, ago time.Duration) *corev1.Node {
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{
+		reservationAtAnnotation: reservationNow.Add(-ago).UTC().Format(time.RFC3339),
+	}
+	return node
+}
+
+// A RISE-L seats one 16 vCPU Pod, so a pool short three of them is served
+// one host at a time. Production, 2026-10-29 08:54: the reservation seated
+// its Pod in 32 s and then held the host until the 15 minute timeout while
+// the pool's other two Pods waited for it.
+func TestReservation_HandsBackAHostOnceItSeatsWhatItCan(t *testing.T) {
+	pool := starvedSince(linuxMidPool(), 3*time.Minute)
+	pool.Spec.Replicas = 3
+	seated := kataPod(placedPod("mid-0", pool.Name, "rl-0", ""), 16000, 32768)
+	waiting := []*corev1.Pod{
+		kataPod(pendingPod("mid-1", pool.Name, 3*time.Minute), 16000, 32768),
+		kataPod(pendingPod("mid-2", pool.Name, 3*time.Minute), 16000, 32768),
+	}
+
+	r := reservationReconciler(pool, linuxSmallPool(),
+		reserveFor(riseLNode("rl-0"), pool, 30*time.Second), riseLNode("rl-1"),
+		seated, waiting[0], waiting[1],
+		kataPod(placedPod("rl-1-warm", "runner-pool-linux-4vcpu-16gb", "rl-1", ""), 4000, 16384),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*seated, *waiting[0], *waiting[1]}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	released := nodeByName(t, r, "rl-0")
+	if isReserved(released) {
+		t.Fatal("held a host that cannot seat another Pod of the pool")
+	}
+	if inReservationCooldown(released, reservationNow) {
+		t.Error("a host that seated its Pod must go back without a cooldown")
+	}
+	if !isReserved(nodeByName(t, r, "rl-1")) {
+		t.Fatal("the pool's next Pod should get the next host in the same pass")
+	}
+}
+
+// A host with room for another of the pool's Pods keeps accumulating
+// seats for it.
+func TestReservation_KeepsAHostThatCanSeatAnotherOwnPod(t *testing.T) {
+	pool := starvedSince(linuxMidPool(), 3*time.Minute)
+	pool.Spec.Replicas = 2
+	seated := kataPod(placedPod("mid-0", pool.Name, "ax-0", ""), 16000, 32768)
+	waiting := kataPod(pendingPod("mid-1", pool.Name, 3*time.Minute), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(),
+		reserveFor(ax162Node("ax-0"), pool, 30*time.Second), ax162Node("ax-1"),
+		seated, waiting,
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*seated, *waiting}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "ax-0")) {
+		t.Fatal("released a host that still has room for the pool's next Pod")
+	}
+	if isReserved(nodeByName(t, r, "ax-1")) {
+		t.Fatal("took a second reservation while the first is still useful")
+	}
+}
+
+// An exclusive-CPU runner carries its budget at Pod level, with no
+// container CPU or memory. Every capacity reader must still count the
+// whole budget, or reservations, preemption and sandbox admission would
+// see a running job as nearly free.
+func TestExclusiveCPURunnerCountsItsPodLevelBudget(t *testing.T) {
+	pool := &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "linux-4vcpu-16gb", Namespace: "tuist-runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			RuntimeClass:  "kata-qemu",
+			FleetSelector: "runners-linux",
+			Image:         "ghcr.io/tuist/tuist-linux-runner:test",
+			PodCPUMilli:   4000,
+			PodMemoryMB:   16384,
+			ExclusiveCPUs: true,
+		},
+	}
+	pod, err := podtemplate.Build(pool, "runner-0", "runner-0", "http://dispatch", "http://internal-dispatch", "docker:28-dind", "", "", "")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	pod.Spec.Overhead = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("250m"),
+		corev1.ResourceMemory: resource.MustParse("1Gi"),
+	}
+
+	footprint := podFootprint(pod)
+	if got := footprint.Cpu().MilliValue(); got != 4250 {
+		t.Errorf("podFootprint cpu = %dm, want 4250m", got)
+	}
+	if got := footprint.Memory().Value(); got != 17*gib {
+		t.Errorf("podFootprint memory = %d, want 17Gi", got)
+	}
+	if got := podMemory(pod); got != 17*gib {
+		t.Errorf("podMemory = %d, want 17Gi", got)
+	}
+	if got := allocationPodMemory(pod); got != 17*gib {
+		t.Errorf("allocationPodMemory = %d, want 17Gi", got)
+	}
+	if got := fleetNodeSelector(pool)[podtemplate.PodLevelResourceManagersNodeLabel]; got != "true" {
+		t.Errorf("fleetNodeSelector reserves hosts without %s", podtemplate.PodLevelResourceManagersNodeLabel)
 	}
 }

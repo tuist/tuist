@@ -5,6 +5,23 @@ defmodule Tuist.BuildEntities.Resources do
 
   @resources [
     %{
+      key: :cargo_crates,
+      system: :cargo,
+      kind: "crate",
+      singular: :crate,
+      plural: :crates,
+      id_param: :crate_id,
+      history_key: :compilations,
+      title: "CargoCrate",
+      label: "Cargo crates",
+      label_singular: "a Cargo crate",
+      description:
+        "Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.",
+      api_path: "/cargo/crates",
+      history_path: "compilations",
+      path: "/builds/cargo/crates"
+    },
+    %{
       key: :bazel_actions,
       system: :bazel,
       kind: "action",
@@ -58,8 +75,8 @@ defmodule Tuist.BuildEntities.Resources do
       id_param: :action_id,
       history_key: :executions,
       title: "OnceAction",
-      label: "Once actions",
-      label_singular: "a Once action",
+      label: "Struo actions",
+      label_singular: "a Struo action",
       api_path: "/once/actions",
       history_path: "executions",
       path: "/builds/once/actions"

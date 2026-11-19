@@ -4,6 +4,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
@@ -48,17 +49,20 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def index(conn, _params) do
     organization_accounts =
-      case Authentication.current_user(conn) do
-        %Tuist.Accounts.User{} = user ->
+      case Authentication.current_user(conn) || Authentication.oauth_user(conn) do
+        %User{} = user ->
           Accounts.get_user_organization_accounts(user)
 
-        nil ->
-          account =
-            conn
-            |> Authentication.authenticated_subject_account()
-            |> Tuist.Repo.preload(:organization)
+        _ ->
+          case conn
+               |> Authentication.authenticated_subject_account()
+               |> Tuist.Repo.preload(:organization) do
+            %{organization: %{} = organization} = account ->
+              [%{organization: organization, account: account}]
 
-          [%{organization: account.organization, account: account}]
+            _ ->
+              []
+          end
       end
 
     organizations =
@@ -389,7 +393,7 @@ defmodule TuistWeb.API.OrganizationsController do
       },
       runner_minutes: %{
         used: runners.minutes,
-        included: runners.free_minutes,
+        included: runners.free_minutes.macos,
         charge_cents: runners.billed.amount
       },
       estimated_charge_cents: cache_charge + tests_charge + runners.billed.amount
@@ -481,18 +485,21 @@ defmodule TuistWeb.API.OrganizationsController do
 
       sso_provider == "none" ->
         {:ok, organization} =
-          Accounts.update_organization(organization, %{
-            sso_provider: nil,
-            sso_organization_id: nil,
-            sso_enforced: false,
-            sso_login_domain: nil,
-            sso_automatic_enrollment: false,
-            oauth2_client_id: nil,
-            oauth2_encrypted_client_secret: nil,
-            oauth2_authorize_url: nil,
-            oauth2_token_url: nil,
-            oauth2_user_info_url: nil
-          })
+          Accounts.update_organization(
+            organization,
+            %{
+              sso_provider: nil,
+              sso_organization_id: nil,
+              sso_enforced: false,
+              sso_login_domain: nil,
+              sso_automatic_enrollment: false,
+              oauth2_client_id: nil,
+              oauth2_encrypted_client_secret: nil,
+              oauth2_authorize_url: nil,
+              oauth2_token_url: nil,
+              oauth2_user_info_url: nil
+            }
+          )
 
         json(conn, %{
           id: organization.id,
@@ -556,12 +563,15 @@ defmodule TuistWeb.API.OrganizationsController do
          sso_automatic_enrollment: sso_automatic_enrollment,
          conn: %Plug.Conn{} = conn
        }) do
-    case Accounts.update_organization(organization, %{
-           sso_provider: sso_provider,
-           sso_organization_id: sso_organization_id,
-           sso_enforced: sso_enforced || false,
-           sso_automatic_enrollment: sso_automatic_enrollment
-         }) do
+    case Accounts.update_organization(
+           organization,
+           %{
+             sso_provider: sso_provider,
+             sso_organization_id: sso_organization_id,
+             sso_enforced: sso_enforced || false,
+             sso_automatic_enrollment: sso_automatic_enrollment
+           }
+         ) do
       {:ok, organization} ->
         json(conn, %{
           id: organization.id,

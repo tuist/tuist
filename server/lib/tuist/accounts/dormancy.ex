@@ -242,7 +242,7 @@ defmodule Tuist.Accounts.Dormancy do
             active: false,
             email: tombstone_email(user),
             encrypted_password: "",
-            token: tombstone_token()
+            token_hash: nil
           )
           |> Repo.update()
 
@@ -315,7 +315,7 @@ defmodule Tuist.Accounts.Dormancy do
       active: false,
       email: tombstone_email(user),
       encrypted_password: "",
-      token: tombstone_token(),
+      token_hash: nil,
       updated_at: naive(now)
     ]
   end
@@ -380,10 +380,6 @@ defmodule Tuist.Accounts.Dormancy do
   end
 
   defp tombstone_email(%User{id: id}), do: "deleted-user-#{id}@#{@tombstone_domain}"
-
-  defp tombstone_token do
-    32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
-  end
 
   defp log_sweep(%{disabled: [], scrubbed: [], clock_started: [], unknown_activity: []}), do: :ok
 

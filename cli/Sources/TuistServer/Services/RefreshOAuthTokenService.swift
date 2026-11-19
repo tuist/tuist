@@ -26,7 +26,7 @@ public struct RefreshOAuthTokenService: RefreshOAuthTokenServicing {
     public init() {
         self.init(
             serverEnvironmentService: ServerEnvironmentService(),
-            perform: { try await URLSession.shared.data(for: $0) }
+            perform: { try await URLSession.tuistDefault.data(for: $0) }
         )
     }
 

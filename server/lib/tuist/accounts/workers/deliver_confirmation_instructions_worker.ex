@@ -35,11 +35,11 @@ defmodule Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker do
   end
 
   defp encrypt_confirmation_url(confirmation_url) do
-    Phoenix.Token.encrypt(TuistWeb.Endpoint, @confirmation_url_salt, confirmation_url)
+    Phoenix.Token.encrypt(Tuist.Web.endpoint(), @confirmation_url_salt, confirmation_url)
   end
 
   defp decrypt_confirmation_url(encrypted_confirmation_url) do
-    Phoenix.Token.decrypt(TuistWeb.Endpoint, @confirmation_url_salt, encrypted_confirmation_url,
+    Phoenix.Token.decrypt(Tuist.Web.endpoint(), @confirmation_url_salt, encrypted_confirmation_url,
       max_age: @confirmation_url_max_age_seconds
     )
   end

@@ -1,0 +1,143 @@
+{{- /*
+Drops incoming IPv4 TCP packets that carry IP options (IHL > 5) in the host's
+netfilter prerouting hook, before conntrack and routing, so they never reach
+the TCP stack (CVE-2026-98432). Covers every listener in the host network
+namespace: packets Cilium hands from its tc programs to the host stack pass
+this hook. Packets Cilium's BPF redirects straight into a pod (pod IPs,
+Service and NodePort backends) skip it.
+
+Each pod owns the table by its handle. On start it replaces the table in one
+transaction, and on SIGTERM it deletes the table only if the handle is still
+its own, so a surged replacement keeps its table and removing the release
+reverts the node. Every interval it puts the table back if anything removed it
+or its rule, and logs the drop counter when it moved.
+
+This file is shared with infra/helm/rack-cache-gateways through a symlink. The
+platform release is waited on, so it renders for every Linux node except a
+rack's; rack-cache-gateways, which nothing waits on, renders for rack nodes.
+*/ -}}
+{{- with .Values.ipv4OptionsTcpDrop }}
+{{- if .enabled }}
+{{- $rack := eq $.Chart.Name "rack-cache-gateways" }}
+{{- $name := ternary "tuist-ipv4-options-tcp-drop-rack" "tuist-ipv4-options-tcp-drop" $rack }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/component: host-firewall
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/component: host-firewall
+    spec:
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      terminationGracePeriodSeconds: 10
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/instance-type
+                    operator: {{ ternary "In" "NotIn" $rack }}
+                    values: ["rack"]
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: nft
+          image: {{ .image | quote }}
+          imagePullPolicy: {{ .imagePullPolicy | quote }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          env:
+            - name: TABLE
+              value: {{ .table | quote }}
+            - name: RECONCILE_INTERVAL_SECONDS
+              value: {{ .reconcileIntervalSeconds | quote }}
+          command:
+            - /bin/sh
+            - -euc
+            - |
+              handle() {
+                nft -j list tables | grep -o "\"family\": *\"inet\", *\"name\": *\"${TABLE}\", *\"handle\": *[0-9]*" | grep -o '[0-9]*$' || true
+              }
+
+              install() {
+                nft -f - <<EOF
+              table inet ${TABLE}
+              delete table inet ${TABLE}
+              table inet ${TABLE} {
+                counter dropped {}
+                chain prerouting {
+                  type filter hook prerouting priority raw - 10; policy accept;
+                  ip protocol tcp ip hdrlength != 5 counter name dropped drop
+                }
+              }
+              EOF
+                own="$(handle)"
+                echo "installed table inet ${TABLE} (handle ${own})"
+              }
+
+              intact() {
+                nft list chain inet "${TABLE}" prerouting 2>/dev/null | grep -q 'ip hdrlength != 5 counter name "dropped" drop'
+              }
+
+              remove() {
+                if [ -n "${own}" ] && [ "$(handle)" = "${own}" ]; then
+                  nft delete table inet handle "${own}"
+                  echo "deleted table inet ${TABLE} (handle ${own})"
+                else
+                  echo "table inet ${TABLE} is not ours (handle ${own}), leaving it"
+                fi
+                exit 0
+              }
+
+              own=""
+              logged=0
+              trap remove TERM INT
+              install
+              while true; do
+                if ! intact; then
+                  echo "table inet ${TABLE} was missing or changed, reinstalling"
+                  install
+                fi
+                set -- $(nft list counter inet "${TABLE}" dropped | grep -o 'packets [0-9]* bytes [0-9]*')
+                if [ "$#" -eq 4 ] && [ "$2" != "${logged}" ]; then
+                  echo "dropped tcp packets with ipv4 options: packets=$2 bytes=$4"
+                  logged="$2"
+                fi
+                sleep "${RECONCILE_INTERVAL_SECONDS}" &
+                wait $! || true
+              done
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - nft list chain inet "${TABLE}" prerouting | grep -q 'ip hdrlength != 5 counter name "dropped" drop'
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+{{- end }}
+{{- end }}

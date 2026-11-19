@@ -14,7 +14,8 @@
             appBundleReport: AppBundleReport,
             gitCommitSHA: String?,
             gitBranch: String?,
-            gitRef: String?
+            gitRef: String?,
+            tags: [String]
         ) async throws -> Components.Schemas.Bundle
     }
 
@@ -56,7 +57,8 @@
             appBundleReport: AppBundleReport,
             gitCommitSHA: String?,
             gitBranch: String?,
-            gitRef: String?
+            gitRef: String?,
+            tags: [String] = []
         ) async throws -> Components.Schemas.Bundle {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -98,6 +100,7 @@
                             bundle: .init(
                                 app_bundle_id: appBundleReport.bundleId,
                                 artifacts: appBundleReport.artifacts.map { .init($0) },
+                                custom_metadata: tags.isEmpty ? nil : .init(tags: tags),
                                 download_size: appBundleReport.downloadSize,
                                 git_branch: gitBranch,
                                 git_commit_sha: gitCommitSHA,

@@ -12,9 +12,12 @@ class Avatar extends Component {
     return avatar.connect(this.machine.service, normalizeProps);
   }
 
+  // The hook element is the avatar's root, so the image and the placeholder
+  // are its direct children. Zag's root props are not applied: they would
+  // replace the element's id, which LiveView needs.
   render() {
-    const parts = ["root", "root:image", "root:fallback"];
-    for (const part of parts) renderPart(this.el, part, this.api);
+    for (const part of ["image", "fallback"])
+      renderPart(this.el, part, this.api);
   }
 }
 

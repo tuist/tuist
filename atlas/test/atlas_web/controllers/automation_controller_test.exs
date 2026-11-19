@@ -8,6 +8,8 @@ defmodule AtlasWeb.AutomationControllerTest do
   alias Atlas.Automations.Executor
   alias Atlas.MCP.Tools.DeleteAutomationBehavior
   alias Atlas.MCP.Tools.GetAutomationRecord
+  alias Atlas.MCP.Tools.IngestSignal
+  alias Atlas.MCP.Tools.SetSignalSourceEnabled
   alias Atlas.MCP.Tools.UpdateAutomationBehavior
 
   setup %{conn: conn} do
@@ -140,6 +142,90 @@ defmodule AtlasWeb.AutomationControllerTest do
              catalog["operations"],
              &(String.starts_with?(&1["path"], "/api/automation/") && is_map(&1["input_schema"]))
            )
+  end
+
+  test "signal API and MCP share admission, protected evidence and replay-safe decisions", %{actor: actor, token: token} do
+    {_, revision} = workflow_fixture(actor)
+
+    source =
+      request(token, :post, "/signal-sources", %{
+        "name" => "Portable input",
+        "revision_id" => revision.id,
+        "reader_ids" => [],
+        "required_scopes" => []
+      })
+      |> json_response(200)
+      |> Map.fetch!("data")
+
+    assert source["enabled"] == false
+    assert {:ok, _} = execute_tool(SetSignalSourceEnabled, mcp_conn(actor), %{"id" => source["id"], "enabled" => true})
+
+    assert request(token, :post, "/signal-sources", %{
+             "name" => " \t\n",
+             "revision_id" => revision.id,
+             "reader_ids" => [],
+             "required_scopes" => []
+           })
+           |> json_response(422)
+
+    envelope = %{
+      "external_id" => "event",
+      "correlation_key" => "question",
+      "type" => "lead.discovered",
+      "schema_version" => 1,
+      "occurred_at" => "2026-10-28T10:00:00Z",
+      "title" => "New lead",
+      "summary" => "A prospect asked for information"
+    }
+
+    for invalid <- [%{"title" => " \t\n"}, %{"title" => "\u00a0"}, %{"schema_version" => 2_147_483_648}] do
+      assert request(token, :post, "/signal-sources/#{source["id"]}/signals", %{
+               "envelope" => Map.merge(envelope, invalid)
+             })
+             |> json_response(422)
+    end
+
+    assert request(token, :get, "/signals") |> json_response(200) |> get_in(["data", "total_count"]) == 0
+
+    receipt =
+      request(token, :post, "/signal-sources/#{source["id"]}/signals", %{"envelope" => envelope})
+      |> json_response(200)
+      |> Map.fetch!("data")
+
+    assert {:ok, %{data: replay}} =
+             execute_tool(IngestSignal, mcp_conn(actor), %{"id" => source["id"], "envelope" => envelope})
+
+    assert replay.id == receipt["id"]
+
+    assert request(token, :get, "/signals/#{replay.id}")
+           |> json_response(200)
+           |> get_in(["data", "envelope", "summary"]) == envelope["summary"]
+
+    assert request(token, :get, "/signals?page=1") |> json_response(200) |> get_in(["data", "total_count"]) == 1
+
+    decision = %{
+      "signal_id" => replay.id,
+      "action" => "ignored",
+      "priority" => "later",
+      "reason" => "No follow-up needed"
+    }
+
+    assert request(token, :post, "/signal-decisions", decision) |> json_response(200) |> get_in(["data", "status"]) ==
+             "ignored"
+
+    assert request(token, :post, "/signal-decisions", Map.put(decision, "priority", "now")) |> json_response(409)
+
+    assert request(token, :patch, "/signal-sources/#{source["id"]}", %{"reader_ids" => [Ecto.UUID.generate()]})
+           |> json_response(404)
+
+    boundary = Map.merge(envelope, %{"external_id" => "largest-version", "schema_version" => 2_147_483_647})
+
+    assert {:ok, %{data: accepted}} =
+             execute_tool(IngestSignal, mcp_conn(actor), %{"id" => source["id"], "envelope" => boundary})
+
+    assert request(token, :get, "/signals/#{accepted.id}")
+           |> json_response(200)
+           |> get_in(["data", "envelope", "schema_version"]) == 2_147_483_647
   end
 
   defp request(token, method, path, body \\ %{}) do

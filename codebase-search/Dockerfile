@@ -23,8 +23,11 @@ FROM debian:bookworm-slim AS source
 
 ARG TUIST_REVISION
 
-RUN apt-get update && \
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates git && \
+    sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf && \
+    update-ca-certificates && \
+    bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt && \
     rm -rf /var/lib/apt/lists/* && \
     echo "${TUIST_REVISION}" | grep -Eq '^[0-9a-f]{40}$' && \
     git init /workspace && \

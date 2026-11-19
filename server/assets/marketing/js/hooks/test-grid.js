@@ -26,6 +26,8 @@
  *                                     amber (the tests page hero, where the
  *                                     grid is a backdrop and amber would pull
  *                                     focus from the copy)
+ *   data-selective="outline":         draw ran (selective) cells as a purple
+ *                                     border only, without the purple fill
  *   data-once:                        play the load → resolve story once and
  *                                     hold the resolved frame, instead of
  *                                     fading out and looping (and stop
@@ -119,6 +121,7 @@ export const TestGrid = {
     this.cols = Number(d.cols) || 45;
     this.rows = Number(d.rows) || 12;
     this.once = "once" in d;
+    this.selectiveFill = d.selective !== "outline";
 
     const host = this.canvas.parentElement;
     this.resolveColors = () => {
@@ -188,8 +191,13 @@ export const TestGrid = {
       this.canvas.height = this.h * dpr;
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // Only draw as many columns as fit the width so boxes are never cut; the
-      // grid is centred and the counts follow the visible columns.
-      this.effCols = Math.max(1, Math.min(this.cols, Math.floor((this.w + this.gap) / this.pitch)));
+      // grid is centred and the counts follow the visible columns. A
+      // width-constrained grid also sheds --test-grid-shed columns per side
+      // (set per breakpoint in home.css) so it doesn't run edge to edge.
+      const fit = Math.floor((this.w + this.gap) / this.pitch);
+      const shed =
+        fit < this.cols ? Number(getComputedStyle(this.canvas).getPropertyValue("--test-grid-shed")) || 0 : 0;
+      this.effCols = Math.max(1, Math.min(this.cols, fit - shed * 2));
       const gridWeff = this.effCols * this.cell + (this.effCols - 1) * this.gap;
       this.offX = Math.round((this.w - gridWeff) / 2);
       this.offY = Math.round((this.h - this.gridH) / 2);
@@ -373,7 +381,7 @@ export const TestGrid = {
     }
 
     // Selective → purple fill fading in on top.
-    if (cell.state === "selective" && reveal > 0.01) {
+    if (this.selectiveFill && cell.state === "selective" && reveal > 0.01) {
       ctx.fillStyle = this.rgba(this.cSelFill, reveal);
       ctx.fill();
     }

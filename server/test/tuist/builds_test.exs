@@ -181,7 +181,9 @@ defmodule Tuist.BuildsTest do
           network_bytes_in: 1_000_000,
           network_bytes_out: 500_000,
           disk_bytes_read: 2_000_000,
-          disk_bytes_written: 1_500_000
+          disk_bytes_written: 1_500_000,
+          disk_total_bytes: 500_000_000_000,
+          disk_available_bytes: 0
         },
         %{
           timestamp: base_ts + 2.0,
@@ -219,6 +221,10 @@ defmodule Tuist.BuildsTest do
       assert length(build.machine_metrics) == 2
       assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
       assert Enum.at(build.machine_metrics, 1).offset_ms == nil
+      assert Enum.at(build.machine_metrics, 0).disk_total_bytes == 500_000_000_000
+      assert Enum.at(build.machine_metrics, 0).disk_available_bytes == 0
+      assert Enum.at(build.machine_metrics, 1).disk_total_bytes == nil
+      assert Enum.at(build.machine_metrics, 1).disk_available_bytes == nil
       assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
       assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
       assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001

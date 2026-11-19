@@ -183,7 +183,7 @@ defmodule TuistWeb.ConnectLive do
       <.terminal id="cargo-run">
         <:tab id="cargo-login" label="tuist auth login" command="tuist auth login" />
         <:tab id="cargo-build" label="tuist cargo build" command="tuist cargo build" />
-        <:tab id="cargo-test" label="tuist cargo nextest run" command="tuist cargo nextest run" />
+        <:tab id="cargo-test" label="tuist cargo test" command="tuist cargo test" />
       </.terminal>
       <.button
         variant="primary"
@@ -374,14 +374,15 @@ defmodule TuistWeb.ConnectLive do
         </div>
         <div :for={tab <- @tab} data-part="content" data-tab data-value={tab.id}>
           <span>{tab.command}</span>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             id={tab.id <> "-button"}
             size="small"
             phx-hook="Clipboard"
             data-clipboard-value={tab.command}
           >
             <.copy />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
     </div>
@@ -389,14 +390,15 @@ defmodule TuistWeb.ConnectLive do
       <div data-part="root">
         <div data-part="content">
           <span>{@command}</span>
-          <.neutral_button
+          <.ghost_button
+            variant="secondary"
             id={@id <> "-button"}
             size="small"
             phx-hook="Clipboard"
             data-clipboard-value={@command}
           >
             <.copy />
-          </.neutral_button>
+          </.ghost_button>
         </div>
       </div>
     </div>

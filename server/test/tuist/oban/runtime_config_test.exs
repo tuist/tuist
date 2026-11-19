@@ -19,10 +19,12 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
+  alias Tuist.Runners.Workers.ConcurrencySizingWorker
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
+  alias Tuist.Sandboxes.Workers.RetentionWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
@@ -131,6 +133,26 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       end
     end
 
+    test "automatic runner concurrency sizing only runs on hosted web instances" do
+      for env <- [:prod, :stag, :can] do
+        hosted = RuntimeConfig.crontab(:web, env, true)
+        assert {"*/5 * * * *", ConcurrencySizingWorker} in hosted
+        assert {"30 * * * *", ConcurrencySizingWorker, args: %{"mode" => "daily"}} in hosted
+
+        refute Enum.any?(RuntimeConfig.crontab(:web, env, false), &(cron_worker(&1) == ConcurrencySizingWorker))
+      end
+    end
+
+    test "sandbox archiving checks disk pressure every minute" do
+      for hosted? <- [true, false] do
+        assert {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker} in RuntimeConfig.crontab(
+                 :web,
+                 :prod,
+                 hosted?
+               )
+      end
+    end
+
     test ":web + prod-like env, self-hosted without retention configuration: shared crons only" do
       for env <- [:prod, :stag, :can] do
         workers =
@@ -144,6 +166,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert RetentionWorker in workers
         assert PruneExpiredSubscriptionsWorker in workers
         assert CoverageRetentionWorker in workers
 
@@ -290,6 +313,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert RetentionWorker in workers
         assert CoverageRetentionWorker in workers
 
         assert ExpireInteractiveSessionsWorker in workers

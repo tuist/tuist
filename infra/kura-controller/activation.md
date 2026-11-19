@@ -45,6 +45,10 @@ the minute reconciler as a fallback. A regional URL becoming active alone is
 not completion of cold activation. The gateway never returns those
 URLs to clients and never redirects credentials or proxies back to itself.
 
+The gateway remembers a 401 or 403 from that call for one minute per host and
+credential digest, so a client that keeps sending a refused credential does not
+cost the control plane a token check per request.
+
 Activation waits at most 20 seconds, polling every two seconds. At most 128
 activation waits and, independently, 128 proxy streams per pod can be admitted.
 A stream releases its activation slot before forwarding, so long transfers cannot
@@ -64,6 +68,30 @@ this exception. The gateway strips the marker from upstream responses.
 The Bazel capability probe allows 30 seconds per attempt and up to four attempts
 for `UNAVAILABLE`/`RESOURCE_EXHAUSTED`; authorization failures and deadlines stop
 immediately. Self-hosted discovery does not activate capacity.
+
+Billing refusals return HTTP 402 with the regional API's `application/json`
+`{"message": "..."}` body so existing generated clients can decode them.
+For gRPC, activation preserves the regional cache's `PERMISSION_DENIED` status
+with `tuist-refusal-reason: payment_required`
+metadata and an actionable message. Older clients that do not recognize the
+metadata still stop; billing-aware clients surface it without matching message
+text. Do not switch billing refusals to `RESOURCE_EXHAUSTED` without negotiating
+support: existing clients retry that status as transient capacity pressure.
+Neither billing nor authorization refusals carry `Retry-After` or the pending
+activation marker. The gateway advertises support with
+`X-Tuist-Cache-Activation-Billing: 1` on its internal activation request. The
+server returns billing 402 only for that exact capability; absent or unknown
+versions retain a terminal 403 because older gateways encode 402 as plain text,
+which generated HTTP clients cannot decode. Older servers ignore the header;
+their generic 403 remains unmarked, while any existing 402 is encoded correctly
+by the new gateway. Server and gateway upgrades and rollbacks can happen in
+either order without requiring a client update. An old server and old gateway
+together retain their existing behavior, including plain-text 402 responses.
+Activation reads verified, tenant-matching billing refusal claims before
+requiring grants, because billing removes those grants. Those claims can only
+refuse access, never authorize routing or provisioning. A cache JWT minted while
+blocked remains refused until refreshed even after billing recovers, matching
+the regional cache's signed-claim behavior and bounded by the token's lifetime.
 
 The 20-second activation wait is a per-request budget, not a pod startup SLA.
 Provisioning continues after a timeout. Production archive-to-active analysis

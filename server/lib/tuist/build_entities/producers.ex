@@ -20,6 +20,46 @@ defmodule Tuist.BuildEntities.Producers do
   alias Tuist.BuildEntities
 
   @doc """
+  Recorded rustc invocations, identified by the exact reported crate root,
+  name and kind. Paths are not normalized: absolute checkout paths can split
+  histories, and relative roots do not establish workspace or configuration
+  independence. Features, profile and target triple are not reported, so this
+  is an observed crate grouping, not a configured Cargo unit inventory.
+
+  Missing identity (including the observer's `unknown` name sentinel) remains
+  native-only. Cache counters cannot establish a crate observation or removal.
+  Only the invocation's own measured duration and outcome are used.
+  """
+  def cargo_build(build, compilations) do
+    compilations
+    |> Enum.filter(fn row ->
+      Enum.all?([row.source, row.name, row.kind], &(is_binary(&1) and &1 != "")) and
+        row.name != "unknown"
+    end)
+    |> with_ordinals(&[&1.source, &1.name, &1.kind])
+    |> Enum.map(fn {row, ordinal} ->
+      %{
+        project_id: build.project_id,
+        system: :cargo,
+        kind: "crate",
+        identity: %{"source" => row.source, "name" => row.name, "kind" => row.kind},
+        name: row.name,
+        parent_id: build.id,
+        discriminator: ordinal,
+        execution_id: "compilation:#{ordinal}",
+        status: row.status,
+        cache_status: "none",
+        duration_ms: integer_or_nil(row.duration_ms),
+        git_branch: build.git_branch,
+        git_commit_sha: build.git_commit_sha,
+        is_ci: build.is_ci,
+        observed_at: offset_datetime(build.started_at, row.start_offset_ms) || build.inserted_at
+      }
+    end)
+    |> BuildEntities.record()
+  end
+
+  @doc """
   Gradle tasks from a build report, given the `gradle_builds` row and pairs of
   each reported task with the `gradle_tasks` row inserted for it. Identity is
   root project, build path, task path and task type, the same key the task

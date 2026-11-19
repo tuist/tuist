@@ -1,11 +1,13 @@
 import FileSystem
 import Foundation
 import Mockable
+import Path
 import TuistAndroid
 import TuistAppStorage
 import TuistAutomation
 import TuistConstants
 import TuistCore
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -26,6 +28,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
     private var adbController: MockAdbControlling!
     private var taskStatusReporter: MockTaskStatusReporting!
     private var menuBarFocusService: MockMenuBarFocusServicing!
+    private var fileArchiverFactory: MockFileArchivingFactorying!
+    private var commandRunner: MockCommandRunning!
+    private var macPreviewsDirectory: AbsolutePath!
 
     private let previewURL =
         URL(
@@ -57,7 +62,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
 
         simulatorController = .init()
         getPreviewService = .init()
-        let fileArchiverFactory = MockFileArchivingFactorying()
+        fileArchiverFactory = MockFileArchivingFactorying()
+        commandRunner = MockCommandRunning()
+        macPreviewsDirectory = try? temporaryPath().appending(component: "Previews")
         remoteArtifactDownloader = .init()
         appBundleLoader = .init()
         appStorage = .init()
@@ -77,8 +84,14 @@ final class DeviceServiceTests: TuistUnitTestCase {
             remoteArtifactDownloader: remoteArtifactDownloader,
             fileSystem: fileSystem,
             appBundleLoader: appBundleLoader,
-            menuBarFocusService: menuBarFocusService
+            menuBarFocusService: menuBarFocusService,
+            commandRunner: commandRunner,
+            macPreviewsDirectory: macPreviewsDirectory
         )
+
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willProduce { _, _, _ in .init(unfolding: { nil }) }
 
         given(deviceController)
             .findAvailableDevices()
@@ -151,6 +164,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
         adbController = nil
         subject = nil
         taskStatusReporter = nil
+        fileArchiverFactory = nil
+        commandRunner = nil
+        macPreviewsDirectory = nil
 
         Matcher.reset()
 
@@ -847,5 +863,179 @@ final class DeviceServiceTests: TuistUnitTestCase {
                 device: .value(emulator)
             )
             .called(1)
+    }
+
+    // MARK: - This Mac
+
+    #if arch(arm64)
+        private let hostCPU: UInt32 = 0x0100_000C
+        private let otherCPU: UInt32 = 0x0100_0007
+    #else
+        private let hostCPU: UInt32 = 0x0100_0007
+        private let otherCPU: UInt32 = 0x0100_000C
+    #endif
+
+    private let macPreviewURL = URL(
+        string:
+        "tuist:open-preview?server_url=https://tuist.dev&preview_id=01912892-3778-7297-8ca9-d66ac7ee2a53&full_handle=tuist/ios_app_with_frameworks&platform=macos"
+    )!
+
+    /// Writes `Luft.app` whose executable has a universal Mach-O header for the given CPU types.
+    @discardableResult
+    private func writeMacApp(in directory: AbsolutePath, cpuTypes: [UInt32]) async throws -> AbsolutePath {
+        let appPath = directory.appending(component: "Luft.app")
+        let macOSDirectory = appPath.appending(components: "Contents", "MacOS")
+        try await fileSystem.makeDirectory(at: macOSDirectory)
+        var bytes: [UInt8] = []
+        func append(_ word: UInt32) { bytes += withUnsafeBytes(of: word.bigEndian, Array.init) }
+        append(0xCAFE_BABE)
+        append(UInt32(cpuTypes.count))
+        for cpuType in cpuTypes {
+            append(cpuType)
+            for _ in 0 ..< 4 {
+                append(0)
+            }
+        }
+        try Data(bytes).write(to: macOSDirectory.appending(component: "Luft").url)
+        return appPath
+    }
+
+    private func givenMacPreview(builds: [Components.Schemas.AppBuild]) async throws {
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+        given(getPreviewService)
+            .getPreview(.any, fullHandle: .any, serverURL: .any)
+            .willReturn(.test(builds: builds))
+        given(appBundleLoader)
+            .load(.any)
+            .willProduce { path in .test(path: path, infoPlist: .test(executableName: "Luft")) }
+    }
+
+    /// Serves the archive for `url` as a directory holding `Luft.app` built for `cpuTypes`.
+    private func givenMacArchive(at url: URL, name: String, cpuTypes: [UInt32]) async throws {
+        let archive = try temporaryPath().appending(component: "\(name).zip")
+        let unarchived = try temporaryPath().appending(component: name)
+        try await writeMacApp(in: unarchived, cpuTypes: cpuTypes)
+        let unarchiver = MockFileUnarchiving()
+        given(unarchiver).unzip().willReturn(unarchived)
+        given(remoteArtifactDownloader).download(url: .value(url)).willReturn(archive)
+        given(fileArchiverFactory).makeFileUnarchiver(for: .value(archive)).willReturn(unarchiver)
+    }
+
+    private func verifyOpened(_ appPath: AbsolutePath, count: Count = 1) {
+        verify(commandRunner)
+            .run(
+                arguments: .value(["/usr/bin/open", "-n", appPath.pathString]),
+                environment: .any,
+                workingDirectory: .any
+            )
+            .called(count)
+    }
+
+    func test_launchPreviewDeeplink_with_macos_platform_installs_the_app_bundle_and_opens_it() async throws {
+        // Given
+        fileArchiverFactory.reset()
+        try await subject.loadDevices()
+        let executableURL = URL(string: "https://tuist.dev/executable.zip")!
+        let ipaURL = URL(string: "https://tuist.dev/app.ipa")!
+        let macURL = URL(string: "https://tuist.dev/mac.zip")!
+        // An ID that would escape the previews folder if it were used as a path component.
+        let buildID = "../.."
+        try await givenMacPreview(builds: [
+            .test(id: "executable", supportedPlatforms: [.macos], type: .executable, url: executableURL),
+            .test(id: "ipa", supportedPlatforms: [.ios], type: .ipa, url: ipaURL),
+            .test(id: buildID, supportedPlatforms: [.macos], type: .appBundle, url: macURL),
+        ])
+        try await givenMacArchive(at: macURL, name: "mac", cpuTypes: [hostCPU])
+        let sentinel = try temporaryPath().appending(component: "sentinel")
+        try await fileSystem.touch(sentinel)
+
+        // When
+        try await subject.launchPreviewDeeplink(with: macPreviewURL)
+
+        // Then
+        let installedApp = macPreviewsDirectory.appending(components: buildID.md5, "Luft.app")
+        verifyOpened(installedApp)
+        let installedExecutable = installedApp.appending(components: "Contents", "MacOS", "Luft")
+        let installedExecutableExists = try await fileSystem.exists(installedExecutable)
+        let sentinelExists = try await fileSystem.exists(sentinel)
+        XCTAssertTrue(installedExecutableExists)
+        XCTAssertTrue(sentinelExists)
+        verify(remoteArtifactDownloader).download(url: .value(executableURL)).called(0)
+        verify(remoteArtifactDownloader).download(url: .value(ipaURL)).called(0)
+    }
+
+    func test_launchPreview_on_this_mac_reuses_an_installed_build() async throws {
+        // Given
+        try await subject.loadDevices()
+        await subject.selectDevice(.thisMac)
+        try await givenMacPreview(builds: [.test(id: "mac-build", supportedPlatforms: [.macos])])
+        let installedApp = try await writeMacApp(
+            in: macPreviewsDirectory.appending(component: "mac-build".md5),
+            cpuTypes: [hostCPU]
+        )
+
+        // When
+        try await subject.launchPreviewDeeplink(with: previewURL)
+        try await subject.launchPreviewDeeplink(with: previewURL)
+
+        // Then
+        verifyOpened(installedApp, count: 2)
+        verify(remoteArtifactDownloader).download(url: .any).called(0)
+    }
+
+    func test_launchPreview_on_this_mac_skips_builds_for_another_processor() async throws {
+        // Given
+        fileArchiverFactory.reset()
+        try await subject.loadDevices()
+        let otherURL = URL(string: "https://tuist.dev/other.zip")!
+        let hostURL = URL(string: "https://tuist.dev/host.zip")!
+        try await givenMacPreview(builds: [
+            .test(id: "other", supportedPlatforms: [.macos], url: otherURL),
+            .test(id: "host", supportedPlatforms: [.macos], url: hostURL),
+        ])
+        try await givenMacArchive(at: otherURL, name: "other", cpuTypes: [otherCPU])
+        try await givenMacArchive(at: hostURL, name: "host", cpuTypes: [otherCPU, hostCPU])
+
+        // When
+        try await subject.launchPreviewDeeplink(with: macPreviewURL)
+
+        // Then
+        verifyOpened(macPreviewsDirectory.appending(components: "host".md5, "Luft.app"))
+        verifyOpened(macPreviewsDirectory.appending(components: "other".md5, "Luft.app"), count: 0)
+    }
+
+    func test_launchPreview_on_this_mac_when_no_build_runs_on_this_processor() async throws {
+        // Given
+        fileArchiverFactory.reset()
+        try await subject.loadDevices()
+        let otherURL = URL(string: "https://tuist.dev/other.zip")!
+        try await givenMacPreview(builds: [.test(id: "other", supportedPlatforms: [.macos], url: otherURL)])
+        try await givenMacArchive(at: otherURL, name: "other", cpuTypes: [otherCPU])
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await subject.launchPreviewDeeplink(with: macPreviewURL),
+            DeviceServiceError.noCompatibleMacBuild
+        )
+        verify(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).called(0)
+    }
+
+    func test_loadDevices_restores_this_mac_selection() async throws {
+        // Given
+        appStorage.reset()
+        given(appStorage)
+            .get(.any as Parameter<PinnedSimulatorsKey.Type>)
+            .willReturn([])
+        given(appStorage)
+            .get(.any as Parameter<SelectedDeviceKey.Type>)
+            .willReturn(.thisMac)
+
+        // When
+        try await subject.loadDevices()
+
+        // Then
+        XCTAssertEqual(subject.selectedDevice, .thisMac)
     }
 }

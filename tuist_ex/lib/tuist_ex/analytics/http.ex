@@ -7,6 +7,8 @@ defmodule TuistEx.Analytics.HTTP do
   alias TuistEx.Auth
   alias TuistEx.HTTP
 
+  @version Mix.Project.config()[:version]
+
   # Sends a fully-shaped test-run payload to
   # `POST /api/projects/:account/:project/tests`.
   #
@@ -77,21 +79,35 @@ defmodule TuistEx.Analytics.HTTP do
           "/api/projects/" <>
           config.project_handle.account <> "/" <> config.project_handle.project <> suffix
 
-      actor_headers =
+      report_headers =
         if report?,
-          do: Actor.headers(options),
+          do: [{"x-tuist-ex-version", @version} | Actor.headers(options)],
           else: []
 
       case HTTP.request(
              method,
              url,
              body,
-             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++ actor_headers
+             if(token, do: [{"authorization", "Bearer " <> token}], else: []) ++
+               report_headers ++ runner_headers(suffix, options)
            ) do
         {:ok, status, decoded} when status in 200..299 -> {:ok, decoded}
         {:ok, status, decoded} -> {:error, {:http, status, decoded}}
         {:error, reason} -> {:error, reason}
       end
+    end
+  end
+
+  defp runner_headers(suffix, options) do
+    environment = Keyword.get(options, :environment, &System.get_env/1)
+    grant = environment.("TUIST_CACHE_SIGNING_GRANT")
+
+    if (suffix == "/tests/shards" or String.starts_with?(suffix, "/tests/shards/")) and
+         is_binary(grant) and
+         byte_size(grant) in 1..8192 and Regex.match?(~r/\A[A-Za-z0-9_.-]+\z/, grant) do
+      [{"x-tuist-runner-grant", grant}]
+    else
+      []
     end
   end
 

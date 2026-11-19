@@ -1,0 +1,28 @@
+[package]
+name = "tuist-app-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+tuist-jwt.workspace = true
+tuist-oauth = { path = "../oauth", default-features = false }
+# The local store. Bundled so every platform runs the same SQLite: Android's NDK
+# has none to link, and in the browser rusqlite switches to sqlite-wasm-rs.
+rusqlite = { version = "0.43", features = ["bundled"] }
+web-time = "1.1"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
+[dev-dependencies]
+# Compile-check JNI marshalling in Linux unit-test builds as well as Android.
+jni = "0.21"

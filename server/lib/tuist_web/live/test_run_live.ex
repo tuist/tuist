@@ -10,6 +10,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.CIContextCard
+  import TuistWeb.Runs.CIProviderIcon
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.PullRequestButton
   import TuistWeb.Runs.RanByBadge
@@ -25,6 +26,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Selections
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
@@ -32,6 +34,7 @@ defmodule TuistWeb.TestRunLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
+  alias TuistWeb.TestSelection.RunTab
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -106,6 +109,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
+      |> assign_selection_run(project, run)
+      |> RunTab.assign_defaults()
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -120,7 +125,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(
         OpenGraph.project_image_assigns(project,
           title:
-            if(project.build_system == :mix,
+            if(project.build_system in [:mix, :cargo],
               do: test_run_label(project, run.scheme),
               else: if(run.scheme == "", do: dgettext("dashboard_tests", "Test Run"), else: run.scheme)
             ),
@@ -143,6 +148,11 @@ defmodule TuistWeb.TestRunLive do
 
     {:ok, socket}
   end
+
+  # An impact run without a baseline has nothing for coverage to show, so the Selective Testing
+  # tab shows module hashing's table alone when the run has one.
+  defp hash_only_selection?(selection_run, has_selective_testing_data),
+    do: has_selective_testing_data == true and Selections.counted_by_module?(selection_run)
 
   # Read the original build's lookups without attributing them to this test command.
   defp binary_cache_command_event(run, command_event) do
@@ -345,6 +355,10 @@ defmodule TuistWeb.TestRunLive do
 
   def handle_event("refresh_test_run", _params, socket) do
     {:noreply, reload_run_state(socket)}
+  end
+
+  def handle_event("search-selection", %{"search" => search}, socket) do
+    {:noreply, push_patch(socket, to: "?" <> RunTab.search_query(socket.assigns.uri, search), replace: true)}
   end
 
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
@@ -590,6 +604,11 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
+    socket =
+      if socket.assigns.selection_run,
+        do: RunTab.assign_data(socket, socket.assigns.selection_run, socket.assigns.run.id, params),
+        else: socket
+
     if socket.assigns.command_event do
       {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
       assign_selective_testing_data(socket, analytics, meta, params)
@@ -1519,7 +1538,8 @@ defmodule TuistWeb.TestRunLive do
                 size="small"
               />
             </div>
-            <.neutral_button
+            <.ghost_button
+              variant="secondary"
               href={
                 ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{att.file_name}"
               }
@@ -1527,13 +1547,13 @@ defmodule TuistWeb.TestRunLive do
               size="small"
             >
               <.download />
-            </.neutral_button>
-            <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+            </.ghost_button>
+            <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="small">
               <.chevron_down />
-            </.neutral_button>
-            <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+            </.ghost_button>
+            <.ghost_button data-part="open-collapsible-button" variant="secondary" size="small">
               <.chevron_up />
-            </.neutral_button>
+            </.ghost_button>
           </div>
           <div data-part="content">
             <a
@@ -1577,7 +1597,8 @@ defmodule TuistWeb.TestRunLive do
                 size="small"
               />
             </div>
-            <.neutral_button
+            <.ghost_button
+              variant="secondary"
               href={
                 ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{att.file_name}"
               }
@@ -1585,13 +1606,13 @@ defmodule TuistWeb.TestRunLive do
               size="small"
             >
               <.download />
-            </.neutral_button>
-            <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+            </.ghost_button>
+            <.ghost_button data-part="closed-collapsible-button" variant="secondary" size="small">
               <.chevron_down />
-            </.neutral_button>
-            <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+            </.ghost_button>
+            <.ghost_button data-part="open-collapsible-button" variant="secondary" size="small">
               <.chevron_up />
-            </.neutral_button>
+            </.ghost_button>
           </div>
           <div data-part="content">
             <div
@@ -1625,7 +1646,8 @@ defmodule TuistWeb.TestRunLive do
                 size="small"
               />
             </div>
-            <.neutral_button
+            <.ghost_button
+              variant="secondary"
               href={
                 ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{att.file_name}"
               }
@@ -1633,7 +1655,7 @@ defmodule TuistWeb.TestRunLive do
               size="small"
             >
               <.download />
-            </.neutral_button>
+            </.ghost_button>
           </div>
         </div>
       </div>
@@ -1678,6 +1700,21 @@ defmodule TuistWeb.TestRunLive do
       |> Map.new()
 
     assign(socket, :text_attachment_urls, urls)
+  end
+
+  # The tab shows for a run that points to an impact run, also once that
+  # run expired, so it can say so.
+  defp assign_selection_run(socket, project, run) do
+    {selection_run, expired?} =
+      case Selections.run_for_test_run(project.id, run) do
+        {:ok, selection_run} -> {selection_run, false}
+        {:error, :expired} -> {nil, true}
+        {:error, :none} -> {nil, false}
+      end
+
+    socket
+    |> assign(:selection_run, selection_run)
+    |> assign(:selection_expired?, expired?)
   end
 
   defp assign_shard_rows(socket, run) do

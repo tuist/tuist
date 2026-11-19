@@ -1,7 +1,15 @@
 defmodule TuistCommon.GitHub do
   @moduledoc """
   GitHub API client for common operations shared between cache and server.
+
+  Every function accepts `:anonymous_fallback`. When `true`, a 403 that is not
+  a rate limit is repeated once without the token, for callers that only read
+  public repositories. Organizations with an IP allow list refuse tokens from
+  outside the list even for their public repositories, but serve anonymous
+  requests.
   """
+
+  require Logger
 
   @api_base "https://api.github.com"
   @per_page 100
@@ -256,7 +264,64 @@ defmodule TuistCommon.GitHub do
     end
   end
 
+  # An organization with an IP allow list refuses authenticated requests from
+  # outside the list with a 403, even to its public repositories, while the
+  # same request sent anonymously succeeds. Callers that only read public
+  # repositories opt in with `anonymous_fallback: true` to repeat such a 403
+  # once without the token.
+  #
+  # The anonymous answer is kept only when it is not itself a refusal. An
+  # anonymous 401, 403, or 429 is most likely the 60-requests-an-hour anonymous
+  # quota, and reporting it would make callers back off on a budget unrelated
+  # to the token's; the original 403 is returned instead. An anonymous 404 is
+  # kept because, for a public repository, it is the real answer to a lookup
+  # such as `.gitmodules`.
+  #
+  # The fallback response is not reported to rate-limit telemetry: it carries
+  # the anonymous budget, which would overwrite the token's budget in the
+  # `RateLimit` gauges.
   defp request(method, url, token, opts) do
+    result = method |> do_request(url, token, opts) |> tap(&emit_rate_limit_telemetry/1)
+
+    with true <- Keyword.get(opts, :anonymous_fallback, false),
+         [_auth] <- auth_header(token),
+         {:ok, %{status: 403, headers: headers} = response} <- result,
+         false <- rate_limited?(headers),
+         message = refusal_message(response),
+         # A secondary rate limit can arrive without the headers `rate_limited?`
+         # reads. Retrying it anonymously would hide the throttling.
+         false <- String.contains?(String.downcase(message), "secondary rate limit") do
+      anonymous = do_request(method, url, nil, opts)
+
+      Logger.warning(
+        "GitHub refused the token for #{url} with HTTP 403 (#{message}); anonymous retry #{anonymous_outcome(anonymous)}"
+      )
+
+      case anonymous do
+        {:ok, %{status: status}} when status not in [401, 403, 429] -> anonymous
+        _refused_or_failed -> result
+      end
+    else
+      _not_retried -> result
+    end
+  end
+
+  defp refusal_message(%{body: %{"message" => message}}) when is_binary(message), do: message
+
+  # Zipball downloads skip body decoding, so the refusal arrives as raw JSON.
+  defp refusal_message(%{body: body}) when is_binary(body) do
+    case JSON.decode(body) do
+      {:ok, %{"message" => message}} when is_binary(message) -> message
+      _ -> "no message"
+    end
+  end
+
+  defp refusal_message(_response), do: "no message"
+
+  defp anonymous_outcome({:ok, %{status: status}}), do: "returned HTTP #{status}"
+  defp anonymous_outcome({:error, reason}), do: "failed: #{inspect(reason)}"
+
+  defp do_request(method, url, token, opts) do
     headers =
       [{"user-agent", @user_agent}, {"accept", "application/vnd.github+json"}] ++
         auth_header(token)
@@ -274,9 +339,7 @@ defmodule TuistCommon.GitHub do
       |> maybe_add_opt(:decode_body, decode_body)
       |> maybe_add_opt(:into, into)
 
-    req_opts
-    |> Req.request()
-    |> tap(&emit_rate_limit_telemetry/1)
+    Req.request(req_opts)
   end
 
   # GitHub reports the budget on every API response, including the 403 that

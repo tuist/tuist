@@ -26,13 +26,25 @@ const (
 )
 
 // PrefetchMaster queues a HEAD the server listed for this host's fleet, behind
-// any master a job asked for. Reports whether it is queued or already here.
-func (c *CustomVolumes) PrefetchMaster(identity cachevolumes.Identity) bool {
+// any master a job asked for, under the reason the server listed it for.
+// Reports whether it is queued or already here.
+func (c *CustomVolumes) PrefetchMaster(identity cachevolumes.Identity, reason string) bool {
 	if c == nil {
 		return false
 	}
-	return c.prefetch.Load().start(identity, false) != nil
+	if reason != prefetchPrewarm {
+		reason = prefetchRecent
+	}
+	return c.prefetch.Load().queue(identity, false, reason) != nil
 }
+
+// Why a master was prefetched, the label of the prefetched-bytes metric.
+const (
+	prefetchJob     = "job"
+	prefetchRefresh = "refresh"
+	prefetchPrewarm = "prewarm"
+	prefetchRecent  = "recent"
+)
 
 // customPrefetcher restores immutable masters in the background, one at a time
 // so a single disk reservation covers the work. Jobs never wait on it. A
@@ -67,6 +79,7 @@ var resolved = func() <-chan struct{} {
 type customPrefetch struct {
 	identity  cachevolumes.Identity
 	requested bool
+	reason    string
 	done      chan struct{}
 }
 
@@ -85,10 +98,20 @@ func newCustomPrefetcher(ctx context.Context, restore func(context.Context, cach
 	return p
 }
 
-// start queues a master and returns a channel closed once it is installed, has
+// start queues a master a job asked for (requested) or a newer HEAD of a local
+// master; see queue.
+func (p *customPrefetcher) start(identity cachevolumes.Identity, requested bool) <-chan struct{} {
+	reason := prefetchRefresh
+	if requested {
+		reason = prefetchJob
+	}
+	return p.queue(identity, requested, reason)
+}
+
+// queue queues a master and returns a channel closed once it is installed, has
 // failed or was dropped. Nil when nothing was queued: a cold identity, a full
 // queue or a stopped prefetcher.
-func (p *customPrefetcher) start(identity cachevolumes.Identity, requested bool) <-chan struct{} {
+func (p *customPrefetcher) queue(identity cachevolumes.Identity, requested bool, reason string) <-chan struct{} {
 	if p == nil || identity.BaseGeneration <= 0 {
 		return nil
 	}
@@ -107,7 +130,7 @@ func (p *customPrefetcher) start(identity cachevolumes.Identity, requested bool)
 	if at, ok := p.failed[key]; ok && time.Since(at) < customPrefetchRetry {
 		return resolved
 	}
-	job := &customPrefetch{identity: identity, requested: requested, done: make(chan struct{})}
+	job := &customPrefetch{identity: identity, requested: requested, reason: reason, done: make(chan struct{})}
 	queue := p.background
 	if requested {
 		queue = p.requested
@@ -150,6 +173,9 @@ func (p *customPrefetcher) work() {
 		err := p.restore(ctx, slot, job.requested)
 		done(err)
 		cancel()
+		if err == nil && job.identity.HeadSizeBytes > 0 {
+			customCachePrefetchedBytes.WithLabelValues(job.reason).Add(float64(job.identity.HeadSizeBytes))
+		}
 		if errors.Is(err, cachevolumes.ErrDownloadIncomplete) && p.requeue(job) {
 			continue
 		}

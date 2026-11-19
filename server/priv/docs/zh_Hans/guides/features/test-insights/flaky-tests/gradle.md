@@ -1,0 +1,112 @@
+---
+{
+  "title": "Gradle 不稳定测试",
+  "titleTemplate": ":title · 不稳定测试 · 测试洞察 · 功能 · 指南 · Tuist",
+  "description": "使用 Tuist 检测、管理和隔离 Gradle 项目中的不稳定测试。"
+}
+---
+# Gradle 不稳定测试 {#gradle-flaky-tests}
+
+> [!IMPORTANT]
+> **要求**
+>
+> - 已配置<.localized_link href="/guides/features/test-insights/gradle">Gradle 测试洞察</.localized_link>。
+
+<!-- @snippet: ./_intro -->
+
+![不稳定测试页面](/images/guides/features/test-insights/flaky-tests-page.png)
+
+## 不稳定检测的工作原理 {#how-it-works}
+
+Tuist 通过两种方式检测不稳定测试：
+
+### 测试重试 {#test-retries}
+
+当你运行带有重试功能的测试时，Tuist 会分析每次尝试的结果。如果某个测试在某些尝试中失败而在其他尝试中通过，它会被标记为不稳定。
+
+你可以使用 [Test Retry 插件](https://github.com/gradle/test-retry-gradle-plugin) 或类似机制来重新运行失败的测试。Tuist 将检测那些在某些尝试中通过而在其他尝试中失败的测试。
+
+将该插件添加到你的 `build.gradle.kts` 中：
+
+```kotlin
+plugins {
+    id("org.gradle.test-retry") version "1.6.2"
+}
+
+tasks.test {
+    retry {
+        maxRetries = 3
+        maxFailures = 5
+        failOnPassedAfterRetry = false
+    }
+}
+```
+
+![不稳定测试用例详情](/images/guides/features/test-insights/flaky-test-case-detail.png)
+
+### 跨运行检测 {#cross-run-detection}
+
+即使没有测试重试，Tuist 也可以通过比较同一提交和同一 Gradle 项目在不同 CI 运行中的结果来检测不稳定测试。如果某个测试在一次 CI 运行中通过，但在同一提交和项目的另一次运行中失败，则该失败的执行会被标记为不稳定。
+
+Gradle 项目是比较键的一部分，因为同一个测试在不同项目中可能会表现出确定性的差异——例如，一个共享的测试类使用不同的依赖项编译，或在不同的模块夹具上运行。同一提交在不同 Gradle 项目上的两次运行被视为独立的执行变体，不会互相标记为不稳定。
+
+这对于捕获那些失败频率不足以被重试捕获、但仍会导致间歇性 CI 失败的不稳定测试特别有用。
+
+<!-- @snippet: ./_managing -->
+
+## 隔离不稳定测试 {#quarantining}
+
+<!-- @snippet: ./_quarantine-intro -->
+
+被隔离的测试处于以下两种模式之一：
+
+- **静音**：测试仍然运行，但插件会将 `ignoreFailures = true` 设置为 true，并且仅在出现非隔离失败时使构建再次失败。失败结果仍会提供给不稳定测试检测器，因此你可以在不中断构建的情况下继续监控该测试。选择此模式适用于你正在积极调查的测试。
+- **跳过**：插件通过 Gradle 的 `excludeTestsMatching` 过滤掉该测试，因此它永远不会启动。它不会产生新的结果，并从不稳定测试仪表板中消失，直到你重新启用它。当测试损坏、缓慢或持续不稳定以至于运行它只是浪费 CI 分钟数时，请选择此模式。
+
+<!-- @snippet: ./_quarantined-passing -->
+
+### 启用隔离 {#enabling-quarantine}
+
+隔离在 CI 上**自动启用**（当设置了 `CI` 环境变量时），而在本地构建中禁用。插件在每个测试任务之前从 Tuist 服务器获取隔离测试列表；静音测试正常运行并屏蔽其失败，跳过测试则被过滤掉。
+
+你可以在 `settings.gradle.kts` 中显式控制此行为：
+
+```kotlin
+tuist {
+    testQuarantine {
+        enabled = true  // or false to disable
+    }
+}
+```
+
+当未设置 `enabled` 时，默认为自动检测：在 CI 上启用，在本地禁用。
+
+## 对新测试进行压力测试 {#stress-testing-new-tests}
+
+<!-- @snippet: ./_stress-intro -->
+
+如果一个测试用例在过去 90 天内未在项目的默认分支上运行过 CI，或者未在随后合并到该分支的提交上运行过，则被视为新测试用例。在使用合并队列时，队列运行的测试用例在队列的提交合并后即被知晓，如果队列将其丢弃，则保持为新测试用例。提交是通过 Tuist 在 CI 上收集的 <.localized_link href="/guides/features/test-insights/gradle#git-history">Git 历史记录</.localized_link> 进行匹配的。
+
+<!-- @snippet: ./_stress-modes -->
+
+在 `settings.gradle.kts` 中声明，或设置 `TUIST_TEST_STRESS_NEW_TESTS` 以按 CI 通道调整模式：
+
+```kotlin
+tuist {
+    stressNewTests {
+        mode = "report" // or "enforce"
+    }
+}
+```
+
+与隔离不同，该门禁没有感知 CI 的默认值。如果未设置 `mode`，它不会在任何地方运行。
+
+<!-- @snippet: ./_stress-reruns -->
+
+每次重新运行都是一个嵌套的 Gradle 构建，仅过滤到该单个测试用例，因此每次重新运行都会获得一个新的测试 JVM。
+
+<!-- @snippet: ./_stress-skipped -->
+
+<!-- @snippet: ./_slack -->
+
+<!-- @snippet: ./_querying -->

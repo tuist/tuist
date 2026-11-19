@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
+import OpenAPIRuntime
 import SwiftUI
 import TuistAppStorage
 import TuistHTTP
@@ -19,19 +20,19 @@ public enum AuthenticationError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidCallbackURL:
-            return "Invalid callback URL received"
+            return String(localized: "Invalid callback URL received")
         case .missingAuthorizationCode:
-            return "Authorization code not found"
+            return String(localized: "Authorization code not found")
         case .invalidTokenResponse:
-            return "Invalid response format"
+            return String(localized: "Invalid response format")
         case let .tokenExchangeFailed(statusCode):
-            return "Token exchange failed with status code: \(statusCode)"
+            return String(localized: "Token exchange failed with status code: \(statusCode)")
         case .missingTokens:
-            return "Access token or refresh token missing from response"
+            return String(localized: "Access token or refresh token missing from response")
         case .appleSignInFailed:
-            return "Apple Sign In failed"
+            return String(localized: "Apple Sign In failed")
         case .missingAppleCredentials:
-            return "Missing Apple credentials from authorization"
+            return String(localized: "Missing Apple credentials from authorization")
         }
     }
 }
@@ -40,6 +41,47 @@ public final class AuthenticationService: ObservableObject {
     @Published public var authenticationState: AuthenticationState
     @Published public private(set) var isSigningIn = false
     @Published public private(set) var selfHostedServerURL: String?
+    @Published public private(set) var profiles: [StoredProfile] = []
+    @Published public private(set) var activeProfileID: UUID?
+    @Published public private(set) var isAddingProfile = false
+    @Published public private(set) var isChangingProfile = false
+    @Published public private(set) var isLoadingOrganizations = false
+    @Published public private(set) var organizationsFailedToLoad = false
+
+    var profileStore: ProfileStoring = KeychainProfileStore()
+    public var beforeProfileChange: (() async -> (() async -> Void)?)?
+    private let profilesEnabled: Bool
+    private var previousServerSelection: AppServerConfiguration?
+    private var organizationDiscovery: Task<Void, Never>?
+    private var pendingRotations: [UUID: (previous: ServerCredentials, rotated: ServerCredentials)] = [:]
+    private var rejectedOrganizationProfiles: Set<UUID> = []
+    private let listOrganizationsService: ListOrganizationsServicing
+
+    public var selectedOrganization: String? {
+        profiles.first(where: { $0.id == activeProfileID }).map { $0.organization ?? $0.account.handle }
+    }
+
+    public var organizations: [StoredOrganization] {
+        var result: [StoredOrganization] = []
+        // A shared membership uses the current login when possible, without duplicate organization rows.
+        let ordered = profiles.filter { $0.id == activeProfileID } + profiles.filter { $0.id != activeProfileID }
+        for profile in ordered where profile.canSelectOrganization && !rejectedOrganizationProfiles.contains(profile.id) {
+            let names = profile.organizations.flatMap { $0.isEmpty ? nil : $0 } ?? [profile.account.handle]
+            for name in names {
+                let organization = StoredOrganization(
+                    profileID: profile.id, name: name, serverURL: profile.server?.url ?? ServerEnvironmentService().url()
+                )
+                if !result.contains(where: { $0.id == organization.id }) { result.append(organization) }
+            }
+        }
+        return result.sorted { ($0.name, $0.serverURL.absoluteString) < ($1.name, $1.serverURL.absoluteString) }
+    }
+
+    private var signInEnvironment: ServerEnvironmentServicing {
+        isAddingProfile
+            ? AppServerEnvironmentService(appStorage: appStorage, useSignedInSession: false)
+            : serverEnvironmentService
+    }
 
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let appStorage: AppStoring
@@ -47,15 +89,25 @@ public final class AuthenticationService: ObservableObject {
     private let presentationContextProvider = ASWebAuthenticationPresentationContextProvider()
     private let redirectURI = "tuist://oauth-callback"
     private let deleteAccountService: DeleteAccountServicing
+    private let perform: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing? = nil,
         appStorage: AppStoring = AppStorage(),
-        deleteAccountService: DeleteAccountServicing = DeleteAccountService()
+        deleteAccountService: DeleteAccountServicing = DeleteAccountService(),
+        profilesEnabled: Bool = false,
+        listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
+        perform: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = {
+            try await URLSession.tuistDefault.data(for: $0)
+        }
     ) {
         self.serverEnvironmentService = serverEnvironmentService ?? AppServerEnvironmentService(appStorage: appStorage)
         self.appStorage = appStorage
         self.deleteAccountService = deleteAccountService
+        self.profilesEnabled = profilesEnabled
+        self.listOrganizationsService = listOrganizationsService
+        self.perform = perform
+        if profilesEnabled { ServerAuthenticationSession.current.advance() }
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
         selfHostedServerURL = AppServerEnvironmentService(appStorage: appStorage).configuration?.url.absoluteString
@@ -73,13 +125,26 @@ public final class AuthenticationService: ObservableObject {
     private func startCredentialsListener() {
         credentialsListenerTask = Task {
             for await credentials in ServerCredentialsStore.current.credentialsChanged {
+                let eventSession = ServerAuthenticationSession.current.id
+                if profilesEnabled {
+                    guard !isChangingProfile else { continue }
+                    // Ignore queued events from a profile that is no longer active.
+                    let current = try? await ServerCredentialsStore.current.read(serverURL: serverEnvironmentService.url())
+                    guard current == credentials else { continue }
+                }
                 await MainActor.run {
+                    guard !profilesEnabled || (!isChangingProfile && eventSession == ServerAuthenticationSession.current.id)
+                    else { return }
                     do {
                         let expirationDates = tokenExpirationDates(credentials)
                         Logger.current.notice(
                             "Credentials changed has_credentials=\(credentials != nil) \(expirationDescription(expirationDates))"
                         )
                         try updateAuthenticationState(with: credentials)
+                        if profilesEnabled, credentials != nil {
+                            do { try saveActiveProfile(credentials: credentials) }
+                            catch { Logger.current.error("Could not save the active profile: \(error.localizedDescription)") }
+                        }
                     } catch {
                         Logger.current.error(
                             "Failed to update authentication state from credentials change: \(error.localizedDescription)"
@@ -120,6 +185,10 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signOut() async {
+        if profilesEnabled {
+            await signOutProfile()
+            return
+        }
         Logger.current.notice(
             "Signing out and deleting credentials for server: \(serverEnvironmentService.url().absoluteString)"
         )
@@ -148,7 +217,7 @@ public final class AuthenticationService: ObservableObject {
     @MainActor
     public func selectServer(_ serverURL: String?) async throws {
         try await whileSigningIn {
-            let environment = AppServerEnvironmentService(appStorage: appStorage)
+            let environment = AppServerEnvironmentService(appStorage: appStorage, useSignedInSession: !isAddingProfile)
             try await environment.selectServer(serverURL)
             selfHostedServerURL = environment.configuration?.url.absoluteString
         }
@@ -188,8 +257,13 @@ public final class AuthenticationService: ObservableObject {
         }
     }
 
+    @MainActor
     public func signInWithEmailAndPassword(email: String, password: String) async throws {
-        let url = serverEnvironmentService.url().appending(path: "api/auth")
+        try await whileSigningIn { try await exchangeEmailAndPassword(email: email, password: password) }
+    }
+
+    private func exchangeEmailAndPassword(email: String, password: String) async throws {
+        let url = signInEnvironment.url().appending(path: "api/auth")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -205,7 +279,7 @@ public final class AuthenticationService: ObservableObject {
         let jsonData = try JSONSerialization.data(withJSONObject: parameters)
         request.httpBody = jsonData
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await perform(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse
@@ -229,7 +303,7 @@ public final class AuthenticationService: ObservableObject {
         identityToken: String,
         authorizationCode: String
     ) async throws {
-        let url = serverEnvironmentService.url().appending(path: "api/auth/apple")
+        let url = signInEnvironment.url().appending(path: "api/auth/apple")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -245,7 +319,7 @@ public final class AuthenticationService: ObservableObject {
         let jsonData = try JSONSerialization.data(withJSONObject: parameters)
         request.httpBody = jsonData
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await perform(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse
@@ -267,7 +341,7 @@ public final class AuthenticationService: ObservableObject {
 
     private func startOAuth2Flow(with path: String) async throws {
         var urlComponents = URLComponents(
-            url: serverEnvironmentService.url().appending(path: path),
+            url: signInEnvironment.url().appending(path: path),
             resolvingAgainstBaseURL: false
         )!
 
@@ -275,7 +349,7 @@ public final class AuthenticationService: ObservableObject {
         let state = UUID().uuidString
         urlComponents.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: serverEnvironmentService.oauthClientId()),
+            URLQueryItem(name: "client_id", value: signInEnvironment.oauthClientId()),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge", value: codeChallenge(from: codeVerifier)),
@@ -356,7 +430,7 @@ public final class AuthenticationService: ObservableObject {
         _ code: String,
         codeVerifier: String
     ) async throws {
-        let url = serverEnvironmentService.url().appending(path: "oauth2/token")
+        let url = signInEnvironment.url().appending(path: "oauth2/token")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -368,7 +442,7 @@ public final class AuthenticationService: ObservableObject {
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": redirectURI,
-            "client_id": serverEnvironmentService.oauthClientId(),
+            "client_id": signInEnvironment.oauthClientId(),
             "code_verifier": codeVerifier,
         ]
 
@@ -378,14 +452,14 @@ public final class AuthenticationService: ObservableObject {
 
         request.httpBody = body.data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await perform(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidTokenResponse
         }
 
         if httpResponse.statusCode == 200 {
-            try await handleTokenResponse(data, oauthClientID: serverEnvironmentService.oauthClientId())
+            try await handleTokenResponse(data, oauthClientID: signInEnvironment.oauthClientId())
         } else {
             Logger.current.error(
                 """
@@ -407,6 +481,17 @@ public final class AuthenticationService: ObservableObject {
               let refreshToken = json["refresh_token"] as? String
         else {
             throw AuthenticationError.missingTokens
+        }
+
+        if profilesEnabled {
+            let account = try extractAccount(from: accessToken)
+            let server = AppServerEnvironmentService(appStorage: appStorage, useSignedInSession: false).configuration
+            let profile = StoredProfile(
+                id: UUID(), account: account, server: server,
+                credentials: ServerCredentials(accessToken: accessToken, refreshToken: refreshToken, oauthClientID: oauthClientID)
+            )
+            try await activateProfile(profile)
+            return
         }
 
         try await ServerCredentialsStore.current.store(
@@ -475,9 +560,300 @@ extension Data {
 }
 
 extension AuthenticationService {
+    /// Additive migration: the active legacy credential record remains authoritative and is never moved or removed.
+    @MainActor
+    public func loadProfiles() async throws {
+        guard profilesEnabled else { return }
+        try persistPendingRotations()
+        var credentials = try await ServerCredentialsStore.current.read(serverURL: serverEnvironmentService.url())
+        if case let .loggedIn(account, server) = authenticationState {
+            if let credentials {
+                let actualAccount = try extractAccount(from: credentials.accessToken)
+                if actualAccount != account {
+                    authenticationState = .loggedIn(account: actualAccount, server: server)
+                    try appStorage.set(AuthenticationStateKey.self, value: authenticationState)
+                }
+            } else if let recovered = try profileStore.read().profiles
+                .first(where: { $0.account == account && $0.server == server })
+            {
+                try await ServerCredentialsStore.current.store(
+                    credentials: recovered.credentials, serverURL: serverEnvironmentService.url()
+                )
+                credentials = recovered.credentials
+            }
+        }
+        try saveActiveProfile(credentials: credentials)
+    }
+
+    @MainActor
+    private func persistPendingRotations() throws {
+        for (id, rotation) in pendingRotations {
+            var saved = try profileStore.read()
+            guard let index = saved.profiles.firstIndex(where: { $0.id == id }),
+                  saved.profiles[index].credentials == rotation.previous
+            else {
+                pendingRotations[id] = nil
+                continue
+            }
+            let current = saved.profiles[index]
+            saved.profiles[index] = StoredProfile(
+                id: current.id, account: current.account, server: current.server, credentials: rotation.rotated,
+                organization: current.organization, organizations: current.organizations,
+                organizationsAccessDenied: current.organizationsAccessDenied
+            )
+            try profileStore.write(saved)
+            pendingRotations[id] = nil
+            profiles = saved.profiles
+        }
+    }
+
+    @MainActor
+    private func saveActiveProfile(credentials: ServerCredentials?) throws {
+        var saved = try profileStore.read()
+        if case let .loggedIn(account, server) = authenticationState, let credentials {
+            let previous = saved.profiles.first { $0.id == saved.activeID && $0.account == account && $0.server == server }
+                ?? saved.profiles.first { $0.account == account && $0.server == server }
+            let profile = StoredProfile(
+                id: previous?.id ?? UUID(), account: account, server: server, credentials: credentials,
+                organization: previous?.organization, organizations: previous?.organizations,
+                organizationsAccessDenied: previous?.organizationsAccessDenied
+            )
+            if let index = saved.profiles.firstIndex(where: { $0.id == profile.id }) {
+                saved.profiles[index] = profile
+            } else {
+                saved.profiles.append(profile)
+            }
+            saved.activeID = profile.id
+            try profileStore.write(saved)
+        }
+        profiles = saved.profiles
+        activeProfileID = authenticationState == .loggedOut ? nil : saved.activeID
+    }
+
+    @MainActor
+    public func beginAddingProfile() async throws {
+        guard profilesEnabled, !isSigningIn, !isChangingProfile else { return }
+        try await loadProfiles()
+        previousServerSelection = try appStorage.get(AppServerConfigurationKey.self)
+        isAddingProfile = true
+    }
+
+    @MainActor
+    public func cancelAddingProfile() {
+        guard isAddingProfile, !isSigningIn, !isChangingProfile else { return }
+        try? appStorage.set(AppServerConfigurationKey.self, value: previousServerSelection)
+        selfHostedServerURL = previousServerSelection?.url.absoluteString
+        isAddingProfile = false
+    }
+
+    @MainActor
+    public func refreshOrganizations() async {
+        guard profilesEnabled, !isChangingProfile, !isSigningIn else { return }
+        if let organizationDiscovery { await organizationDiscovery.value; return }
+        isLoadingOrganizations = true
+        organizationsFailedToLoad = false
+        let task = Task { @MainActor in
+            defer { isLoadingOrganizations = false }
+            do { try await loadProfiles() }
+            catch { organizationsFailedToLoad = true; return }
+            for profile in profiles {
+                do {
+                    let url = profile.server?.url ?? ServerEnvironmentService().url()
+                    let names: [String]
+                    if profile.id == activeProfileID {
+                        names = try await listOrganizationsService.listOrganizations(serverURL: url)
+                        try await loadProfiles()
+                    } else {
+                        var expected = profile.credentials
+                        let store = ProfileCredentialsStore(credentials: expected, serverURL: url) { credentials in
+                            self.pendingRotations[profile.id] = (expected, credentials)
+                            try self.persistPendingRotations()
+                            expected = credentials
+                        }
+                        names = try await ServerCredentialsStore.$current.withValue(store) {
+                            try await ServerAuthenticationSession.$current.withValue(ServerAuthenticationSession()) {
+                                try await CachedValueStore.$current.withValue(CachedValueStore()) {
+                                    try await self.listOrganizationsService.listOrganizations(serverURL: url)
+                                }
+                            }
+                        }
+                    }
+                    var saved = try profileStore.read()
+                    guard let index = saved.profiles.firstIndex(where: { $0.id == profile.id }) else { continue }
+                    saved.profiles[index].organizations = Array(Set(names)).sorted()
+                    saved.profiles[index].organizationsAccessDenied = nil
+                    try profileStore.write(saved)
+                    rejectedOrganizationProfiles.remove(profile.id)
+                    profiles = saved.profiles
+                } catch {
+                    organizationsFailedToLoad = true
+                    if isOrganizationAccessDenied(error) {
+                        rejectedOrganizationProfiles.insert(profile.id)
+                        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+                            profiles[index].organizationsAccessDenied = true
+                        }
+                        do {
+                            var saved = try profileStore.read()
+                            if let index = saved.profiles.firstIndex(where: { $0.id == profile.id }) {
+                                saved.profiles[index].organizationsAccessDenied = true
+                                try profileStore.write(saved)
+                            }
+                        } catch {
+                            Logger.current.error("Could not persist saved login rejection: \(error.localizedDescription)")
+                        }
+                    }
+                    Logger.current.error("Could not load saved login organizations: \(error.localizedDescription)")
+                }
+            }
+        }
+        organizationDiscovery = task
+        await task.value
+        organizationDiscovery = nil
+        // An existing login remains usable when offline or when it has no organization memberships.
+        if let active = profiles.first(where: { $0.id == activeProfileID }),
+           !organizations.contains(where: { $0.profileID == active.id && $0.name == selectedOrganization }),
+           let first = organizations.first(where: { $0.profileID == active.id })
+        {
+            do { try await switchOrganization(first) }
+            catch { organizationsFailedToLoad = true }
+        }
+    }
+
+    @MainActor
+    public func switchOrganization(_ organization: StoredOrganization) async throws {
+        guard profilesEnabled, !isSigningIn, !isChangingProfile else { return }
+        await organizationDiscovery?.value
+        guard organizations.contains(organization),
+              var profile = profiles.first(where: { $0.id == organization.profileID })
+        else { throw ProfileStorageError() }
+        guard profile.id != activeProfileID || organization.name != selectedOrganization else { return }
+        profile.organization = organization.name
+        try await activateProfile(profile)
+    }
+
+    @MainActor
+    public func switchProfile(_ id: UUID) async throws {
+        guard profilesEnabled, !isSigningIn, !isChangingProfile, id != activeProfileID else { return }
+        try await loadProfiles()
+        guard let profile = profiles.first(where: { $0.id == id }), profile.credentials.rejected != true
+        else {
+            throw ProfileStorageError()
+        }
+        try await activateProfile(profile)
+    }
+
+    private func isOrganizationAccessDenied(_ error: any Error) -> Bool {
+        switch error {
+        case ListOrganizationsServiceError.unauthorized, ListOrganizationsServiceError.forbidden,
+             RefreshAuthTokenServiceError.unauthorized:
+            return true
+        case let error as ClientError:
+            return isOrganizationAccessDenied(error.underlyingError)
+        case let error as CredentialAcquisitionError:
+            return isOrganizationAccessDenied(error.underlyingError)
+        default:
+            return false
+        }
+    }
+
+    @MainActor
+    private func activateProfile(_ profile: StoredProfile) async throws {
+        guard !isChangingProfile else { return }
+        isChangingProfile = true
+        defer { isChangingProfile = false }
+        await organizationDiscovery?.value
+        try await loadProfiles()
+        let restoreNotifications = await beforeProfileChange?()
+        do {
+            await ServerAuthenticationSession.current.advanceAfterRefreshing()
+            // Push cleanup may refresh the outgoing credentials; archive that final rotation before switching.
+            try await loadProfiles()
+            let previous = try profileStore.read()
+            let previousState = authenticationState
+            let previousURL = serverEnvironmentService.url()
+            let previousCredentials = try await ServerCredentialsStore.current.read(serverURL: previousURL)
+            var saved = previous
+            let latest = previous.profiles.first { $0.id == profile.id }
+            let profile = StoredProfile(
+                id: profile.id, account: profile.account, server: profile.server,
+                credentials: latest?.credentials ?? profile.credentials,
+                organization: profile.organization, organizations: latest?.organizations ?? profile.organizations,
+                organizationsAccessDenied: latest?.organizationsAccessDenied ?? profile.organizationsAccessDenied
+            )
+            saved.profiles.removeAll { $0.id == profile.id }
+            saved.profiles.append(profile)
+            saved.activeID = profile.id
+            try profileStore.write(saved)
+            let nextState = AuthenticationState.loggedIn(account: profile.account, server: profile.server)
+            do {
+                try appStorage.set(AuthenticationStateKey.self, value: nextState)
+                let url = profile.server?.url ?? ServerEnvironmentService().url()
+                try await ServerCredentialsStore.current.store(credentials: profile.credentials, serverURL: url)
+                authenticationState = nextState
+                profiles = saved.profiles
+                activeProfileID = profile.id
+                isAddingProfile = false
+            } catch {
+                try? appStorage.set(AuthenticationStateKey.self, value: previousState)
+                if let previousCredentials {
+                    try? await ServerCredentialsStore.current.store(credentials: previousCredentials, serverURL: previousURL)
+                }
+                try? profileStore.write(previous)
+                throw error
+            }
+        } catch {
+            await restoreNotifications?()
+            throw error
+        }
+    }
+
+    @MainActor
+    private func signOutProfile() async {
+        guard !isChangingProfile, !isSigningIn else { return }
+        isChangingProfile = true
+        defer { isChangingProfile = false }
+        await organizationDiscovery?.value
+        var restoreNotifications: (() async -> Void)?
+        do {
+            try await loadProfiles()
+            restoreNotifications = await beforeProfileChange?()
+            await ServerAuthenticationSession.current.advanceAfterRefreshing()
+            try await loadProfiles()
+            let previous = try profileStore.read()
+            let previousState = authenticationState
+            let url = serverEnvironmentService.url()
+            let credentials = try await ServerCredentialsStore.current.read(serverURL: url)
+            var saved = previous
+            saved.profiles.removeAll { $0.id == activeProfileID }
+            saved.activeID = nil
+            do {
+                try profileStore.write(saved)
+                try await ServerCredentialsStore.current.delete(serverURL: url)
+                try appStorage.set(AuthenticationStateKey.self, value: .loggedOut)
+            } catch {
+                try? profileStore.write(previous)
+                try? appStorage.set(AuthenticationStateKey.self, value: previousState)
+                if let credentials {
+                    try? await ServerCredentialsStore.current.store(credentials: credentials, serverURL: url)
+                }
+                throw error
+            }
+            authenticationState = .loggedOut
+            profiles = saved.profiles
+            activeProfileID = nil
+            restoreNotifications = nil
+            isChangingProfile = false
+            if let next = saved.profiles.first { try await activateProfile(next) }
+        } catch {
+            await restoreNotifications?()
+            isChangingProfile = false
+            Logger.current.error("Could not sign out of the profile: \(error.localizedDescription)")
+        }
+    }
+
     @MainActor
     private func whileSigningIn(_ action: () async throws -> Void) async throws {
-        guard !isSigningIn, authenticationState == .loggedOut else { return }
+        guard !isSigningIn, !isChangingProfile, authenticationState == .loggedOut || isAddingProfile else { return }
         isSigningIn = true
         defer { isSigningIn = false }
         try await action()

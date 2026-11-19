@@ -6,7 +6,7 @@ Choose Tuist when you want supported caching and build/test investigation across
 
 CircleCI's [Test Insights](https://circleci.com/docs/guides/insights/insights-tests/index.md) identifies slow, failing, and flaky tests. The cited feature supports **OAuth organizations**, not organizations with a `circleci/<UID>` slug; verify the organization's integration before expecting that dashboard. Its [dynamic test splitting](https://circleci.com/docs/guides/test/use-dynamic-test-splitting/index.md) distributes test work across ready parallel nodes rather than only assigning a static split upfront.
 
-Its [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md) documents hosted and CLI-integrated MCP servers for assistants; the older local `npx` server is deprecated. Compare available records, execution controls, and toolchain requirements; do not claim that CircleCI is merely a runner without insights or AI access.
+Its [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md) documents hosted and CLI-integrated MCP servers for assistants; the older local `npx` server is deprecated. Compare available records, execution controls, and toolchain requirements.
 
 ## Compare orchestration and evidence
 
@@ -29,9 +29,5 @@ Record a representative suite with [Tuist Test Insights](/en/docs-markdown/guide
 ## Sources and review
 
 Sources checked on **2026-10-08**: CircleCI's [Test Insights](https://circleci.com/docs/guides/insights/insights-tests/index.md), [dynamic test splitting](https://circleci.com/docs/guides/test/use-dynamic-test-splitting/index.md), [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md), and [Tuist Tests](/marketing-markdown/tests). This comparison is written by Tuist and acknowledges overlapping test and agent capabilities.
-
-## Limitations
-
-Test frameworks, plan availability, scheduling mechanisms, and detection definitions differ. Parallel execution does not guarantee lower total cost. Tuist selective testing requires generated Xcode projects and does not currently cover Gradle or Bazel; Elixir quarantine is not applied yet. Public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only with no public pricing; no universal speed or cost advantage is established.
 
 Related: [Buildkite](/marketing-markdown/compare/buildkite), [Develocity](/marketing-markdown/compare/develocity), and [all comparisons](/marketing-markdown/compare).

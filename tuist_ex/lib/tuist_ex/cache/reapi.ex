@@ -19,6 +19,7 @@ defmodule TuistEx.Cache.Reapi do
   alias TuistEx.Cache.Reapi.ToolDetails
   alias TuistEx.Cache.Reapi.UpdateActionResultRequest
   alias TuistEx.Cache.Store
+  alias TuistEx.CertificateTrust
   alias TuistEx.HTTP
 
   @timeout 30_000
@@ -60,7 +61,7 @@ defmodule TuistEx.Cache.Reapi do
       with {:ok, config} <- Config.resolve(analytics_options),
            {:ok, token} <- Auth.token(Keyword.put(analytics_options, :url, config.url)),
            {:ok, endpoint, allow_insecure?} <- endpoint(options, config, token, analytics_options),
-           {:ok, 200, %{"token" => cache_token}} <-
+           {:ok, 200, %{"token" => cache_token} = response} <-
              HTTP.request(
                :post,
                config.url <>
@@ -73,7 +74,8 @@ defmodule TuistEx.Cache.Reapi do
                [{"authorization", "Bearer " <> token}]
              ) do
         connect(endpoint, cache_token, config.project_handle, invocation_id,
-          allow_insecure: allow_insecure?
+          allow_insecure: allow_insecure?,
+          writable: Map.get(response, "writable") != false
         )
       else
         _ -> nil
@@ -121,6 +123,7 @@ defmodule TuistEx.Cache.Reapi do
 
   def connect(url, token, %{account: account, project: project}, invocation_id, options) do
     uri = URI.parse(url)
+    writable = Keyword.get(options, :writable, true)
 
     if uri.scheme not in ["http", "https"] or is_nil(uri.host) or not is_nil(uri.userinfo) or
          not is_nil(uri.query) or not is_nil(uri.fragment) or uri.path not in [nil, "", "/"],
@@ -143,14 +146,12 @@ defmodule TuistEx.Cache.Reapi do
 
     options =
       if uri.scheme == "https" do
-        ssl = [
-          verify: :verify_peer,
-          cacerts: :public_key.cacerts_get(),
-          server_name_indication: String.to_charlist(uri.host),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        ]
+        ssl =
+          Keyword.put(
+            CertificateTrust.ssl_options(),
+            :server_name_indication,
+            String.to_charlist(uri.host)
+          )
 
         Keyword.put(options, :cred, GRPC.Credential.new(ssl: ssl))
       else
@@ -171,7 +172,8 @@ defmodule TuistEx.Cache.Reapi do
         token: token,
         account: account,
         project: project,
-        invocation_id: invocation_id
+        invocation_id: invocation_id,
+        writable: writable
       }
 
       session = Map.put(session, :zstd, supports_zstd?(session))
@@ -272,6 +274,10 @@ defmodule TuistEx.Cache.Reapi do
 
   def put(session, key, dependency, binary, timeout \\ @timeout)
   def put(nil, _key, _dependency, _binary, _timeout), do: {:error, :unavailable}
+
+  # The server marks tokens without a write grant. Kura would refuse the
+  # upload anyway, after the bundle was already streamed.
+  def put(%{writable: false}, _key, _dependency, _binary, _timeout), do: {:error, :read_only}
 
   def put(session, key, dependency, binary, timeout) when byte_size(binary) <= 64 * 1024 * 1024 do
     case run_rpc(session, fn -> put_result(session, key, dependency, binary) end, timeout) do

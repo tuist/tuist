@@ -13,8 +13,13 @@ defmodule Tuist.BrowserTelemetry.ReceiptsTest do
     keys = for _ <- 1..3, do: :crypto.strong_rand_bytes(32)
 
     on_exit(fn ->
-      Repo.delete_all(from(r in "browser_telemetry_receipts", where: r.key in ^keys))
-      Sandbox.stop_owner(owner)
+      try do
+        # on_exit runs in a different process from the test.
+        :ok = Sandbox.allow(Repo, owner, self())
+        Repo.delete_all(from(r in "browser_telemetry_receipts", where: r.key in ^keys))
+      after
+        Sandbox.stop_owner(owner)
+      end
     end)
 
     %{keys: keys}
@@ -52,47 +57,60 @@ defmodule Tuist.BrowserTelemetry.ReceiptsTest do
     parent = self()
 
     first =
-      Task.async(fn ->
+      database_task(fn ->
         Receipts.deliver([a], fn _ ->
           send(parent, :forwarding)
           receive do: (:complete -> {:ok, :first})
         end)
       end)
 
-    assert_receive :forwarding, 2_000
-    second = Task.async(fn -> Receipts.deliver([b, a], fn _ -> flunk("duplicate forwarded") end) end)
-    assert {:error, :in_progress} = Task.await(second)
-    assert {:ok, 0} = Receipts.deliver([b], &{:ok, MapSet.size(&1)})
-    send(first.pid, :complete)
-    assert {:ok, :first} = Task.await(first)
-    assert {:ok, 2} = Receipts.deliver([a, b], &{:ok, MapSet.size(&1)})
+    try do
+      assert_receive :forwarding, 2_000
+      second = database_task(fn -> Receipts.deliver([b, a], fn _ -> flunk("duplicate forwarded") end) end)
+
+      try do
+        assert {:error, :in_progress} = Task.await(second)
+        assert {:ok, 0} = Receipts.deliver([b], &{:ok, MapSet.size(&1)})
+        send(first.pid, :complete)
+        assert {:ok, :first} = Task.await(first)
+        assert {:ok, 2} = Receipts.deliver([a, b], &{:ok, MapSet.size(&1)})
+      after
+        Task.shutdown(second, :brutal_kill)
+      end
+    after
+      Task.shutdown(first, :brutal_kill)
+    end
   end
 
   test "expired claims can be recovered without the previous owner releasing the new lease", %{keys: [key | _]} do
     parent = self()
 
     abandoned =
-      Task.async(fn ->
+      database_task(fn ->
         Receipts.deliver([key], fn _ ->
           send(parent, :claimed)
           receive do: (:fail -> {:error, :timeout})
         end)
       end)
 
-    assert_receive :claimed, 2_000
+    try do
+      assert_receive :claimed, 2_000
 
-    Repo.update_all(
-      from(r in "browser_telemetry_receipts",
-        where: r.key == ^key,
-        update: [set: [expires_at: fragment("now() - interval '1 second'")]]
-      ),
-      []
-    )
+      Repo.update_all(
+        from(r in "browser_telemetry_receipts",
+          where: r.key == ^key,
+          update: [set: [expires_at: fragment("now() - interval '1 second'")]]
+        ),
+        []
+      )
 
-    assert {:ok, 0} = Receipts.deliver([key], &{:ok, MapSet.size(&1)})
-    send(abandoned.pid, :fail)
-    assert {:error, :timeout} = Task.await(abandoned)
-    assert {:ok, 1} = Receipts.deliver([key], &{:ok, MapSet.size(&1)})
+      assert {:ok, 0} = Receipts.deliver([key], &{:ok, MapSet.size(&1)})
+      send(abandoned.pid, :fail)
+      assert {:error, :timeout} = Task.await(abandoned)
+      assert {:ok, 1} = Receipts.deliver([key], &{:ok, MapSet.size(&1)})
+    after
+      Task.shutdown(abandoned, :brutal_kill)
+    end
   end
 
   test "confirmed receipts live for 48 hours and pruning retains active receipts", %{keys: [a, b | _]} do
@@ -131,5 +149,18 @@ defmodule Tuist.BrowserTelemetry.ReceiptsTest do
     )
 
     assert {:ok, 0} = Receipts.deliver([key], &{:ok, MapSet.size(&1)})
+  end
+
+  defp database_task(function) do
+    Task.async(fn ->
+      # Task callers otherwise inherit the test's connection, hiding replica races.
+      :ok = Sandbox.checkout(Repo, sandbox: false)
+
+      try do
+        function.()
+      after
+        Sandbox.checkin(Repo)
+      end
+    end)
   end
 end

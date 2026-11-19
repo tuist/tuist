@@ -28,7 +28,9 @@ struct BazelSetupCommandServiceTests {
         cacheURLStoreError: CacheURLStoreError? = nil,
         serverURL: URL? = nil,
         cacheToken: String = "scoped-cache-token",
-        cacheTokenError: GetCacheTokenServiceError? = nil
+        cacheTokenError: GetCacheTokenServiceError? = nil,
+        executionCapabilities: Result<RemoteExecutionCapabilities, GetRemoteExecutionCapabilitiesServiceError> =
+            .failure(.notEnabled)
     ) -> (
         subject: BazelSetupCommandService,
         serverAuthenticationController: MockServerAuthenticationControlling,
@@ -48,6 +50,14 @@ struct BazelSetupCommandServiceTests {
                 .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
         }
         let remoteCacheProbeService = MockRemoteCacheProbing()
+        let remoteExecutionCapabilitiesService = MockGetRemoteExecutionCapabilitiesServicing()
+        let capabilities = given(remoteExecutionCapabilitiesService).getCapabilities(
+            serverURL: .any, accountHandle: .value("my-account"), projectHandle: .value("my-project"), token: .value(cacheToken)
+        )
+        switch executionCapabilities {
+        case let .success(value): capabilities.willReturn(value)
+        case let .failure(error): capabilities.willThrow(error)
+        }
         let configLoader = MockConfigLoading()
 
         given(configLoader)
@@ -78,6 +88,7 @@ struct BazelSetupCommandServiceTests {
             cacheURLStore: cacheURLStore,
             getCacheTokenService: tokenService,
             remoteCacheProbeService: remoteCacheProbeService,
+            remoteExecutionCapabilitiesService: remoteExecutionCapabilitiesService,
             fullHandleService: FullHandleService(),
             configLoader: configLoader,
             fileSystem: fileSystem
@@ -130,6 +141,47 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func remote_execution_uses_the_advertised_executor_and_image() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let image = "sha-0123456789ab"
+        let (subject, authentication, _, _) = makeSubject(
+            executionCapabilities: .success(.init(endpoint: "grpcs://execution.tuist.dev", image: image))
+        )
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await subject.run(directory: directory.pathString, remoteExecution: true)
+        let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
+        #expect(contents.contains("build --remote_executor=grpcs://execution.tuist.dev"))
+        #expect(contents.contains("build --remote_default_exec_properties=tuist-image=\(image)"))
+        #expect(contents.contains("build --credential_helper=execution.tuist.dev="))
+    }
+
+    @Test(
+        .withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory,
+        arguments: [
+            Result<RemoteExecutionCapabilities, GetRemoteExecutionCapabilitiesServiceError>.failure(.notEnabled),
+            .failure(.unavailable),
+            .success(.init(endpoint: "grpcs://execution.tuist.dev", image: "latest")),
+        ]
+    )
+    func remote_execution_falls_back_to_the_cache_when_the_server_declines(
+        capabilities: Result<RemoteExecutionCapabilities, GetRemoteExecutionCapabilitiesServiceError>
+    ) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, _) = makeSubject(executionCapabilities: capabilities)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await AlertController.$current.withValue(AlertController()) {
+            try await subject.run(directory: directory.pathString, remoteExecution: true)
+            let warnings = AlertController.current.warnings().map { $0.message.plain() }
+            #expect(warnings.contains { $0.contains("Remote execution is unavailable") })
+        }
+        let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
+        #expect(contents.contains("build --remote_cache=grpcs://cache.tuist.dev"))
+        #expect(!contents.contains("--remote_executor"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func network_reporting_needs_no_login_or_cache_discovery() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
@@ -138,8 +190,10 @@ struct BazelSetupCommandServiceTests {
         given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
         try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
         try await AlertController.$current.withValue(AlertController()) {
-            try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
-                try await subject.run(directory: directory.pathString)
+            try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in false }) {
+                try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+                    try await subject.run(directory: directory.pathString)
+                }
             }
             let success = try #require(AlertController.current.success().last)
             let takeaways = success.takeaways.map { $0.plain() }
@@ -164,11 +218,38 @@ struct BazelSetupCommandServiceTests {
         let (subject, authentication, _, _) = makeSubject(serverURL: try #require(URL(string: "https://tuist.example")))
         given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
         try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
-        await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
-            await #expect(throws: BazelSetupCommandServiceError.notAuthenticated) {
+        await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in false }) {
+            await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+                await #expect(throws: BazelSetupCommandServiceError.notAuthenticated) {
+                    try await subject.run(directory: directory.pathString)
+                }
+            }
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory, arguments: [false, true])
+    func network_cache_setup_keeps_reporting_independent(reports: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, _) = makeSubject(
+            cacheURL: try #require(URL(string: "https://cache.example")),
+            serverURL: try #require(URL(string: "https://tuist.example")),
+            cacheTokenError: .unknownError(401)
+        )
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in true }) {
+            try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in reports }) {
                 try await subject.run(directory: directory.pathString)
             }
         }
+        let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
+        #expect(contents.contains("--remote_cache=grpcs://cache.example"))
+        #expect(contents.contains("--remote_instance_name=my-project"))
+        #expect(contents.contains("--bes_backend=") == reports)
+        #expect(contents.contains("--bes_header=x-tuist-network-trusted-publishing=true") == reports)
+        #expect(!contents.contains("--credential_helper="))
+        #expect(!contents.contains("--experimental_remote_downloader="))
+        #expect(!contents.contains("--experimental_build_event_upload_strategy="))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)

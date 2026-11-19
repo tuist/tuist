@@ -11,8 +11,9 @@ let project = Project(
             infoPlist: .default,
             buildableFolders: [
                 .folder("App/Sources", exceptions: .exceptions([
-                    .exception(excluded: ["App/Sources/Excluded.swift"], compilerFlags: [
-                        "App/Sources/WithCompilerFlags.swift": "-print-stats",
+                    // Exception paths are relative to the buildable folder.
+                    .exception(excluded: ["Excluded.swift"], compilerFlags: [
+                        "WithCompilerFlags.swift": "-print-stats",
                     ]),
                 ])),
                 .folder("App/Resources", exceptions: .exceptions([

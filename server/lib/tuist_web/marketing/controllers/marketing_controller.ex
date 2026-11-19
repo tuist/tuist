@@ -17,11 +17,11 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
   plug :put_resp_header_cache_control
-  plug :put_resp_header_server
 
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
@@ -31,12 +31,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(get_website_structured_data())
     |> assign_structured_data(get_software_application_structured_data())
-    |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
+    |> assign(:head_title, dgettext("marketing", "Tuist — Faster builds and reliable tests for every build system"))
     |> assign(
       :head_description,
       dgettext(
         "marketing",
-        "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+        "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
       )
     )
     |> assign(
@@ -62,7 +62,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   # a falling line for a time cut, a build-time histogram for more builds
   # finishing within a minute, steps for a staged drop, pairs for
   # before/after, and a rising line for a quote without a single metric. The logos come from
-  # priv/marketing/customers/logos, recoloured white by the template.
+  # priv/marketing/customers/logos, recoloured white by the template. `since`
+  # is the case study's `onboarded_date`; slides without one show no date.
   defp customer_slides do
     [openai_slide() | case_study_slides()]
   end
@@ -81,7 +82,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       statement: openai.quote,
       href: nil,
       author: openai.name,
-      role: openai.role
+      role: openai.role,
+      since: nil
     }
   end
 
@@ -131,7 +133,8 @@ defmodule TuistWeb.Marketing.MarketingController do
                 statement: statement,
                 href: case_study_link(case_study),
                 author: nil,
-                role: nil
+                role: nil,
+                since: case_study.onboarded_date
               }
             ]
         end
@@ -482,9 +485,12 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign(
         :head_description,
-        "Learn more about Tuist, the open-source project that helps you scale your Swift development."
+        dgettext(
+          "marketing",
+          "Tuist is build infrastructure for engineering teams and coding agents."
+        )
       )
-      |> assign(:head_title, "About Tuist")
+      |> assign(:head_title, dgettext("marketing", "About Tuist: build infrastructure"))
 
     render(conn, :about, layout: false)
   end
@@ -614,7 +620,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:newsletter, layout: false)
   end
 
-  def newsletter_signup(conn, %{"email" => email}) do
+  def newsletter_signup(conn, %{"email" => email}) when is_binary(email) do
     email = String.trim(email)
 
     verification_token = sign_newsletter_verification_token(email)
@@ -630,14 +636,21 @@ defmodule TuistWeb.Marketing.MarketingController do
         })
 
       {:error, _reason} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> put_status(400)
-        |> json(%{
-          success: false,
-          message: dgettext("marketing", "Something went wrong. Please try again.")
-        })
+        newsletter_signup_error(conn)
     end
+  end
+
+  # Automated submissions post without an email, or with a non-string one.
+  def newsletter_signup(conn, _params), do: newsletter_signup_error(conn)
+
+  defp newsletter_signup_error(conn) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> put_status(400)
+    |> json(%{
+      success: false,
+      message: dgettext("marketing", "Something went wrong. Please try again.")
+    })
   end
 
   def newsletter_verify(conn, %{"token" => token} = _params) do
@@ -806,7 +819,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/customers",
     "/cache",
     "/tests",
-    "/compute",
+    "/runners",
     "/globe",
     "/previews",
     "/download",
@@ -818,6 +831,11 @@ defmodule TuistWeb.Marketing.MarketingController do
   def sitemap(conn, _params) do
     page_entries =
       Enum.map(Pages.get_pages(), &sitemap_entry(&1.slug, &1.last_updated))
+
+    guide_entries =
+      Enum.map(MarketingMarkdown.guide_page_paths(), fn path ->
+        sitemap_entry(path, MarketingMarkdown.guide_page(path).last_updated)
+      end)
 
     post_entries = post_sitemap_entries()
 
@@ -855,13 +873,13 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     docs_entries =
       Enum.map(
-        Tuist.Docs.slugs(),
+        Tuist.Docs.indexable_slugs(),
         &sitemap_entry(Tuist.Docs.Paths.public_path_from_slug(&1), nil)
       )
 
     entries =
       localized_entries ++
-        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
+        case_study_entries ++ page_entries ++ guide_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
     |> assign(:entries, Enum.uniq_by(entries, & &1.loc))
@@ -978,7 +996,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       {dgettext("marketing", "What support is included with each plan?"),
        dgettext(
          "marketing",
-         "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+         "Air includes community support through the forum. Pro includes standard support through Slack and email. Enterprise includes priority support through Slack and email."
        )},
       {dgettext("marketing", "How can I estimate the cost for my project?"),
        dgettext(
@@ -996,6 +1014,24 @@ defmodule TuistWeb.Marketing.MarketingController do
        dgettext(
          "marketing",
          "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
+       )},
+      {dgettext("marketing", "Is there a free Bazel remote cache?"),
+       dgettext(
+         "marketing",
+         ~s(Yes. The Air plan includes Tuist's Bazel remote cache at no cost within the free cache allowance, with no credit card required. Uploads and storage are free, and downloads count toward the allowance. Our <a href="%{guide_url}">Bazel remote cache guide</a> explains how to set it up.),
+         guide_url: "/solutions/bazel-remote-cache"
+       )},
+      {dgettext("marketing", "How are Tuist Runners billed?"),
+       dgettext(
+         "marketing",
+         "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+       )},
+      {dgettext("marketing", "How does Tuist compare to other build and CI providers?"),
+       dgettext(
+         "marketing",
+         ~s(Tuist adds build and test capabilities to the CI you already use instead of replacing it. Our <a href="%{compare_url}">comparison guides</a> cover providers such as Develocity, BuildBuddy, Bitrise, and CircleCI, and the <a href="%{costs_url}">CI costs guide</a> shows where spend usually goes before you buy more compute.),
+         compare_url: "/compare",
+         costs_url: "/solutions/ci-costs"
        )},
       {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
        dgettext(
@@ -1035,51 +1071,46 @@ defmodule TuistWeb.Marketing.MarketingController do
     render(conn, :pricing, layout: false)
   end
 
-  def compute(conn, _params) do
-    conn
-    |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
-    |> assign(
-      :head_image,
-      SocialCards.image_url("compute")
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
+  def runners(conn, _params) do
+    description =
       dgettext(
         "marketing",
-        "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
+        "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup. Invite-only."
       )
+
+    conn
+    |> assign(:head_title, dgettext("marketing", "macOS and Linux CI runners · Tuist"))
+    # Rendered title card until a designed `runners` card ships; SocialCards
+    # switches to it on its own once the PNG is added to its card list.
+    |> assign(
+      :head_image,
+      SocialCards.head_image("runners", fn ->
+        OpenGraph.image_path(:marketing, title: dgettext("marketing", "Runners"))
+      end)
     )
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
-      ])
-    )
-    |> render(:compute, layout: false)
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(:head_description, description)
+    # Runners are billed per minute on every plan, so the node claims no free offer.
+    |> assign_feature_structured_data(dgettext("marketing", "Runners"), description, "/runners", free: false)
+    |> render(:runners, layout: false)
   end
 
   def tests(conn, _params) do
+    description =
+      dgettext(
+        "marketing",
+        "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
+      )
+
     conn
-    |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
+    |> assign(:head_title, dgettext("marketing", "Test insights, sharding, and trustworthy feedback · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("tests")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
-      )
-    )
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
-      ])
-    )
+    |> assign(:head_description, description)
+    |> assign_feature_structured_data(dgettext("marketing", "Tests"), description, "/tests")
     |> render(:tests, layout: false)
   end
 
@@ -1116,6 +1147,174 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     render(conn, :page, layout: false)
   end
+
+  def guide(conn, _params) do
+    guide = MarketingMarkdown.guide_page(String.trim_trailing(conn.request_path, "/"))
+    parent_path = Path.dirname(guide.path)
+    parent_title = if parent_path != "/", do: MarketingMarkdown.short_title(parent_path)
+
+    breadcrumbs =
+      [{dgettext("marketing", "Tuist"), "/"}] ++
+        if(parent_title, do: [{parent_title, parent_path}], else: []) ++ [{guide.title, guide.path}]
+
+    template =
+      cond do
+        String.starts_with?(guide.path, "/runners/") ->
+          :runners_provider
+
+        guide.path in [
+          "/compare",
+          "/compare/develocity",
+          "/compare/namespace",
+          "/compare/buildkite",
+          "/compare/xcodegen",
+          "/compare/swift-package-manager",
+          "/compare/nx"
+        ] ->
+          :comparison
+
+        true ->
+          :page
+      end
+
+    conn
+    |> then(&if(template == :runners_provider, do: assign_runners_provider(&1, guide), else: &1))
+    |> assign(:head_title, guide.title)
+    |> assign(:head_description, guide.head_description)
+    # Social crawlers ignore relative og:image URLs.
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: guide.title), marketing: true)
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(:english_only, true)
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data(
+        Enum.map(breadcrumbs, fn {name, path} -> {name, Tuist.Environment.app_url(path: path)} end)
+      )
+    )
+    |> then(&if(guide.faqs == [], do: &1, else: assign_structured_data(&1, get_faq_structured_data(guide.faqs))))
+    |> assign(:page, guide)
+    |> assign(:breadcrumbs, breadcrumbs)
+    |> render(template, layout: false)
+  end
+
+  # A provider's runners page shows its FAQ as an accordion of `guide.faqs`.
+  defp assign_runners_provider(conn, guide) do
+    slug = Path.basename(guide.path)
+
+    conn
+    |> assign(
+      :provider,
+      Map.fetch!(
+        %{"github-actions" => "github", "gitlab-ci" => "gitlab", "buildkite" => "buildkite"},
+        slug
+      )
+    )
+    |> assign(:docs_url, "https://tuist.dev/en/docs/guides/features/runners/ci-providers/#{slug}")
+    |> assign_runners_provider_body(guide.body)
+  end
+
+  # The body skips the lead paragraph (the meta description) and moves the
+  # paragraph after it into the hero as its subtitle. It ends before the
+  # sources, further reading and FAQ: the FAQ renders as the accordion, and
+  # the sources stay in the Markdown guide (their date still feeds the
+  # sitemap).
+  defp assign_runners_provider_body(conn, html) do
+    [body | _rest] =
+      ~r{\A\s*<p>.*?</p>}s
+      |> Regex.replace(html, "", global: false)
+      |> String.split(~r{<h2[^>]*>(?:<a[^>]*></a>)?Sources and review</h2>}, parts: 2)
+
+    {intro, body} =
+      case Regex.run(~r{\A\s*<p>(.*?)</p>(.*)\z}s, body, capture: :all_but_first) do
+        [intro, rest] -> {intro, rest}
+        nil -> {nil, body}
+      end
+
+    conn
+    |> assign(:intro, intro)
+    |> assign(:body, split_code_sections(body))
+  end
+
+  # Lays out each guide section holding a code sample or a list in two
+  # columns: its heading (and, beside code, prose) on the left, the code (with
+  # the paragraph introducing it) or the list and its prose on the right
+  # (styled in css/routes/compute.css). Other sections stay single-column.
+  defp split_code_sections(html) do
+    # Floki drops whitespace-only text between tags, such as the space in
+    # `<strong>…</strong> <a>`, so encode it first to keep it.
+    ~r{>(\s+)<}
+    |> Regex.replace(html, fn _match, space ->
+      ">" <> Enum.map_join(String.to_charlist(space), &"&##{&1};") <> "<"
+    end)
+    |> Floki.parse_fragment!()
+    |> Enum.chunk_while(
+      [],
+      fn
+        {"h2", _, _} = heading, [] -> {:cont, [heading]}
+        {"h2", _, _} = heading, section -> {:cont, Enum.reverse(section), [heading]}
+        node, section -> {:cont, [node | section]}
+      end,
+      fn
+        [] -> {:cont, []}
+        section -> {:cont, Enum.reverse(section), []}
+      end
+    )
+    |> Enum.flat_map(fn section ->
+      case Enum.split_while(section, &(not code_window?(&1))) do
+        {text, []} ->
+          split_list_section(text)
+
+        {before, rest} ->
+          # The paragraph introducing the code ("…point runs-on at a Tuist
+          # profile:") sits above it in the right column.
+          {lead, before} = pop_lead_paragraph(before)
+          {code, after_code} = Enum.split_with(rest, &code_window?/1)
+
+          # Two rows of two columns: the heading beside that lead
+          # paragraph, then the remaining prose beside the code.
+          [
+            {"section", [{"data-part", "split"}],
+             [
+               {"div", [{"data-part", "head"}],
+                [{"div", [{"data-part", "text"}], before}, {"div", [{"data-part", "lead"}], lead}]},
+               {"div", [{"data-part", "body"}],
+                [{"div", [{"data-part", "text"}], after_code}, {"div", [{"data-part", "code-sample"}], code}]}
+             ]}
+          ]
+      end
+    end)
+    |> Floki.raw_html()
+  end
+
+  # A section with a list (such as "How it differs from …") keeps its heading on the left and puts everything else, the list
+  # included, on the right.
+  defp split_list_section([{"h2", _, _} = heading | rest] = section) do
+    if Enum.any?(rest, &match?({tag, _, _} when tag in ["ul", "ol"], &1)) do
+      [
+        {"section", [{"data-part", "split"}],
+         [
+           {"div", [{"data-part", "body"}],
+            [{"div", [{"data-part", "text"}], [heading]}, {"div", [{"data-part", "list"}], rest}]}
+         ]}
+      ]
+    else
+      section
+    end
+  end
+
+  defp split_list_section(section), do: section
+
+  defp pop_lead_paragraph(nodes) do
+    case nodes |> Enum.reverse() |> Enum.drop_while(&is_binary/1) do
+      [{"p", _, _} = lead | earlier] -> {[lead], Enum.reverse(earlier)}
+      _other -> {[], nodes}
+    end
+  end
+
+  defp code_window?({"div", attrs, _}), do: {"class", "code-window"} in attrs
+  defp code_window?(_node), do: false
 
   def assign_default_head_tags(conn, _params) do
     conn
@@ -1182,15 +1381,16 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
-  defp put_resp_header_server(conn, _opts) do
-    put_resp_header(conn, "server", "Bandit")
-  end
-
   defp post_sitemap_entries do
-    blog_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
+    blog_entries =
+      for post <- Blog.get_posts(), locale <- Blog.available_locales(post) do
+        post.slug
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(post.date)
+      end
 
     changelog_entries =
-      for locale <- Localization.all_locales(), entry <- Changelog.get_entries() do
+      for entry <- Changelog.get_entries(), locale <- Changelog.available_locales(entry) do
         "/changelog/#{entry.id}"
         |> Localization.localized_href(locale)
         |> sitemap_entry(entry.date)

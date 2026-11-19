@@ -94,7 +94,7 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
         ]
     }
 
-    private static func appending(_ mappings: [String], to existing: SettingValue?) -> SettingValue {
+    static func appending(_ mappings: [String], to existing: SettingValue?) -> SettingValue {
         switch existing {
         case let .array(values):
             return .array(values + mappings)

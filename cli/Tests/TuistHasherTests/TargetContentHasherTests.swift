@@ -502,6 +502,26 @@ struct TargetContentHasherTests {
         #expect(withEmbedded.subhashes.embeddedProductReferences != nil)
     }
 
+    @Test func externalPackageLayoutContributesWithoutBuildSettings() async throws {
+        let project = Project.test(type: .external(hash: "revision"))
+        let ordinary = Target.test(headers: .test())
+        var package = ordinary
+        package.headers = .test(sourceLayout: .init(
+            root: "/package", publicHeaders: "/package/include", moduleMap: "/package/include/module.modulemap",
+            moduleName: "CLib", usesDirectoryModuleMap: false
+        ))
+        let before = try await subject.contentHash(
+            for: .test(target: ordinary, project: project), hashedTargets: [:], hashedPaths: [:], destination: nil
+        )
+        let after = try await subject.contentHash(
+            for: .test(target: package, project: project), hashedTargets: [:], hashedPaths: [:], destination: nil
+        )
+        #expect(before.hash != after.hash)
+        #expect(after.subhashes.headers?.contains(HeadersContentHasher.swiftPackageLayoutVersion) == true)
+        #expect(before.subhashes.targetSettings == after.subhashes.targetSettings)
+        #expect(before.subhashes.external == after.subhashes.external)
+    }
+
     @Test func hash_with_destination() async throws {
         // Given
         let target = GraphTarget.test(

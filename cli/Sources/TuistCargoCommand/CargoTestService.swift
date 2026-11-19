@@ -47,13 +47,16 @@ struct CargoTestBuildProgress {
 }
 
 struct CargoTestResult {
-    let report: CargoTestReport?
+    var report: CargoTestReport?
     let buildFinished: Date?
     let finished: Date
     let canReportBuildFailure: Bool
+    var ordinaryTestFailure = false
+    var shardID: String?
+    var shardIndex: Int?
 }
 
-private final class CargoTestOutput: Sendable {
+final class CargoTestOutput: Sendable {
     struct State {
         var stdout = Data()
         var stderr = Data()
@@ -62,6 +65,9 @@ private final class CargoTestOutput: Sendable {
     }
 
     let state = Mutex(State())
+    let printsStdout: Bool
+
+    init(printsStdout: Bool = true) { self.printsStdout = printsStdout }
 
     func discard() {
         state.withLock { state in
@@ -77,7 +83,7 @@ private final class CargoTestOutput: Sendable {
         switch event {
         case let .standardOutput(value):
             bytes = value
-            FileHandle.standardOutput.write(Data(value))
+            if printsStdout { FileHandle.standardOutput.write(Data(value)) }
         case let .standardError(value):
             bytes = value
             FileHandle.standardError.write(Data(value))
@@ -156,10 +162,23 @@ struct CargoTestService {
         let buildFinished = captured.build.completion(
             succeeded: executionError == nil && captured.bounded && captured.stdout.isEmpty
         )
+        let diagnostics = captured.bounded ? String(data: captured.stderr, encoding: .utf8) : nil
+        let testOutput = captured.bounded ? String(data: captured.stdout, encoding: .utf8) : nil
+        let ordinaryTestFailure = diagnostics.map {
+            let errors = $0.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+            return errors.components(separatedBy: .newlines).contains {
+                $0.hasPrefix("error: test failed, to rerun pass ") || $0.hasPrefix("error: doctest failed, to rerun pass ")
+            } && !errors.contains("process didn't exit successfully:")
+                && testOutput.map {
+                    !$0.contains("Test executable failed (terminated by signal)")
+                        && !$0.contains("Test executable failed (signal:")
+                } == true
+        } ?? false
         completed(CargoTestResult(
             report: report, buildFinished: buildFinished, finished: finished,
             canReportBuildFailure: executionError != nil && !Task.isCancelled && captured.bounded && captured.stdout.isEmpty
-                && captured.build.canReportFailure
+                && captured.build.canReportFailure,
+            ordinaryTestFailure: ordinaryTestFailure
         ))
         if report == nil, context.environment["TUIST_DEBUG"] == "1" {
             FileHandle.standardError

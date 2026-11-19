@@ -2,11 +2,12 @@ import Foundation
 import TuistREAPI
 
 final class CargoCacheMeasurement {
-    let invocation: CargoCacheInvocation
+    let invocation: any CargoCacheAction
     private var counters = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, UInt64(0)) })
     private var records: [[String: Any]] = []
+    private(set) var hasRemoteFailure = false
 
-    init(invocation: CargoCacheInvocation) {
+    init(invocation: any CargoCacheAction) {
         self.invocation = invocation
     }
 
@@ -14,8 +15,34 @@ final class CargoCacheMeasurement {
         counters[hit ? "hits" : "misses"] = 1
         records.append([
             "record": "task", "key": Self.key(invocation.key), "name": invocation.name,
-            "kind": "rust", "status": hit ? "hit" : "miss",
+            "kind": invocation.kind, "status": hit ? "hit" : "miss",
         ])
+    }
+
+    /// A hit compiled to verify it (`CargoCacheVerification`): it compiled rather than reused, like a miss.
+    func verifying() {
+        counters["verifications"] = 1
+        records.append([
+            "record": "task", "key": Self.key(invocation.key), "name": invocation.name,
+            "kind": invocation.kind, "status": "verification",
+        ])
+    }
+
+    /// Verification found that the hit's key missed an input, or its stored outputs differ from fresh ones.
+    func diverged() {
+        counters["divergences"] = 1
+    }
+
+    /// A build-script run that ran again to verify it, which has no measurement of its own. It is a task record and,
+    /// when it diverged, a divergence, but not a `verifications` count: that counter counts as a task miss, and a run
+    /// that restores is never counted as a hit.
+    static func verified(name: String, key: REAPI.Digest, divergent: Bool, environment: [String: String]) {
+        var counters = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, UInt64(0)) })
+        counters["divergences"] = divergent ? 1 : 0
+        let record: [String: Any] = [
+            "record": "task", "key": self.key(key), "name": name, "kind": "build_script", "status": "verification",
+        ]
+        write(counters: counters, records: [record], environment: environment)
     }
 
     func timing(_ operation: String, duration: TimeInterval) {
@@ -41,32 +68,50 @@ final class CargoCacheMeasurement {
         records.append(["record": "reference", "key": Self.key(invocation.key), "object": Self.key(digest)])
     }
 
-    var hasRemoteFailure: Bool { counters["remote_failures", default: 0] > 0 }
-
-    func failure(upload: Bool = false) {
+    func failure(upload: Bool = false, endpoint: Bool = true) {
         counters[upload ? "background_upload_failures" : "remote_failures", default: 0] += 1
+        if !upload, endpoint { hasRemoteFailure = true }
     }
 
     func write() {
-        guard let session = invocation.environment["TUIST_CARGO_SESSION"] else { return }
+        Self.write(counters: counters, records: records, environment: invocation.environment)
+    }
+
+    /// Records a crate compilation the cache could not take, such as a test harness: it compiled without consulting
+    /// the cache, so the summary's task misses and hit rate cover every crate that compiled, not only cacheable ones.
+    static func uncached(_ arguments: [String], environment: [String: String]) {
+        guard environment["TUIST_CARGO_CACHE_DIR"] != nil,
+              let name = CargoCacheInputs.values("--crate-name", in: arguments).first, !name.isEmpty,
+              !arguments.contains(where: { $0.hasPrefix("--print") }),
+              arguments.dropFirst().contains(where: { $0.hasSuffix(".rs") }),
+              let encoded = try? JSONSerialization.data(withJSONObject: Array(arguments.dropFirst()))
+        else { return }
+        var counters = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, UInt64(0)) })
+        counters["unconsulted"] = 1
+        let record: [String: Any] = [
+            "record": "task", "key": key(REAPI.digest(encoded)), "name": name, "kind": "rust", "status": "unconsulted",
+        ]
+        write(counters: counters, records: [record], environment: environment)
+    }
+
+    private static func write(counters: [String: UInt64], records: [[String: Any]], environment: [String: String]) {
+        guard let session = environment["TUIST_CARGO_SESSION"] else { return }
         let root = URL(fileURLWithPath: session)
         let id = UUID().uuidString
         let statistics = root.appendingPathComponent("cache-reports")
         let details = root.appendingPathComponent("cache-details")
         do {
-            try FileManager.default.createDirectory(at: statistics, withIntermediateDirectories: true)
-            try FileManager.default.createDirectory(at: details, withIntermediateDirectories: true)
             var payload: [String: Any] = counters.mapValues { $0 as Any }
             payload["version"] = 1
-            try JSONSerialization.data(withJSONObject: payload).write(
-                to: statistics.appendingPathComponent(id + ".json"), options: .atomic
+            try CargoBlobStore.write(
+                JSONSerialization.data(withJSONObject: payload), to: statistics.appendingPathComponent(id + ".json")
             )
             var data = Data()
             for record in records.prefix(500) {
                 data.append(try JSONSerialization.data(withJSONObject: record))
                 data.append(UInt8(10))
             }
-            try data.write(to: details.appendingPathComponent(id + ".ndjson"), options: .atomic)
+            try CargoBlobStore.write(data, to: details.appendingPathComponent(id + ".ndjson"))
         } catch {}
     }
 

@@ -43,12 +43,40 @@ defmodule TuistEx.Analytics.EnvTest do
       "CIRCLE_PROJECT_USERNAME" -> "acme"
       "CIRCLE_PROJECT_REPONAME" -> "widgets"
       "CIRCLE_WORKFLOW_ID" -> "abc-123"
+      "CIRCLE_BUILD_NUM" -> "42"
       _ -> nil
     end
 
     assert Env.ci_provider(environment) == "circleci"
     assert Env.ci_project_handle(environment) == "acme/widgets"
-    assert Env.ci_run_id(environment) == "abc-123"
+    # The job number, as the Swift command line tool reports it; the workflow
+    # is shared by every job and would not identify this one.
+    assert Env.ci_run_id(environment) == "42"
+  end
+
+  test "reports Buildkite and Codemagic runs under the identity the CI links use" do
+    buildkite = fn
+      "BUILDKITE" -> "true"
+      "BUILDKITE_ORGANIZATION_SLUG" -> "acme"
+      "BUILDKITE_PIPELINE_SLUG" -> "ios"
+      "BUILDKITE_BUILD_NUMBER" -> "77"
+      "BUILDKITE_BUILD_ID" -> "0190a1b2-0000-0000-0000-000000000000"
+      _ -> nil
+    end
+
+    assert {Env.ci_project_handle(buildkite), Env.ci_run_id(buildkite)} == {"acme/ios", "77"}
+
+    codemagic = fn
+      "CM_BUILD_ID" -> "5f2b9c1e8d3a4b0012c3d4e5"
+      "CM_PROJECT_ID" -> "5f2b9c1e8d3a4b0012c3d4e6"
+      "BUILD_NUMBER" -> "12"
+      _ -> nil
+    end
+
+    assert Env.ci_provider(codemagic) == "codemagic"
+
+    assert {Env.ci_project_handle(codemagic), Env.ci_run_id(codemagic)} ==
+             {"5f2b9c1e8d3a4b0012c3d4e6", "5f2b9c1e8d3a4b0012c3d4e5"}
   end
 
   test "detects the CI host for self-hosted providers" do
@@ -86,37 +114,22 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_remote_url_origin(environment) == "git@github.com:tuist/tuist.git"
   end
 
-  test "reports a pull request's head rather than the merge commit its merge ref checks out" do
-    git = fn second_parent ->
-      fn
-        "rev-parse", ["HEAD^2"] -> second_parent
-        "rev-parse", ["HEAD"] -> "merge-commit"
-      end
+  test "reports the merge commit a pull request's merge ref checks out, which the run measured" do
+    git = fn
+      "rev-parse", ["HEAD"] -> "merge-commit"
     end
 
-    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge"}[&1]
+    assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/pull/7/merge"}[&1], git) == "merge-commit"
 
-    assert Env.git_commit_sha(pull_request, git.("pull-request-head")) == "pull-request-head"
-    # A shallow checkout lacks the merge commit's parents.
-    assert Env.git_commit_sha(pull_request, git.(nil)) == "merge-commit"
-
-    assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/heads/main"}[&1], git.("x")) ==
-             "merge-commit"
+    assert Env.git_commit_sha(
+             &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => "merge-commit"}[&1],
+             git
+           ) == "merge-commit"
 
     assert Env.git_commit_sha(
              &%{"GITHUB_REF" => "refs/pull/7/merge", "GIT_COMMIT" => "deadbeef"}[&1],
-             git.("x")
+             git
            ) == "deadbeef"
-
-    github = fn sha -> &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => sha}[&1] end
-
-    assert Env.git_commit_sha(github.("merge-commit"), git.("pull-request-head")) ==
-             "pull-request-head"
-
-    # A checkout of the pull request's head keeps GITHUB_REF at the merge ref;
-    # when that head is itself a merge commit, its second parent is not the
-    # pull request.
-    assert Env.git_commit_sha(github.("another-commit"), git.("main")) == "merge-commit"
   end
 
   test "takes the branch from the CI provider before git" do

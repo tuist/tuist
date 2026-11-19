@@ -1,4 +1,12 @@
-# Slack OAuth: local end-to-end testing
+# Slack
+
+## Report destination cleanup
+
+- Archived report channels are permanent destination failures: after delivery, lock and reload the project, clear only the destination that was attempted, then discard the job. Preserve replacement destinations, the installation, unrelated destinations and `last_reported_at`; cleanup failures must still propagate for retry. Never hold the lock during the Slack request.
+
+## OAuth: local end-to-end testing
+
+Automation notifications use `Client.deliver_once/2`: one bounded HTTP request without Req retries or redirects, returning snooze for rate limits, error for transient failures, and discard for permanent rejections. Oban owns retries; keep the existing reporting transports compatible.
 
 Slack's OAuth redirect URI must be HTTPS, and the URI Tuist sends to Slack is built by `Tuist.Environment.app_url/1` from `TUIST_SERVER_URL`. By default `mise/utilities/dev_instance_env.sh` exports `TUIST_SERVER_URL=http://localhost:<port>` per worktree, which Slack rejects. To exercise the real OAuth round-trip:
 

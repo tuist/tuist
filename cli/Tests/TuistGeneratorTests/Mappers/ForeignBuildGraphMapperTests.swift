@@ -52,6 +52,40 @@ struct ForeignBuildGraphMapperTests {
     }
 
     @Test
+    func map_keepsScriptsDeclaredOnForeignBuildTargetAfterForeignBuildScript() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
+        let declareSlice = TargetScript(
+            name: "Declare SharedKMP slice",
+            order: .pre,
+            script: .embedded(":"),
+            outputPaths: [outputPath.appending(components: "ios-arm64-simulator", "SharedKMP.framework").pathString],
+            basedOnDependencyAnalysis: false
+        )
+        let postProcess = TargetScript(name: "Post-process", order: .post, script: .embedded("true"))
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            scripts: [declareSlice, postProcess],
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget])
+        let graph = Graph.test(path: projectPath, projects: [projectPath: project])
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedForeignTarget = try #require(mappedGraph.projects[projectPath]?.targets["SharedKMP"])
+        #expect(mappedForeignTarget.scripts.first?.name == "Foreign Build: SharedKMP")
+        #expect(Array(mappedForeignTarget.scripts.dropFirst()) == [declareSlice, postProcess])
+    }
+
+    @Test
     func map_addsForeignBuildOutputDependencyForConsumingTarget() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")

@@ -9,7 +9,7 @@ defmodule Tuist.Docs.CLI do
   require Logger
 
   @repo "tuist/tuist"
-  @cache_key :cli_spec_data
+  @cache_key {:cli_spec_data, 3}
   @ttl to_timeout(hour: 1)
   @headers [{"accept", "application/json"}, {"user-agent", "tuist-server"}]
 

@@ -18,7 +18,6 @@
 #     /usr/local/lib/tart/<version>.
 # One image, one URL pin in the chart, no separate release artifact.
 
-ARG GO_VERSION=1.26
 ARG ALPINE_VERSION=3.22
 
 # Tart releases the image carries, as <version>:<sha256 of tart.tar.gz>.
@@ -54,7 +53,7 @@ ARG TAILSCALE_VERSION=1.96.5
 # Dockerfile.
 ARG NODE_EXPORTER_VERSION=1.8.2
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS manager-builder
 
 # The operator's go.mod has `replace ../macos-host-bootstrap`, so both
 # modules land under /src for the build to resolve. We do not COPY
@@ -82,14 +81,24 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/rack-node-linux-amd64 ./cmd/rack-node
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS sandbox-tools-builder
+WORKDIR /src/sandbox-image
+COPY infra/sandbox-image ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/sbx-macos ./cmd/sbx-macos && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/sbx-worker ./cmd/sbx-worker
+
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS kubelet-builder
 
 WORKDIR /src/tart-kubelet
 COPY infra/runner-cache /src/runner-cache
+COPY infra/sandboxd /src/sandboxd
 COPY infra/tart-kubelet/go.mod infra/tart-kubelet/go.sum ./
 RUN go mod download
 
 COPY infra/tart-kubelet ./
+COPY --from=sandbox-tools-builder /out/ ./internal/macosandbox/bundle/
 
 # Always darwin/arm64 — these binaries run on Mac minis, not on the
 # operator host. CGO off keeps the binary statically linked so it has
@@ -101,7 +110,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tart-kubelet-darwin-arm64 ./cmd/tart-kubelet
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS log-shipper-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS log-shipper-builder
 
 WORKDIR /src
 COPY infra/macos-log-shipper ./
@@ -123,7 +132,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tuist-log-shipper-darwin-arm64 ./cmd/tuist-log-shipper
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS host-sensors-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS host-sensors-builder
 
 WORKDIR /src
 COPY infra/macos-host-sensors ./
@@ -164,7 +173,7 @@ RUN set -eu; \
     test -s "${TART_DEFAULT_VERSION}/tart.tar.gz"
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tailscale-builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS tailscale-builder
 
 # Tailscale's open-source `tailscaled` variant — what Tailscale's own
 # docs designate as the headless-server path on macOS (see
@@ -239,7 +248,7 @@ RUN apk add --no-cache curl \
  && test -s /out/snponly-shim.efi && test -s /out/snponly.efi
 
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=manager-builder /out/rack-boot /usr/local/bin/rack-boot

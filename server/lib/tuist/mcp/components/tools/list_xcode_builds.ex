@@ -61,6 +61,11 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
               "category" => %{"type" => ["string", "null"]},
               "scheme" => %{"type" => "string"},
               "configuration" => %{"type" => "string"},
+              "tuist_version" => %{"type" => ["string", "null"], "description" => "The reporting Tuist CLI version."},
+              "tuist_generation_version" => %{
+                "type" => ["string", "null"],
+                "description" => "The Tuist CLI version that generated the associated project."
+              },
               "is_ci" => %{"type" => "boolean"},
               "git_branch" => %{"type" => "string"},
               "git_commit_sha" => %{"type" => "string"},
@@ -116,6 +121,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
         page_size: page_size
       })
 
+    generation_versions =
+      Tuist.CommandEvents.get_generation_versions(project.id, Enum.map(builds, &Map.get(&1, :generation_id)))
+
     {:ok,
      %{
        builds:
@@ -123,6 +131,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
            %{
              id: build.id,
              actor: Tuist.ReportActor.actor(build),
+             tuist_version: if(Map.get(build, :tuist_version) != "", do: Map.get(build, :tuist_version)),
+             tuist_generation_version: Map.get(generation_versions, Map.get(build, :generation_id)),
              duration: build.duration,
              status: to_string(build.status),
              category: if(build.category != "", do: build.category),

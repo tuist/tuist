@@ -408,4 +408,47 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(imports, ["ProjectDescription", "ProjectDescriptionHelpers"])
     }
+
+    func test_scanImports_recordsCanImportConditionsOfEveryImport() {
+        // Given
+        let code = """
+        import Foundation
+        #if canImport(A)
+        import B
+            #if canImport(C)
+            import D
+            #endif
+        #else
+        import E
+        #endif
+        """
+
+        // When
+        let scannedImports = subject.scanImports(from: code, language: .swift)
+
+        // Then
+        XCTAssertEqual(scannedImports, [
+            ScannedImport(module: "Foundation", canImportConditions: []),
+            ScannedImport(module: "B", canImportConditions: ["A"]),
+            ScannedImport(module: "D", canImportConditions: ["A", "C"]),
+            ScannedImport(module: "E", canImportConditions: []),
+        ])
+    }
+
+    func test_imports_skipsImportsOfUnreachableCanImportConditions() {
+        // Given
+        let scannedImports = [
+            ScannedImport(module: "Foundation", canImportConditions: []),
+            ScannedImport(module: "B", canImportConditions: ["A"]),
+            ScannedImport(module: "D", canImportConditions: ["A", "C"]),
+        ]
+
+        // When
+        let reachableImports = ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: ["A"])
+        let allImports = ImportSourceCodeScanner.imports(in: scannedImports, reachableModules: nil)
+
+        // Then
+        XCTAssertEqual(reachableImports, ["Foundation", "B"])
+        XCTAssertEqual(allImports, ["Foundation", "B", "D"])
+    }
 }

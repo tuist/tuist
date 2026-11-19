@@ -1,0 +1,54 @@
+[package]
+name = "condukt_egress"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Egress sidecar for Condukt's network policy layer: transparent proxy plus iptables setup"
+publish = false
+
+[[bin]]
+name = "condukt-egress"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["rt-multi-thread", "rt", "net", "io-util", "io-std", "macros", "sync", "time", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tls-parser = "0.12"
+uuid = { version = "1", features = ["v4"] }
+libc = "0.2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
+# Tier 2 MITM stack: terminate TLS with the per-session CA, mint leaf
+# certs on the fly, parse HTTP/1.1 request lines so the event carries
+# method + path + headers.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging"] }
+rustls-pemfile = "2"
+rcgen = { version = "0.13", features = ["x509-parser", "pem"] }
+httparse = "1.9"
+thiserror = "1"
+
+# HTTP/2 termination + forwarding. Hyper does the protocol work;
+# `hyper-util` provides the tokio executor/IO bridges; `http-body-util`
+# gives us a couple of body adapters we use when wrapping/unwrapping.
+hyper = { version = "1", features = ["server", "client", "http2"] }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+
+[dev-dependencies]
+# Already in the dependency graph via rcgen's `x509-parser` feature, so
+# this adds no extra compile cost. Used only by tls.rs tests to parse a
+# minted leaf and assert its subject / SAN / issuer.
+x509-parser = "0.16"
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[profile.release]
+# Small, single binary for distroless containers. We trade compile time for
+# image size: thin-LTO, panic=abort, strip symbols.
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

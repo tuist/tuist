@@ -1,6 +1,6 @@
 .noora-button,
 .noora-link-button,
-.noora-neutral-button {
+.noora-ghost-button {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -17,11 +17,16 @@
 }
 
 .noora-button {
-  --noora-button-icon-size: var(--noora-icon-size-large);
-
+  position: relative;
+  isolation: isolate;
   cursor: pointer;
   outline: unset;
-  transition: transform 150ms var(--ease-out-cubic);
+  /* Hover eases in and out: the border shadow here, the background through
+     the layer below. Focus rings stay instant; their shadow layers don't
+     line up with the resting ones, so the browser swaps them. */
+  transition:
+    transform 150ms var(--ease-out-cubic),
+    box-shadow 150ms var(--noora-ease-hover);
   /* Reserve space for box-shadow to ensure consistent height across variants */
   box-shadow:
     0px 0px 0px 0px transparent,
@@ -41,24 +46,53 @@
     padding: 0rem var(--noora-spacing-2);
   }
 
+  /* The hover background fades in over the resting one, under the label and
+     icons: a gradient can't animate into another, a layer's opacity can. It
+     starts 1px down so the top highlight, an inset shadow painted under it,
+     stays visible. */
+  &::before {
+    position: absolute;
+    inset: 1px 0 0;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 150ms var(--noora-ease-hover);
+    pointer-events: none;
+    border-radius: inherit;
+    background: var(--noora-button-hover-background);
+    content: "";
+  }
+
+  &:not(:disabled):hover::before {
+    opacity: 1;
+  }
+
+  /* Pressed shows its own background at once. */
+  &:not(:disabled):active::before {
+    opacity: 0;
+    transition: none;
+  }
+
   &[data-variant="primary"] {
     box-shadow: var(--noora-button-border-primary);
+    --noora-button-hover-background: var(
+      --noora-button-background-primary-hover
+    );
+
     background: var(--noora-button-background-primary);
     color: var(--noora-button-primary-label);
 
     &:hover {
       box-shadow: var(--noora-button-border-primary-hover);
-      background: var(--noora-button-background-primary-hover);
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-primary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-primary-disabled);
-      background: var(--noora-button-background-primary-disabled);
-      color: var(--noora-button-primary-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -69,21 +103,21 @@
 
   &[data-variant="secondary"] {
     box-shadow: var(--noora-button-border-secondary);
+    --noora-button-hover-background: var(
+      --noora-button-background-secondary-hover
+    );
+
     background: var(--noora-button-background-secondary);
     color: var(--noora-button-secondary-label);
 
-    &:hover {
-      background: var(--noora-button-background-secondary-hover);
-    }
-
     &:focus-visible {
-      box-shadow: var(--noora-button-border-secondary-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-secondary-disabled);
-      background: var(--noora-button-background-secondary-disabled);
-      color: var(--noora-button-secondary-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
@@ -94,77 +128,31 @@
 
   &[data-variant="destructive"] {
     box-shadow: var(--noora-button-border-destructive);
+    --noora-button-hover-background: var(
+      --noora-button-background-destructive-hover
+    );
+
     background: var(--noora-button-background-destructive);
 
     color: var(--noora-button-destructive-label);
 
     &:hover {
       box-shadow: var(--noora-button-border-destructive-hover);
-      background: var(--noora-button-background-destructive-hover);
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-button-border-destructive-focus);
+      box-shadow: var(--noora-button-border-focus);
     }
 
     &[disabled] {
-      box-shadow: var(--noora-button-border-destructive-disabled);
-      background: var(--noora-button-background-destructive-disabled);
-      color: var(--noora-button-destructive-disabled-label);
+      box-shadow: var(--noora-button-border-disabled);
+      background: var(--noora-button-background-disabled);
+      color: var(--noora-button-disabled-label);
     }
 
     &:not(:disabled):active {
       box-shadow: var(--noora-button-border-destructive-active);
       background: var(--noora-button-destructive-background);
-    }
-  }
-
-  &[data-icon-only] {
-    padding: var(--noora-spacing-3);
-  }
-
-  &[data-size="small"] {
-    --noora-button-icon-size: var(--noora-icon-size-small);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  &[data-size="medium"] {
-    --noora-button-icon-size: var(--noora-icon-size-medium);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  &[data-size="large"] {
-    --noora-button-icon-size: var(--noora-icon-size-large);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
     }
   }
 }
@@ -193,8 +181,8 @@
   background: transparent;
 
   &:focus-visible {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
+    outline: var(--noora-focus-ring-width) solid var(--noora-focus-ring-color);
+    outline-offset: var(--noora-focus-ring-offset);
   }
 
   &:disabled {
@@ -244,17 +232,18 @@
     }
   }
 
+  /* A 16px icon beside the 14px label, as in large buttons. */
   &[data-size="large"] {
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     & svg {
-      width: var(--noora-icon-size-large);
-      height: var(--noora-icon-size-large);
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 }
 
-.noora-neutral-button {
+.noora-ghost-button {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -262,22 +251,80 @@
   border-radius: var(--noora-radius-3);
   background: unset;
   padding: var(--noora-spacing-3);
-  color: var(--noora-button-neutral-label);
   text-decoration: none;
-  transition: transform 150ms var(--ease-out-cubic);
-
-  &:not(:disabled):hover {
-    background: var(--noora-button-neutral-background-hover);
-  }
+  /* Hover and selected fill 1px past the edge, in the same color, so the
+     fill reads the same size as a filled button with its outside ring. */
+  transition:
+    transform 150ms var(--ease-out-cubic),
+    background-color 150ms var(--noora-ease-hover),
+    box-shadow 150ms var(--noora-ease-hover),
+    color 150ms var(--noora-ease-hover);
 
   &:not(:disabled):active {
-    background: var(--noora-button-neutral-background-active);
     transform: scale(0.97);
   }
 
+  &[data-variant="primary"] {
+    color: var(--noora-button-ghost-primary-label);
+
+    &:not(:disabled):hover {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-primary-hover);
+      background: var(--noora-button-ghost-primary-hover);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-primary-selected);
+      background: var(--noora-button-ghost-primary-selected);
+    }
+  }
+
+  &[data-variant="secondary"] {
+    color: var(--noora-button-ghost-secondary-label);
+
+    &:not(:disabled):hover {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-secondary-hover);
+      background: var(--noora-button-ghost-secondary-hover);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-secondary-selected);
+      background: var(--noora-button-ghost-secondary-selected);
+    }
+  }
+
+  &[data-variant="destructive"] {
+    color: var(--noora-button-ghost-destructive-label);
+
+    &:not(:disabled):hover {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-destructive-hover);
+      background: var(--noora-button-ghost-destructive-hover);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-destructive-selected);
+      background: var(--noora-button-ghost-destructive-selected);
+    }
+  }
+
+  /* Secondary with a 1px border that stays in every state, and with it the
+     size of a filled button. */
+  &[data-variant="outline"] {
+    box-shadow: 0px 0px 0px 1px var(--noora-button-ghost-outline-border);
+    color: var(--noora-button-ghost-secondary-label);
+
+    &:not(:disabled):hover {
+      background: var(--noora-button-ghost-secondary-hover);
+    }
+
+    &:not(:disabled):active {
+      background: var(--noora-button-ghost-secondary-selected);
+    }
+  }
+
+  /* After the variants, so it wins over their label colors. */
   &[disabled] {
     cursor: not-allowed;
-    color: var(--noora-button-neutral-disabled-label);
+    color: var(--noora-button-disabled-label);
   }
 
   /* Same label inset as .noora-button's `& > span`, scoped to the label
@@ -285,81 +332,57 @@
   & > [data-part="label"] {
     padding: 0rem var(--noora-spacing-2);
   }
+}
 
-  /* Spacing and positioning mirror .noora-button's size rules exactly, so
-     the two variants can sit side by side (e.g. the navbar's action
-     cluster) without drifting: the same data-icon-only gating, the same
-     per-size paddings, and descendant svg sizing through the shared icon
-     custom property (reaching icons nested in wrapper spans, which a
-     direct-child selector missed). */
-  &[data-icon-only] {
-    padding: var(--noora-spacing-3);
+/* Sizes, shared by buttons and ghost buttons so the two sit side by side
+   (e.g. the navbar's action cluster) with the same geometry. A neutral
+   button is icon-only when it has no label. */
+:is(.noora-button, .noora-ghost-button) {
+  --noora-button-icon-size: var(--noora-icon-size-medium);
+
+  & svg {
+    width: var(--noora-button-icon-size);
+    height: var(--noora-button-icon-size);
   }
 
+  /* 4px all round with a 16px icon and the 12px label: 24px tall,
+     labelled or icon-only. */
   &[data-size="small"] {
-    --noora-button-icon-size: var(--noora-icon-size-small);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
-
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
+    padding: var(--noora-spacing-2);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
   }
 
-  &[data-size="medium"],
-  &[data-size="large"] {
-    &:not([data-icon-only]) {
+  /* The 14px label with 4px padding all round: 28px tall. Icon-only ones
+     keep 6px around the 16px icon to match. */
+  &[data-size="medium"] {
+    padding: var(--noora-spacing-2);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:is([data-icon-only], .noora-ghost-button:not([data-with-label])) {
       padding: var(--noora-spacing-3);
     }
   }
 
-  &[data-size="medium"] {
-    --noora-button-icon-size: var(--noora-icon-size-medium);
-
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
+  /* A 16px icon beside the 14px label; icon-only ones pad 8px to stay 32px
+     square, the labelled height. */
   &[data-size="large"] {
-    --noora-button-icon-size: var(--noora-icon-size-large);
-
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
-    & svg {
-      width: var(--noora-button-icon-size);
-      height: var(--noora-button-icon-size);
-    }
-  }
-
-  /* Labeled neutral buttons take .noora-button's per-size paddings. Gated
-     on data-with-label (set by the component in label mode) rather than
-     :not([data-icon-only]) because existing icon-only call sites don't set
-     data-icon-only and must keep their geometry. */
-  &[data-with-label] {
-    &[data-size="small"],
-    &[data-size="medium"] {
-      padding: var(--noora-spacing-3) var(--noora-spacing-2);
-    }
-
-    &[data-size="large"] {
-      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    &:is([data-icon-only], .noora-ghost-button:not([data-with-label])) {
+      padding: var(--noora-spacing-4);
     }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .noora-button,
-  .noora-neutral-button {
+  .noora-ghost-button {
     transition: none;
+
+    &::before {
+      transition: none;
+    }
 
     &:not(:disabled):active {
       transform: none;

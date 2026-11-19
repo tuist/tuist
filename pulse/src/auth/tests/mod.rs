@@ -1,0 +1,94 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::assert_matches;
+use std::sync::Arc;
+
+use api::v1::greptime_request::Request;
+use auth::error::Error::InternalState;
+use auth::error::InternalStateSnafu;
+use auth::{
+    AccessMode, OPENTSDB_WRITE, PermissionAction, PermissionChecker, PermissionCheckerRef,
+    PermissionReq, PermissionResp, PermissionTableTargets, UserInfoRef,
+};
+use sql::statements::show::{ShowDatabases, ShowKind};
+use sql::statements::statement::Statement;
+
+const DOWNSTREAM_QUERY: PermissionAction = PermissionAction::read("downstream.query");
+const DOWNSTREAM_WRITE: PermissionAction = PermissionAction::write("downstream.write");
+
+struct DummyPermissionChecker;
+
+impl PermissionChecker for DummyPermissionChecker {
+    fn check_permission(
+        &self,
+        _user_info: UserInfoRef,
+        req: PermissionReq,
+    ) -> auth::error::Result<PermissionResp> {
+        match req {
+            PermissionReq::GrpcRequest(_) => Ok(PermissionResp::Allow),
+            PermissionReq::SqlStatement(_) => Ok(PermissionResp::Reject),
+            _ => InternalStateSnafu {
+                msg: "testing".to_string(),
+            }
+            .fail(),
+        }
+    }
+
+    fn check_permission_with_table_targets(
+        &self,
+        user_info: UserInfoRef,
+        req: PermissionReq,
+        _targets: PermissionTableTargets,
+    ) -> auth::error::Result<PermissionResp> {
+        self.check_permission(user_info, req)
+    }
+}
+
+#[test]
+fn test_permission_checker() {
+    let checker: PermissionCheckerRef = Arc::new(DummyPermissionChecker);
+
+    let grpc_result = checker.check_permission(
+        auth::userinfo_by_name(None),
+        PermissionReq::GrpcRequest(&Request::Query(Default::default())),
+    );
+    assert_matches!(grpc_result, Ok(PermissionResp::Allow));
+
+    let sql_result = checker.check_permission(
+        auth::userinfo_by_name(None),
+        PermissionReq::SqlStatement(&Statement::ShowDatabases(ShowDatabases::new(
+            ShowKind::All,
+            false,
+        ))),
+    );
+    assert_matches!(sql_result, Ok(PermissionResp::Reject));
+
+    let err_result = checker.check_permission(
+        auth::userinfo_by_name(None),
+        PermissionReq::Action(OPENTSDB_WRITE),
+    );
+    assert_matches!(err_result, Err(InternalState { msg }) if msg == "testing");
+}
+
+#[test]
+fn test_downstream_can_define_permission_actions() {
+    assert_eq!("downstream.query", DOWNSTREAM_QUERY.name());
+    assert_eq!(AccessMode::Read, DOWNSTREAM_QUERY.access_mode());
+    assert!(PermissionReq::Action(DOWNSTREAM_QUERY).is_readonly());
+
+    assert_eq!("downstream.write", DOWNSTREAM_WRITE.name());
+    assert_eq!(AccessMode::Write, DOWNSTREAM_WRITE.access_mode());
+    assert!(PermissionReq::Action(DOWNSTREAM_WRITE).is_write());
+}

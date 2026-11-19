@@ -3,13 +3,17 @@
 // Run sequentially on baseline and changed images; both receive identical config.
 import fs from "node:fs";
 import crypto from "node:crypto";
+import https from "node:https";
+import { bodyFor, bodySize } from "./corpus.mjs";
+import { knownLazyCounters } from "./metric-schema.mjs";
 import { execFileSync } from "node:child_process";
 const label = process.argv[2];
 const testImage = process.argv[3];
 if (!label || !testImage) throw Error("Usage: node resources.mjs label image");
-const prefix = "kura-provider-resource-" + process.pid;
+const prefix = "kura-provider-resource-" + crypto.randomUUID().slice(0, 8);
 const network = prefix;
 const out = process.env.KURA_RESOURCE_OUTPUT || `/tmp/kura-provider-resource-${label}`;
+if (fs.existsSync(out) && fs.readdirSync(out).length) throw Error("resource output must be empty");
 fs.mkdirSync(out, { recursive: true });
 const certs = out + "/certs";
 fs.mkdirSync(certs, { recursive: true });
@@ -19,9 +23,14 @@ openssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", certs + "/ca
 openssl("req", "-newkey", "rsa:2048", "-nodes", "-keyout", certs + "/peer.key", "-out", certs + "/peer.csr", "-subj", "/CN=kura-resource-peer");
 fs.writeFileSync(certs + "/extensions", "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=" + names.flatMap(n => ["DNS:" + n, "DNS:private-" + n]).join(",") + "\n");
 openssl("x509", "-req", "-in", certs + "/peer.csr", "-CA", certs + "/ca.pem", "-CAkey", certs + "/ca.key", "-CAcreateserial", "-out", certs + "/peer.pem", "-days", "1", "-extfile", certs + "/extensions");
+if (!process.env.KURA_RESOURCE_METRICS_SOURCE) throw Error("the exact built metrics.rs source is required");
+const metricsSource = fs.readFileSync(process.env.KURA_RESOURCE_METRICS_SOURCE, "utf8");
+const lazyCounters = knownLazyCounters(metricsSource);
+const metricsSourceSHA256 = crypto.createHash("sha256").update(metricsSource).digest("hex");
 const created = [];
 const dockerCommand = (...args) =>
   execFileSync("docker", args, { encoding: "utf8" });
+const imageId = dockerCommand("image", "inspect", "--format", "{{.Id}}", testImage).trim();
 process.on("exit", () => {
   for (const name of created) {
     try {
@@ -75,8 +84,10 @@ for (const [suffix, port] of [
     certs + ":/certs:ro",
     "-p",
     "127.0.0.1:" + port + ":4000",
+    "-p",
+    "127.0.0.1:" + (port + 1000) + ":7443",
     "--memory=1536m",
-    "--cpus=2",
+    "--cpus=1",
     ...Object.entries(env).flatMap(([k, v]) => ["-e", k + "=" + v]),
     testImage,
   );
@@ -109,11 +120,30 @@ const headers = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const url = (port, key) =>
   `http://127.0.0.1:${port}/api/cache/gradle/${key}?tenant_id=default&namespace_id=bench`;
-const body = Buffer.alloc(1024 * 1024, 71);
-const stats = { puts: 0, gets: 0, readBytes: 0, failures: [] };
+const stats = { puts: 0, gets: 0, handshakes: 0, readBytes: 0, retainedObjects: 0, seedProbeAttempts: 0, seedProbeBytes: 0, seedProbeSuccesses: 0, seedProbeSuccessBytes: 0, seedProbeFailuresByStatus: {}, failures: [] };
+const tlsOptions = Object.fromEntries(["ca", "cert", "key"].map((key, index) => [key, fs.readFileSync(certs + "/" + ["ca.pem", "peer.pem", "peer.key"][index])]));
+function handshake(index) {
+  return new Promise((resolve, reject) => {
+    const request = https.get({ ...tlsOptions, hostname: "127.0.0.1", port: 5291 + index, servername: names[index], path: "/_internal/status", agent: false, rejectUnauthorized: true }, response => {
+      response.resume();
+      if (response.socket.isSessionReused()) {
+        response.destroy();
+        return reject(Error("mTLS churn probe unexpectedly resumed a session"));
+      }
+      response.on("error", reject);
+      response.on("end", () => {
+        if (response.statusCode !== 200) return reject(Error("mTLS status probe rejected: " + response.statusCode));
+        stats.handshakes++;
+        resolve();
+      });
+    });
+    request.setTimeout(5000, () => request.destroy(Error("mTLS status probe timed out")));
+    request.on("error", reject);
+  });
+}
 async function write(key) {
   const port = 4291 + (stats.puts % 3);
-  const r = await fetch(url(port, key), { method: "PUT", headers, body });
+  const r = await fetch(url(port, key), { method: "PUT", headers, body: bodyFor(key) });
   if (!r.ok) throw Error(`PUT ${key}: ${r.status} ${await r.text()}`);
   await r.arrayBuffer();
   stats.puts++;
@@ -124,7 +154,7 @@ async function read(port, key) {
   const b = Buffer.from(await r.arrayBuffer());
   stats.gets++;
   stats.readBytes += b.length;
-  if (r.status !== 200 || b.length !== body.length || !b.equals(body))
+  if (r.status !== 200 || b.length !== bodySize || !b.equals(bodyFor(key)))
     stats.failures.push({ port, key, status: r.status, bytes: b.length });
 }
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8" });
@@ -147,6 +177,7 @@ function hostStats() {
       'read -r kura_pid rest < /proc/1/task/1/children; cat "/proc/$kura_pid/smaps_rollup"',
     ),
     disk: docker("exec", `${prefix}-${n}`, "du", "-sb", "/data"),
+    diskAllocated: docker("exec", `${prefix}-${n}`, "du", "-sB1", "/data"),
     net: docker("exec", `${prefix}-${n}`, "cat", "/proc/net/dev"),
   }));
 }
@@ -179,14 +210,22 @@ for (let i = 0; i < 64; i++) await write(`seed-${i}`);
 for (const port of [4291, 4292, 4293]) {
   for (let i = 0; i < 64; i++) {
     for (let retry = 0; retry < 60; retry++) {
+      stats.seedProbeAttempts++;
       const r = await fetch(url(port, "seed-" + i), { headers });
       const data = Buffer.from(await r.arrayBuffer());
-      if (r.ok && data.equals(body)) break;
+      stats.seedProbeBytes += data.length;
+      if (r.ok && data.equals(bodyFor("seed-" + i))) {
+        stats.seedProbeSuccesses++;
+        stats.seedProbeSuccessBytes += data.length;
+        break;
+      }
+      stats.seedProbeFailuresByStatus[r.status] = (stats.seedProbeFailuresByStatus[r.status] || 0) + 1;
       if (retry === 59) throw Error("replication did not converge: " + port + "/" + i);
       await sleep(1000);
     }
   }
 }
+stats.loadStartSample = sequence;
 const start = Date.now();
 console.log("seed corpus replicated; starting sustained load");
 await Promise.all([
@@ -194,6 +233,12 @@ await Promise.all([
     for (let i = 0; i < 256; i++) {
       await sleep(Math.max(0, start + i * 250 - Date.now()));
       await write(`load-${i}`);
+    }
+  })(),
+  (async () => {
+    for (let i = 0; i < 1280; i++) {
+      await sleep(Math.max(0, start + i * 50 - Date.now()));
+      await handshake(i % 3);
     }
   })(),
   ...[4291, 4292, 4293].map(async (port) => {
@@ -206,13 +251,24 @@ await Promise.all([
 stats.loadDurationMs = Date.now() - start;
 stats.loadEndSample = sequence;
 await sleep(30000);
+stats.retentionStartSample = sequence;
+for (const port of [4291, 4292, 4293]) {
+  for (const [kind, count] of [["seed", 64], ["load", 256]]) {
+    for (let i = 0; i < count; i++) {
+      await read(port, `${kind}-${i}`);
+      stats.retainedObjects++;
+    }
+  }
+}
+stats.retentionEndSample = sequence;
+await sleep(30000);
 clearInterval(interval);
 await sampling;
 await sample();
 const after = hostStats();
 fs.writeFileSync(
   `${out}/result.json`,
-  JSON.stringify({ stats, before, after, samples: sequence }, null, 2),
+  JSON.stringify({ schemaVersion: 2, label, imageId, stats, before, after, samples: sequence, knownLazyCounters: lazyCounters, metricsSourceSHA256 }, null, 2),
 );
 console.log(JSON.stringify(stats));
 if (stats.failures.length) process.exitCode = 1;

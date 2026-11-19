@@ -2,6 +2,7 @@ package dev.tuist.app.ui.previews
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,21 +59,40 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
 import dev.tuist.app.R
-import dev.tuist.app.api.model.AppBuild
 import dev.tuist.app.api.model.Preview
-import dev.tuist.app.api.model.PreviewSupportedPlatform
+import dev.tuist.app.navigation.AppRoute
+import dev.tuist.app.navigation.openWebTab
 import dev.tuist.app.ui.noora.NooraSpacing
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreviewDetailScreen(
     onBack: () -> Unit,
     viewModel: PreviewDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    PreviewDetailScreenContent(
+        uiState = uiState,
+        fullHandle = viewModel.fullHandle,
+        serverUrl = viewModel.serverUrl,
+        onBack = onBack,
+        onDelete = { viewModel.deletePreview(onBack) },
+        onRetry = { viewModel.loadPreview() },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PreviewDetailScreenContent(
+    uiState: PreviewDetailUiState,
+    fullHandle: String,
+    serverUrl: String,
+    onBack: () -> Unit,
+    onDelete: () -> Unit,
+    onRetry: () -> Unit,
+) {
     val context = LocalContext.current
 
     Scaffold(
@@ -87,10 +107,22 @@ fun PreviewDetailScreen(
                 actions = {
                     val state = uiState
                     if (state is PreviewDetailUiState.Success) {
+                        val (account, project) = fullHandle.split("/")
+                        val previewUrl = AppRoute.PreviewDetail(
+                            account, project, state.preview.id, serverUrl,
+                        ).toUrl()
+                        TextButton(onClick = {
+                            if (!context.openWebTab(previewUrl)) {
+                                Toast.makeText(
+                                    context, R.string.navigation_browser_unavailable, Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        }) {
+                            Text(stringResource(R.string.preview_open_on_web))
+                        }
                         IconButton(onClick = {
-                            val shareUrl = "${viewModel.serverUrl}/${viewModel.fullHandle}/previews/${state.preview.id}"
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                putExtra(Intent.EXTRA_TEXT, shareUrl)
+                                putExtra(Intent.EXTRA_TEXT, previewUrl)
                                 type = "text/plain"
                             }
                             context.startActivity(Intent.createChooser(sendIntent, null))
@@ -127,7 +159,7 @@ fun PreviewDetailScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                         Spacer(Modifier.height(NooraSpacing.Spacing6))
-                        TextButton(onClick = { viewModel.loadPreview() }) {
+                        TextButton(onClick = onRetry) {
                             Text(stringResource(R.string.retry))
                         }
                     }
@@ -136,7 +168,7 @@ fun PreviewDetailScreen(
             is PreviewDetailUiState.Success -> {
                 PreviewDetailContent(
                     preview = state.preview,
-                    onDelete = { viewModel.deletePreview(onBack) },
+                    onDelete = onDelete,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -206,7 +238,7 @@ private fun PreviewDetailContent(
             Spacer(Modifier.width(NooraSpacing.Spacing5))
             Column {
                 Text(
-                    text = preview.displayName ?: "App",
+                    text = preview.displayName ?: stringResource(R.string.preview_default_app_name),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -218,7 +250,7 @@ private fun PreviewDetailContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.apk }
+                val apkBuild = preview.builds.firstOrNull { it.type == "apk" }
                 if (apkBuild != null) {
                     Spacer(Modifier.height(NooraSpacing.Spacing3))
                     val context = LocalContext.current
@@ -447,18 +479,19 @@ private fun MetadataRow(
 }
 
 @Composable
-private fun PlatformPill(platform: PreviewSupportedPlatform) {
+private fun PlatformPill(platform: String) {
     val label = when (platform) {
-        PreviewSupportedPlatform.ios -> "iOS"
-        PreviewSupportedPlatform.ios_simulator -> "iOS Simulator"
-        PreviewSupportedPlatform.macos -> "macOS"
-        PreviewSupportedPlatform.tvos -> "tvOS"
-        PreviewSupportedPlatform.tvos_simulator -> "tvOS Simulator"
-        PreviewSupportedPlatform.watchos -> "watchOS"
-        PreviewSupportedPlatform.watchos_simulator -> "watchOS Simulator"
-        PreviewSupportedPlatform.visionos -> "visionOS"
-        PreviewSupportedPlatform.visionos_simulator -> "visionOS Simulator"
-        PreviewSupportedPlatform.android -> "Android"
+        "ios" -> "iOS"
+        "ios_simulator" -> "iOS Simulator"
+        "macos" -> "macOS"
+        "tvos" -> "tvOS"
+        "tvos_simulator" -> "tvOS Simulator"
+        "watchos" -> "watchOS"
+        "watchos_simulator" -> "watchOS Simulator"
+        "visionos" -> "visionOS"
+        "visionos_simulator" -> "visionOS Simulator"
+        "android" -> "Android"
+        else -> return
     }
     Row(
         modifier = Modifier

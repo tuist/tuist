@@ -1,11 +1,55 @@
 defmodule TuistEx.ProjectSetup do
   @moduledoc false
 
-  @compile_alias [
+  @compile_alias quote(do: &compile/1)
+
+  @bootstrap """
+  # Mix forwards alias arguments only to the last task in a list. Keep the
+  # bootstrap in this project module so --no-compile also skips deps.compile,
+  # without requiring an SDK module before a cold worker has loaded it.
+  defp compile(args) do
+    if "--no-compile" not in args do
+      compile_tuist_ex()
+    end
+
+    Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+    Mix.Task.run("tuist.compile", args)
+  end
+
+  # `deps.compile` rebuilds every dependency it is given, and a rebuilt fetched
+  # dependency makes Mix recheck, and possibly recompile, the whole project.
+  # Give it only what `deps.loadpaths` would compile: dependencies that are not
+  # ok, and local ones.
+  defp compile_tuist_ex do
+    deps =
+      ["tuist_ex"]
+      |> Mix.Dep.filter_by_name(Mix.Dep.load_and_cache(), include_children: true)
+      |> Enum.reject(&(Mix.Dep.ok?(&1) and &1.scm.fetchable?()))
+      |> Enum.map(&Atom.to_string(&1.app))
+
+    if deps != [], do: Mix.Task.run("deps.compile", deps)
+  end
+  """
+
+  # Earlier releases installed this list alias, and the manual integration guide
+  # documented the function for jobs that run with --no-compile. Both compile
+  # Tuist's dependencies on every invocation.
+  @legacy_compile_alias [
     "deps.compile tuist_ex --include-children",
     "deps.loadpaths --no-compile --no-deps-check",
     "tuist.compile"
   ]
+
+  @legacy_compile_function """
+  defp compile(args) do
+    if "--no-compile" not in args do
+      Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+    end
+
+    Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+    Mix.Task.run("tuist.compile", args)
+  end
+  """
 
   def configure(source, config, options \\ []) do
     tuist = Keyword.get(config, :tuist, []) || []
@@ -16,15 +60,17 @@ defmodule TuistEx.ProjectSetup do
     with :ok <- validate_project(project),
          {:ok, ast} <- parse(source),
          {:ok, metadata, entries} <- project_entries(ast),
-         :ok <- validate_alias(existing_compile, source, entries),
+         {:ok, module} <- project_module(ast),
+         {:ok, compile_alias, bootstrap_edits} <-
+           bootstrap(existing_compile, source, entries, module),
          {:ok, test_alias} <- test_alias(aliases[:test]),
          updates =
-           Enum.reject([compile: @compile_alias, test: test_alias], fn {key, value} ->
-             aliases[key] == value
+           Enum.reject([compile: compile_alias, test: test_alias], fn {key, value} ->
+             is_nil(value) or aliases[key] == value
            end),
          {:ok, edits} <- edits(source, metadata, entries, updates, tuist, project) do
       updated =
-        edits
+        (bootstrap_edits ++ edits)
         |> Enum.sort_by(&elem(&1, 0), :desc)
         |> Enum.reduce(source, fn {start, size, replacement}, text ->
           binary_part(text, 0, start) <>
@@ -50,13 +96,103 @@ defmodule TuistEx.ProjectSetup do
   defp validate_project(_),
     do: {:error, "Use --project account/project to select your Tuist project."}
 
-  defp validate_alias(alias, source, entries) do
-    if alias in [nil, "tuist.compile", @compile_alias] or
-         (is_function(alias, 1) and legacy_bootstrap?(source, entries)) do
-      :ok
+  defp bootstrap(alias, source, entries, {metadata, expressions}) do
+    definitions = Enum.group_by(expressions, &definition_name/1)
+
+    cond do
+      alias in [nil, "tuist.compile", @legacy_compile_alias] or
+          (is_function(alias, 1) and legacy_bootstrap?(source, entries)) ->
+        if Map.has_key?(definitions, {:compile, 1}) or
+             Map.has_key?(definitions, {:compile_tuist_ex, 0}) do
+          customized_compile_alias()
+        else
+          {:ok, @compile_alias, [{offset(source, metadata[:end]), 0, "\n" <> @bootstrap}]}
+        end
+
+      not is_function(alias, 1) ->
+        customized_compile_alias()
+
+      true ->
+        case {definitions[{:compile, 1}], definitions[{:compile_tuist_ex, 0}]} do
+          {[compile], [helper]} ->
+            if same_definitions?([compile, helper], @bootstrap),
+              do: {:ok, nil, []},
+              else: customized_compile_alias()
+
+          {[compile], nil} ->
+            with true <- same_definitions?([compile], @legacy_compile_function),
+                 {:ok, start, size} <- definition_span(source, compile) do
+              {:ok, nil, [{start, size, String.trim_trailing(@bootstrap)}]}
+            else
+              _ -> customized_compile_alias()
+            end
+
+          _ ->
+            customized_compile_alias()
+        end
+    end
+  end
+
+  defp customized_compile_alias do
+    {:error,
+     "The compile alias is customized. Integrate the Tuist bootstrap alias manually; no changes were made."}
+  end
+
+  defp project_module(ast) do
+    {_, modules} =
+      Macro.prewalk(ast, [], fn
+        {:defmodule, metadata, [_, [{_, body}]]} = node, modules ->
+          {node, [{metadata, top_level_expressions(body)} | modules]}
+
+        node, modules ->
+          {node, modules}
+      end)
+
+    modules
+    |> Enum.filter(fn {metadata, expressions} ->
+      metadata[:end] && Enum.any?(expressions, &(definition_name(&1) == {:project, 0}))
+    end)
+    |> case do
+      [module] ->
+        {:ok, module}
+
+      _ ->
+        {:error,
+         "Expected mix.exs to define project/0 in a module. Configure Tuist manually; no changes were made."}
+    end
+  end
+
+  defp top_level_expressions({:__block__, _, expressions}) when length(expressions) > 1,
+    do: expressions
+
+  defp top_level_expressions(expression), do: [expression]
+
+  defp definition_name({kind, _, [{:when, _, [head | _]} | _]}) when kind in [:def, :defp],
+    do: definition_name({kind, [], [head]})
+
+  defp definition_name({kind, _, [{name, _, args} | _]})
+       when kind in [:def, :defp] and is_atom(name), do: {name, length(args || [])}
+
+  defp definition_name(_), do: nil
+
+  defp same_definitions?(definitions, expected) do
+    {:ok, expected} = parse(expected)
+    strip_metadata(definitions) == strip_metadata(top_level_expressions(expected))
+  end
+
+  defp strip_metadata(ast) do
+    Macro.prewalk(ast, fn
+      {name, metadata, args} when is_list(metadata) -> {name, [], args}
+      node -> node
+    end)
+  end
+
+  defp definition_span(source, {_, metadata, _}) do
+    if metadata[:end] do
+      start = offset(source, metadata)
+      {:ok, start, offset(source, metadata[:end]) + byte_size("end") - start}
     else
-      {:error,
-       "The compile alias is customized. Integrate the Tuist bootstrap alias manually; no changes were made."}
+      :error
     end
   end
 
@@ -166,8 +302,9 @@ defmodule TuistEx.ProjectSetup do
     ]
 
     fields = [
-      {:aliases, updates != [], fn value -> "Keyword.merge(#{value}, #{inspect(updates)})" end,
-       inspect(updates)},
+      {:aliases, updates != [],
+       fn value -> "Keyword.merge(#{value}, #{Macro.to_string(updates)})" end,
+       Macro.to_string(updates)},
       {:tuist, tuist[:project] != project or tuist[:cache] in [nil, false],
        fn value -> "Keyword.merge(#{value}, #{inspect(settings)})" end, inspect(settings)}
     ]
@@ -219,14 +356,14 @@ defmodule TuistEx.ProjectSetup do
         {_, value} ->
           case span(source, value) do
             {:ok, start, size} ->
-              {:cont, {:ok, [{start, size, inspect(replacement)} | edits], additions}}
+              {:cont, {:ok, [{start, size, Macro.to_string(replacement)} | edits], additions}}
 
             :error ->
               {:halt, :error}
           end
 
         nil ->
-          {:cont, {:ok, edits, ["#{name}: #{inspect(replacement)}" | additions]}}
+          {:cont, {:ok, edits, ["#{name}: #{Macro.to_string(replacement)}" | additions]}}
       end
     end)
     |> case do
@@ -252,7 +389,7 @@ defmodule TuistEx.ProjectSetup do
       base =
         if compile_updates == [],
           do: original,
-          else: "Keyword.merge(#{original}, #{inspect(compile_updates)})"
+          else: "Keyword.merge(#{original}, #{Macro.to_string(compile_updates)})"
 
       if Keyword.has_key?(updates, :test) do
         # Keep environment-dependent preparation in the original expression.

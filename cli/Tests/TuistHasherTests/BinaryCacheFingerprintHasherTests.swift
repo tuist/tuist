@@ -29,6 +29,39 @@ struct BinaryCacheFingerprintHasherTests {
         #expect(original["Shared"]?["ios-device"] != changed["Shared"]?["ios-device"])
     }
 
+    @Test(.inTemporaryDirectory) func sourceChangesInvalidateEverySDKOfDependents() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let source = path.appending(component: "Leaf.swift")
+        let leaf = Target.test(
+            name: "Leaf", destinations: [.iPhone, .mac], product: .staticFramework, sources: [SourceFile(path: source)]
+        )
+        let shared = Target.test(
+            name: "Shared", destinations: [.iPhone, .mac], product: .staticFramework, dependencies: [.target(name: "Leaf")]
+        )
+        let project = Project.test(path: path, targets: [leaf, shared])
+        let graph = Graph.test(projects: [path: project], dependencies: [
+            .target(name: "Shared", path: path): [.target(name: "Leaf", path: path)],
+            .target(name: "Leaf", path: path): [],
+        ])
+        let targets = Set([leaf, shared].map { GraphTarget(path: path, target: $0, project: project) })
+        var results: [[GraphTarget: [String: String]]] = []
+        for value in [19, 43] {
+            try Data("public func value() -> Int { \(value) }".utf8).write(to: source.url)
+            results.append(try await BinaryCacheFingerprintHasher().fingerprints(
+                graph: graph, targets: targets, additionalStrings: { _ in ["Debug"] }
+            ))
+        }
+        for target in targets {
+            let original = try #require(results[0][target])
+            let changed = try #require(results[1][target])
+            #expect(Set(original.keys) == ["ios-device", "ios-simulator", "macos-device"])
+            #expect(Set(changed.keys) == Set(original.keys))
+            for variant in original.keys {
+                #expect(original[variant] != changed[variant])
+            }
+        }
+    }
+
     @Test func deploymentTargetChangesInvalidateExternalFingerprints() async throws {
         let original = try await fingerprints(destinations: .iOS)
         let changed = try await fingerprints(destinations: .iOS, iosVersion: "17.0")

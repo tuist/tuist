@@ -90,8 +90,7 @@ func (c *CustomVolumes) rememberCheckout(podUID string, task cachevolumes.Checko
 }
 
 // collectCheckout moves a finished job's export out of its share before the share
-// is removed, and queues a build from it. The guest wrote the export, so only a
-// real directory is taken, never a link out of the share.
+// is removed, and queues a build from it.
 func (c *CustomVolumes) collectCheckout(podUID string) {
 	c.checkoutMu.Lock()
 	task, ok := c.checkoutJobs[podUID]
@@ -100,11 +99,16 @@ func (c *CustomVolumes) collectCheckout(podUID string) {
 	if !ok || !c.Checkouts.Ready() {
 		return
 	}
-	src := filepath.Join(c.Root, "pods", podUID, cachevolumes.CheckoutExportDir)
+	c.queueExport(task, filepath.Join(c.Root, "pods", podUID, cachevolumes.CheckoutExportDir), podUID)
+}
+
+// queueExport moves an export out of a guest's share and queues a build from it.
+// The guest wrote it, so only a real directory is taken, never a link.
+func (c *CustomVolumes) queueExport(task cachevolumes.CheckoutTask, src, name string) {
 	if info, err := os.Lstat(src); err != nil || !info.IsDir() {
 		return
 	}
-	dst := c.Checkouts.Incoming(podUID)
+	dst := c.Checkouts.Incoming(name)
 	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
 		return
 	}
@@ -116,9 +120,30 @@ func (c *CustomVolumes) collectCheckout(podUID string) {
 	c.Checkouts.Enqueue(task)
 }
 
+// PrefetchCheckout restores a checkout HEAD the server listed for this host's
+// class before any job asks for it here, so the host's first job of the
+// repository clones a master instead of running cold. It reports whether a
+// restore was queued.
+func (c *CustomVolumes) PrefetchCheckout(task cachevolumes.CheckoutTask) bool {
+	if c == nil || !c.Checkouts.Ready() || c.Checkouts.Master(task.Scope, task.Generation) != "" {
+		return false
+	}
+	c.Checkouts.Track(task)
+	return c.Checkouts.Enqueue(task)
+}
+
 // reserveCheckout holds disk for a master build beside every other image on the
 // shared cache filesystem, evicting other checkout masters before refusing.
 func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func(), error) {
+	return c.reserveCheckoutRoom(ctx, bytes, true)
+}
+
+// spareCheckout holds disk for a prefetched restore from free space only.
+func (c *CustomVolumes) spareCheckout(ctx context.Context, bytes uint64) (func(), error) {
+	return c.reserveCheckoutRoom(ctx, bytes, false)
+}
+
+func (c *CustomVolumes) reserveCheckoutRoom(ctx context.Context, bytes uint64, evict bool) (func(), error) {
 	release, err := c.guard(ctx)
 	if err != nil {
 		return nil, err
@@ -129,7 +154,7 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 		return nil, err
 	}
 	// Evict only when it can make the room: a refused build retries every reconcile.
-	if free < bytes && free+c.Checkouts.Evictable(c.Space.backend.allocatedBytes) >= bytes {
+	if evict && free < bytes && free+c.Checkouts.Evictable(c.Space.backend.allocatedBytes) >= bytes {
 		c.Checkouts.Evict(func() bool {
 			free, err = c.freeBytesLocked()
 			return err == nil && free >= bytes

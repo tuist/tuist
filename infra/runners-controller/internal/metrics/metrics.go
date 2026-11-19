@@ -6,7 +6,7 @@
 //
 // These exist because alive/desired replica counts only show the pool
 // converging to its target — they can't reveal that the target itself
-// was squeezed below the configured warm floor by the fleet allocator.
+// was squeezed below the configured warm floor by the compute allocator.
 // That squeeze is the leading indicator for cold boots, so it gets its
 // own series.
 package metrics
@@ -33,21 +33,21 @@ var podStartTimeoutReasons = []string{"poller_not_started", "unschedulable"}
 
 var (
 	// target is the per-pool replica count the autoscaler policy wants
-	// BEFORE the fleet allocator apportions shared capacity
+	// BEFORE the compute allocator apportions shared capacity
 	// (scaling.DesiredReplicas). Pair with `allocated` to see how much
 	// of the ask the shared-capacity allocator could fund this tick.
 	target = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_target_replicas",
-		Help: "Per-pool replicas the autoscaler policy wants before fleet-capacity allocation (DesiredReplicas).",
+		Help: "Per-pool replicas the autoscaler policy wants before compute allocation (DesiredReplicas).",
 	}, []string{poolLabel})
 
-	// allocated is what the pool got after AllocateFleet split the
+	// allocated is what the pool got after AllocateCompute split the
 	// shared capacity domain across sibling shapes — the value patched
 	// to spec.replicas. Equals `target` when the pool isn't contended
 	// (or the allocator fell back to the per-pool policy).
 	allocated = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_allocated_replicas",
-		Help: "Per-pool replicas granted after fleet-capacity allocation (patched to spec.replicas).",
+		Help: "Per-pool replicas granted after compute allocation (patched to spec.replicas).",
 	}, []string{poolLabel})
 
 	// warmDeficitReplicas is the warm-pool capacity the allocator
@@ -59,7 +59,7 @@ var (
 	// for cold boots that alive/desired can't surface.
 	warmDeficitReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_warm_deficit_replicas",
-		Help: "Warm-pool replicas the fleet allocator could not fund under capacity contention (cold-boot risk).",
+		Help: "Warm-pool replicas the compute allocator could not fund under capacity contention (cold-boot risk).",
 	}, []string{poolLabel})
 
 	// minWarmFloor mirrors the configured
@@ -68,6 +68,18 @@ var (
 	minWarmFloor = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_autoscaler_min_warm_floor_replicas",
 		Help: "Configured minWarmPoolFloor per pool (spec.autoscaling.minWarmPoolFloor).",
+	}, []string{poolLabel})
+
+	// learnedWarmFloor is the server's learned floor for the pool before
+	// the pool's cap; learnedWarmSpare is what the pool keeps from it.
+	// The gap between them is the cap binding.
+	learnedWarmFloor = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_learned_warm_floor_replicas",
+		Help: "Warm floor the server learned from the pool's job bursts, before spec.autoscaling.maxLearnedWarmPoolFloor.",
+	}, []string{poolLabel})
+	learnedWarmSpare = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_learned_warm_spare_replicas",
+		Help: "Idle replicas the pool keeps above load from its learned floor, after spec.autoscaling.maxLearnedWarmPoolFloor.",
 	}, []string{poolLabel})
 
 	// rollingPods is how much of a pool's serving capacity is unavailable
@@ -205,24 +217,32 @@ var (
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal, preemptedPodsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, learnedWarmFloor, learnedWarmSpare, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal, preemptedPodsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
 // reconcile tick. `load` is occupied+queued, `floor` is
-// minWarmPoolFloor, `targetReplicas` is the pre-allocation
-// DesiredReplicas, `allocatedReplicas` is the post-allocation value
-// patched to spec.replicas.
-func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplicas int32) {
+// minWarmPoolFloor, `warmSpare` is the idle runners the pool keeps above
+// load (the larger of `floor` and the learned spare), `targetReplicas` is
+// the pre-allocation DesiredReplicas, `allocatedReplicas` is the
+// post-allocation value patched to spec.replicas.
+func RecordAllocation(pool string, load, floor, warmSpare, targetReplicas, allocatedReplicas int32) {
 	target.WithLabelValues(pool).Set(float64(targetReplicas))
 	allocated.WithLabelValues(pool).Set(float64(allocatedReplicas))
 	minWarmFloor.WithLabelValues(pool).Set(float64(floor))
-	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
+	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, warmSpare, targetReplicas, allocatedReplicas)))
+}
+
+// RecordLearnedWarmFloor publishes the server's learned floor for a pool
+// and the spare the pool keeps from it after `maxLearnedWarmPoolFloor`.
+func RecordLearnedWarmFloor(pool string, learned, spare int32) {
+	learnedWarmFloor.WithLabelValues(pool).Set(float64(learned))
+	learnedWarmSpare.WithLabelValues(pool).Set(float64(spare))
 }
 
 // RecordDemand publishes the server's demand signals for a pool as
 // separate series. Called on every autoscaler tick, including when the
-// fleet allocator falls back to the per-pool target, so the signals stay
+// compute allocator falls back to the per-pool target, so the signals stay
 // live even while allocation is degraded.
 func RecordDemand(pool string, claimed, occupied, queued int32) {
 	claimedJobs.WithLabelValues(pool).Set(float64(claimed))
@@ -326,6 +346,8 @@ func ClearAutoscaler(pool string) {
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+	learnedWarmFloor.DeleteLabelValues(pool)
+	learnedWarmSpare.DeleteLabelValues(pool)
 	claimedJobs.DeleteLabelValues(pool)
 	occupiedRunners.DeleteLabelValues(pool)
 	queuedJobs.DeleteLabelValues(pool)
@@ -359,7 +381,7 @@ func Clear(pool string) {
 	ClearRunnerPool(pool)
 }
 
-// warmDeficit is the warm-pool capacity the fleet allocator wanted to
+// warmDeficit is the warm-pool capacity the compute allocator wanted to
 // fund but couldn't under contention. The allocator funds real load
 // (occupied+queued) inviolably, then the warm floor above it; the floor
 // is what yields first. So the deficit is the floor portion — (load +

@@ -25,11 +25,13 @@ struct ReportActorCompatibilityTests {
         let event = try decoder.decode(Components.Schemas.CommandEvent.self, from: data)
         let gradle = try decoder.decode(Operations.createGradleBuild.Output.Created.Body.jsonPayload.self, from: data)
         let mix = try decoder.decode(Operations.createMixBuild.Output.Created.Body.jsonPayload.self, from: data)
+        let cargo = try decoder.decode(Operations.createCargoBuild.Output.Created.Body.jsonPayload.self, from: data)
         #expect(build.id == "report-id")
         #expect(event.id == "report-id")
         #expect(gradle.id == "report-id")
         #expect(mix.id == "report-id")
-        for actor in [build.actor, event.actor, gradle.actor, mix.actor] {
+        #expect(cargo.id == "report-id")
+        for actor in [build.actor, event.actor, gradle.actor, mix.actor, cargo.actor] {
             #expect(actor?.source == (state == 2 ? "future-source" : nil))
             #expect(actor?.submission_auth == (state == 2 ? "future-auth" : nil))
         }

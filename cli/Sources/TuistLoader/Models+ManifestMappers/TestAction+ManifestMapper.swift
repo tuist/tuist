@@ -38,7 +38,8 @@ extension XcodeGraph.TestAction {
                 manifests: planManifests,
                 generatorPaths: generatorPaths,
                 schemeName: schemeName,
-                fileSystem: fileSystem
+                fileSystem: fileSystem,
+                generatedOptions: manifest.generatedTestPlanOptions
             )
 
             testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans

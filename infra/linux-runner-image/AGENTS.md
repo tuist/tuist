@@ -30,7 +30,17 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   dispatch-poll rollout-bridge path does too), so it samples for the
   job's lifetime and its last line lands in the Pod logs -> Loki even
   after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
-  guest-wide memory (`/proc/meminfo`), cgroup memory
+  guest-wide memory (`/proc/meminfo`: total and available, then anon,
+  page cache, shmem, dirty/writeback and slab), the dind sidecar's
+  cgroup (`dind.*`, job containers included; `tuist-cache-volume`'s
+  `dind` and `mount-server` modes write it to the shared
+  `/var/run/tuist-dind-memory` every 3s, so pools without cache volumes
+  omit it, and `dind.age.s` exposes a stale sample), the guest's
+  OOM-kill count (`vm.oom_kill`, `/proc/vmstat`, any container) and,
+  once the kernel has killed something, its victim (`oom.victim`,
+  `oom.victim.anon.kb`, read by the sidecar from the kernel log, which
+  the runner cannot read, plus `oom.victim.container`/`.image`, or
+  `docker-build` for a build step), cgroup memory
   (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
   deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
   (`/proc/pressure/*`) avg10 fields are appended only when the guest
@@ -40,6 +50,34 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   (guest OOM vs CPU/memory starvation), which is otherwise invisible
   from outside the guest. Interval via
   `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
+- `/usr/local/bin/memory-report.sh` — the GitHub job-completed hook
+  (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED`, exported by `run-job.sh`). It
+  annotates a job the guest kernel killed a process in with an
+  `::error` naming the victim, and a job whose lowest `MemAvailable`
+  (which `vitals.sh` records in `/tmp/tuist-runner-memory-low`) fell
+  under 5% of the VM with a `::warning`; both suggest using less memory
+  or a larger runner, naming the JVM heap only when the victim was
+  `java`. It always exits 0: a
+  failing job-completed hook fails the job. Covered by
+  `memory-report_test.sh`.
+- The same `tuist-cache-volume` sidecar modes raise every process in
+  dockerd's cgroup tree (`0::/docker/...`: job and service containers,
+  BuildKit steps) to `oom_score_adj` 1000, sweeping every second. The
+  kernel log cannot name a victim's container (Docker's cgroups here
+  have no memory controller, and its PIDs are from a namespace the
+  sidecar cannot see), so the sweep remembers each container process's
+  name and memory, and the victim is the same-named process that a
+  sweep before the kill saw and one after it does not. Never match by
+  memory size alone: a runaway process grows by gigabytes per second.
+  `metrics-sampler.sh` reads the report through a read-only mount on
+  cache-volume pools and sends the victim with the job's metrics.
+  Docker starts containers at 0 while the Pod's processes run at the
+  kubelet's ~870, so a VM filled by container JVMs used to kill the
+  runner ("lost communication") and then dockerd. Now the largest
+  container process goes first, its step exits 137 and the runner
+  survives to run the hook above. Pools without cache volumes run
+  dockerd directly and keep the old order; adding the sweep there
+  would change the sidecar command and replace every Pod.
 - `/usr/local/bin/metrics-sampler.sh` — machine-metrics sampler for
   the job detail page's Metrics tab. Unlike `vitals.sh` (which logs to
   stdout from the runner container), this POSTs structured
@@ -57,6 +95,14 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   and `MemAvailable` in the same pass — kata hot-plugs the sandbox up
   to the shape's memory after boot, so a total cached at sidecar
   start goes stale mid-job. `metrics-sampler_test.sh` covers both.
+- `externals/node{20,24}{,_alpine}/bin/node` — the node shim
+  (`cmd/tuist-node-shim`), with the runner's node renamed to `node.real` beside
+  it. The runner sets `ACTIONS_RESULTS_URL` immediately before it starts each
+  JavaScript action, so only the shim can point it at the cache agent
+  (`TUIST_CACHE_VOLUME_URL`). It does so only for GitHub's own results URL,
+  after `/actions-cache/healthz` answered within 150 ms, and not when the job
+  sets `TUIST_ACTIONS_CACHE` to `0` or `false`. A runner release that changes
+  its node externals fails the image build until the shim covers them.
 - `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
   Built from the Go source in `cmd/runner-shell-agent/`. The trusted
   `shell` native sidecar waits for the poller to stage a JIT (claimed
@@ -72,9 +118,18 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
-- `ImageOS=ubuntu22`, as GitHub-hosted runners set it. Setup actions
-  such as `erlef/setup-beam` read it to pick a prebuilt binary and
-  fail without it. Change it together with the `ubuntu:22.04` base.
+- One image per Ubuntu release a Runner Profile can pick:
+  `OS_VERSION` (`ubuntu-24.04` default, `ubuntu-22.04`) selects the
+  Dockerfile's base stage, published as `<semver>` and
+  `<semver>-ubuntu-22-04`. See `image-rollout.md` "Ubuntu releases".
+- `ImageOS=ubuntu24` / `ubuntu22`, as GitHub-hosted runners set it, from
+  each base stage. Setup actions such as `erlef/setup-beam` read it to
+  pick a prebuilt binary and fail without it.
+  The default base matches the Amp orb template's Ubuntu release, so
+  native builds share Mix dependency cache keys with orbs; Tuist's own CI
+  stays on it. `runner` is UID 1000 on every base (24.04's `ubuntu` user
+  is removed): cached checkouts and Docker data roots from earlier jobs,
+  possibly on another release, are owned by it.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
@@ -85,7 +140,7 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   build-args), not pinned: this image runs customer workflows, so
   it cannot assume anyone's `compileSdk`. Everything Google
   publishes at or above the floor is installed, which means new
-  platforms roll in on the next image rebuild with no version bump
+  platforms roll in on the next SDK-stage rebuild with no platform version bump
   anywhere — the same approach the hosted image takes with
   `platform_min_version` / `build_tools_min_version`. Do NOT
   re-pin these to whatever `android/` happens to target; that
@@ -172,7 +227,7 @@ root, or trimming externals from the image, breaks job containers
 From this directory:
 
 ```bash
-docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
+docker build --pull --build-context certificate-trust=../certificate-trust -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the
@@ -182,16 +237,25 @@ release-pipeline digest rewrite, same shape as the macOS image.
 
 ## CI
 
-The release pipeline mirrors the macOS runner image release but
-runs on a standard cloud Linux runner (no Tart / GUI session
-needed). Steady-state: `feat(linux-runner-image)` /
+The release pipeline mirrors the macOS runner image release
+(`runner-image-release.yml`) but runs on a standard cloud Linux runner (no
+Tart / GUI session needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger
-a `release-linux-runner-image` job that builds, pushes
-`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, takes the
-digest from the build-push-action's own output, and rewrites
-`runnersFleetLinux.pools[*].runnerImage` across managed-env
-values files (those whose pin is already non-empty — canary /
-production stay empty until the env is flipped on). Ad-hoc
+`.github/workflows/linux-runner-image-release.yml`, which builds and pushes
+`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, tags
+`linux-runner-image@<semver>`, stages the image on canary and production hosts
+(`linux-runner-image-stage.sh`, up to an hour, like macOS's announce job) and
+then dispatches Server Production Deployment. It is not part of the deploy
+cascade. Deploy resolves the latest tag to a digest for
+`runnersFleetLinux.shapeRunnerImage` and checks staging before pool promotion.
+Canary waits for the candidate and fails closed so acceptance cannot qualify an
+old image. Other environments check once and hold unprepared pools, with the
+same one-hour/error fallback policy as macOS; later deployments reevaluate those
+holds. The release job alone writes
+the registry build cache; PR/manual builds may read it. Preserve the
+large dependency layers before release-specific inputs and keep the
+script-only layer-delta CI check. See [image rollout](image-rollout.md)
+for cache refresh, readiness, rollback and validation. Ad-hoc
 rebuilds for branch validation go through
 `.github/workflows/linux-runner-image.yml`: `pull_request` builds
 without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
@@ -199,7 +263,7 @@ without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
 flow).
 
 `pull_request` also syntax-checks every shell script and runs
-`metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
+`metrics-sampler_test.sh` inside `ubuntu:24.04` — the image's own
 base, so the sampler's byte formatting is exercised against mawk
 rather than whichever awk the CI runner happens to ship.
 
@@ -213,6 +277,11 @@ be reachable, then runs `gradle-cache-smoke.sh`: a unique task input
 must upload on the first build and hit remotely after deleting outputs,
 with local caching disabled. Run this against the candidate image
 before promoting it, then against the production runner profile.
+
+The `compile_project` fixture accepts staging's existing private runner cache
+(`kura-tuist-ovh-gra-runners`) as well as EU-West regional cache endpoints.
+Keep both paths eligible so public-egress qualification can verify a real
+private-cache compile/restore before the regional-cache migration.
 
 With `compare_regional_cache` enabled, the same staging workflow runs
 `gradle-regional-benchmark.sh`. It requires dispatch to inject the existing EU-West
@@ -399,7 +468,7 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `reset` and the teardown reports it, so that job replaces the saved data root;
   any other failure remounts the ephemeral root. It switches at most once per pod. The hook records `/home/runner/.tuist-docker.json`.
 - After the runner exits, `run-job.sh` runs `--docker-teardown`. With a mounted
-  volume the supervisor removes every container, volume and non-default network,
+  volume the supervisor removes every container, ordinary volume and non-default network,
   keeps each image under an internal `tuist-docker-cache:<id>` reference and
   removes its registry tags and digests, so every later reference resolves and
   is authorized against its registry again; it drops images no job pulled, ran or
@@ -409,15 +478,55 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `changed`). Before that, when the agent's `/docker-merge` offers the saved head
   another job published since the mount, a changed data root is merged with it:
   a second dockerd runs on the head's clone (`/var/lib/docker-merge`, its own
-  socket, no networking), the images only one side keeps are copied into the
-  other with `docker save | docker load` (`planDockerMerge`: whichever moves
-  fewer bytes), the ledgers are merged, and the report names `merged_generation`
+  socket, no networking), the images one side added since the mount and the
+  other lacks are copied into the other with `docker save | docker load`
+  (`planDockerMerge`: whichever moves fewer bytes; an image of the mount that
+  either side removed is never brought back), the ledgers are merged, and the report names `merged_generation`
   and `merged_into` (`branch` or `head`) and describes the merged root. Any
   failure leaves the data root as the job left it. Without a volume, a job the agent answered
   `unseen` reports `/docker-seen` when the daemon holds any image, so the
   repository's next jobs get one. Neither ever affects the exit code.
 - `planDockerTeardown` decides what survives: a job used an image when one of its
   containers ran it or it has a registry reference (teardown removed every one
-  the last time). `changed` compares image IDs and build-cache bytes with the
-  mount, or a used image whose saved last use is a day old, so an unchanged data
-  root is not republished.
+  the last time). `changed` compares image IDs, useful BuildKit records and
+  explicitly retained builder-volume metadata with the mount, or a used image
+  whose saved last use is a day old. Ignore transient `source.local` records and
+  ordinary layer access times; include `exec.cachemount` access times because
+  their contents can change without a size change. Never gate new build work on
+  a 1 GB size delta. Build-only jobs mark Docker seen even with no loaded images.
+- `.github/actions/setup-docker-builder` opts into a stable, keyed Buildx
+  `docker-container` volume with `keep-state: true`. Only local volumes with the
+  exact hashed name and `dev.tuist.cache=buildkit` label survive cleanup; custom
+  volume drivers/options are refused. Snapshot their tree metadata without
+  following symlinks, bounded by teardown's context and one million entries.
+  Default upstream setup with a random name and `keep-state: false` is ephemeral.
+- Merge BuildKit volume keys three ways against the mount (`planBuildkitMerge`):
+  this job's complete state for a key it changed or added, otherwise the head's;
+  a key one side removed stays removed unless the other side changed it. Never
+  bring back a builder a job's prune or retention deleted, and skip copying
+  identical states. Never splice BuildKit databases.
+  If the daemon's embedded build cache changed, merge images into the branch so
+  that new build work survives; concurrent embedded caches use last-writer state.
+  Stop/remove BuildKit containers before copying their volume state. A failed
+  copy withholds publication. Builder state remains inside the guest's ext4 data
+  root; the host never parses it. The action configures BuildKit GC near 10 GB
+  per key, within the existing whole-image capacity/publication limits.
+- `TUIST_TEST_DOCKER_CACHE=1` enables the real Docker integration suite in a
+  disposable privileged Docker 28 DinD container, never on a shared daemon.
+  It creates an ext4 image, compiles a Go program, tears down/unmounts, then
+  starts fresh daemons and clients for identical and changed-source builds.
+  Require layer hits, the prior job's mutable-cache marker, correct new outputs,
+  publication eligibility and removal of ordinary service volumes for both
+  drivers. CI keeps its timing log; these are controlled integration measurements,
+  not production or end-to-end job benchmarks.
+
+## API jobs
+
+Jobs created through the Tuist runners API are staged as `<jit>.api-job.json`
+(macOS: `/tmp/tuist-api-job.json`) and run by `tuist-job-runner`
+(`job-runner/`, stdlib only, built for both images). It fetches only the job's
+commit, scopes the clone token to the repository origin through git's
+URL-matched config (never the remote URL, argv or the script's environment),
+masks secret values, streams logs with Buildkite-style timestamp markers and
+stops the process group on cancel or timeout. Job outcomes exit 0. Validate with
+`GOWORK=off go test -race ./...` from `job-runner/` and `api-dispatch_test.sh`.

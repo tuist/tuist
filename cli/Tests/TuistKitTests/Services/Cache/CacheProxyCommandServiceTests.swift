@@ -4,11 +4,42 @@ import Testing
 import TuistCAS
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistLoader
 import TuistServer
 
 @testable import TuistKit
 
 struct CacheProxyCommandServiceTests {
+    @Test(.withMockedEnvironment(), arguments: ["https://cache.example", "https://acme.cache.tuist.dev"])
+    func network_trusted_startup_validates_the_resolved_cache_destination(endpoint: String) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [:]
+        let serverURL = try #require(URL(string: "https://tuist.example"))
+        let authentication = MockServerAuthenticationControlling()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        let serverEnvironment = MockServerEnvironmentServicing()
+        given(serverEnvironment).url(configServerURL: .any).willReturn(serverURL)
+        let store = MockCacheURLStoring()
+        given(store).getCacheURL(for: .any, accountHandle: .any).willReturn(try #require(URL(string: endpoint)))
+        let service = CacheProxyCommandService(
+            serverEnvironmentService: serverEnvironment,
+            serverAuthenticationController: authentication,
+            cacheURLStore: store,
+            resourceLocator: MockResourceLocator()
+        )
+        try await ServerCacheAccessMode.$serverAllowsNetworkCacheAccess.withValue({ _ in true }) {
+            if endpoint == "https://cache.example" {
+                await #expect(throws: CacheProxyCommandServiceError.proxyBinaryMissing) {
+                    try await service.run(url: serverURL.absoluteString, accountHandle: "acme")
+                }
+            } else {
+                await #expect(throws: ServerReportPublishingError.selfHostedDestinationRequired) {
+                    try await service.run(url: serverURL.absoluteString, accountHandle: "acme")
+                }
+            }
+        }
+    }
+
     @Test(.withMockedEnvironment())
     func missing_discovered_endpoint_starts_local_only() async throws {
         let environment = try #require(Environment.mocked)

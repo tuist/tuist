@@ -92,8 +92,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 async let reports = export(
                     products: products,
                     profile: profile,
-                    architecture: products.first { $0.kind == .image }.flatMap { Self.architecture(ofImage: $0.path) }
-                        ?? Self.hostArchitecture,
+                    architecture: Self.architecture(ofImages: products.filter { $0.kind == .image }.map(\.path)),
                     into: directory
                 )
                 let spans = await Self.spans(of: products)
@@ -274,12 +273,15 @@ public struct CoverageExportService: CoverageExportServicing {
         let kind: Kind
     }
 
-    /// The targets' products that carry coverage mappings, each once.
+    /// The targets' products that carry coverage mappings, each once. `xccov` names an app by its
+    /// executable, a stub when Xcode built the app's code into a debug dylib beside it
+    /// (`<name>.debug.dylib`), so the dylib is read instead.
     static func products(of targets: [XcodeCoverageTarget]) -> [Product] {
         var products: [Product] = []
         var seen: Set<String> = []
         for path in targets.compactMap(\.buildProductPath) {
-            let resolved = resolvedProductPath(path)
+            var resolved = resolvedProductPath(path)
+            if FileManager.default.fileExists(atPath: resolved + ".debug.dylib") { resolved += ".debug.dylib" }
             guard seen.insert(resolved).inserted, let kind = Self.kind(of: resolved) else { continue }
             products.append(Product(path: resolved, kind: kind))
         }
@@ -382,6 +384,12 @@ public struct CoverageExportService: CoverageExportServicing {
         case 0x0100_0007: return "x86_64"
         default: return nil
         }
+    }
+
+    /// The architecture the run's images were built for, which the host's is not under Rosetta: the
+    /// first thin image's, the host's when every image is universal.
+    static func architecture(ofImages paths: [String]) -> String {
+        paths.lazy.compactMap { architecture(ofImage: $0) }.first ?? hostArchitecture
     }
 
     static var hostArchitecture: String {

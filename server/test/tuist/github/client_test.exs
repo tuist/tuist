@@ -764,7 +764,8 @@ defmodule Tuist.GitHub.ClientTest do
                  "name" => "tuist",
                  "full_name" => "tuist/tuist",
                  "private" => false,
-                 "default_branch" => "main"
+                 "default_branch" => "main",
+                 "size" => 2048
                },
                %{
                  "id" => 456,
@@ -792,14 +793,16 @@ defmodule Tuist.GitHub.ClientTest do
                       name: "tuist",
                       full_name: "tuist/tuist",
                       private: false,
-                      default_branch: "main"
+                      default_branch: "main",
+                      size: 2048
                     },
                     %{
                       id: 456,
                       name: "private-repo",
                       full_name: "tuist/private-repo",
                       private: true,
-                      default_branch: "master"
+                      default_branch: "master",
+                      size: nil
                     }
                   ]
                 }}
@@ -854,7 +857,8 @@ defmodule Tuist.GitHub.ClientTest do
                       name: "tuist",
                       full_name: "tuist/tuist",
                       private: false,
-                      default_branch: "main"
+                      default_branch: "main",
+                      size: nil
                     }
                   ]
                 }}

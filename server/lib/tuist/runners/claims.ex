@@ -77,6 +77,7 @@ defmodule Tuist.Runners.Claims do
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Runners.AirShare
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Concurrency
@@ -108,6 +109,9 @@ defmodule Tuist.Runners.Claims do
     * `{:error, {:concurrency_limit_reached, details}}` — adding the
       requested shape would exceed either the platform's vCPU or
       memory limit.
+    * `{:error, {:air_fleet_share_reached, details}}` — the account is
+      on Air and Air accounts together already hold their share of the
+      platform's fleet (`Tuist.Runners.AirShare`).
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
 
@@ -118,12 +122,16 @@ defmodule Tuist.Runners.Claims do
   def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources, site \\ nil) do
     with :ok <- validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources),
          :ok <- validate_resources(resources) do
+      # Read before the transaction: it may reach the cluster on a cache miss.
+      air_budget = AirShare.budget(resources.platform)
+
       Repo.transaction(fn ->
         result =
           with {:ok, account} <- fetch_account(account_id),
                {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources, site),
                {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
-               :ok <- check_reserved_capacity(account.id, limit, resources) do
+               :ok <- check_reserved_capacity(account.id, limit, resources),
+               :ok <- AirShare.check(account, resources, air_budget) do
             # Same transaction as the claim insert, so the claim and the
             # lifecycle row's `queued → claimed` commit or roll back
             # together. A `:noop` does not fail the claim — a completion
@@ -1092,18 +1100,27 @@ defmodule Tuist.Runners.Claims do
   #
   # When a stale claim holds the row, the row moves off its handle, so
   # that claim's later detach cannot re-queue a job that is running.
-  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name, site: site}, executed_workflow_job_id, nil) do
-    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
+  #
+  # Only the claim's own account's row moves: the executed job's id comes
+  # from the webhook body.
+  defp adopt_executed_job(
+         %Claim{pod_name: pod_name, runner_name: runner_name, site: site, account_id: account_id},
+         executed_workflow_job_id,
+         nil
+       ) do
+    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site, account_id: account_id)
   end
 
   defp adopt_executed_job(
-         %Claim{pod_name: pod_name, runner_name: runner_name, site: site},
+         %Claim{pod_name: pod_name, runner_name: runner_name, site: site, account_id: account_id},
          executed_workflow_job_id,
          %Claim{claimed_at: stale_claimed_at}
        ) do
-    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at, site) do
+    guards = [account_id: account_id]
+
+    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at, site, guards) do
       :ok -> :ok
-      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
+      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site, guards)
     end
   end
 

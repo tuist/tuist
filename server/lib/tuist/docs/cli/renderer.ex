@@ -32,6 +32,13 @@ defmodule Tuist.Docs.CLI.Renderer do
       %Group{
         label: "CLI",
         items: [
+          %Item{
+            label: "Release",
+            items: [
+              %Item{label: "Channels", slug: "/en/cli/release/channels"},
+              %Item{label: "Calendar", slug: "/en/cli/release/calendar"}
+            ]
+          },
           %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},
@@ -103,8 +110,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> MDEx.to_html!(
         extension: [header_id_prefix: "", table: true],
         syntax_highlight: [
-          formatter:
-            {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+          formatter: :html_linked
         ]
       )
       |> HTML.wrap_code_blocks()

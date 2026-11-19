@@ -1,0 +1,8 @@
+module(name = "tuist_runtime_tests")
+
+bazel_dep(name = "rules_tuist", version = "0.1.0")
+local_path_override(module_name = "rules_tuist", path = "../..")
+
+bazel_dep(name = "rules_android", version = "0.8.0")
+bazel_dep(name = "rules_apple", version = "5.3.1")
+bazel_dep(name = "rules_cc", version = "0.2.25")

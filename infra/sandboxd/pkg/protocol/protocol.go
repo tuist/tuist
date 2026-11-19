@@ -1,0 +1,541 @@
+// Package protocol holds the JSON frames exchanged between sandboxd and the
+// Tuist server over the node WebSocket, plus the command argument and result
+// shapes. See infra/sandboxd/AGENTS.md "Node to server: WebSocket".
+package protocol
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+)
+
+const (
+	FrameHello   = "hello"
+	FrameResult  = "result"
+	FrameStream  = "stream"
+	FrameEvent   = "event"
+	FrameReport  = "report"
+	FrameCommand = "command"
+)
+
+const (
+	OpCreate      = "create"
+	OpResume      = "resume"
+	OpPause       = "pause"
+	OpDelete      = "delete"
+	OpExec        = "exec"
+	OpStartWorker = "start_worker"
+	OpStopWorker  = "stop_worker"
+	OpStatus      = "status"
+	OpReclaim     = "reclaim"
+	OpSaveDisks   = "save_disks"
+	OpDeleteDisks = "delete_disks"
+	OpArchive     = "archive"
+	// OpArchiveDisks uploads a disk snapshot in the archive format, so any
+	// node can create a sandbox from it with CreateArgs.FromArchive.
+	OpArchiveDisks = "archive_disks"
+	// OpCopyDisks downloads a disk snapshot's archive into the node's disk
+	// snapshots, so the node can create sandboxes from it without the
+	// download. The answer is a SaveDisksResult.
+	OpCopyDisks = "copy_disks"
+	// OpHoldResidency keeps a running macOS sandbox from idle eviction while
+	// detached guest work (an Amp Orb's turn) that the host cannot observe
+	// runs; a pause or OpReleaseResidency with the same work ID ends it.
+	OpHoldResidency    = "hold_residency"
+	OpReleaseResidency = "release_residency"
+)
+
+const (
+	EventWorkerExited  = "worker_exited"
+	EventSandboxDied   = "sandbox_died"
+	EventTemplateReady = "template_ready"
+	// EventMemoryLoaded: a sandbox restored from an archive holds all of
+	// its memory and disks on the node, so the archive may go.
+	EventMemoryLoaded = "memory_loaded"
+)
+
+const (
+	StateRunning = "running"
+	StatePaused  = "paused"
+	StateError   = "error"
+)
+
+// Envelope is the minimal decode of any frame: enough to route on type.
+type Envelope struct {
+	Type string `json:"type"`
+}
+
+// Capacity is what the server budgets sandboxes against: the memory limit
+// of the daemon's own cgroup (every guest lives inside it) and the node's
+// CPU count.
+type Capacity struct {
+	MemoryBytes uint64 `json:"memory_bytes"`
+	CPUs        int    `json:"cpus"`
+}
+
+// Elastic describes how far the server may resize the daemon's Pod: from
+// the floor the chart requests up to the ceiling, in place, through the
+// Pod's resize subresource. A zero ceiling, or one not above the floor,
+// keeps the memory limit fixed.
+type Elastic struct {
+	PodName            string `json:"pod_name,omitempty"`
+	MemoryFloorBytes   uint64 `json:"memory_floor_bytes,omitempty"`
+	MemoryCeilingBytes uint64 `json:"memory_ceiling_bytes,omitempty"`
+}
+
+type ReclaimArgs struct {
+	TargetBytes uint64 `json:"target_bytes"`
+}
+
+// ReclaimResult is the cgroup after a reclaim: its limit and what it still
+// charges, page cache included.
+type ReclaimResult struct {
+	MemoryBytes uint64 `json:"memory_bytes"`
+	UsedBytes   uint64 `json:"used_bytes"`
+}
+
+// DiskReport describes the filesystem behind the data directory and what
+// the daemon holds on it. SandboxesBytes counts only what jails own
+// exclusively (rootfs deltas, workspaces, their own memory images);
+// hardlinked and reflinked template bytes count under TemplatesBytes.
+// SnapshotsBytes counts what saved disk snapshots own exclusively.
+// BudgetBytes is the share of the filesystem sandboxes may occupy, zero
+// when the node sets none.
+type DiskReport struct {
+	TotalBytes     uint64 `json:"total_bytes"`
+	AvailableBytes uint64 `json:"available_bytes"`
+	SandboxesBytes uint64 `json:"sandboxes_bytes"`
+	TemplatesBytes uint64 `json:"templates_bytes"`
+	SnapshotsBytes uint64 `json:"snapshots_bytes"`
+	BudgetBytes    uint64 `json:"budget_bytes"`
+	// Jails is SandboxesBytes per sandbox ID; it travels as each
+	// sandbox's SandboxInfo.DiskBytes.
+	Jails map[string]uint64 `json:"-"`
+}
+
+// TemplateInfo advertises a template. Ready means the kernel and rootfs are
+// on the node so a create can use it (building the shape snapshot lazily if
+// needed); Shapes lists the shapes whose snapshot is already built.
+type TemplateInfo struct {
+	Name   string   `json:"name"`
+	Tag    string   `json:"tag"`
+	Ready  bool     `json:"ready"`
+	Shapes []string `json:"shapes"`
+	// RootfsBytes is the size of the rootfs image every sandbox of this
+	// template gets a clone of: the most a sandbox's rootfs can ever take on
+	// the node, which the server reserves against the disk budget.
+	RootfsBytes int64 `json:"rootfs_bytes"`
+	// Warm lists the shapes (`<vcpus>x<memory_mb>`) of booted macOS VMs a
+	// create of this template claims instead of cold-booting, one per VM.
+	Warm []string `json:"warm,omitempty"`
+}
+
+type SandboxInfo struct {
+	// Resident is true while a paused macOS VM still owns a host slot and RAM.
+	// False must be sent too: omission leaves the server's old charge intact.
+	Resident       bool   `json:"resident"`
+	ID             string `json:"id"`
+	State          string `json:"state"`
+	Template       string `json:"template"`
+	TemplateTag    string `json:"template_tag"`
+	VCPUs          int    `json:"vcpus"`
+	MemoryMB       int    `json:"memory_mb"`
+	WorkspaceGB    int    `json:"workspace_gb"`
+	Hostname       string `json:"hostname"`
+	WorkerRunning  bool   `json:"worker_running"`
+	FinishedWorkID string `json:"finished_work_id,omitempty"`
+	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
+	// its own disks instead of restoring memory, because the daemon lost the
+	// VM while it was running and the disks moved on since the last snapshot.
+	ColdBoot bool `json:"cold_boot,omitempty"`
+	// CPUMs is a running VM's CPU time since its process started, for the
+	// server to tell an active guest from an idle one.
+	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// DiskBytes is what the sandbox's jail holds on the node that no
+	// template or other sandbox shares, measured with the disk report, so
+	// the server can reserve a paused sandbox's use instead of its ceiling.
+	// Omitted until the first measurement after the sandbox appears.
+	DiskBytes  uint64    `json:"disk_bytes,omitempty"`
+	Generation int       `json:"generation"`
+	CreatedAt  time.Time `json:"created_at"`
+	Error      string    `json:"error,omitempty"`
+}
+
+// DiskSnapshotInfo describes a saved copy of a paused sandbox's disks that
+// new sandboxes can be created from.
+type DiskSnapshotInfo struct {
+	ID          string    `json:"id"`
+	Template    string    `json:"template"`
+	TemplateTag string    `json:"template_tag"`
+	WorkspaceGB int       `json:"workspace_gb"`
+	CreatedAt   time.Time `json:"created_at"`
+	// Bytes is what the snapshot holds on its own, which a macOS host
+	// reserves against its disk budget. Linux nodes leave it out.
+	Bytes int64 `json:"bytes,omitempty"`
+}
+
+type Hello struct {
+	ControlUID         string             `json:"control_uid,omitempty"`
+	Admission          any                `json:"admission,omitempty"`
+	Platform           string             `json:"platform,omitempty"`
+	Generation         string             `json:"generation,omitempty"`
+	ExecutionDeadlines bool               `json:"execution_deadlines,omitempty"`
+	ExecutionSlots     int                `json:"execution_slots,omitempty"`
+	Type               string             `json:"type"`
+	Node               string             `json:"node"`
+	DaemonVersion      string             `json:"daemon_version"`
+	FirecrackerVersion string             `json:"firecracker_version"`
+	Capacity           Capacity           `json:"capacity"`
+	Elastic            Elastic            `json:"elastic"`
+	Disk               DiskReport         `json:"disk"`
+	Templates          []TemplateInfo     `json:"templates"`
+	Sandboxes          []SandboxInfo      `json:"sandboxes"`
+	DiskSnapshots      []DiskSnapshotInfo `json:"disk_snapshots"`
+	// DefaultTemplate and DefaultTemplateTag are the template the daemon was
+	// configured with. Templates also lists tags kept from earlier rollouts.
+	DefaultTemplate    string `json:"default_template,omitempty"`
+	DefaultTemplateTag string `json:"default_template_tag,omitempty"`
+	// DirectExecEndpoint serves claims of claimed execs.
+	DirectExecEndpoint string `json:"direct_exec_endpoint,omitempty"`
+	// SnapshotCompat is equal on nodes that can restore each other's
+	// memory snapshots; an archive with memory restores warm only on them.
+	SnapshotCompat string `json:"snapshot_compat,omitempty"`
+	// LazyDisks: the daemon restores archives written with lazy disks
+	// (ArchiveArgs.LazyDisks), serving their disks by range.
+	LazyDisks bool `json:"lazy_disks,omitempty"`
+	// Archives: a macOS host archives its evicted sandboxes' disks (OpArchive)
+	// and creates sandboxes from such archives. Linux daemons always do.
+	Archives bool `json:"archives,omitempty"`
+}
+
+type Result struct {
+	Type  string `json:"type"`
+	ID    string `json:"id"`
+	OK    bool   `json:"ok"`
+	Data  any    `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+type Stream struct {
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Stream  string `json:"stream"`
+	DataB64 string `json:"data_b64"`
+}
+
+type Event struct {
+	WorkID     string `json:"work_id,omitempty"`
+	Generation string `json:"generation,omitempty"`
+	Type       string `json:"type"`
+	Event      string `json:"event"`
+	SandboxID  string `json:"sandbox_id,omitempty"`
+	ExitCode   *int   `json:"exit_code,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Tag        string `json:"tag,omitempty"`
+	Shape      string `json:"shape,omitempty"`
+}
+
+type MemoryReport struct {
+	UsedBytes uint64 `json:"used_bytes"`
+}
+
+// Report is sent periodically and as soon as the daemon's memory limit
+// changes, so a resize reaches the server's budget without waiting out the
+// interval.
+type Report struct {
+	ControlUID    string             `json:"control_uid,omitempty"`
+	Admission     any                `json:"admission,omitempty"`
+	Platform      string             `json:"platform,omitempty"`
+	Generation    string             `json:"generation,omitempty"`
+	Type          string             `json:"type"`
+	Capacity      Capacity           `json:"capacity"`
+	Sandboxes     []SandboxInfo      `json:"sandboxes"`
+	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
+	Memory        MemoryReport       `json:"memory"`
+	Disk          DiskReport         `json:"disk"`
+	// Templates is sent by macOS hosts, whose warm VMs change between hellos.
+	Templates []TemplateInfo `json:"templates,omitempty"`
+}
+
+type Command struct {
+	Type string          `json:"type"`
+	ID   string          `json:"id"`
+	Op   string          `json:"op"`
+	Args json.RawMessage `json:"args"`
+}
+
+type CreateArgs struct {
+	// A leased execution request must never create a VM after its owner expired.
+	// Zero preserves the persistent agent-session protocol.
+	ExpiresAtUnix int64  `json:"expires_at_unix,omitempty"`
+	SandboxID     string `json:"sandbox_id"`
+	Template      string `json:"template"`
+	TemplateTag   string `json:"template_tag,omitempty"`
+	VCPUs         int    `json:"vcpus"`
+	MemoryMB      int    `json:"memory_mb"`
+	WorkspaceGB   int    `json:"workspace_gb"`
+	Hostname      string `json:"hostname"`
+	// FromDiskSnapshot names a saved disk snapshot to clone instead of the
+	// template's disks. The sandbox cold boots on the clones.
+	FromDiskSnapshot string `json:"from_disk_snapshot,omitempty"`
+	// FromArchive downloads the sandbox's archived disks and kernel from
+	// object storage instead. The sandbox cold boots on them.
+	FromArchive *ArchiveSource `json:"from_archive,omitempty"`
+	// CacheImage names an ext4 image in the daemon's cache image directory.
+	// A private writable clone of it is attached as the guest's third drive
+	// (/dev/vdc) and discarded with the sandbox; disk snapshots and archives
+	// never include it. Only cold-boot creates (FromDiskSnapshot) take it,
+	// because Firecracker cannot add a drive to a restored memory snapshot.
+	CacheImage string `json:"cache_image,omitempty"`
+}
+
+type SandboxArgs struct {
+	SandboxID string `json:"sandbox_id"`
+}
+
+// PauseArgs asks for a pause. SyncDisks flushes the guest's page cache to
+// its disks first, which a later save_disks requires: a disk-only copy
+// would otherwise miss writes that only the memory image holds.
+type PauseArgs struct {
+	SandboxID string `json:"sandbox_id"`
+	SyncDisks bool   `json:"sync_disks,omitempty"`
+}
+
+type SaveDisksArgs struct {
+	SandboxID  string `json:"sandbox_id"`
+	SnapshotID string `json:"snapshot_id"`
+}
+
+type DiskSnapshotArgs struct {
+	SnapshotID string `json:"snapshot_id"`
+}
+
+// ArchiveArgs asks for a paused sandbox's kernel and disks to be uploaded
+// to object storage as one multipart object. PartURLs are presigned
+// UploadPart URLs for parts 1..n of PartSize bytes each; the daemon holds
+// no storage credentials. The sandbox stays on the node until the server
+// deletes it.
+type ArchiveArgs struct {
+	SandboxID string   `json:"sandbox_id"`
+	PartSize  int64    `json:"part_size"`
+	PartURLs  []string `json:"part_urls"`
+	// Memory asks for the memory image too, when it is current; the
+	// answer's TailOffset then locates the disk stream for the restore.
+	Memory bool `json:"memory,omitempty"`
+	// LazyDisks asks, with Memory, for the rootfs and workspace to be
+	// chunked like the memory image, so a restore reads them by range as
+	// the guest touches them. Only daemons whose hello sets LazyDisks can
+	// restore such an archive; the answer's LazyDisks says it was written so.
+	LazyDisks bool `json:"lazy_disks,omitempty"`
+}
+
+// ArchiveDisksArgs asks for a disk snapshot's kernel and disks to be
+// uploaded like ArchiveArgs. The snapshot stays on the node. The answer is
+// an ArchiveResult.
+type ArchiveDisksArgs struct {
+	SnapshotID string   `json:"snapshot_id"`
+	PartSize   int64    `json:"part_size"`
+	PartURLs   []string `json:"part_urls"`
+}
+
+// CopyDisksArgs asks for a disk snapshot to be filled from its archive. The
+// archive must hold the template and workspace size given.
+type CopyDisksArgs struct {
+	SnapshotID  string         `json:"snapshot_id"`
+	Template    string         `json:"template"`
+	WorkspaceGB int            `json:"workspace_gb"`
+	FromArchive *ArchiveSource `json:"from_archive"`
+	// TemplateTag is the image a macOS snapshot was saved from, which its
+	// overlay needs; the host pulls it when its template has moved on.
+	TemplateTag string `json:"template_tag,omitempty"`
+	// Bytes is the snapshot's DiskSnapshotInfo.Bytes, which a macOS host
+	// admits against its disk budget before downloading.
+	Bytes int64 `json:"bytes,omitempty"`
+}
+
+// ArchiveSource is an archive to restore: a presigned GET URL and the size
+// and SHA-256 the archive was uploaded with.
+type ArchiveSource struct {
+	URL    string `json:"url"`
+	Bytes  int64  `json:"bytes"`
+	SHA256 string `json:"sha256"`
+	// TailOffset and TailSHA256, from the ArchiveResult, locate the disk
+	// stream of an archive that holds a memory image ahead of it.
+	TailOffset int64  `json:"tail_offset,omitempty"`
+	TailSHA256 string `json:"tail_sha256,omitempty"`
+	// LazyDisks: the disk stream holds the disks' chunk indexes, not the
+	// disks, which are read from the object by range.
+	LazyDisks bool `json:"lazy_disks,omitempty"`
+}
+
+type ExecArgs struct {
+	SandboxID string            `json:"sandbox_id"`
+	Cmd       []string          `json:"cmd"`
+	Env       map[string]string `json:"env"`
+	Cwd       string            `json:"cwd"`
+	TimeoutMs int64             `json:"timeout_ms"`
+	// Claim makes the exec wait for a direct caller to supply one variable.
+	Claim *ClaimArgs `json:"claim,omitempty"`
+}
+
+// ClaimArgs: the exec runs only once a caller presents the nonce whose
+// SHA-256 is NonceSHA256, with the value of Env, within TimeoutMs.
+type ClaimArgs struct {
+	NonceSHA256 string `json:"nonce_sha256"`
+	Env         string `json:"env"`
+	TimeoutMs   int64  `json:"timeout_ms"`
+}
+
+type StartWorkerArgs struct {
+	SandboxID string            `json:"sandbox_id"`
+	Env       map[string]string `json:"env"`
+	// Checkout is the session's repository checkout volume, when the server
+	// granted one: the worker starts from the host's master of it and exports
+	// the default branch's commit back when it exits.
+	Checkout *CheckoutGrant `json:"checkout,omitempty"`
+}
+
+// CheckoutGrant is the server's allocation of a repository's checkout volume
+// for one sandbox session (`Tuist.Runners.CacheVolumes.allocate_sandbox_checkout`),
+// the same fields a CI job's allocation carries, plus where the guest keeps the
+// repository. The host trusts it as it trusts the rest of the command: it came
+// from the server, never from the guest. Commit is the default branch's head as
+// GitHub reported it; only an export of that commit moves the master.
+type CheckoutGrant struct {
+	ID               string `json:"id"`
+	Scope            string `json:"scope"`
+	Generation       int64  `json:"generation"`
+	BaseGeneration   int64  `json:"base_generation"`
+	ImageDigest      string `json:"image_digest,omitempty"`
+	ContentDigest    string `json:"content_digest,omitempty"`
+	UID              int    `json:"uid"`
+	CloneURL         string `json:"clone_url"`
+	DefaultBranch    string `json:"default_branch"`
+	Commit           string `json:"commit"`
+	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
+	VolumeKey        string `json:"volume_key"`
+	// Path is the guest directory the repository goes in, which must not exist yet.
+	Path string `json:"path"`
+}
+
+// The worker environment a host adds for a checkout grant. The guest copies
+// the master's tree to CheckoutPathEnv before the worker's own work starts and,
+// after it, exports the objects of CheckoutCommitEnv's commit to the host. On
+// macOS both go through the VM's checkout share (CheckoutShareEnv), on Linux
+// through vsock port CheckoutVsockPort on the host.
+const (
+	CheckoutPathEnv   = "SBX_CHECKOUT_PATH"
+	CheckoutCommitEnv = "SBX_CHECKOUT_COMMIT"
+	CheckoutShareEnv  = "SBX_CHECKOUT_SHARE"
+	CheckoutVsockEnv  = "SBX_CHECKOUT_VSOCK"
+	CheckoutVsockPort = 5002
+	// CheckoutPreparedFile, inside the repository, marks a tree the host put in
+	// the workspace image before the guest started (a prepared workspace). It
+	// holds the master's commit and LFS objects as JSON ({"base","lfs"}), which
+	// the guest takes as the state its export starts from. sbx-worker names it
+	// too.
+	CheckoutPreparedFile = ".git/sbx-checkout-prepared.json"
+)
+
+type CreateResult struct {
+	BootMs int64 `json:"boot_ms"`
+	// MemoryPending: the sandbox still reads its memory image or its disks
+	// from the archive it was restored from, until EventMemoryLoaded.
+	MemoryPending bool `json:"memory_pending,omitempty"`
+}
+
+type ResumeResult struct {
+	RestoreMs int64 `json:"restore_ms"`
+}
+
+type PauseResult struct {
+	SnapshotMs  int64 `json:"snapshot_ms"`
+	MemBytes    int64 `json:"mem_bytes"`
+	DisksSynced bool  `json:"disks_synced"`
+}
+
+type SaveDisksResult struct {
+	DurationMs int64 `json:"duration_ms"`
+	// Bytes is the saved snapshot's DiskSnapshotInfo.Bytes, from macOS hosts.
+	Bytes int64 `json:"bytes,omitempty"`
+}
+
+type ArchivePart struct {
+	PartNumber int    `json:"part_number"`
+	ETag       string `json:"etag"`
+}
+
+// ArchiveResult lists the uploaded parts for the server to complete the
+// upload with. Bytes and SHA256 describe the object; StoredBytes is the
+// file data it holds before compression.
+type ArchiveResult struct {
+	Parts       []ArchivePart `json:"parts"`
+	Bytes       int64         `json:"bytes"`
+	SHA256      string        `json:"sha256"`
+	StoredBytes int64         `json:"stored_bytes"`
+	DisksSynced bool          `json:"disks_synced"`
+	DurationMs  int64         `json:"duration_ms"`
+	// With a memory image: where the disk stream starts and its digest,
+	// the node's SnapshotCompat, and the memory stored before compression.
+	TailOffset  int64  `json:"tail_offset,omitempty"`
+	TailSHA256  string `json:"tail_sha256,omitempty"`
+	Compat      string `json:"compat,omitempty"`
+	MemoryBytes int64  `json:"memory_bytes,omitempty"`
+	// LazyDisks: the disks were chunked (ArchiveArgs.LazyDisks).
+	LazyDisks bool `json:"lazy_disks,omitempty"`
+}
+
+type ExecResult struct {
+	ExitCode   int   `json:"exit_code"`
+	DurationMs int64 `json:"duration_ms"`
+	// Unclaimed: a claimed exec expired before a caller claimed it.
+	Unclaimed bool `json:"unclaimed,omitempty"`
+}
+
+type StartWorkerResult struct {
+	ExecID string `json:"exec_id"`
+}
+
+func OKResult(id string, data any) Result {
+	return Result{Type: FrameResult, ID: id, OK: true, Data: data}
+}
+
+func ErrorResult(id string, err error) Result {
+	return Result{Type: FrameResult, ID: id, OK: false, Error: err.Error()}
+}
+
+// Decode parses one text frame into its typed struct. The returned value is
+// one of *Hello, *Result, *Stream, *Event, *Report or *Command.
+func Decode(data []byte) (any, error) {
+	var env Envelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return nil, fmt.Errorf("decoding frame envelope: %w", err)
+	}
+	var target any
+	switch env.Type {
+	case FrameHello:
+		target = &Hello{}
+	case FrameResult:
+		target = &Result{}
+	case FrameStream:
+		target = &Stream{}
+	case FrameEvent:
+		target = &Event{}
+	case FrameReport:
+		target = &Report{}
+	case FrameCommand:
+		target = &Command{}
+	case "":
+		return nil, errors.New("frame has no type")
+	default:
+		return nil, fmt.Errorf("unknown frame type %q", env.Type)
+	}
+	if err := json.Unmarshal(data, target); err != nil {
+		return nil, fmt.Errorf("decoding %s frame: %w", env.Type, err)
+	}
+	return target, nil
+}

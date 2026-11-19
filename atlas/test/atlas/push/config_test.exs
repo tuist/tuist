@@ -33,6 +33,12 @@ defmodule Atlas.Push.ConfigTest do
     %{"ATLAS_FCM_SERVICE_ACCOUNT_JSON" => JSON.encode!(account)}
   end
 
+  test "iOS and macOS share the app's APNs topic" do
+    assert Config.apns_topic() == "dev.tuist.atlas"
+    assert Config.apns_topic("ios") == "dev.tuist.atlas"
+    assert Config.apns_topic("macos") == "dev.tuist.atlas"
+  end
+
   test "unset or blank providers are unavailable" do
     assert Config.parse!(%{}) == [apns: nil, fcm: nil]
 
@@ -54,13 +60,21 @@ defmodule Atlas.Push.ConfigTest do
            }
   end
 
-  test "APNs credentials only authorize their configured environment" do
-    for environment <- ["production", "sandbox", "both"] do
-      apns = Config.parse!(apns_env(%{"ATLAS_APNS_ENVIRONMENT" => environment}))[:apns]
+  test "APNs credentials require their configured environment and explicit macOS opt-in" do
+    for environment <- ["production", "sandbox", "both"], macos_enabled <- [false, true] do
+      apns =
+        Config.parse!(
+          apns_env(%{
+            "ATLAS_APNS_ENVIRONMENT" => environment,
+            "ATLAS_APNS_MACOS_ENABLED" => to_string(macos_enabled)
+          })
+        )[:apns]
+
       stub(Config, :apns, fn -> {:ok, apns} end)
 
       for target <- ["production", "sandbox"] do
         assert Config.available?("ios", target) == environment in ["both", target]
+        assert Config.available?("macos", target) == (macos_enabled and environment in ["both", target])
       end
     end
   end

@@ -62,6 +62,21 @@ defmodule TuistWeb.MixBuildsLiveTest do
     assert has_element?(lv, "#mix-configuration-insights-chart")
   end
 
+  test "the Status filter scopes the analytics and recent builds", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds?analytics-build-status=success")
+    render_async(lv, @render_async_timeout)
+
+    assert has_element?(lv, "#mix-builds-status-dropdown")
+    assert has_element?(lv, "#widget-build-success-rate", "100.0%")
+    assert lv |> element("#widget-build-duration") |> render() =~ "30.0s"
+    assert has_element?(lv, "#widget-failed-builds[data-empty=true]")
+    refute has_element?(lv, "#mix-recent-builds-table", "Failed")
+  end
+
   test "breaks build duration down by OTP version and Mix environment", %{
     conn: conn,
     organization: organization,

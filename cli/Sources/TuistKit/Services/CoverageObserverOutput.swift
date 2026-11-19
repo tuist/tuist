@@ -31,6 +31,19 @@ struct CoverageObserverOutput {
         var functions: [FunctionCounters] = []
     }
 
+    /// A process a UI test launched, and the scope that launched it: a test, or a suite with an
+    /// empty name when it was launched outside a test (a class `setUp`).
+    struct Launch: Equatable {
+        struct Scope: Hashable {
+            var module: String
+            var suite: String
+            var name: String
+        }
+
+        var processIdentifier: Int32
+        var scope: Scope
+    }
+
     var images: [Int: Image]
     var records: [Record]
 
@@ -79,6 +92,30 @@ struct CoverageObserverOutput {
             }
         }
         return result
+    }
+
+    // MARK: - Launches
+
+    /// See `record_launch()` in TestCoverageAttribution's observer: one `pid\tmodule\tsuite\tname`
+    /// line per launch, written apart from the records, so a process whose recording stopped still
+    /// says what it launched. A line cut off mid-write is dropped.
+    static func launches(directory: URL) -> [Launch] {
+        guard let text = try? String(contentsOf: directory.appendingPathComponent("launches.tsv"), encoding: .utf8)
+        else { return [] }
+        return parseLaunches(text)
+    }
+
+    static func parseLaunches(_ text: String) -> [Launch] {
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        lines.removeLast()
+        return lines.compactMap { line in
+            let fields = line.split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false)
+            guard fields.count == 4, let pid = Int32(fields[0]), pid > 0, !fields[1].isEmpty else { return nil }
+            return Launch(
+                processIdentifier: pid,
+                scope: Launch.Scope(module: String(fields[1]), suite: String(fields[2]), name: String(fields[3]))
+            )
+        }
     }
 
     // MARK: - Records

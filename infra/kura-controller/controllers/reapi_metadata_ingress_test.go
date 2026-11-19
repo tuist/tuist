@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func metadataHeaderSetting(t *testing.T, base, overlay map[string]interface{}, c
 
 func TestKuraIngressPreservesREAPIMetadata(t *testing.T) {
 	base := platformIngressValues(t, "values.yaml")
-	for _, overlayName := range []string{"values.yaml", "values-hetzner.yaml", "values-tuist.yaml", "values-tuist-staging.yaml", "values-tuist-canary.yaml", "values-tuist-preview.yaml", "values-tuist-pentest.yaml"} {
+	for _, overlayName := range []string{"values.yaml", "values-hetzner.yaml", "values-tuist.yaml", "values-tuist-staging.yaml", "values-tuist-canary.yaml", "values-tuist-pentest.yaml"} {
 		t.Run(overlayName, func(t *testing.T) {
 			overlay := platformIngressValues(t, overlayName)
 			controllers := 0
@@ -81,7 +82,16 @@ func TestNGINXPreservesREAPIMetadata(t *testing.T) {
 	}
 	base := platformIngressValues(t, "values.yaml")
 	overlay := platformIngressValues(t, "values-tuist.yaml")
-	for _, controller := range []string{"nginx-default", "kura-eu-west-ingress-nginx", "kura-runners-ingress-nginx", "kura-ber1-runners-ingress-nginx", "grpc-ingress-nginx"} {
+	// Take the controllers from the values, as TestKuraIngressPreservesREAPIMetadata
+	// does, so a removed controller cannot leave a case that tests nothing.
+	controllers := []string{}
+	for name := range base {
+		if name == "grpc-ingress-nginx" || (strings.HasPrefix(name, "kura-") && strings.HasSuffix(name, "-ingress-nginx")) {
+			controllers = append(controllers, name)
+		}
+	}
+	sort.Strings(controllers)
+	for _, controller := range append([]string{"nginx-default"}, controllers...) {
 		t.Run(controller, func(t *testing.T) {
 			directive := ""
 			wantMetadata := controller != "nginx-default"

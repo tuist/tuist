@@ -512,30 +512,31 @@ enum RegistryClient {
             registryURL: registryURL.absoluteString,
             checksum: expectedChecksum
         )
+        // Deleted once extracted, like binary artifact archives; the cache keeps the release's
+        // extracted sources. The lock spans the extraction because the archive goes away after it.
+        let lock = try await cache.lock(namespace: "registry-archives", key: archivePath.path)
+        defer { withExtendedLifetime(lock) {} }
         if try await !validCachedArchive(archivePath, expectedChecksum: expectedChecksum) {
-            let lock = try await cache.lock(namespace: "registry-archives", key: archivePath.path)
-            _ = lock
-            if try await !validCachedArchive(archivePath, expectedChecksum: expectedChecksum) {
-                try? await fileSystem.removePath(archivePath)
-                let data = try await fetchRegistryArchive(
-                    registryURL: registryURL,
-                    identity: identity,
-                    version: version,
-                    registryConfig: registryConfig
+            try? await fileSystem.removePath(archivePath)
+            let data = try await fetchRegistryArchive(
+                registryURL: registryURL,
+                identity: identity,
+                version: version,
+                registryConfig: registryConfig
+            )
+            let actual = Hashing.sha256Hex(data)
+            guard actual.caseInsensitiveCompare(expectedChecksum) == .orderedSame else {
+                throw ToolError.message(
+                    "\(identity) \(version) checksum mismatch: expected \(expectedChecksum), got \(actual)"
                 )
-                let actual = Hashing.sha256Hex(data)
-                guard actual.caseInsensitiveCompare(expectedChecksum) == .orderedSame else {
-                    throw ToolError.message(
-                        "\(identity) \(version) checksum mismatch: expected \(expectedChecksum), got \(actual)"
-                    )
-                }
-                try await fileSystem.atomicWrite(data, to: archivePath)
             }
+            try await fileSystem.atomicWrite(data, to: archivePath)
         }
 
         try await SystemProcess.run(
             "/usr/bin/unzip", ["-q", archivePath.path, "-d", destination.path]
         )
+        try? await fileSystem.removePath(archivePath)
         try await fileSystem.flattenSingleDirectory(destination)
     }
 

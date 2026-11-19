@@ -3,6 +3,7 @@ defmodule Tuist.RunnersTest do
 
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
+  import TuistTestSupport.Fixtures.SandboxesFixtures, only: [sandbox_fixture: 1]
 
   alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
@@ -384,12 +385,14 @@ defmodule Tuist.RunnersTest do
         {:ok, %{"head_repository" => %{"full_name" => repo}, "repository" => %{"full_name" => repo}}}
       end)
 
-      expect(GitHubClient, :generate_jit_config, fn _installation, login, %{labels: labels, name: runner_name} ->
-        send(test_pid, {:jit_labels, labels})
-        send(test_pid, {:jit_runner_name, runner_name})
-        send(test_pid, {:jit_login, login})
-        {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
-      end)
+      if Keyword.get(opts, :github_jit, true) do
+        expect(GitHubClient, :generate_jit_config, fn _installation, login, %{labels: labels, name: runner_name} ->
+          send(test_pid, {:jit_labels, labels})
+          send(test_pid, {:jit_runner_name, runner_name})
+          send(test_pid, {:jit_login, login})
+          {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
+        end)
+      end
 
       expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
         assert String.starts_with?(runner_name, runner_name_prefix)
@@ -535,7 +538,7 @@ defmodule Tuist.RunnersTest do
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid)
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(CacheGrant, :mint, fn _account_id -> "signed-grant-token" end)
+      stub(CacheGrant, :mint, fn _account_id, _opts -> "signed-grant-token" end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
         send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
@@ -555,7 +558,9 @@ defmodule Tuist.RunnersTest do
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
 
-      expect(CacheGrant, :mint, fn account_id ->
+      expect(CacheGrant, :mint, fn account_id, opts ->
+        assert Keyword.has_key?(opts, :site)
+        assert Keyword.has_key?(opts, :platform)
         assert account_id == account.id
         "signed-grant-token"
       end)
@@ -564,6 +569,34 @@ defmodule Tuist.RunnersTest do
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
 
       refute Map.has_key?(result, :volume_head)
+    end
+
+    test "signs the storage site of the actual Linux node, ignoring guest claims" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "linux-storage-node")
+      stub(Catalog, :fleet_platform, fn _ -> :linux end)
+
+      expect(K8sClient, :get_node, fn "linux-storage-node", _ ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "labels" => %{
+               "node.cluster.x-k8s.io/shard-storage-site" => "gra",
+               "tuist.dev/private-network" => "pn-2024093"
+             }
+           }
+         }}
+      end)
+
+      expect(CacheGrant, :mint, fn id, opts ->
+        assert id == account.id
+        assert opts == [site: "gra", platform: :linux]
+        "signed-grant"
+      end)
+
+      assert {:ok, %{cache_signing_grant: "signed-grant"}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1", %{site: "attacker"})
     end
 
     test "withholds the cache signing grant from an untrusted fork job" do
@@ -582,7 +615,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
-      reject(&CacheGrant.mint/1)
+      reject(&CacheGrant.mint/2)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
@@ -591,13 +624,31 @@ defmodule Tuist.RunnersTest do
       refute Map.has_key?(labels, "tuist.dev/runner-cache-untrusted")
     end
 
+    test "gives a Bitrise build the cache signing grant" do
+      account = account_fixture()
+      candidate = account |> candidate_with_label("tuist-default") |> Map.put(:provider, "bitrise")
+      stub_dispatch_path(account, candidate, self(), github_jit: false)
+
+      stub(Tuist.Runners.Bitrise, :mint_acquisition, fn _account_id, _workflow_job_id ->
+        {:ok, %{intro_secret: "intro", report_token: "report"}}
+      end)
+
+      expect(CacheGrant, :mint, fn account_id, _opts ->
+        assert account_id == account.id
+        "signed-grant-token"
+      end)
+
+      assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
 
       stub(GitHubClient, :get_workflow_run, fn _ -> {:error, "boom"} end)
-      reject(&CacheGrant.mint/1)
+      reject(&CacheGrant.mint/2)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
@@ -1896,6 +1947,25 @@ defmodule Tuist.RunnersTest do
       assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
     end
 
+    # A burst of Air sign-ups past the Air fleet share must not size pools
+    # for jobs admission will refuse, which would preempt paid warm capacity.
+    test "withholds Air accounts' jobs past the Air fleet share" do
+      fleet = "macos-signal-air-share"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      stub(Tuist.Runners.AirShare, :remaining_jobs, fn ^resources -> 1 end)
+
+      for {account, id} <- [{account_fixture(), 91_701}, {account_fixture(), 91_702}] do
+        queue_job(account, id, fleet, resources)
+      end
+
+      paid = account_fixture()
+      TuistTestSupport.Fixtures.BillingFixtures.subscription_fixture(account_id: paid.id, plan: :pro)
+      Concurrency.raise_to_plan_defaults(paid, :pro)
+      queue_job(paid, 91_703, fleet, resources)
+
+      assert %{queued: 2, withheld: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
     test "reports nothing withheld when every queued job is dispatchable" do
       account = account_fixture()
       fleet = "macos-signal-unblocked"
@@ -1938,6 +2008,40 @@ defmodule Tuist.RunnersTest do
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
       assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # A warm sandbox pool runs no job, so without its shape's creates it
+    # reported no use and the controller gave its slot to idle CI runners.
+    test "reports a warm macOS sandbox pool's use from the creates of its shape" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      created = fn platform, memory_mb, minutes_ago ->
+        sandbox_fixture(
+          account: account,
+          platform: platform,
+          vcpus: 8,
+          memory_mb: memory_mb,
+          inserted_at: DateTime.add(now, -minutes_ago, :minute)
+        )
+      end
+
+      created.(:darwin, 8192, 10)
+      created.(:darwin, 8192, 3 * 60)
+      created.(:darwin, 16_384, 2 * 60)
+      # Linux has an 8 x 16384 shape too, and must not count.
+      created.(:linux, 16_384, 5)
+      created.(:darwin, 24_576, 2 * 24 * 60)
+
+      assert %{hours_with_jobs: 2, p95_concurrent_last_hour: 1, queued: 0} =
+               Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm")
+
+      assert %{hours_with_jobs: 1, p95_concurrent_last_hour: 0} =
+               Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-16gb")
+
+      # Its last create is older than a day, so it is not in use at all.
+      assert %{hours_with_jobs: 0, p95_concurrent_last_hour: 0} =
+               Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-24gb")
     end
 
     # A custom volume an earlier `CI / build` job of acme/cli attached.

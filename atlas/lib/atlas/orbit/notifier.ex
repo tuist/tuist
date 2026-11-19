@@ -12,6 +12,7 @@ defmodule Atlas.Orbit.Notifier do
 
   use GenServer
 
+  alias Atlas.Environments.Commands
   alias Atlas.Orbit
   alias Atlas.Orbit.Runs
   alias Atlas.Orbit.Viewers
@@ -53,6 +54,7 @@ defmodule Atlas.Orbit.Notifier do
     if rem(state.sweeps, 3) == 0 do
       Runs.resume_stale()
       Runs.recover_queued()
+      Commands.sweep()
     end
 
     Process.send_after(self(), :sweep, @sweep_interval)

@@ -21,11 +21,13 @@ defmodule Tuist.Runners.GitLabTest do
 
   setup do
     %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+    # The stubbed target is a 16 vCPU / 48 GB macOS guest, larger than Air's limit.
+    Concurrency.raise_to_plan_defaults(account, :pro)
     stub(FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Allowance, :exhausted?, fn _ -> false end)
 
     stub(Dispatch, :resolve_dispatch_target, fn _, [label] ->
-      {:ok, %{pool_name: "pool-macos", requested_dispatch_label: label, platform: :macos, vcpus: 4, memory_gb: 16}}
+      {:ok, %{pool_name: "pool-macos", requested_dispatch_label: label, platform: :macos, vcpus: 16, memory_gb: 48}}
     end)
 
     {:ok, connection} =
@@ -123,7 +125,7 @@ defmodule Tuist.Runners.GitLabTest do
     assert trace ==
              Calendar.strftime(job.inserted_at, "%Y-%m-%dT%H:%M:%S") <>
                ".000000Z 00O section_start:#{unix}:tuist_waiting_for_runner\r\e[0K" <>
-               "Waiting for a Tuist runner for tuist-macos (4 vCPU, 16 GB)\n"
+               "Waiting for a Tuist runner for tuist-macos (16 vCPU, 48 GB)\n"
 
     assert {:ok, %{waiting_trace: ^trace}} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
   end
@@ -334,6 +336,34 @@ defmodule Tuist.Runners.GitLabTest do
     assert Repo.one!(Job).project_path == ""
   end
 
+  test "rejects a job whose profile exceeds the account's whole limit", %{connection: connection, account: account} do
+    {:ok, _} =
+      Concurrency.update_limits(account, %{
+        runner_linux_vcpus_limit: 16,
+        runner_linux_memory_gb_limit: 64,
+        runner_macos_vcpus_limit: 15,
+        runner_macos_memory_gb_limit: 48
+      })
+
+    payload = payload()
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+
+    expect(Client, :reject_job, fn _, ^payload, message ->
+      assert message =~ "larger than the account's runner concurrency limit"
+      {:ok, nil}
+    end)
+
+    reject(&Client.write_trace/3)
+
+    result = GitLab.poll(connection)
+    assert result == {:error, :shape_exceeds_limit}
+    assert Repo.aggregate(WorkflowJob, :count) == 0
+
+    GitLab.record_poll_result(connection, result)
+    GitLab.record_poll_result(connection, {:ok, 0})
+    assert GitLab.get_connection(connection.id).last_error =~ "larger than the account's runner concurrency limit"
+  end
+
   test "routing errors survive idle polls and clear after a routable job", %{connection: connection} do
     GitLab.record_poll_result(connection, {:error, :invalid_job_tags})
     message = GitLab.get_connection(connection.id).last_error
@@ -383,7 +413,7 @@ defmodule Tuist.Runners.GitLabTest do
       Concurrency.update_limits(account, %{
         runner_linux_vcpus_limit: 32,
         runner_linux_memory_gb_limit: 64,
-        runner_macos_vcpus_limit: 64,
+        runner_macos_vcpus_limit: 128,
         runner_macos_memory_gb_limit: 256
       })
 

@@ -5,17 +5,28 @@ defmodule Tuist.Oban.Engine do
   Insertion rollbacks are retried because they guarantee that no job was
   committed. Fetch rollbacks keep the queue alive and schedule another dispatch.
   Other errors retain the standard engine behavior.
+
+  A fetched job whose worker module this node does not have is put back
+  without spending an attempt, so a node still running the previous release
+  during a deploy leaves jobs for newly added workers to the nodes that have
+  them. This holds while the job is younger than a deploy can run (Helm's
+  60-minute timeout plus its rollback); older jobs run and fail as usual.
   """
 
   @behaviour Oban.Engine
 
+  import Ecto.Query, only: [where: 3]
+
   alias Oban.Engines.Basic
+  alias Oban.Job
 
   require Logger
 
   @max_retries 3
   @retry_delay 100
   @fetch_retry_delay 1_000
+  @rollout_window_seconds 2 * 60 * 60
+  @put_back_delay_seconds 30
 
   @impl Oban.Engine
   defdelegate init(conf, opts), to: Basic
@@ -73,9 +84,38 @@ defmodule Tuist.Oban.Engine do
         Process.send_after(self(), :dispatch, @fetch_retry_delay)
         {:ok, {meta, []}}
 
+      {:ok, {meta, jobs}} ->
+        {:ok, {meta, put_back_unknown_workers(conf, jobs)}}
+
       result ->
         result
     end
+  end
+
+  defp put_back_unknown_workers(conf, jobs) do
+    case Enum.split_with(jobs, &awaiting_newer_release?/1) do
+      {[], runnable} ->
+        runnable
+
+      {unknown, runnable} ->
+        ids = Enum.map(unknown, & &1.id)
+
+        Oban.Repo.update_all(conf, where(Job, [j], j.id in ^ids),
+          set: [state: "scheduled", scheduled_at: DateTime.add(DateTime.utc_now(), @put_back_delay_seconds)],
+          inc: [attempt: -1]
+        )
+
+        Logger.info(
+          "Oban put back jobs for workers this node does not have: #{unknown |> Enum.map(& &1.worker) |> Enum.uniq() |> Enum.join(", ")}"
+        )
+
+        runnable
+    end
+  end
+
+  defp awaiting_newer_release?(%Job{worker: worker, inserted_at: inserted_at}) do
+    match?({:error, _}, Oban.Worker.from_string(worker)) and
+      DateTime.diff(DateTime.utc_now(), inserted_at) < @rollout_window_seconds
   end
 
   defp insert_job(conf, changeset, opts, retries_left) do

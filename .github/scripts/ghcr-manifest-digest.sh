@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Prints the digest GHCR serves for <repository>:<tag> to an anonymous
-# client, which is how macOS runner hosts pull it.
+# client, which is how runner hosts pull it. Linux Buildx releases may be OCI
+# indexes (image plus attestations); macOS releases are single manifests.
 #
 # Usage: ghcr-manifest-digest.sh <repository> <tag>
 #   e.g. ghcr-manifest-digest.sh tuist/tuist-runner-payload 0.1.0
@@ -19,7 +20,7 @@ digest=""
 if [ -n "$token" ]; then
   digest="$(curl "${curl_args[@]}" --head \
     -H "Authorization: Bearer ${token}" \
-    -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+    -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json' \
     "https://ghcr.io/v2/${repository}/manifests/${tag}" |
     tr -d '\r' |
     awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')"

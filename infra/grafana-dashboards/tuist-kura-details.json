@@ -8877,7 +8877,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_node_budget_mbps{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_node_budget_mbps{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}}",
                         "range": true
@@ -8990,7 +8990,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "reconciles {{node}}",
                         "range": true
@@ -9011,7 +9011,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_errors_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_reconcile_errors_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "errors {{node}}",
                         "range": true
@@ -9124,7 +9124,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_attached_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_attached_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "attached {{node}}",
                         "range": true
@@ -9145,7 +9145,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((max by (cluster, pod) (kura_egress_tree_skipped_pods{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "skipped {{node}}",
                         "range": true
@@ -9258,7 +9258,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_link_reattach_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_link_reattach_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "link reattach {{node}}",
                         "range": true
@@ -9279,7 +9279,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_attach_failures_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_attach_failures_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "return attach failures {{node}}",
                         "range": true
@@ -9300,7 +9300,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_sibling_overflow_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_sibling_overflow_total{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "sibling overflow {{node}}",
                         "range": true
@@ -9413,7 +9413,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_sent_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)) * 8",
                         "instant": false,
                         "legendFormat": "sent {{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9434,7 +9434,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_rate_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_rate_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)) * 8",
                         "instant": false,
                         "legendFormat": "rate {{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9455,7 +9455,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_ceil_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})) * 8",
+                        "expr": "((max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_ceil_bytes_per_second{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)) * 8",
                         "instant": false,
                         "legendFormat": "ceil {{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9568,7 +9568,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_drops{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9681,7 +9681,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((max by (cluster, pod, classid, account) (kura_egress_tree_class_backlog_bytes{cluster=~\"tuist-$env\", namespace=\"kura\"})) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -9794,7 +9794,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_direct_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_direct_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "direct {{node}}",
                         "range": true
@@ -9815,7 +9815,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_returned_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_returned_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "returned {{node}}",
                         "range": true
@@ -9836,7 +9836,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_dropped_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node) ((sum by (cluster, pod) (rate(kura_egress_tree_return_dropped_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval]))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "return dropped {{node}}",
                         "range": true
@@ -18803,7 +18803,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) / (sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) + sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_lended_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) and on (cluster, node) max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"})",
+                        "expr": "(max by (cluster, node, classid, account) ((sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) / (sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_borrowed_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])) + sum by (cluster, pod, classid, account) (rate(kura_egress_tree_class_lended_packets{cluster=~\"tuist-$env\", namespace=\"kura\"}[$__rate_interval])))) * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\".*egress-tree-agent.*\"}))) * on (cluster, node) group_left () (max by (cluster, node) (kube_pod_info{cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{node}} · {{account}} · {{classid}}",
                         "range": true
@@ -19643,7 +19643,7 @@
                       "group": "__expr__",
                       "kind": "DataQuery",
                       "spec": {
-                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
+                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
                         "type": "sql"
                       },
                       "version": "v0"
@@ -19685,7 +19685,7 @@
                       "group": "__expr__",
                       "kind": "DataQuery",
                       "spec": {
-                        "expression": "SELECT region, country, subdivision,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
+                        "expression": "SELECT region, country, subdivision,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
                         "type": "sql"
                       },
                       "version": "v0"
@@ -22587,7 +22587,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "(time() - kura_startup_recovery_last_progress_timestamp_seconds{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) and on (cluster, pod) (kura_startup_recovery_phase{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"} < 4)",
+                        "expr": "(time() - kura_startup_recovery_last_progress_timestamp_seconds{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"}) * on (cluster, pod) group_left () (max by (cluster, pod) (kura_startup_recovery_phase{job=\"kura\", cluster=~\"tuist-$env\", namespace=\"kura\", pod=~\"$pod\"} < 4) * 0 + 1)",
                         "instant": false,
                         "legendFormat": "{{pod}}",
                         "range": true
@@ -22899,7 +22899,7 @@
               "transformations": []
             }
           },
-          "description": "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor.\n\nBuckets are not shipped to Grafana Cloud, so this shows the mean size per producer on the left axis and stored artifacts per second on the right. Read the upper quantiles for a live pod from `/api/ops/kura/pods/:pod/metrics`.\n\nPrometheus name: `kura_artifact_write_size_bytes`_count/_sum · labels: producer",
+          "description": "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor.\n\nBuckets are not shipped to Pulse, so this shows the mean size per producer on the left axis and stored artifacts per second on the right. Read the upper quantiles for a live pod from `/api/ops/kura/pods/:pod/metrics`.\n\nPrometheus name: `kura_artifact_write_size_bytes`_count/_sum · labels: producer",
           "id": 238,
           "links": [],
           "title": "artifact_write_size_bytes (mean · rate)",
@@ -23597,6 +23597,579 @@
                     ]
                   },
                   "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-247": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_relaxed_durability_sync_failures_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Periodic relaxed-durability syncs (segment fsync, then synced WAL flush) that failed. Only nodes with `KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS` set run them; those nodes acknowledge client uploads before they are on disk, so any increase means acknowledged writes may not survive a kernel crash or power loss, and a later sync that succeeds does not prove the earlier pages reached disk. Investigate the volume, and consider unsetting the variable on the node.\n\nPrometheus name: `kura_relaxed_durability_sync_failures_total_total`",
+          "id": 247,
+          "links": [],
+          "title": "relaxed_durability_sync_failures_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-248": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_migration_bridge_armed{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "1 while this pod is the source of a planned storage move whose write bridge is armed: every HTTP/gRPC mutation it acknowledges was first verified on the named destination process. Armed is set once preparation has proven every write from its feed pin through the head and confirmed the destination identity, and stays set through controller pauses and destination rebinds until the pod drains or the bridge is aborted. Armed without ready (next panel) for long is what the `Kura - migration bridge armed but not ready` alert watches.\n\nPrometheus name: `kura_migration_bridge_armed`",
+          "id": 248,
+          "links": [],
+          "title": "migration_bridge_armed",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "none"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-249": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_migration_bridge_ready{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "1 once the bridge has proven its feed from the pin through the head on its current destination process (records retained from before the pin are not part of the proof); only then may the controller move routing. It drops to 0 when a rebind moves the bridge to a restarted destination and returns to 1 after the re-proof. It stays 1 if the destination later stops answering: use `migration_bridge_last_proof_age_seconds` for that case.\n\nPrometheus name: `kura_migration_bridge_ready`",
+          "id": 249,
+          "links": [],
+          "title": "migration_bridge_ready",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "none"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-250": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_migration_bridge_last_proof_age_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Seconds since an armed bridge last proved the feed through its head on the destination. The bridge loop probes once a second, so a healthy bridge stays near 0; a climbing line means acknowledgments are failing (destination down, restarted without a rebind, or missing records) and writes on this source are being refused. 0 while no bridge is armed.\n\nPrometheus name: `kura_migration_bridge_last_proof_age_seconds`",
+          "id": 250,
+          "links": [],
+          "title": "migration_bridge_last_proof_age_seconds",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-253": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_migration_reproof_failures_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Failed attempts to re-prove a rebound destination. The re-proof retries every second without a deadline, so a steady non-zero rate means the restarted destination process is missing a post-pin write, the feed history below the pin was trimmed, or it is unreachable, and the bridge stays unready. The source's `kura.migration.reproof_failed` warning carries the cause.\n\nPrometheus name: `kura_migration_reproof_failures_total_total`",
+          "id": 253,
+          "links": [],
+          "title": "migration_reproof_failures_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-254": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (component) (kura_data_dir_bytes{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{component}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Bytes allocated on the data volume by component, summed over the selected pods. ring_segments are segment files the ring references; retired_segments are segment files it no longer references (awaiting cleanup or orphaned); rocksdb is the metadata index; multipart holds module upload parts; tmp is upload and catch-up staging when KURA_TMP_DIR sits inside the data dir (the managed default); other is anything else. Everything except ring_segments is what the server's ring budget has to leave room for, beside the 2 GiB disk-pressure target. Sampled every 30 s.\n\nPrometheus name: `kura_data_dir_bytes`",
+          "id": 254,
+          "links": [],
+          "title": "data_dir_bytes",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "bytes"
                 },
                 "overrides": []
               },
@@ -24650,6 +25223,32 @@
                         "width": 12,
                         "x": 0,
                         "y": 42
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-247"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 12,
+                        "y": 42
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-254"
+                        },
+                        "height": 7,
+                        "width": 12,
+                        "x": 0,
+                        "y": 50
                       }
                     }
                   ]
@@ -26998,6 +27597,72 @@
               },
               "title": "Egress tree agent (pod + hosting node)"
             }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-248"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-249"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-250"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-253"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 7
+                      }
+                    }
+                  ]
+                }
+              },
+              "title": "Storage migration bridge (4)"
+            }
           }
         ]
       }
@@ -27055,10 +27720,10 @@
       {
         "kind": "DatasourceVariable",
         "spec": {
-          "allowCustomValue": true,
+          "allowCustomValue": false,
           "current": {
-            "text": "grafanacloud-tuist-prom",
-            "value": "grafanacloud-prom"
+            "text": "Tuist Pulse Metrics",
+            "value": "cg3i1jh2k1v5sb"
           },
           "hide": "dontHide",
           "includeAll": false,
@@ -27068,7 +27733,7 @@
           "options": [],
           "pluginId": "prometheus",
           "refresh": "onDashboardLoad",
-          "regex": "",
+          "regex": "/^Tuist Pulse Metrics/",
           "skipUrlSync": false
         }
       },

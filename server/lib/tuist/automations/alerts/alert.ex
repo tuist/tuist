@@ -76,6 +76,16 @@ defmodule Tuist.Automations.Alerts.Alert do
   def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
   def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
 
+  @doc """
+  Whether recovery waits for a quiet period, the recovery window passing
+  without a new matching run since the trigger or the latest such run, rather
+  than for the trigger condition to clear. Lets an alert recover while older
+  matching runs are still inside its trigger window.
+  """
+  def no_new_matches_recovery?(%{recovery_enabled: true, recovery_config: %{"condition" => "no_new_matches"}}), do: true
+
+  def no_new_matches_recovery?(_alert), do: false
+
   # Attempt revisions invalidate stale publishers without hiding active recovery events.
   def event_generation(alert), do: alert.event_generation || alert.baseline_generation
 
@@ -370,12 +380,23 @@ defmodule Tuist.Automations.Alerts.Alert do
     if get_field(changeset, :recovery_enabled) do
       recovery_config = get_field(changeset, :recovery_config) || %{}
 
-      case validate_window_shape(recovery_config, @max_rolling_window_size) do
-        :ok -> validate_state_filter(changeset, recovery_config, :recovery_config)
+      with :ok <- validate_window_shape(recovery_config, @max_rolling_window_size),
+           :ok <- validate_recovery_condition(recovery_config) do
+        validate_state_filter(changeset, recovery_config, :recovery_config)
+      else
         {:error, message} -> add_error(changeset, :recovery_config, message)
       end
     else
       changeset
+    end
+  end
+
+  # Without a condition, recovery waits for the trigger condition to clear.
+  defp validate_recovery_condition(config) do
+    case config["condition"] do
+      nil -> :ok
+      "no_new_matches" -> :ok
+      _ -> {:error, "condition must be no_new_matches when set"}
     end
   end
 

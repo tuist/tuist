@@ -233,5 +233,22 @@ defmodule TuistWeb.Helpers.FailureMessageTest do
       assert html =~ ~s(href="https://github.example.com/org/repo/blob/abc123/Tests/MyTest.swift#L100")
       refute html =~ "github.com/org/repo"
     end
+
+    test "escapes the client-supplied message, path, and commit sha in the linked HTML" do
+      failure =
+        make_failure(%{
+          path: ~s|Tests/"><img src=x onerror=alert(1)>.swift|,
+          issue_type: "assertion_failure",
+          message: "<b id=marker>x</b>",
+          line_number: 100
+        })
+
+      run = make_run(%{git_commit_sha: ~s|abc"onmouseover="alert(1)|, vcs_connection: github_vcs_connection()})
+
+      {:safe, html} = FailureMessage.format_failure_message(failure, run)
+
+      assert html ==
+               ~s|Expectation failed at <a href="https://github.com/org/repo/blob/abc&quot;onmouseover=&quot;alert(1)/Tests/&quot;&gt;&lt;img src=x onerror=alert(1)&gt;.swift#L100" target="_blank">Tests/&quot;&gt;&lt;img src=x onerror=alert(1)&gt;.swift:100</a>: &lt;b id=marker&gt;x&lt;/b&gt;|
+    end
   end
 end

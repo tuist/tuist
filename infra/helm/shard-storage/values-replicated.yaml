@@ -1,0 +1,3 @@
+# Optional future topology. Layer AFTER the environment values on a NEW release.
+# Never change the replication factor of an existing singleton.
+replicas: 3

@@ -5,7 +5,7 @@ defmodule Tuist.Docs.Content do
     quote do
       alias Tuist.Docs.NimblePublisher.Cache
 
-      defp static_pages, do: Cache.pages()
+      defp static_pages(locale), do: Cache.pages(locale)
       defp static_page(slug), do: Cache.get_page(slug)
       defp static_slugs, do: Cache.slugs()
     end

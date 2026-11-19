@@ -25,13 +25,13 @@ Why this is safe:
     recoverable. Only volumes abandoned for longer are reaped.
   * Scoped to storageClass hcloud-volumes and reclaimPolicy Retain, so it never
     touches node-local (scw-local-nvme, already Delete) or non-CSI volumes.
-  * dryRun (default) only logs what it would reap. Review a run's logs in Loki /
-    Grafana Cloud, then set pvReaper.dryRun=false per env to arm it.
+  * dryRun (default) only logs what it would reap. Review a run's logs in Pulse,
+    then set pvReaper.dryRun=false per env to arm it.
 
 There is intentionally no PrometheusRule here: managed clusters have no
-Prometheus Operator (they scrape via Alloy into Grafana Cloud). Alert on the
-reaper's log lines or on kube_persistentvolume_status_phase{phase="Released"} in
-Grafana Cloud instead.
+Prometheus Operator (they scrape via Alloy into the environment's Pulse). Alert
+on the reaper's log lines or on kube_persistentvolume_status_phase{phase="Released"}
+with a Grafana Cloud rule over Pulse instead.
 */ -}}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "released-pv-reaper") }}
 apiVersion: v1

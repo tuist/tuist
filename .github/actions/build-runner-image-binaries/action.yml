@@ -20,7 +20,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
       with:
         go-version-file: infra/runner-image/go.mod
 
@@ -52,6 +52,16 @@ runs:
         GOARCH: arm64
         CGO_ENABLED: "0"
       run: go build -trimpath -ldflags="-s -w" -o ../../runner-image/build/tuist-gitlab-runner .
+
+    - name: Build API job executor
+      shell: bash
+      working-directory: infra/linux-runner-image/job-runner
+      env:
+        GOWORK: "off"
+        GOOS: darwin
+        GOARCH: arm64
+        CGO_ENABLED: "0"
+      run: go build -trimpath -ldflags="-s -w" -o ../../runner-image/build/tuist-job-runner .
 
     # The Rust toolchain the cas-plugin needs, resolved from cas-plugin/mise.toml
     # rather than pinned here (single source of truth, as cli-build-publish does).

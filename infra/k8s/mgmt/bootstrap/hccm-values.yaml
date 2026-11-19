@@ -14,6 +14,13 @@
 # is left over from an earlier wiring and is not consumed by HCCM
 # or hcloud-csi today; both pick up the chart-default reference.
 
+# Candidate trust-store replacement from #14511. Before rollout, verify healthy
+# InternalIP targets for Robot nodes using private IPs: v1.39.1 removes their
+# leftover ExternalIP fallback and qualify the image's effective trust behavior:
+# https://github.com/hetznercloud/hcloud-cloud-controller-manager/releases/tag/v1.39.1
+image:
+  tag: v1.39.1@sha256:ca5ca6e49d0d24afbf2f77f5a552c506c6ef85738ee11864c9c693f4b65464ce
+
 # Disable the cloud-node-lifecycle controller. Default behaviour
 # walks every Node, calls cloudprovider.Instances.InstanceExists()
 # against the Hetzner API, and deletes any Node where that returns

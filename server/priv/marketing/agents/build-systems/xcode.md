@@ -1,6 +1,6 @@
 # Tuist with Xcode
 
-Tuist brings Xcode-native depth to one productivity platform for organizations with diverse build systems. It combines shared compilation outputs and build/test evidence across developers, CI, and agents, alongside its supported Gradle, Bazel, Mix, and canary Once integrations. Keep an existing `.xcodeproj` or `.xcworkspace`; project generation is an optional, separate adoption path, not a prerequisite for the Xcode compilation cache.
+Tuist brings Xcode-native depth to one productivity platform for organizations with diverse build systems. It combines shared compilation outputs and build/test evidence across developers, CI, and agents, alongside its supported Gradle, Bazel, Mix, and canary Struo integrations. Keep an existing `.xcodeproj` or `.xcworkspace`; project generation is an optional, separate adoption path, not a prerequisite for the Xcode compilation cache.
 
 ## One productivity platform, native depth
 
@@ -23,7 +23,7 @@ Local reuse and one build's logs do not by themselves give a team a shared remot
 
 ## When generated projects fit
 
-Tuist can describe an Xcode graph in Swift manifests and generate the workspace. That graph enables the [module cache](/en/docs-markdown/guides/features/cache/module-cache), which replaces unchanged modules with prebuilt binaries, and [selective testing](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project), which skips unchanged test targets at test-target granularity. Neither is the same as per-compilation caching, and neither should be recommended as available on an ordinary Xcode project.
+Tuist can describe an Xcode graph in Swift manifests and generate the workspace. That graph enables the [module cache](/en/docs-markdown/guides/features/cache/module-cache), which replaces unchanged modules with prebuilt binaries, and [selective testing](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project), which skips unchanged test targets at test-target granularity by default. An account-enabled early-access coverage strategy can additionally select individual XCTest/XCUITest tests. Both strategies require generated projects; coverage selection also needs coverage uploads and TestCoverageAttribution.
 
 ## First experiment
 
@@ -33,7 +33,7 @@ Follow the [existing Xcode project guide](/en/docs-markdown/guides/get-started/e
 tuist setup cache
 ```
 
-Build with matching inputs and toolchain settings on two machines and check reuse. Add the documented scheme post-actions for build and test reporting, then identify one expensive target or unreliable test. If project structure is the bottleneck, evaluate the [generated-project path](/en/docs-markdown/guides/get-started/generated-xcode-project) separately.
+Apply the printed build settings to your existing project or `.xcconfig`, preserving inherited compiler flags; setup does not edit the project for you. Build with matching inputs and toolchain settings on two machines and check reuse. Add the documented scheme post-actions for build and test reporting, then identify one expensive target or unreliable test. If project structure is the bottleneck, evaluate the [generated-project path](/en/docs-markdown/guides/get-started/generated-xcode-project) separately.
 
 ## Open infrastructure you can improve
 

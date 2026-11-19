@@ -9,7 +9,9 @@
 
 Tuist's Hex package uploads the test results of your Elixir project after each test run, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your test runs {#report-your-test-runs}
@@ -36,14 +38,14 @@ The package collects results from ExUnit, including:
 - The branch and commit, and on continuous integration, the provider and the run
 - On continuous integration, the [Git history](#git-history) of the checkout
 
-Doctests are reported like any other test.
+Doctests are reported like any other test. With `--cover`, the run's line coverage is uploaded too: see <.localized_link href="/guides/features/test-code-coverage/elixir">Elixir code coverage</.localized_link>.
 
 > [!NOTE]
 > The package reports through an ExUnit formatter that it adds next to the ones you already use. If you pass `--formatter` on the command line, Mix replaces the whole list, so the run is not reported and the task warns you about it.
 
 ### Git history {#git-history}
 
-On continuous integration, the package also uploads the commit history of the checkout: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. The package reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage (`--cover`), it doesn't fetch history.
+On continuous integration, the package also uploads the commit history of the checkout: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. The package reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage (`--cover`), it doesn't fetch history. With code coverage, a shallow checkout is deepened, without file contents, to find where a pull request branched off and, on continuous integration, to reach the commits Tuist already has, so a commit is never uploaded without the parent it sits on.
 
 | Variable | Effect |
 | --- | --- |

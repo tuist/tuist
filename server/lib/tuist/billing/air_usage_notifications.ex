@@ -11,13 +11,12 @@ defmodule Tuist.Billing.AirUsageNotifications do
   alias Tuist.Billing.UsagePricing
   alias Tuist.Billing.Workers.AirUsageNotificationWorker
   alias Tuist.CommandEvents
+  alias Tuist.RemoteExecution.Usage, as: RemoteExecutionUsage
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
-  alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
 
   @metrics [:cache_egress_megabytes, :cache_requests, :runner_minutes]
-  @cache_meters [:cache_egress_megabytes, :cache_requests]
 
   def enqueue(account_id, updated_at) do
     account = Repo.get!(Account, account_id)
@@ -33,16 +32,23 @@ defmodule Tuist.Billing.AirUsageNotifications do
 
   # Delivery checks this again, so a warning that stopped applying after it
   # was queued is dropped. Remote cache hits do not limit Air, so a stored
-  # notification about them is never delivered.
-  def eligible?(account, :runner_minutes), do: not Trials.on_trial?(account)
-  def eligible?(_account, metric) when metric in @cache_meters, do: true
+  # notification about them is never delivered. A runner trial lifts every Air
+  # cap, the cache ones included (see `Billing.over_free_tier?/1`), so a trial
+  # account is warned about none of them.
   def eligible?(_account, :remote_cache_hits), do: false
+  def eligible?(account, metric) when metric in @metrics, do: not Trials.on_trial?(account)
 
   def usage(account, :runner_minutes) do
     now = DateTime.utc_now()
     period_start = period_start(account, now, :runner_minutes)
-    minutes = account.id |> RunnerBilling.compute_milliseconds(period_start, now) |> div(60_000)
-    {minutes, Allowance.free_monthly_minutes()}
+
+    minutes =
+      account.id
+      |> RemoteExecutionUsage.metered_units_by_platform(period_start, now)
+      |> Map.new(&{&1.platform, &1.total_units})
+      |> Allowance.allowance_minutes()
+
+    {minutes, Allowance.free_monthly_minutes(:macos)}
   end
 
   def usage(account, :cache_egress_megabytes),
@@ -94,6 +100,7 @@ defmodule Tuist.Billing.AirUsageNotifications do
       account
       |> recipients()
       |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(& &1.id)
       |> Enum.map(fn user ->
         %{
           account_id: account.id,
@@ -109,10 +116,14 @@ defmodule Tuist.Billing.AirUsageNotifications do
       end)
 
     Repo.transaction(fn ->
-      Repo.insert_all(AirUsageNotification, notifications,
-        on_conflict: :nothing,
-        conflict_target: [:account_id, :user_id, :metric, :period_start, :threshold]
-      )
+      notifications
+      |> Enum.chunk_every(1_000)
+      |> Enum.each(fn batch ->
+        Repo.insert_all(AirUsageNotification, batch,
+          on_conflict: :nothing,
+          conflict_target: [:account_id, :user_id, :metric, :period_start, :threshold]
+        )
+      end)
 
       recipient_ids = Enum.map(notifications, & &1.user_id)
 
@@ -151,8 +162,9 @@ defmodule Tuist.Billing.AirUsageNotifications do
       |> MapSet.new(& &1["notification_id"])
 
     notification_ids
-    |> Enum.reject(&MapSet.member?(active_ids, &1))
-    |> Enum.map(&AirUsageNotificationWorker.new(%{notification_id: &1}))
-    |> Oban.insert_all()
+    |> Stream.reject(&MapSet.member?(active_ids, &1))
+    |> Stream.map(&AirUsageNotificationWorker.new(%{notification_id: &1}))
+    |> Stream.chunk_every(1_000)
+    |> Enum.each(&Oban.insert_all/1)
   end
 end

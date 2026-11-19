@@ -1,6 +1,23 @@
-{config, ...}: {
+{
+  config,
+  pkgs,
+  ...
+}: {
   services.nginx = {
     enable = true;
+
+    # The pinned nixpkgs ships nginx 1.28.0. Build 1.30.7 from its generic.nix
+    # with nginxStable's arguments, wrapped like stable.nix so the module can
+    # still `.override` it. 1.30 already contains stable.nix's CVE patch.
+    package = pkgs.callPackage ({callPackage, ...} @ args:
+      callPackage "${pkgs.path}/pkgs/servers/http/nginx/generic.nix" args {
+        version = "1.30.7";
+        hash = "sha256-JWW1yDcFDpWPcPsPc8SOK8pFQq00n9NW9G+wxyYQvG4=";
+      }) {
+      zlib-ng = pkgs.zlib-ng.override {withZlibCompat = true;};
+      withPerl = false;
+      modules = with pkgs.nginxModules; [rtmp dav moreheaders];
+    };
 
     # Disable NixOS convenience presets — we set every directive
     # explicitly to control the sendfile / kTLS / proxy pipeline.

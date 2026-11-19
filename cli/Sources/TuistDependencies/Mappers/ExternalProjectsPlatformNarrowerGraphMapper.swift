@@ -68,8 +68,45 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             })
             return (projectPath, project)
         })
+        removeDependenciesExcludedByNarrowedPlatforms(graph: &graph)
 
         return (graph, [], environment)
+    }
+
+    /// Drops dependencies of external targets whose platform condition matches none of the target's narrowed destinations.
+    /// For example, a macro-only helper that links SwiftPM's prebuilt swift-syntax on macOS keeps its source swift-syntax
+    /// dependency only for the other platforms. Once the helper is narrowed to macOS, that edge can never apply, and keeping
+    /// it would pair a macOS-only target with a dependency narrowed to other platforms.
+    ///
+    /// The target's own dependencies lose it too. Binary-cache hashing hashes a target's dependencies after the targets its
+    /// graph edges reach, so a dependency left without an edge has no hash yet when the target is hashed.
+    private func removeDependenciesExcludedByNarrowedPlatforms(graph: inout Graph) {
+        for (edge, condition) in graph.dependencyConditions {
+            guard case let .target(name, path, _) = edge.from,
+                  let project = graph.projects[path],
+                  case .external = project.type,
+                  let target = project.targets[name]
+            else { continue }
+            // Targets narrowed to no destinations are pruned, so their edges are left for pruning to handle.
+            let platformFilters = Set(target.destinations.map(\.platformFilter))
+            guard !platformFilters.isEmpty, platformFilters.isDisjoint(with: condition.platformFilters) else { continue }
+            graph.dependencies[edge.from]?.remove(edge.to)
+            graph.dependencyConditions.removeValue(forKey: edge)
+            guard case let .target(dependencyName, dependencyPath, _) = edge.to else { continue }
+            graph.projects[path]?.targets[name]?.dependencies.removeAll { dependency in
+                let targetName: String
+                switch dependency {
+                case let .target(name, _, _) where dependencyPath == path:
+                    targetName = name
+                case let .project(name, projectPath, _, _) where projectPath == dependencyPath:
+                    targetName = name
+                default:
+                    return false
+                }
+                return targetName == dependencyName
+                    && dependency.condition.map { platformFilters.isDisjoint(with: $0.platformFilters) } == true
+            }
+        }
     }
 
     private func mapTarget(

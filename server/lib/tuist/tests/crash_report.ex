@@ -4,6 +4,7 @@ defmodule Tuist.Tests.CrashReport do
   This is a ClickHouse entity that stores crash report data.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

@@ -1,0 +1,72 @@
+{{- if .Values.capi.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "ovh-runner-egress") }}
+{{- $operator := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+{{- $config := .Values.capi.ovhRunnerEgress }}
+{{- if $config.enabled }}
+{{- $_ := required "capi.ovhRunnerEgress.vrackID is required when enabled" $config.vrackID }}
+{{- $_ := required "capi.ovhRunnerEgress.cidr is required when enabled" $config.cidr }}
+{{- end }}
+# Keep disabled config and permissions available so the provider can withdraw
+# policies and remove host state before releasing reservations on rollback.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  enabled: {{ $config.enabled | quote }}
+  vrackID: {{ $config.vrackID | quote }}
+  cidr: {{ $config.cidr | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [{{ $name | quote }}, {{ printf "%s-reservations" $name | quote }}]
+    verbs: [get, update]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $operator }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+rules:
+  - apiGroups: [cilium.io]
+    resources: [ciliumegressgatewaypolicies]
+    verbs: [get, create, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $operator }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -12,7 +12,7 @@ TMA is an architectural approach to structure applications to enable scalability
 These guidelines introduce the principles of the architecture, helping you identify and organize your application features in different layers. It also introduces tips, tools, and advice if you decide to use this architecture.
 
 > [!NOTE]
-> **Μfeatures**
+> **µFeatures**
 >
 > This architecture was previously known as µFeatures. We've renamed it to The Modular Architecture (TMA) to better reflect its purpose and the principles behind it.
 
@@ -42,13 +42,13 @@ We recommend following a naming convention for targets, something that you can e
 | `FeatureExample` | `FeatureTesting`, `Feature` | Example app |
 
 > [!TIP]
-> **Ui Previews**
+> **UI previews**
 >
 > `Feature` can use `FeatureTesting` as a Development Asset to allow for UI previews
 
 
 > [!WARNING]
-> **Compiler Directives Instead Of Testing Targets**
+> **Compiler directives instead of testing targets**
 >
 > Alternatively, you can use compiler directives to include test data and mocks in the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You simplify the graph, but you'll end up compiling code that you won't need for running the app.
 
@@ -71,7 +71,7 @@ Reusing code across apps and other products like extensions is encouraged using 
 
 When a module depends on another module, it declares a dependency against its interface target. The benefit of this is two-fold. It prevents the implementation of a module to be coupled to the implementation of another module, and it speeds up clean builds because they only have to compile the implementation of our feature, and the interfaces of direct and transitive dependencies. This approach is inspired by SwiftRock's idea of [Reducing iOS Build Times by using Interface Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets).
 
-Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add built-time indirections or use platform APIs that were not designed for this purpose.
+Depending on interfaces requires apps to build the graph of implementations at runtime, and dependency-inject it into the modules that need it. Although TMA is non-opinionated about how to do this, we recommend using dependency-injection solutions or patterns or solutions that don't add build-time indirections or use platform APIs that were not designed for this purpose.
 
 ## Product types {#product-types}
 
@@ -80,8 +80,8 @@ When building a module, you can choose between **libraries and frameworks**, and
 We recommend using dynamic libraries or frameworks during development using <.localized_link href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</.localized_link> to decouple the bundle-accessing logic from the library or framework nature of the target. This is key for fast compilation times and to ensure [SwiftUI Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) work reliably. And static libraries or frameworks for the release builds to ensure the app boots fast. You can leverage <.localized_link href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</.localized_link> to change the product type at generation-time:
 
 ```bash
-# You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
-# and use it to change the linking type {#and-use-it-to-change-the-linking-type}
+# You'll have to read the value of the variable from the manifest
+# and use it to change the linking type
 TUIST_PRODUCT_TYPE=static-library tuist generate
 ```
 
@@ -99,7 +99,7 @@ func productType() -> Product {
 
 
 > [!WARNING]
-> **Mergeable Libraries**
+> **Mergeable libraries**
 >
 > Apple attempted to alleviate the cumbersomeness of switching between static and dynamic libraries by introducing [mergeable libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, that introduces build-time non-determinism that makes your build non-reproducible and harder to optimize so we don't recommend using it.
 
@@ -110,7 +110,7 @@ TMA is non-opinionated about the code architecture and patterns for your modules
 
 - **Leveraging the compiler is great.** Over-leveraging the compiler might end up being non-productive and cause some Xcode features like previews to work unreliably. We recommend using the compiler to enforce good practices and catch errors early, but not to the point that it makes the code harder to read and maintain.
 - **Use Swift Macros sparingly.** They can be very powerful but can also make the code harder to read and maintain.
-- **Embrace the platform and the language, don't abstract them.** Trying to come up with ellaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
+- **Embrace the platform and the language, don't abstract them.** Trying to come up with elaborated abstraction layers might end up being counterproductive. The platform and the language are powerful enough to build great apps without the need for additional abstraction layers. Use good programming and design patterns as a reference to build your features.
 
 
 ## Resources {#resources}

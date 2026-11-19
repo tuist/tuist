@@ -56,6 +56,7 @@ defmodule Tuist.Gradle.Build do
     field :started_at, Ch, type: "Nullable(DateTime64(6))"
     field :gradle_version, Ch, type: "String"
     field :java_version, Ch, type: "String"
+    field :tuist_version, Ch, type: "String", default: ""
     field :is_ci, Ch, type: "Bool"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'cancelled' = 2)"
     field :git_branch, Ch, type: "String"

@@ -47,6 +47,8 @@ defmodule Atlas.MCP.Tools.GenerateEnterpriseContractTest do
       assert payload.document_scope == "contract_package"
       assert payload.workflow =~ "`msa.docx`"
       assert payload.workflow =~ "`annex-2-dpa.docx`"
+      assert payload.workflow =~ "`annex-2-dpa-tuist-hosted.docx`"
+      assert payload.workflow =~ "security.tuist.dev/subprocessors"
       assert payload.workflow =~ "`order-form-tuist-hosted.docx`"
     end
 

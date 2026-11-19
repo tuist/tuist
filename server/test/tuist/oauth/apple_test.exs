@@ -48,6 +48,7 @@ defmodule Tuist.OAuth.AppleTest do
 
     test "returns the existing user when the identity token is valid", %{signing_key: signing_key} do
       # Given
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       AccountsFixtures.user_fixture(email: "apple.test@example.com")
       claims = %{"sub" => "apple_user_id_123", "email" => "apple.test@example.com"}
       stub_authorization_code_exchange(signing_key, claims)
@@ -58,6 +59,22 @@ defmodule Tuist.OAuth.AppleTest do
 
       # Then
       assert user.email == "apple.test@example.com"
+    end
+
+    test "refuses an email-matched password account while email confirmation is skipped", %{signing_key: signing_key} do
+      # Given an account registered with the address without proving it
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
+      AccountsFixtures.user_fixture(email: "apple.registered@example.com")
+      claims = %{"sub" => "apple_user_id_456", "email" => "apple.registered@example.com"}
+      stub_authorization_code_exchange(signing_key, claims)
+      identity_token = sign_identity_token(signing_key, @signing_key_id, claims)
+
+      # When
+      result = Apple.verify_apple_identity_token_and_create_user(identity_token, "valid_auth_code")
+
+      # Then
+      assert result == {:error, :email_not_proven}
+      assert Tuist.Accounts.get_oauth2_identity(:apple, "apple_user_id_456") == {:error, :not_found}
     end
 
     test "returns an error when the identity token is replayed with an unrelated authorization code", %{

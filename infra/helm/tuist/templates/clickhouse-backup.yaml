@@ -96,8 +96,8 @@ the base out from under backups it leaves in place.
 ## Failure is visible in the cluster, not here
 
 Managed clusters have no Prometheus Operator, so there is no PrometheusRule.
-Alert in Grafana Cloud on the absence of a recent success rather than on
-`kube_job_status_failed`:
+Alert in Grafana Cloud, over the cluster's Pulse metrics, on the absence of a
+recent success rather than on `kube_job_status_failed`:
 
     (
       time() - max by (cluster, namespace) (

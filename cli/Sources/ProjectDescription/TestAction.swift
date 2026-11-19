@@ -30,6 +30,10 @@ public struct TestAction: Equatable, Codable, Sendable {
     /// List of options to set to the action.
     public var options: TestActionOptions
 
+    /// Coverage settings for Tuist-generated test plans. Only `codeCoverage` and
+    /// `codeCoverageTargets` are used. When nil, Xcode's default coverage settings are preserved.
+    public var generatedTestPlanOptions: TestActionOptions?
+
     /// List of diagnostics options to set to the action.
     public var diagnosticsOptions: SchemeDiagnosticsOptions
 
@@ -130,6 +134,32 @@ public struct TestAction: Equatable, Codable, Sendable {
             diagnosticsOptions: .options(),
             skippedTests: nil
         )
+    }
+
+    /// Returns a test action with coverage settings applied to each generated test plan.
+    /// Referenced `.xctestplan` files retain their own settings and are never modified.
+    ///
+    /// With `coverage` enabled, an empty `codeCoverageTargets` list collects coverage for all
+    /// targets. Use a workspace scheme when selecting coverage targets from other projects.
+    @_disfavoredOverload
+    public static func testPlans(
+        _ testPlans: [TestPlan],
+        configuration: ConfigurationName = .debug,
+        attachDebugger: Bool = true,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        coverage: Bool,
+        codeCoverageTargets: [TargetReference] = []
+    ) -> Self {
+        var action = Self.testPlans(
+            testPlans,
+            configuration: configuration,
+            attachDebugger: attachDebugger,
+            preActions: preActions,
+            postActions: postActions
+        )
+        action.generatedTestPlanOptions = .options(coverage: coverage, codeCoverageTargets: codeCoverageTargets)
+        return action
     }
 
     /// Returns a test action from a list of test plan paths.

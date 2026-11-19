@@ -24,6 +24,24 @@ defmodule TuistWeb.TestRunsLiveTest do
         %{dates: [], values: [], total_average_duration: 0, trend: 0}
       end)
 
+      # The page's analytics task waits on this before it resolves; querying ClickHouse
+      # here made `render_async/2` time out on loaded CI shards.
+      stub(TestsAnalytics, :test_run_duration_analytics, fn _, _ ->
+        %{
+          trend: nil,
+          total_average_duration: 0,
+          p50: 0,
+          p90: 0,
+          p99: 0,
+          average_durations: [],
+          dates: [],
+          values: [],
+          p50_values: [],
+          p90_values: [],
+          p99_values: []
+        }
+      end)
+
       :ok
     end
 

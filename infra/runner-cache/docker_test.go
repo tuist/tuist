@@ -261,6 +261,36 @@ func TestDockerAdmissionReservesTheSavedRootPlusGrowth(t *testing.T) {
 	}
 }
 
+// A clone shares its local master's blocks, so a warm attach needs room only
+// for what the job adds. Starting empty, it needs room for the whole root.
+func TestDockerAdmissionCountsTheLocalMasterAsAllocated(t *testing.T) {
+	b, _ := newLocal(t)
+	head := savedDockerHead(1)
+	warm := func(id string) Slot {
+		slot := dockerSlot(id)
+		slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
+		return slot
+	}
+	slot := warm(first)
+	writeDockerHeadMaster(t, b, slot, head)
+	slot.HeadSizeBytes = allocatedBytes(b.master(slot))
+	defaultBytes := int64(b.SizeGB) * 1_000_000_000
+	b.FreeBytes = func(string) (uint64, error) {
+		return b.MinFreeBytes + uint64(slot.ExpectedBytes(defaultBytes)-slot.HeadSizeBytes-defaultBytes), nil
+	}
+
+	attachDocker(t, b, slot)
+	if b.Cold(slot) || !exists(b.master(slot)) {
+		t.Fatal("did not clone the local master")
+	}
+
+	cold := warm(second)
+	cold.Scope, cold.HeadSizeBytes = strings.Repeat("d", 64), slot.HeadSizeBytes
+	if err := b.Attach(context.Background(), cold, t.TempDir()); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("admitted an empty start without room for its saved root: %v", err)
+	}
+}
+
 type dockerHeadTransfer struct {
 	*testTransfer
 	head int64
@@ -547,5 +577,48 @@ func TestDockerDeleteRemovesTheOfferedHead(t *testing.T) {
 		if _, err := os.Stat(b.image(slot) + leftover); !os.IsNotExist(err) {
 			t.Fatalf("%s survived deletion", leftover)
 		}
+	}
+}
+
+func TestDockerOlderCloneCannotReplaceItsAssignedHead(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := dockerSlot(first)
+	path := attachDocker(t, b, slot)
+	slot.BaseGeneration = 8
+	if err := os.WriteFile(b.image(slot)+".base", []byte("7"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	writeSuperblock(t, b.image(slot), 1, 0, 0)
+	writeDockerReport(t, path, DockerReport{Clean: true, Changed: true})
+	if err := b.Seal(slot, path); !errors.Is(err, ErrSuperseded) {
+		t.Fatalf("unmerged older clone: %v", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("published generation 7 over assigned generation 8")
+	}
+}
+
+func TestDockerOlderClonePublishesAfterMergingItsAlreadyAssignedHead(t *testing.T) {
+	for _, into := range []string{"branch", "head"} {
+		t.Run(into, func(t *testing.T) {
+			head := savedDockerHead(8)
+			b, transfer, slot, path := mergingDocker(t, head)
+			slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = 8, head.ImageDigest, head.ContentDigest
+			if err := os.WriteFile(b.image(slot)+".base", []byte("7"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			image := b.image(slot)
+			if into == "head" {
+				image += ".merge"
+			}
+			writeSuperblock(t, image, 1, 0, 0)
+			writeDockerReport(t, path, DockerReport{Clean: true, Changed: true, MergedGeneration: 8, MergedInto: into})
+			if err := b.Seal(slot, path); err != nil {
+				t.Fatal(err)
+			}
+			if transfer.uploads != 1 || len(transfer.rebased) != 0 {
+				t.Fatalf("uploads=%d rebased=%v; assigned head needs no rebase", transfer.uploads, transfer.rebased)
+			}
+		})
 	}
 }

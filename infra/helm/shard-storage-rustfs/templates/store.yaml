@@ -1,0 +1,171 @@
+{{- if .Values.enabled }}
+{{- if ne .Release.Namespace .Values.namespace }}
+{{- fail (printf "This chart requires its isolated namespace %s" .Values.namespace) }}
+{{- end }}
+{{- if and .Values.unsafeSharedDisks (ne (int .Values.members) 1) }}
+{{- fail "unsafeSharedDisks is only allowed for a single-member performance test" }}
+{{- end }}
+{{- $drives := untilStep 0 (int .Values.drivesPerMember) 1 }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-peers
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: {{ .Release.Name }}
+    component: store
+  ports:
+    - name: s3
+      port: 9000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-s3
+spec:
+  selector:
+    app: {{ .Release.Name }}
+    component: store
+  ports:
+    - name: s3
+      port: 9000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-peers
+  replicas: {{ .Values.members }}
+  # All members must start before the distributed pool can initialize.
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: store
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: store
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 120
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: {{ .Release.Name }}
+                  component: store
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: rustfs
+          image: {{ .Values.image | quote }}
+          env:
+            - name: RUSTFS_VOLUMES
+              {{- if and (eq (int .Values.members) 1) (eq (int .Values.drivesPerMember) 1) }}
+              value: "/data0"
+              {{- else if eq (int .Values.members) 1 }}
+              value: "/data{0...{{ sub (int .Values.drivesPerMember) 1 }}}"
+              {{- else }}
+              value: "http://{{ .Release.Name }}-{0...{{ sub (int .Values.members) 1 }}}.{{ .Release.Name }}-peers.{{ .Release.Namespace }}.svc.cluster.local:9000/data{0...{{ sub (int .Values.drivesPerMember) 1 }}}"
+              {{- end }}
+            - name: RUSTFS_ADDRESS
+              value: "0.0.0.0:9000"
+            - name: RUSTFS_REGION
+              value: "us-east-1"
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "false"
+            {{- with .Values.parity }}
+            - name: RUSTFS_STORAGE_CLASS_STANDARD
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.metricsEndpoint }}
+            - name: RUSTFS_OBS_METRIC_ENDPOINT
+              value: {{ . | quote }}
+            - name: RUSTFS_OBS_SERVICE_NAME
+              value: {{ $.Release.Name | quote }}
+            - name: RUSTFS_OBS_TRACES_EXPORT_ENABLED
+              value: "false"
+            - name: RUSTFS_OBS_LOGS_EXPORT_ENABLED
+              value: "false"
+            - name: RUSTFS_OBS_PROFILING_EXPORT_ENABLED
+              value: "false"
+            {{- end }}
+            {{- if .Values.unsafeSharedDisks }}
+            - name: RUSTFS_UNSAFE_BYPASS_DISK_CHECK
+              value: "true"
+            {{- end }}
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: root-user
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: root-password
+          ports:
+            - name: s3
+              containerPort: 9000
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: s3
+            periodSeconds: 5
+            timeoutSeconds: 3
+          # No liveness restart loop during quorum loss or healing.
+          volumeMounts:
+            {{- range $drives }}
+            - name: data{{ . }}
+              mountPath: /data{{ . }}
+            {{- end }}
+  volumeClaimTemplates:
+    {{- range $drives }}
+    - metadata:
+        name: data{{ . }}
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ $.Values.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ $.Values.volumeSize }}
+    {{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  minAvailable: {{ max 0 (sub (int .Values.members) 1) }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: store
+{{- end }}

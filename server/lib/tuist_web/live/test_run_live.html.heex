@@ -1,4 +1,4 @@
-<div id="test-run-detail">
+<div id="test-run-detail" phx-hook="PageFavicon" data-favicon-status={@run.status}>
   <.button
     label={dgettext("dashboard_tests", "Test Runs")}
     data-part="back-button"
@@ -52,7 +52,7 @@
           label={dgettext("dashboard_tests", "Flaky")}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
       <.link_button
@@ -156,7 +156,7 @@
         size="medium"
         target="_blank"
       >
-        <:icon_left><.external_link /></:icon_left>
+        <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
       </.button>
       <.button
         :if={@run.status == "processing"}
@@ -165,7 +165,7 @@
         size="medium"
         disabled
       >
-        <:icon_left><.external_link /></:icon_left>
+        <:icon_left><.ci_provider_icon provider={@run.ci_provider} /></:icon_left>
       </.button>
     </div>
   </div>
@@ -216,7 +216,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data}
+      :if={@has_selective_testing_data || @run.test_impact_run_id}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -268,35 +268,35 @@
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
                 color="neutral"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@run.status == "failed_processing"}
                 label={dgettext("dashboard_tests", "Failed processing")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">
@@ -465,6 +465,54 @@
                 {Tuist.Utilities.DateFormatter.format_with_timezone(
                   @command_event.ran_at,
                   @user_timezone
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@selection_run}
+      title={dgettext("dashboard_tests", "Selective Testing")}
+      icon="filter"
+      data-part="test-selection-card"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "View selection")}
+          variant="secondary"
+          size="small"
+          patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+        />
+      </:actions>
+      <.card_section data-part="test-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div :if={Tuist.Tests.Selections.has_baseline?(@selection_run)} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Selected tests")}</div>
+              <span data-part="value">
+                {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
+                  selected: @selection_run.selected_count,
+                  requested: @selection_run.requested_count
+                )}
+              </span>
+            </div>
+            <div :if={Tuist.Tests.Selections.has_baseline?(@selection_run)} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Skipped tests")}</div>
+              <span data-part="value">{@selection_run.skipped_count}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Skip rate")}</div>
+              <span data-part="value">{"#{Tuist.Tests.Selections.skip_rate(@selection_run)}%"}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Skipped modules")}</div>
+              <span data-part="value">
+                {dgettext("dashboard_tests", "%{skipped} of %{total} modules",
+                  skipped: map_size(@selection_run.skipped_modules),
+                  total: Tuist.Tests.Selections.module_counts(@selection_run).total
                 )}
               </span>
             </div>
@@ -644,7 +692,7 @@
                         label={dgettext("dashboard_tests", "Quarantined")}
                         color="information"
                         style="light-fill"
-                        size="large"
+                        size="medium"
                       />
                     </h3>
                     <span
@@ -664,23 +712,23 @@
                     label={format_number(length(test_case_run.failures))}
                     color="destructive"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
-                <.neutral_button
+                <.ghost_button
                   data-part="closed-collapsible-button"
                   variant="secondary"
                   size="medium"
                 >
                   <.chevron_down />
-                </.neutral_button>
-                <.neutral_button
+                </.ghost_button>
+                <.ghost_button
                   data-part="open-collapsible-button"
                   variant="secondary"
                   size="medium"
                 >
                   <.chevron_up />
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content" data-state="closed">
                 <%= if Enum.any?(test_case_run.arguments) do %>
@@ -698,7 +746,7 @@
                         size="small"
                       />
                       <span data-part="argument-name">{argument.name}</span>
-                      <.neutral_button
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-closed-btn-#{argument.id}"}
                         variant="secondary"
@@ -710,8 +758,8 @@
                         }
                       >
                         <.chevron_down />
-                      </.neutral_button>
-                      <.neutral_button
+                      </.ghost_button>
+                      <.ghost_button
                         :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
                         id={"arg-open-btn-#{argument.id}"}
                         variant="secondary"
@@ -724,7 +772,7 @@
                         }
                       >
                         <.chevron_up />
-                      </.neutral_button>
+                      </.ghost_button>
                     </div>
                     <div
                       id={"arg-body-#{argument.id}"}
@@ -860,8 +908,9 @@
                     <span data-part="crash-report-title">
                       {dgettext("dashboard_tests", "Crash Report")}
                     </span>
-                    <.neutral_button
+                    <.ghost_button
                       :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                      variant="secondary"
                       href={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                       }
@@ -869,7 +918,7 @@
                       size="medium"
                     >
                       <.download />
-                    </.neutral_button>
+                    </.ghost_button>
                   </div>
                   <div data-part="crash-report-metadata">
                     <span
@@ -989,7 +1038,7 @@
                       label={dgettext("dashboard_tests", "Quarantined")}
                       color="information"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                   </h3>
                   <span
@@ -1024,10 +1073,10 @@
                     <span data-part="label">{format_number(group.failed_count)}</span>
                   </div>
                 </div>
-                <.neutral_button data-part="trigger" variant="secondary" size="medium">
+                <.ghost_button data-part="trigger" variant="secondary" size="medium">
                   <span data-part="icon-closed"><.chevron_down /></span>
                   <span data-part="icon-open"><.chevron_up /></span>
-                </.neutral_button>
+                </.ghost_button>
               </div>
               <div data-part="content" data-state="closed">
                 <div
@@ -1070,7 +1119,7 @@
                           }
                           data-part="test-run-link"
                         >
-                          {run.scheme}
+                          {test_run_label(@selected_project, run.scheme)}
                           <.link_icon />
                         </.link>
                       </div>
@@ -1231,14 +1280,14 @@
                     label={dgettext("dashboard_tests", "Flaky")}
                     color="attention"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                   <.badge
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                   <.badge
                     :for={
@@ -1249,14 +1298,14 @@
                     label={stress_badge_label(candidate)}
                     color={stress_badge_color(candidate)}
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                   <.badge
                     :if={test_case.is_quarantined}
                     label={dgettext("dashboard_tests", "Quarantined")}
                     color="information"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </span>
                 <span data-part="description">
@@ -1443,7 +1492,7 @@
                     label={dgettext("dashboard_tests", "Flaky")}
                     color="attention"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </span>
               </div>
@@ -1659,7 +1708,7 @@
                     label={dgettext("dashboard_tests", "Flaky")}
                     color="attention"
                     style="light-fill"
-                    size="large"
+                    size="medium"
                   />
                 </span>
               </div>
@@ -1768,8 +1817,62 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
+  <div
+    :if={
+      @selected_tab == "test-optimizations" &&
+        (@has_selective_testing_data || @run.test_impact_run_id)
+    }
+    data-part="selective-testing"
+  >
+    <RunTab.expired_selection :if={@selection_expired?} />
+    <RunTab.coverage_selection
+      :if={@selection_run && !hash_only_selection?(@selection_run, @has_selective_testing_data)}
+      selection_run={@selection_run}
+      summary={@selection_summary}
+      diff={@selection_diff}
+      plan={@selection_plan}
+      baseline_coverage?={@selection_baseline_coverage?}
+      operator?={@selection_operator?}
+      tab={@selection_tab}
+      uri={@uri}
+      project={@selected_project}
+      account={@selected_account}
+      filters={@selection_filters}
+      tests={@selection_tests}
+      tests_meta={@selection_tests_meta}
+      files={@selection_files}
+      files_meta={@selection_files_meta}
+      targets={@selection_targets}
+      modules_count={
+        if @has_selective_testing_data, do: @selective_testing_analytics[:total_modules_count]
+      }
+    >
+      <:modules :if={@has_selective_testing_data}>
+        <.selective_testing_tab
+          title={dgettext("dashboard_tests", "Modules")}
+          summary?={false}
+          selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
+          project={@selected_project}
+          selective_testing_analytics={@selective_testing_analytics}
+          selective_testing_filter={@selective_testing_filter}
+          selective_testing_page={@selective_testing_page}
+          selective_testing_page_count={@selective_testing_page_count}
+          selective_testing_sort_by={@selective_testing_sort_by}
+          selective_testing_sort_order={@selective_testing_sort_order}
+          expanded_target_names={@expanded_target_names}
+          uri={@uri}
+          run={@command_event}
+          available_filters={@selective_testing_available_filters}
+          selective_testing_active_filters={@selective_testing_active_filters}
+        />
+      </:modules>
+    </RunTab.coverage_selection>
     <.selective_testing_tab
+      :if={
+        @has_selective_testing_data &&
+          (!@selection_run || !Tuist.Tests.Selections.selection?(@selection_run) ||
+             hash_only_selection?(@selection_run, @has_selective_testing_data))
+      }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
@@ -1844,7 +1947,7 @@
                       label={dgettext("dashboard_tests", "Quarantined")}
                       color="information"
                       style="light-fill"
-                      size="large"
+                      size="medium"
                     />
                   </h3>
                   <span
@@ -1864,23 +1967,23 @@
                   label={format_number(length(test_case_run.failures))}
                   color="destructive"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </div>
-              <.neutral_button
+              <.ghost_button
                 data-part="closed-collapsible-button"
                 variant="secondary"
                 size="medium"
               >
                 <.chevron_down />
-              </.neutral_button>
-              <.neutral_button
+              </.ghost_button>
+              <.ghost_button
                 data-part="open-collapsible-button"
                 variant="secondary"
                 size="medium"
               >
                 <.chevron_up />
-              </.neutral_button>
+              </.ghost_button>
             </div>
             <div data-part="content" data-state="closed">
               <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
@@ -1950,8 +2053,9 @@
                   <span data-part="crash-report-title">
                     {dgettext("dashboard_tests", "Crash Report")}
                   </span>
-                  <.neutral_button
+                  <.ghost_button
                     :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                    variant="secondary"
                     href={
                       ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                     }
@@ -1959,7 +2063,7 @@
                     size="medium"
                   >
                     <.download />
-                  </.neutral_button>
+                  </.ghost_button>
                 </div>
                 <div data-part="crash-report-metadata">
                   <span
@@ -2080,7 +2184,7 @@
                   label={dgettext("dashboard_tests", "Quarantined")}
                   color="information"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </h3>
               <span
@@ -2115,10 +2219,10 @@
                 <span data-part="label">{format_number(group.failed_count)}</span>
               </div>
             </div>
-            <.neutral_button data-part="trigger" variant="secondary" size="medium">
+            <.ghost_button data-part="trigger" variant="secondary" size="medium">
               <span data-part="icon-closed"><.chevron_down /></span>
               <span data-part="icon-open"><.chevron_up /></span>
-            </.neutral_button>
+            </.ghost_button>
           </div>
           <div data-part="content" data-state="closed">
             <div
@@ -2161,7 +2265,7 @@
                       }
                       data-part="test-run-link"
                     >
-                      {run.scheme}
+                      {test_run_label(@selected_project, run.scheme)}
                       <.link_icon />
                     </.link>
                   </div>

@@ -178,6 +178,32 @@ func TestHandoverDeadlineAbortsWithoutChangingEpoch(t *testing.T) {
 	}
 }
 
+func TestHandoverBarrierFailureRestoresSourceBeforeDeadline(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	grant.Phase = "Quiescing"
+	grant.Handover = &handoverIntent{ID: "full", Destination: statuses["test-1"].ServingAuthority.Identity, DeadlineMS: time.Now().UnixMilli() + 300000}
+	writeAuthorityGrant(t, r, grant)
+	for name, failure := range map[string]*handoverFailure{
+		"test-0": {ID: "earlier", Reason: "destination dropped retained data"},
+		"test-1": {ID: "full", Reason: "destination dropped retained data"},
+	} {
+		sample := statuses[name]
+		sample.ServingAuthority.BarrierFailure = failure
+		statuses[name] = sample
+	}
+	if next := authorityStep(t, r); next.Phase != "Quiescing" || next.Handover == nil {
+		t.Fatal("a stale or destination-reported failure released the barrier", next)
+	}
+	sample := statuses["test-0"]
+	sample.ServingAuthority.BarrierFailure = &handoverFailure{ID: "full", Reason: "destination dropped retained data"}
+	statuses["test-0"] = sample
+	next := authorityStep(t, r)
+	if next.Epoch != 1 || next.Phase != "Serving" || next.Handover != nil || next.LastHandover != "full" || next.PodName != "test-0" {
+		t.Fatal(next)
+	}
+}
+
 func writeAuthorityGrant(t *testing.T, r *ServingAuthorityReconciler, grant servingGrant) {
 	t.Helper()
 	cm := &corev1.ConfigMap{}
@@ -497,7 +523,7 @@ func TestHandoverPreparationRenewsSourceAndRequiresExactCompletion(t *testing.T)
 		t.Fatal("pending preparation did not renew only the serving lease", renewed)
 	}
 	target := statuses["test-1"]
-	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true}
+	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true, ContentVerified: true}
 	target.ServingAuthority.Preparation = preparation
 	statuses["test-1"] = target
 	if next := authorityStep(t, r); next.Phase != "Serving" {
@@ -681,5 +707,16 @@ func TestAuthorityDropsAnExitBindingWhenResumingTheLiveWriter(t *testing.T) {
 	}
 	if next.ExitResume != nil || next.HolderExit != nil {
 		t.Fatal("a live-writer resume kept an earlier exit binding the runtime would refuse", next.ExitResume)
+	}
+}
+
+func TestHandoverPreparationWithoutVerifiedContentNeverQuiesces(t *testing.T) {
+	r, _, statuses, grant := preparationFixture(t)
+	target := statuses["test-1"]
+	target.ServingAuthority.Preparation = &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch, Complete: true}
+	statuses["test-1"] = target
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Handover != nil || next.LastHandover != grant.Handover.ID {
+		t.Fatal("a preparation without verified content was not abandoned while the source serves", next)
 	}
 }

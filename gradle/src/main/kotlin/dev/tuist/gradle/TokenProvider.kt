@@ -1,7 +1,6 @@
 package dev.tuist.gradle
 
 import dev.tuist.gradle.services.RefreshAuthTokenService
-import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.URI
@@ -14,14 +13,7 @@ open class TokenProvider(
     internal val credentialStore: CredentialStore = CredentialStore(),
     internal val envProvider: (String) -> String? = { System.getenv(it) },
     internal val tokenCacheFactory: (URI) -> CachedValueStore<String> = { url ->
-        val sanitizedUrl = URI(url.scheme, url.host, url.path, null).toASCIIString()
-            .replace(Regex("[/: ]"), "_")
-        CachedValueStore(
-            lockFilePath = File(
-                File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
-                "token_$sanitizedUrl.lock"
-            )
-        )
+        CachedValueStore(lockFilePath = credentialStore.refreshLockFile(url))
     }
 ) {
     /** Convenience constructor: wires an internal [RefreshAuthTokenService] from the given [httpClients]. */
@@ -45,7 +37,15 @@ open class TokenProvider(
         if (!envToken.isNullOrBlank()) return envToken
 
         return try {
-            val token = tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+            // Only a refresh takes the cross-process lock. Its flock goes through JNA, which runs
+            // `ldconfig -p` the first time it loads on Linux, and Gradle refuses to store the
+            // configuration cache after a process starts while it configures, as build cache
+            // lookups for compiled build scripts do.
+            val token = tokenCache.getValue(
+                forceRefresh,
+                deadlineNanos,
+                current = { if (forceRefresh) null else validStoredToken() }
+            ) { resolveToken(deadlineNanos) }
             if (token.isBlank()) throw NotAuthenticatedException(serverURL)
             token
         } catch (e: TimeoutException) {
@@ -56,6 +56,13 @@ open class TokenProvider(
     open fun getOptionalToken(forceRefresh: Boolean = false): String? {
         if (envProvider("TUIST_TOKEN") == null && credentialStore.readValidated(serverURL) == null) return null
         return getToken(forceRefresh)
+    }
+
+    /** The stored access token while it has not expired, or `null` when it needs a refresh. */
+    private fun validStoredToken(): Pair<String, Long?>? {
+        val accessToken = (credentialStore.readValidated(serverURL) ?: throw NotAuthenticatedException(serverURL)).accessToken
+        if (JwtParser.isExpired(accessToken)) return null
+        return Pair(accessToken, JwtParser.getExpirationMs(accessToken))
     }
 
     private fun resolveToken(deadlineNanos: Long?): Pair<String, Long?> {
@@ -80,9 +87,15 @@ open class TokenProvider(
 
         try {
             val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken, timeoutMs)
+            // A login or signout can change credentials while the refresh request is in flight.
+            val currentCredentials = credentialStore.readValidated(serverURL)
+                ?: throw NotAuthenticatedException(serverURL)
+            if (currentCredentials != credentials) {
+                return Pair(currentCredentials.accessToken, JwtParser.getExpirationMs(currentCredentials.accessToken))
+            }
             credentialStore.write(
                 serverURL,
-                Credentials(newTokens.accessToken, newTokens.refreshToken)
+                credentials.copy(accessToken = newTokens.accessToken, refreshToken = newTokens.refreshToken)
             )
             return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
         } catch (e: IOException) {

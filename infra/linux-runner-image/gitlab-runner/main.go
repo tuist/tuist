@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,7 +113,7 @@ func execute(job assignment, buildsDir, resultFile string) error {
 			Executor: "shell", Shell: "bash", BuildsDir: buildsDir,
 			CacheDir:    filepath.Join(buildsDir, ".gitlab-cache"),
 			Cache:       cacheConfig(),
-			Environment: cacheVolumeEnvironment(),
+			Environment: jobEnvironment(),
 		},
 	}
 	credentials := &common.JobCredentials{ID: job.Payload.ID, Token: job.Payload.Token}
@@ -178,7 +179,7 @@ func execute(job assignment, buildsDir, resultFile string) error {
 		trace.Finish()
 		return nil
 	}
-	err = build.Run(common.NewConfig(), trace)
+	err = build.Run(context.Background(), common.NewConfig(), trace)
 	var buildError *common.BuildError
 	if errors.As(err, &buildError) {
 		// Job outcomes are already reported. Reserve non-zero runner exits
@@ -268,7 +269,7 @@ func reportLog(job assignment, file *os.File) error {
 }
 
 func main() {
-	common.AppVersion.Version = "18.11.1"
+	common.AppVersion.Version = "19.5.2"
 	app := cli.NewApp()
 	app.Name = "tuist-gitlab-runner"
 	app.Version = common.AppVersion.ShortLine()
@@ -300,10 +301,13 @@ func main() {
 	}
 }
 
-// Forward only pod-local volume routing to GitLab's generated job environment.
-func cacheVolumeEnvironment() []string {
+// Forward volume routing and the image's patched TLS trust configuration.
+func jobEnvironment() []string {
 	var env []string
-	for _, name := range []string{"TUIST_CACHE_VOLUME_URL", "TUIST_CACHE_VOLUME_POD", "TUIST_CACHE_VOLUME_UID"} {
+	for _, name := range []string{
+		"TUIST_CACHE_VOLUME_URL", "TUIST_CACHE_VOLUME_POD", "TUIST_CACHE_VOLUME_UID",
+		"NODE_OPTIONS", "SSL_CERT_FILE", "SSL_CERT_DIR", "PIP_CERT", "REQUESTS_CA_BUNDLE",
+	} {
 		if value := os.Getenv(name); value != "" {
 			env = append(env, name+"="+value)
 		}

@@ -1,81 +1,49 @@
 ---
 {
-  "title": "Synthesized files",
+  "title": "合成檔案",
   "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about synthesized files in Tuist projects."
+  "description": "了解 Tuist 專案中的合成檔案。"
 }
 ---
-# Synthesized files {#synthesized-files}
+# 合成檔案 {#synthesized-files}
 
-Tuist can generate files and code at generation-time to bring some convenience
-to managing and working with Xcode projects. In this page you'll learn about
-this functionality, and how you can use it in your projects.
+Tuist 可以在生成時產生檔案和程式碼，方便管理和處理 Xcode 專案。本頁將介紹此功能，以及如何在你的專案中使用它。
 
-## Target resources {#target-resources}
+## Target 資源 {#target-resources}
 
-Xcode projects support adding resources to targets. However, they present teams
-with a few challenges, specially when working with a modular project where
-sources and resources are often moved around:
+Xcode 專案支援為 target 加入資源。不過，這會為團隊帶來一些挑戰，特別是在模組化專案中，原始碼和資源經常需要移動：
 
-- **Inconsistent runtime access**: Where the resources end up in the final
-  product and how you access them depends on the target product. For example, if
-  your target represents an application, the resources are copied to the
-  application bundle. This leads to code accessing the resources that makes
-  assumptions on the bundle structure, which is not ideal because it makes the
-  code harder to reason about and the resources to move around.
-- **Products that don't support resources**: There are certain products like
-  static libraries that are not bundles and therefore don't support resources.
-  Because of that, you either have to resort to a different product type, for
-  example frameworks, that might add some overhead on your project or app. For
-  example, static frameworks will be linked statically to the final product, and
-  a build phase is required to only copy the resources to the final product. Or
-  dynamic frameworks, where Xcode will copy both the binary and the resources
-  into the final product, but it'll increase the startup time of your app
-  because the framework needs to be loaded dynamically.
-- **Prone to runtime errors**: Resources are identified by their name and
-  extension (strings). Therefore, a typo in any of those will lead to a runtime
-  error when trying to access the resource. This is not ideal because it's not
-  caught at compile time and might lead to crashes in release.
+- **執行階段存取不一致**：資源在最終產品中的位置以及存取方式取決於 target 的產品類型。例如，如果你的 target 代表應用程式，資源會被複製到應用程式 bundle。這導致存取資源的程式碼必須對 bundle 結構作出假設，並不理想，因為這令程式碼更難理解，亦令資源難以移動。
+- **不支援資源的產品類型**：某些產品類型（例如靜態函式庫）並非 bundle，因此不支援資源。因此，你必須改用其他產品類型（例如 framework），但這可能會為專案或應用程式帶來額外負擔。例如，靜態 framework 會以靜態方式連結至最終產品，並需要額外的 build phase 來僅將資源複製到最終產品。而動態 framework 則會讓 Xcode 將二進位檔和資源都複製到最終產品，但由於 framework 需要動態載入，會增加應用程式的啟動時間。
+- **容易出現執行階段錯誤**：資源透過名稱和副檔名（字串）來識別。因此，任何拼寫錯誤都會在嘗試存取資源時導致執行階段錯誤。這並不理想，因為這些錯誤不會在編譯時被捕捉，可能導致正式版應用程式崩潰。
 
-Tuist solves the problems above by **synthesizing a unified interface to access
-bundles and resources** that abstracts away the implementation details.
+Tuist 透過**合成統一的介面來存取 bundle 和資源**，抽象化實作細節，從而解決上述問題。
 
 > [!WARNING]
-> **Recommended**
+> **建議**
 >
-> Even though accessing resources through the Tuist-synthesized interface is not
-> mandatory, we recommend it because it makes the code easier to reason about and
-> the resources to move around.
+> 雖然透過 Tuist 合成的介面存取資源並非強制，但我們建議這樣做，因為這令程式碼更易理解，亦令資源更易移動。
 
 
-## Resources {#resources}
+## 資源 {#resources}
 
-Tuist provides interfaces to declare the content of files such as `Info.plist`
-or entitlements in Swift. This is useful to ensure consistency across targets
-and projects, and leverage the compiler to catch issues at compile time. You can
-also come up with your own abstractions to model the content and share it across
-targets and projects.
+Tuist 提供介面，讓你在 Swift 中宣告如 `Info.plist` 或 entitlements 等檔案的內容。這有助於確保不同 target 和專案之間的一致性，並利用編譯器在編譯時捕捉問題。你也可以自行設計抽象層來建模內容，並在多個 target 和專案之間共用。
 
-When your project is generated, Tuist will synthesize the content of those files
-and write them into the `Derived` directory relative to the directory containing
-the project that defines them.
+當你的專案生成時，Tuist 會合成這些檔案的內容，並將它們寫入相對於定義該專案之目錄的 `Derived` 目錄中。
 
 > [!TIP]
-> **Gitignore The Derived Directory**
+> **將 Derived 目錄加入 .gitignore**
 >
-> We recommend adding the `Derived` directory to the `.gitignore` file of your
-> project.
+> 我們建議將 `Derived` 目錄加入專案的 `.gitignore` 檔案。
 
 
-## Bundle accessors {#bundle-accessors}
+## Bundle 存取器 {#bundle-accessors}
 
-Tuist synthesizes an interface to access the bundle that contains the target
-resources.
+Tuist 會合成一個介面，用於存取包含 target 資源的 bundle。
 
 ### Swift {#swift}
 
-The target will contain an extension of the `Bundle` type that exposes the
-bundle:
+target 會包含 `Bundle` 類型的擴充功能，用以公開 bundle：
 
 ```swift
 let bundle = Bundle.module
@@ -83,88 +51,63 @@ let bundle = Bundle.module
 
 ### Objective-C {#objectivec}
 
-In Objective-C, you'll get an interface `{Target}Resources` to access the
-bundle:
+在 Objective-C 中，你會獲得一個 `{Target}Resources` 介面來存取 bundle：
 
 ```objc
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
 > [!WARNING]
-> **Limitation With Internal Targets**
+> **內部 target 的限制**
 >
-> Currently, Tuist does not generate resource bundle accessors for internal
-> targets that contain only Objective-C sources. This is a known limitation
-> tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
+> 目前，Tuist 不會為僅包含 Objective-C 原始碼的內部 target 生成資源 bundle 存取器。這是一個已知限制，已在 [issue #6456](https://github.com/tuist/tuist/issues/6456) 中追蹤。
 
 
 > [!TIP]
-> **Supporting Resources In Libraries Through Bundles**
+> **透過 bundle 在函式庫中支援資源**
 >
-> If a target product, for example a library, doesn't support resources, Tuist
-> will include the resources in a target of product type `bundle` ensuring that it
-> ends up in the final product and that the interface points to the right bundle.
+> 如果某個 target 產品（例如函式庫）不支援資源，Tuist 會將資源納入產品類型為 `bundle` 的 target 中，確保它們出現在最終產品內，且介面指向正確的 bundle。這些合成的 bundle 會自動標記為 `tuist:synthesized`，並繼承其父 target 的所有標籤，讓你能在 <.localized_link href="/guides/features/projects/metadata-tags#system-tags">快取設定檔</.localized_link> 中針對它們進行設定。
 
 
-## Resource accessors {#resource-accessors}
+## 資源存取器 {#resource-accessors}
 
-Resources are identified by their name and extension using strings. This is not
-ideal because it's not caught at compile time and might lead to crashes in
-release. To prevent that, Tuist integrates
-[SwiftGen](https://github.com/SwiftGen/SwiftGen) into the project generation
-process to synthesize an interface to access the resources. Thanks to that, you
-can confidently access the resources leveraging the compiler to catch any
-issues.
+資源透過名稱和副檔名（字串）來識別。這並不理想，因為這些錯誤不會在編譯時被捕捉，可能導致正式版應用程式崩潰。為防止此情況，Tuist 將 [SwiftGen](https://github.com/SwiftGen/SwiftGen) 整合到專案生成流程中，以合成存取資源的介面。藉此，你可以放心地存取資源，並利用編譯器捕捉任何問題。
 
-Tuist includes
-[templates](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
-to synthesize accessors for the following resource types by default:
+Tuist 預設包含 [範本](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)，用於為以下資源類型合成存取器：
 
-| Resource type     | Synthesized file         |
-| ----------------- | ------------------------ |
-| Images and colors | `Assets+{Target}.swift`  |
-| Strings           | `Strings+{Target}.swift` |
-| Plists            | `{NameOfPlist}.swift`    |
-| Fonts             | `Fonts+{Target}.swift`   |
-| Files             | `Files+{Target}.swift`   |
+| 資源類型 | 合成檔案 |
+| --- | ---- |
+| 圖片和顏色 | `Assets+{Target}.swift` |
+| 字串 | `Strings+{Target}.swift` |
+| Plist | `{NameOfPlist}.swift` |
+| 字型 | `Fonts+{Target}.swift` |
+| 檔案 | `Files+{Target}.swift` |
 
-> Note: You can disable the synthesizing of resource accessors on a per-project
-> basis by passing the `disableSynthesizedResourceAccessors` option to the
-> project options.
+> 注意：你可以透過將 `disableSynthesizedResourceAccessors` 選項傳遞給專案選項，以每個專案為基礎停用資源存取器的合成功能。
 
-#### Custom templates {#custom-templates}
+### 自訂範本 {#custom-templates}
 
-If you want to provide your own templates to synthesize accessors to other
-resource types, which must be supported by
-[SwiftGen](https://github.com/SwiftGen/SwiftGen), you can create them at
-`Tuist/ResourceSynthesizers/{name}.stencil`, where the name is the camel-case
-version of the resource.
+如果你想提供自己的範本來為其他資源類型合成存取器（必須由 [SwiftGen](https://github.com/SwiftGen/SwiftGen) 支援），你可以在 `Tuist/ResourceSynthesizers/{name}.stencil` 建立它們，其中名稱是資源的 camel-case 版本。
 
-| Resource         | Template name              |
-| ---------------- | -------------------------- |
-| strings          | `Strings.stencil`          |
-| assets           | `Assets.stencil`           |
-| plists           | `Plists.stencil`           |
-| fonts            | `Fonts.stencil`            |
-| coreData         | `CoreData.stencil`         |
-| interfaceBuilder | `InterfaceBuilder.stencil` |
-| json             | `JSON.stencil`             |
-| yaml             | `YAML.stencil`             |
-| files            | `Files.stencil`            |
+| 資源 | 範本名稱 |
+| --- | --- |
+| 字串 | `Strings.stencil` |
+| 資源 | `Assets.stencil` |
+| Plist | `Plists.stencil` |
+| 字型 | `Fonts.stencil` |
+| CoreData | `CoreData.stencil` |
+| Interface Builder | `InterfaceBuilder.stencil` |
+| JSON | `JSON.stencil` |
+| YAML | `YAML.stencil` |
+| 檔案 | `Files.stencil` |
 
-If you want to configure the list of resource types to synthesize accessors for,
-you can use the `Project.resourceSynthesizers` property passing the list of
-resource synthesizers you want to use:
+如果你想設定要為哪些資源類型合成存取器，可以使用 `Project.resourceSynthesizers` 屬性，並傳入你想使用的資源合成器清單：
 
 ```swift
-let project = Project(resourceSynthesizers: [.string(), .fonts()])
+let project = Project(name: "App", resourceSynthesizers: [.strings(), .fonts()])
 ```
 
 > [!NOTE]
-> **Reference**
+> **參考**
 >
-> You can check out [this
-> fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-> to see an example of how to use custom templates to synthesize accessors to
-> resources.
-
+> 你可以查看 [此範例](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)，了解如何使用自訂範本來合成資源存取器。

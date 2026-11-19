@@ -312,6 +312,11 @@ public class TrackableCommand {
         from configuration: CommandConfiguration,
         runMetadataStorage: RunMetadataStorage
     ) async -> AnalyticsCommandMetadata {
+        // `tuist run` forwards app arguments, so only its name is reported. Match the top-level
+        // argument: `generate`, `test` and `build` run default subcommands also named "run".
+        if commandArguments.first == "run" {
+            return AnalyticsCommandMetadata(name: "run", subcommand: nil, commandArguments: ["run"])
+        }
         if let resolvedCommandMetadata = await runMetadataStorage.resolvedCommandMetadata {
             return resolvedCommandMetadata
         }

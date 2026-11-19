@@ -1,0 +1,35 @@
+global:
+  commonLabels:
+    tuist.dev/service: luft-web
+    tuist.dev/stack: managed
+
+replicaCount: 2
+
+ingress:
+  enabled: true
+  className: nginx
+  host: luft.work
+  tlsSecretName: luft-web-tls
+  annotations:
+    # Cloudflare fronts the origin and caches what its Cache-Control allows
+    # (see luft/web/nginx.conf). The zone's SSL mode must be Full (strict).
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+
+certificate:
+  enabled: true
+  issuerRef:
+    name: letsencrypt-cloudflare
+
+networkPolicy:
+  enabled: true
+
+resources:
+  requests:
+    cpu: "20m"
+    memory: "32Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

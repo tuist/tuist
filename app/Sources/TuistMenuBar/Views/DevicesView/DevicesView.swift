@@ -50,6 +50,8 @@ struct DevicesView: View, ErrorViewHandling {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    // Flipping after the rotation points the chevron left when collapsed and down when expanded.
+                    .flipsForRightToLeftLayoutDirection(true)
                     .frame(height: 16)
             }
             .padding(.vertical, 2)
@@ -78,9 +80,7 @@ struct DevicesView: View, ErrorViewHandling {
 
     @ViewBuilder
     private func pinnedDevicesSection() -> some View {
-        if !viewModel.devices.isEmpty || !viewModel.androidPhysicalDevices.isEmpty
-            || !viewModel.pinnedSimulators.isEmpty || !viewModel.pinnedAndroidEmulators.isEmpty
-        {
+        Group {
             HStack {
                 Text("Devices")
                     .font(.headline)
@@ -112,6 +112,10 @@ struct DevicesView: View, ErrorViewHandling {
             Divider()
 
             VStack(alignment: .leading, spacing: 0) {
+                ThisMacRow(
+                    selected: viewModel.selectedDevice == .thisMac,
+                    onSelected: viewModel.selectThisMac
+                )
                 connectedDevicesList()
                 deviceList("Disconnected", devices: viewModel.disconnectedDevices)
 
@@ -153,7 +157,7 @@ struct DevicesView: View, ErrorViewHandling {
                 let selected = switch viewModel.selectedDevice {
                 case let .device(selectedDevice):
                     selectedDevice.id == device.id
-                case .simulator, .androidDevice, .none:
+                case .simulator, .androidDevice, .thisMac, .none:
                     false
                 }
 
@@ -168,7 +172,7 @@ struct DevicesView: View, ErrorViewHandling {
                 let selected = switch viewModel.selectedDevice {
                 case let .androidDevice(selectedDevice):
                     device.id == selectedDevice.id
-                case .simulator, .device, .none:
+                case .simulator, .device, .thisMac, .none:
                     false
                 }
 
@@ -193,7 +197,7 @@ struct DevicesView: View, ErrorViewHandling {
                 let selected = switch viewModel.selectedDevice {
                 case let .device(selectedDevice):
                     selectedDevice.id == device.id
-                case .simulator, .androidDevice, .none:
+                case .simulator, .androidDevice, .thisMac, .none:
                     false
                 }
 
@@ -211,7 +215,7 @@ struct DevicesView: View, ErrorViewHandling {
             let selected = switch viewModel.selectedDevice {
             case let .simulator(selectedSimulator):
                 simulator.device.udid == selectedSimulator.device.udid
-            case .device, .androidDevice, .none:
+            case .device, .androidDevice, .thisMac, .none:
                 false
             }
 
@@ -232,7 +236,7 @@ struct DevicesView: View, ErrorViewHandling {
             let selected = switch viewModel.selectedDevice {
             case let .androidDevice(selectedDevice):
                 device.id == selectedDevice.id
-            case .simulator, .device, .none:
+            case .simulator, .device, .thisMac, .none:
                 false
             }
 

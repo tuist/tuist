@@ -206,6 +206,109 @@ struct XCResultParserTests {
         #expect(unitTest.module == "AppUnitTests")
     }
 
+    /// The node identifiers xcodebuild writes for Swift Testing suites nested in a type, in an
+    /// extension of one and in an enum namespace.
+    private static let nestedSwiftTestingSuitesJSON = """
+    {
+      "testNodes": [
+        {
+          "nodeType": "Test Plan",
+          "name": "LibTests",
+          "children": [
+            {
+              "nodeType": "Unit test bundle",
+              "name": "LibTests",
+              "result": "Passed",
+              "children": [
+                {
+                  "nodeType": "Test Suite",
+                  "name": "Outer",
+                  "result": "Passed",
+                  "children": [
+                    {
+                      "nodeType": "Test Suite",
+                      "name": "Inner",
+                      "result": "Passed",
+                      "durationInSeconds": 0.5,
+                      "children": [
+                        {"nodeType": "Test Case", "name": "b()", "nodeIdentifier": "Outer/Inner/b()", "result": "Passed"}
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Suite",
+                      "name": "Ext",
+                      "result": "Passed",
+                      "children": [
+                        {"nodeType": "Test Case", "name": "k()", "nodeIdentifier": "Outer/Ext/k()", "result": "Passed"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Test Suite",
+                  "name": "Namespace",
+                  "result": "Passed",
+                  "children": [
+                    {
+                      "nodeType": "Test Suite",
+                      "name": "Spaced",
+                      "result": "Passed",
+                      "children": [
+                        {"nodeType": "Test Case", "name": "j()", "nodeIdentifier": "Namespace/Spaced/j()", "result": "Passed"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Test Suite",
+                  "name": "Top",
+                  "result": "Passed",
+                  "children": [
+                    {"nodeType": "Test Case", "name": "a()", "nodeIdentifier": "Top/a()", "result": "Passed"}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    """
+
+    @Test
+    func parse_keepsTheWholeSuitePathOfNestedSwiftTestingSuites() async throws {
+        // xcodebuild only honors `-skip-testing:LibTests/Outer/Inner/b()` for a nested suite;
+        // `LibTests/Inner/b()` matches nothing, so a quarantined test recorded under `Inner` kept running.
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(
+                testResultsJSON: Self.nestedSwiftTestingSuitesJSON,
+                actionLogJSON: ""
+            ).callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/nested.xcresult"), rootDirectory: nil)
+        )
+
+        let module = try #require(summary.testModules.first)
+        let suitesByTest = Dictionary(uniqueKeysWithValues: module.testCases.map { ($0.name, $0.testSuite) })
+        #expect(suitesByTest == ["b()": "Outer/Inner", "k()": "Outer/Ext", "j()": "Namespace/Spaced", "a()": "Top"])
+        let inner = try #require(module.testSuites.first { $0.name == "Outer/Inner" })
+        #expect(inner.duration == 500)
+    }
+
+    @Test
+    func parseTestStatuses_keepsTheWholeSuitePathOfNestedSwiftTestingSuites() async throws {
+        let parser = XCResultParser(
+            execute: XCResultToolStub(testResultsJSON: Self.nestedSwiftTestingSuitesJSON).callAsFunction
+        )
+
+        let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/nested.xcresult"))
+
+        let suitesByTest = Dictionary(uniqueKeysWithValues: statuses.testCases.map { ($0.name, $0.testSuite) })
+        #expect(suitesByTest == ["b()": "Outer/Inner", "k()": "Outer/Ext", "j()": "Namespace/Spaced", "a()": "Top"])
+    }
+
     @Test
     func parse_doesNotExportAttachmentsIntoRootDirectoryWhenNoAttachmentsDirectoryGiven() async throws {
         // rootDirectory is the caller's *source* root (the user's project

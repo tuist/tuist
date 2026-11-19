@@ -87,7 +87,9 @@ func (p *Prewarmer) stageEvery(ctx context.Context, interval time.Duration) {
 // moves to next, so the deploy that moves the pool finds it here and holds
 // the pool until it does (.github/scripts/runner-image-staging-gate.sh). A Pod
 // of a new image otherwise pays the pull on each host its pool lands on.
-// After a pool moves, the GC follows it (follow.go).
+// After a pool moves, the GC follows it (follow.go). On a fleet with a golden
+// budget (budget.go), the host instead stages what the top of the catalog
+// ranking runs next, whether or not it holds the current image.
 //
 // Staging stays out of the jobs' way. It starts no pull while a Pod waits on
 // one, since the host runs one golden pull at a time, nor while a runner on
@@ -115,6 +117,13 @@ func (p *Prewarmer) stage(ctx context.Context) {
 	}
 
 	images := p.stageImages(pools, upcoming, held)
+	budget, budgeted, err := goldenBudget(ctx, p.K8s, p.Fleet)
+	if err != nil {
+		logger.Error(err, "read the golden budget; staging as without one")
+	}
+	if budgeted {
+		images = budgetImages(rankImageLines(pools, upcoming, p.Fleet, held, p.clock()), budget)
+	}
 	if len(images) == 0 {
 		p.jobsDeferredSince = time.Time{}
 		return

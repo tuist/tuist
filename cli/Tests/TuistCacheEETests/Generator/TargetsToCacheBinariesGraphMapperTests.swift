@@ -157,6 +157,48 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_recordsTheHashOfEachSubstitutedMacro() async throws {
+        let path = try temporaryPath()
+        let macro = Target.test(name: "MyMacros", platform: .macOS, product: .macro)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [macro, framework])
+        let macroGraphTarget = GraphTarget.test(path: path, target: macro, project: project)
+        let frameworkGraphTarget = GraphTarget.test(path: path, target: framework, project: project)
+        subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage
+        )
+        let graph = Graph.test(projects: [path: project], dependencies: [
+            .target(name: framework.name, path: path): [.target(name: macro.name, path: path)],
+            .target(name: macro.name, path: path): [],
+        ])
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any,
+                coverage: .any
+            )
+            .willReturn([macroGraphTarget: .test(hash: "macro-hash"), frameworkGraphTarget: .test(hash: "framework-hash")])
+        let macroPath = path.appending(components: "Binaries", "a1b2", "MyMacros.macro")
+        given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([
+            .test(name: "MyMacros", hash: "macro-hash"): macroPath,
+        ])
+        given(cacheGraphMutator)
+            .map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
+            .willReturn(graph)
+
+        let (_, _, environment) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        XCTAssertEqual(environment.cachedMacroHashes, [macroPath: "macro-hash"])
+    }
+
     func test_map_when_all_binaries_are_fetched_successfully() async throws {
         let path = try temporaryPath()
         let project = Project.test(path: path)

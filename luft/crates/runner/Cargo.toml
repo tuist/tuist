@@ -1,0 +1,18 @@
+[package]
+name = "luft-runner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# The runner daemon every desktop app bundles: macOS today, Linux and Windows
+# through the same binary. Std-only apart from serialization, so it builds with
+# the native dependency set and never pulls in a UI or HTTP stack.
+[dependencies]
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[[bin]]
+name = "luft-runner"
+path = "src/main.rs"

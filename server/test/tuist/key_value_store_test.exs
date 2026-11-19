@@ -216,6 +216,80 @@ defmodule Tuist.KeyValueStoreTest do
                {:error, :retry}
     end
 
+    test "preserves callback exceptions and stacktraces without caching or rerunning callbacks" do
+      cache = :"callback_exceptions_#{System.unique_integer([:positive])}"
+      missing_cache = :"missing_cache_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      parent = self()
+
+      for exception <- [
+            DBConnection.ConnectionError.exception("replication unavailable"),
+            ArgumentError.exception("invalid callback argument")
+          ],
+          {selected_cache, locking} <- [{cache, true}, {cache, false}, {missing_cache, true}] do
+        key = "exception_#{System.unique_integer([:positive])}"
+        opts = [cache: selected_cache, locking: locking]
+
+        assert {:raised, ^exception, stacktrace} =
+                 capture_exception(fn ->
+                   KeyValueStore.get_or_update(key, opts, fn -> raise_callback(exception, parent) end)
+                 end)
+
+        assert_receive {:callback_stacktrace, ^stacktrace}, 1_000
+        refute_received {:callback_stacktrace, _}
+        assert KeyValueStore.get(key, opts) == nil
+        assert KeyValueStore.get_or_update(key, opts, fn -> %{recovered: true} end) == %{recovered: true}
+      end
+    end
+
+    test "concurrent waiters receive the original callback exception and can retry" do
+      cache = :"concurrent_exceptions_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      parent = self()
+      opts = [cache: cache]
+
+      for exception <- [
+            DBConnection.ConnectionError.exception("replication unavailable"),
+            ArgumentError.exception("invalid callback argument")
+          ] do
+        key = "exception_#{System.unique_integer([:positive])}"
+
+        owner =
+          Task.async(fn ->
+            capture_exception(fn ->
+              KeyValueStore.get_or_update(key, opts, fn ->
+                send(parent, {:computing_exception, self()})
+
+                receive do
+                  :release -> raise_callback(exception, parent)
+                end
+              end)
+            end)
+          end)
+
+        assert_receive {:computing_exception, worker}, 1_000
+        on_exit(fn -> send(worker, :release) end)
+
+        waiter =
+          Task.async(fn ->
+            capture_exception(fn ->
+              KeyValueStore.get_or_update(key, opts, fn -> flunk("duplicate computation") end)
+            end)
+          end)
+
+        await_cache_waiters(cache)
+        send(worker, :release)
+
+        assert_receive {:callback_stacktrace, stacktrace}, 1_000
+        assert Task.await(owner) == {:raised, exception, stacktrace}
+        assert Task.await(waiter) == {:raised, exception, stacktrace}
+        refute_received {:callback_stacktrace, _}
+        assert KeyValueStore.get(key, opts) == nil
+        assert KeyValueStore.get_or_update(key, opts, fn -> %{recovered: true} end) == %{recovered: true}
+        assert KeyValueStore.get(key, opts) == %{recovered: true}
+      end
+    end
+
     test "does not store opted-out error results on a persistent miss or malformed value" do
       stub(Tuist.Environment, :redis_url, fn -> "redis://unused" end)
 
@@ -316,6 +390,10 @@ defmodule Tuist.KeyValueStoreTest do
     for {label, value, cache_errors} <- [
           {"literal ignore tuple", {:ignore, "value"}, true},
           {"literal internal-shaped tuple", {:ignore, {KeyValueStore, :uncached, {:error, :literal}}}, true},
+          {"literal commit tuple", {:commit, "value"}, true},
+          {"literal Cachex error", {:error, %Cachex.Error{message: "literal error"}}, true},
+          {"literal success envelope", {:ignore, {:ok, "value"}}, true},
+          {"literal exception envelope", {:ignore, {:raise, %ArgumentError{message: "literal error"}, []}}, true},
           {"uncached error", {:error, :retry}, false}
         ] do
       @callback_value value
@@ -338,7 +416,7 @@ defmodule Tuist.KeyValueStoreTest do
             end)
           end)
 
-        assert_receive {:computing_shape, worker}
+        assert_receive {:computing_shape, worker}, 1_000
         on_exit(fn -> send(worker, :release) end)
 
         waiter =
@@ -346,22 +424,11 @@ defmodule Tuist.KeyValueStoreTest do
             KeyValueStore.get_or_update(:shape, opts, fn -> flunk("duplicate computation") end)
           end)
 
-        courier = String.to_existing_atom("#{cache}_courier")
-
-        assert Enum.reduce_while(1..100, false, fn _, _ ->
-                 {_cache, tasks} = :sys.get_state(courier)
-
-                 if match?({_worker, [_, _ | _]}, Map.get(tasks, "shape")) do
-                   {:halt, true}
-                 else
-                   Process.sleep(10)
-                   {:cont, false}
-                 end
-               end)
-
+        await_cache_waiters(cache)
         send(worker, :release)
         assert Task.await(owner) == value
         assert Task.await(waiter) == value
+        assert KeyValueStore.get(:shape, opts) == if(@cache_errors, do: value)
       end
     end
 
@@ -380,5 +447,34 @@ defmodule Tuist.KeyValueStoreTest do
       assert KeyValueStore.get_or_update(key, fn -> nil end) == nil
       assert KeyValueStore.get_or_update(key, fn -> "computed" end) == "computed"
     end
+  end
+
+  defp capture_exception(callback) do
+    {:returned, callback.()}
+  rescue
+    exception -> {:raised, exception, __STACKTRACE__}
+  end
+
+  defp raise_callback(exception, parent) do
+    raise exception
+  rescue
+    exception ->
+      send(parent, {:callback_stacktrace, __STACKTRACE__})
+      reraise exception, __STACKTRACE__
+  end
+
+  defp await_cache_waiters(cache) do
+    courier = String.to_existing_atom("#{cache}_courier")
+
+    assert Enum.reduce_while(1..100, false, fn _, _ ->
+             {_cache, tasks} = :sys.get_state(courier)
+
+             if Enum.any?(tasks, fn {_key, {_worker, waiters}} -> length(waiters) >= 2 end) do
+               {:halt, true}
+             else
+               Process.sleep(10)
+               {:cont, false}
+             end
+           end)
   end
 end

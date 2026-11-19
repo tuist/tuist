@@ -13,6 +13,8 @@ defmodule TuistEx.Analytics.Shards do
   # building for testing once and testing without building.
 
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Report
+  alias TuistEx.Analytics.ShardUpload
   alias TuistEx.Analytics.TempDir
   alias TuistEx.HTTP, as: RawHTTP
 
@@ -231,7 +233,7 @@ defmodule TuistEx.Analytics.Shards do
   download the build from when one was uploaded.
   """
   def fetch(reference, index, options) do
-    HTTP.project_request(
+    retrying_request(
       :get,
       "/tests/shards/#{URI.encode(reference, &URI.char_unreserved?/1)}/#{index}",
       nil,
@@ -248,7 +250,7 @@ defmodule TuistEx.Analytics.Shards do
 
       with :ok <- archive(build_path, archive),
            {:ok, %{"data" => %{"upload_id" => upload_id}}} <-
-             HTTP.project_request(
+             retrying_request(
                :post,
                "/tests/shards/upload/start",
                %{reference: reference},
@@ -256,7 +258,7 @@ defmodule TuistEx.Analytics.Shards do
              ),
            {:ok, parts} <- upload_parts(archive, reference, upload_id, options),
            {:ok, _} <-
-             HTTP.project_request(
+             retrying_request(
                :post,
                "/tests/shards/upload/complete",
                %{reference: reference, upload_id: upload_id, parts: parts},
@@ -267,35 +269,53 @@ defmodule TuistEx.Analytics.Shards do
     end)
   end
 
+  # Replaying a lookup or a completion is safe: the server answers a completion
+  # it already made with success. A replayed start leaves an unused upload,
+  # which the store's lifecycle aborts.
+  defp retrying_request(method, suffix, body, options) do
+    ShardUpload.retry(
+      fn -> HTTP.project_request(method, suffix, body, options) end,
+      Keyword.get(options, :sleep, &Process.sleep/1)
+    )
+  end
+
   defp upload_parts(archive, reference, upload_id, options) do
     archive
     |> File.stream!(@part_bytes)
-    |> Stream.with_index(1)
-    |> Enum.reduce_while({:ok, []}, fn {chunk, part_number}, {:ok, parts} ->
-      with {:ok, %{"data" => %{"url" => url}}} <-
-             HTTP.project_request(
-               :post,
-               "/tests/shards/upload/generate-url",
-               %{reference: reference, upload_id: upload_id, part_number: part_number},
-               options
-             ),
-           {:ok, etag} <- RawHTTP.put_binary(url, chunk) do
-        {:cont, {:ok, parts ++ [%{part_number: part_number, etag: etag}]}}
-      else
-        error -> {:halt, error}
-      end
-    end)
+    |> ShardUpload.upload(
+      fn chunk, part_number ->
+        with {:ok, %{"data" => %{"url" => url}}} <-
+               HTTP.project_request(
+                 :post,
+                 "/tests/shards/upload/generate-url",
+                 %{reference: reference, upload_id: upload_id, part_number: part_number},
+                 options
+               ) do
+          RawHTTP.put_binary(url, chunk)
+        end
+      end,
+      Keyword.take(options, [:sleep])
+    )
   end
 
   @doc """
   Downloads a plan's build into the build directory. `{:error, :no_build}`
   means the plan has none, which is fine: the shard compiles as usual.
+  Transient failures are retried; each attempt rewrites the archive.
   """
-  def download_build(url, build_path) when is_binary(url) do
+  def download_build(url, build_path, options \\ [])
+
+  def download_build(url, build_path, options) when is_binary(url) do
+    sleep = Keyword.get(options, :sleep, &Process.sleep/1)
+    %URI{scheme: scheme, host: host, port: port} = URI.parse(url)
+    Report.debug("Downloading the shard build from #{scheme}://#{host}:#{port}")
+
     TempDir.with_dir("tuist-ex-build", fn dir ->
       archive = Path.join(dir, "build.tar.gz")
 
-      case RawHTTP.download(url, archive) do
+      download = fn -> RawHTTP.download(url, archive) end
+
+      case ShardUpload.retry(download, sleep) do
         :ok ->
           File.mkdir_p!(build_path)
           extract(archive, build_path)
@@ -309,7 +329,7 @@ defmodule TuistEx.Analytics.Shards do
     end)
   end
 
-  def download_build(_url, _build_path), do: {:error, :no_build}
+  def download_build(_url, _build_path, _options), do: {:error, :no_build}
 
   @links ".tuist-links"
 

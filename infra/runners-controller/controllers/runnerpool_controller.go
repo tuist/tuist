@@ -92,6 +92,10 @@ type RunnerPoolReconciler struct {
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
 
+	// SandboxesNamespace holds the daemon allocations that cannot be freed by
+	// draining runner Pods. Empty disables sandbox accounting.
+	SandboxesNamespace string
+
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
 	// nil disables reporting; the reap itself still runs.
@@ -416,7 +420,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		case isAlive(p):
 			alive++
 			staleImage := isStaleImage(p, pool)
-			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool) || isStaleExclusiveCPUs(p, pool)
 			switch {
 			case staleImage || staleRuntimeClassRevision:
 				staleAlive++
@@ -622,7 +626,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	for i := 0; i < overflow && i < len(idleAlive); i++ {
 		p := idleAlive[i]
 		preemptedFor, preempted := preemptionMark(p, now)
-		if preempted {
+		switch {
+		case preempted && preemptedFor == preemptedForSandboxes:
+			logger.Info("retire idle runner pod for a sandbox carve-out's growth",
+				"pod", p.Name, "node", p.Spec.NodeName)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeNormal, "RunnerPodPreemptedForSandboxes",
+					"A sandbox carve-out on node %s is waiting for memory; retiring this idle runner ahead of the scale-down cooldown. "+
+						"Runners executing a job are left to complete.",
+					p.Spec.NodeName)
+			}
+		case preempted:
 			logger.Info("retire idle runner pod for starved sibling pools",
 				"pod", p.Name, "node", p.Spec.NodeName, "for", preemptedFor)
 			if r.Recorder != nil {
@@ -1143,7 +1157,14 @@ func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
 // replacement because its image or RuntimeClass revision no longer
 // matches the pool's current template.
 func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
-	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool)
+	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool) || isStaleExclusiveCPUs(pod, pool)
+}
+
+// isStaleExclusiveCPUs reports a Linux Pod built before its pool turned
+// exclusive CPUs on or off: only exclusive-CPU Pods carry a Pod-level
+// budget, so its presence records which way the Pod was built.
+func isStaleExclusiveCPUs(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	return pool.Spec.OS == "linux" && pool.Spec.ExclusiveCPUs != (pod.Spec.Resources != nil)
 }
 
 // isStaleImage returns true when the Pod's runner container image

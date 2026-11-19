@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -38,7 +39,11 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 	return &Datasource{client: client}, nil
 }
 
-func (d *Datasource) Dispose() {}
+func (d *Datasource) Dispose() {
+	if d.client != nil && d.client.http != nil {
+		d.client.http.CloseIdleConnections()
+	}
+}
 
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	response := backend.NewQueryDataResponse()
@@ -87,7 +92,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 
 	projects, err := d.client.projects(ctx)
 	if err != nil {
-		return healthError("Could not reach Tuist with the provided token: " + err.Error()), nil
+		return healthError("Tuist health check failed: " + err.Error()), nil
 	}
 	if len(projects) == 0 {
 		return healthError("The token has no accessible projects. Grant it access to at least one project."), nil
@@ -111,6 +116,13 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 		_, testErr = d.client.dimensionValues(ctx, entityTests, "scheme", project)
 	}()
 	wg.Wait()
+
+	for _, err := range []error{buildErr, testErr} {
+		var requestError apiRequestError
+		if errors.As(err, &requestError) {
+			return healthError("Tuist health check failed: " + requestError.Error()), nil
+		}
+	}
 
 	switch {
 	case buildErr != nil && testErr != nil:

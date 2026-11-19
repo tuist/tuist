@@ -14,7 +14,7 @@ import (
 	"os"
 
 	"github.com/klauspost/compress/zstd"
-	"golang.org/x/sys/unix"
+	"github.com/tuist/tuist/infra/runner-cache/sparse"
 )
 
 // An archive is a zstd stream holding the image's logical size followed by its
@@ -26,7 +26,6 @@ import (
 const sparseArchiveMagic = "TCVSPRS1"
 
 const (
-	zeroChunk        = 128 * 1024
 	archiveBuffer    = 4 << 20
 	archiveMaxWindow = 64 << 20
 )
@@ -67,7 +66,7 @@ func CompressImage(src, dst string) (string, string, error) {
 		return "", "", err
 	}
 	buf := make([]byte, archiveBuffer)
-	err = dataExtents(in, info.Size(), func(offset, length int64) error {
+	err = sparse.Extents(in, info.Size(), func(offset, length int64) error {
 		return writeExtents(zw, in, offset, length, buf)
 	})
 	if err != nil {
@@ -85,40 +84,6 @@ func CompressImage(src, dst string) (string, string, error) {
 	return hex.EncodeToString(inventory.Sum(nil)), hex.EncodeToString(content.Sum(nil)), nil
 }
 
-// dataExtents visits the regions the filesystem reports as holding data. A
-// filesystem without hole reporting is visited as one extent.
-func dataExtents(f *os.File, size int64, visit func(int64, int64) error) error {
-	fd := int(f.Fd())
-	for offset := int64(0); offset < size; {
-		start, err := unix.Seek(fd, offset, unix.SEEK_DATA)
-		if errors.Is(err, unix.ENXIO) {
-			return nil
-		}
-		if err != nil {
-			if offset == 0 && (errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOTSUP) || errors.Is(err, unix.EOPNOTSUPP)) {
-				return visit(0, size)
-			}
-			return err
-		}
-		if start >= size {
-			return nil
-		}
-		end, err := unix.Seek(fd, start, unix.SEEK_HOLE)
-		if err != nil {
-			return err
-		}
-		end = min(end, size)
-		if end <= start {
-			return errors.New("cache image extent map changed during compression")
-		}
-		if err = visit(start, end-start); err != nil {
-			return err
-		}
-		offset = end
-	}
-	return nil
-}
-
 // writeExtents records the non-zero runs of one data extent. Allocated zero
 // blocks are left out so the restored image stays sparse.
 func writeExtents(w io.Writer, in *os.File, offset, length int64, buf []byte) error {
@@ -128,35 +93,23 @@ func writeExtents(w io.Writer, in *os.File, offset, length int64, buf []byte) er
 		if _, err := in.ReadAt(buf[:n], offset); err != nil {
 			return err
 		}
-		for start := 0; start < n; {
-			if isZero(buf[start:min(start+zeroChunk, n)]) {
-				start += zeroChunk
-				continue
-			}
-			end := start + zeroChunk
-			for end < n && !isZero(buf[end:min(end+zeroChunk, n)]) {
-				end += zeroChunk
-			}
-			end = min(end, n)
+		err := sparse.NonZeroRuns(buf[:n], func(start, end int) error {
 			binary.BigEndian.PutUint64(record, uint64(offset)+uint64(start))
 			binary.BigEndian.PutUint64(record[8:], uint64(end-start))
 			if _, err := w.Write(record); err != nil {
 				return err
 			}
-			if _, err := w.Write(buf[start:end]); err != nil {
-				return err
-			}
-			start = end
+			_, err := w.Write(buf[start:end])
+			return err
+		})
+		if err != nil {
+			return err
 		}
 		offset += int64(n)
 		length -= int64(n)
 	}
 	return nil
 }
-
-var zeros = make([]byte, zeroChunk)
-
-func isZero(b []byte) bool { return bytes.Equal(b, zeros[:len(b)]) }
 
 // RestoreImage validates the transferred bytes before the caller installs the
 // image as a master. Both compressed and expanded input are bounded.
@@ -281,7 +234,7 @@ func restoreGzip(ctx context.Context, src io.Reader, out *os.File, maxBytes int6
 		return 0, err
 	}
 	defer gz.Close()
-	buf := make([]byte, zeroChunk)
+	buf := make([]byte, sparse.ZeroChunk)
 	var total int64
 	for {
 		if err := ctx.Err(); err != nil {
@@ -293,7 +246,7 @@ func restoreGzip(ctx context.Context, src io.Reader, out *os.File, maxBytes int6
 			return 0, errors.New("cache image exceeds capacity")
 		}
 		if n > 0 {
-			if isZero(buf[:n]) {
+			if sparse.IsZero(buf[:n]) {
 				_, err = out.Seek(int64(n), io.SeekCurrent)
 			} else {
 				_, err = writer.Write(buf[:n])

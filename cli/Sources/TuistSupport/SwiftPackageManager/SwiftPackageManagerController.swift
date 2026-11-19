@@ -73,11 +73,15 @@ protocol SwifterPMResolving: Sendable {
 
 extension SwifterPM: SwifterPMResolving {
     func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws {
-        _ = try await resolve(request)
+        _ = try await SwifterPM.withDebugHandler({ Logger.current.debug("\($0)") }) {
+            try await resolve(request)
+        }
     }
 
     func updateDependencies(_ request: SwifterPMResolutionRequest) async throws {
-        _ = try await update(request)
+        _ = try await SwifterPM.withDebugHandler({ Logger.current.debug("\($0)") }) {
+            try await update(request)
+        }
     }
 }
 
@@ -292,7 +296,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private func nativeWorkspaceDirectories(
         packagePath: AbsolutePath, arguments: [String]
     ) async throws -> (package: Foundation.URL, scratch: Foundation.URL?) {
-        let cwd = Foundation.URL(fileURLWithPath: try await fileSystem.currentWorkingDirectory().pathString, isDirectory: true)
+        let cwd = try await fileSystem.currentWorkingDirectory()
         var package = Foundation.URL(fileURLWithPath: packagePath.pathString, isDirectory: true)
         var scratch: Foundation.URL?
         var index = 0
@@ -308,7 +312,9 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
                 } else {
                     break
                 }
-                let url = Foundation.URL(fileURLWithPath: value, relativeTo: cwd).standardizedFileURL
+                // Syntactically, like SwiftPM's `AbsolutePath(argument:)`. `standardizedFileURL` would also drop a
+                // leading `/private`, so SwifterPM would record another spelling of the directory than Tuist uses.
+                let url = Foundation.URL(fileURLWithPath: try AbsolutePath(validating: value, relativeTo: cwd).pathString)
                 if parts[0] == "--package-path" { package = url } else { scratch = url }
             }
             index += 1
@@ -345,6 +351,8 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         request.quiet = request.quiet || !printOutput
         request.manifestEnvironment = manifestEnvironment
         request.resolutionEnvironment = resolutionEnvironment
+        request.cacheMaxBytes = environmentVariables()[Constants.EnvironmentVariables.dependenciesCacheMaxBytes]
+            .flatMap { Int($0) }
         return request
     }
 

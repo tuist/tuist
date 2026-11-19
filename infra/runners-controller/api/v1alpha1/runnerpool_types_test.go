@@ -196,6 +196,28 @@ func TestCacheVolumeFieldsSurviveCRDAdmission(t *testing.T) {
 	}
 }
 
+// The apiserver prunes a field the CRD schema does not list, which would
+// silently turn these opt-ins off on every pool.
+func TestHostCapabilityOptInsSurviveCRDAdmission(t *testing.T) {
+	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.UnmarshalStrict(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	versions := doc["spec"].(map[string]any)["versions"].([]any)
+	schema := versions[0].(map[string]any)["schema"].(map[string]any)["openAPIV3Schema"].(map[string]any)
+	spec := schema["properties"].(map[string]any)["spec"].(map[string]any)["properties"].(map[string]any)
+	for _, name := range []string{"nestedVirtualization", "exclusiveCPUs"} {
+		field, ok := spec[name].(map[string]any)
+		if !ok || field["type"] != "boolean" {
+			t.Fatalf("spec.%s = %v, want a boolean property", name, field)
+		}
+	}
+}
+
 func TestHoldRecentPeakSurvivesCRDAdmission(t *testing.T) {
 	data, err := os.ReadFile("../../../helm/tuist/crds/tuist.dev_runnerpools.yaml")
 	if err != nil {

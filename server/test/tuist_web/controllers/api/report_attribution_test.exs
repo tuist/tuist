@@ -16,6 +16,7 @@ defmodule TuistWeb.API.ReportAttributionTest do
     {:build, :xcode, "/builds", "builds", 200},
     {:build_alias, :xcode, "/xcode/builds", "builds", 200},
     {:gradle, :gradle, "/gradle/builds", "builds", 201},
+    {:cargo, :cargo, "/cargo/builds", "builds", 201},
     {:mix, :mix, "/mix/builds", "builds", 201},
     {:test, :xcode, "/tests", "tests", 200},
     {:legacy_build, :xcode, "/runs", "runs", 200},
@@ -44,6 +45,7 @@ defmodule TuistWeb.API.ReportAttributionTest do
   end
 
   defp body(:gradle), do: %{duration_ms: 1, status: "success", tasks: []}
+  defp body(:cargo), do: %{id: UUIDv7.generate(), duration_ms: 1, status: "success", compilations: []}
   defp body(:mix), do: %{id: UUIDv7.generate(), duration_ms: 1, status: "success"}
   defp body(:legacy_test), do: :test |> body() |> Map.put(:type, "test") |> Map.put(:macos_version, "15.0")
   defp body(:legacy_build), do: Map.put(body(:build), :type, "build")
@@ -97,6 +99,7 @@ defmodule TuistWeb.API.ReportAttributionTest do
   end
 
   defp schema(:gradle), do: Tuist.Gradle.Build
+  defp schema(:cargo), do: Tuist.Cargo.Build
   defp schema(:mix), do: Tuist.Mix.Build
   defp schema(kind) when kind in [:test, :legacy_test], do: Test
   defp schema(kind) when kind in [:event, :event_test], do: Tuist.CommandEvents.Event
@@ -105,6 +108,7 @@ defmodule TuistWeb.API.ReportAttributionTest do
   defp reports(project, kind) do
     Buffer.flush()
     Tuist.Gradle.Build.Buffer.flush()
+    Tuist.Cargo.Build.Buffer.flush()
     Tuist.Mix.Build.Buffer.flush()
     Tuist.Tests.Test.Buffer.flush()
     Tuist.Tests.TestCaseRun.Buffer.flush()
@@ -302,7 +306,7 @@ defmodule TuistWeb.API.ReportAttributionTest do
       assert reports(project, @kind) == []
     end
 
-    if kind in [:build, :build_alias, :test, :legacy_build] do
+    if kind in [:build, :build_alias, :cargo, :test, :legacy_build] do
       test "#{kind}: retries preserve stored attribution instead of the retrying identity", context do
         %{conn: conn, organization: organization, user: user} = context
         project = ProjectsFixtures.project_fixture(account_id: organization.account.id, build_system: @system)

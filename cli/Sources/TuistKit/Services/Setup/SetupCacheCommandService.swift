@@ -354,14 +354,18 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        // Fail fast when the user is not authenticated. Otherwise we would install a
-        // LaunchAgent whose `cache-proxy` immediately exits (cleanly) for lack of
-        // credentials, leaving setup looking successful while no proxy is running.
-        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
+        let networkTrusted = try await ServerCacheAccessMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        )
+        if !networkTrusted,
+           try await serverAuthenticationController.authenticationToken(serverURL: serverURL) == nil
+        {
             throw SetupCacheCommandServiceError.notAuthenticated
         }
 
-        let casPlugin = try await installCache(config: config, fullHandle: fullHandle, path: path, serverURL: serverURL)
+        let casPlugin = try await installCache(
+            config: config, fullHandle: fullHandle, path: path, serverURL: serverURL, networkTrusted: networkTrusted
+        )
 
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,
@@ -430,9 +434,10 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         config: Tuist,
         fullHandle: String,
         path: AbsolutePath,
-        serverURL: URL
+        serverURL: URL,
+        networkTrusted: Bool
     ) async throws -> AbsolutePath? {
-        let trunk = await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
+        let trunk = networkTrusted ? nil : await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
         let branch = await ciBranch(sourceRoot: path)
         let installationDirectory = Environment.current.casPluginInstallPath().parentDirectory
         try await fileSystem.makeDirectory(at: installationDirectory)

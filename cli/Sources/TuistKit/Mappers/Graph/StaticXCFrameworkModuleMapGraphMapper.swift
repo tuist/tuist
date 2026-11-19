@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistCache
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
@@ -98,14 +99,14 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             // else the consumer has neither map without the vendor copy, and we hit
             // `unable to resolve module dependency`.
             //
-            // Returns `nil` when no generated target publishes the map for any of the consumer's
-            // products directories, so the vendor copy applies to every SDK. Otherwise returns the
-            // `sdk=` conditions the vendor copy is still needed for, possibly none.
+            // Returns `nil` only when no generated target publishes the map on any SDK. Otherwise
+            // keep the fallback SDK-conditioned even when the declared destinations do not overlap:
+            // `xcodebuild -sdk` can override a bundle's destination, and these settings also propagate
+            // to dependents on other platforms.
             let moduleMapSDKConditions: (ConditionedXCFramework) -> [String]? = { conditionedXCFramework in
-                let targetVariants = Self.productsVariants(of: target, under: nil)
                 let producingVariants = xcframeworkVariantsProcessedByGeneratedTargets(
                     conditionedXCFramework.xcframework.path
-                ).intersection(targetVariants)
+                )
                 guard !producingVariants.isEmpty else { return nil }
                 let consumingCondition: PlatformCondition?
                 if case let .condition(condition) = Self.conditionThroughOtherDependencies(
@@ -233,10 +234,13 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 }
             }
 
+            let vendorXCFrameworks = xcframeworksNeedingVendorModuleMapBySDKCondition.values.flatMap { $0 }.uniqued()
+                .sorted(by: { $0.path < $1.path })
+            let portableModuleMaps = try await portableModuleMaps(in: vendorXCFrameworks)
             sideEffects += try await generateModuleMapAndUmbrellaHeader(
-                for: xcframeworksNeedingVendorModuleMapBySDKCondition.values.flatMap { $0 }.uniqued()
-                    .sorted(by: { $0.path < $1.path }),
-                derivedDirectory: derivedDirectory
+                for: vendorXCFrameworks,
+                derivedDirectory: derivedDirectory,
+                portableModuleMaps: portableModuleMaps
             )
 
             let staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies =
@@ -277,7 +281,8 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                         for: xcframeworks,
                         sdkCondition: sdkCondition,
                         derivedDirectory: derivedDirectory,
-                        project: project
+                        project: project,
+                        portableModuleMaps: portableModuleMaps
                     )
                 ) { _, new in new }
             }
@@ -292,6 +297,17 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         )
     }
 
+    private func portableModuleMaps(in xcframeworks: [GraphDependency.XCFramework]) async throws -> Set<AbsolutePath> {
+        var result: Set<AbsolutePath> = []
+        for moduleMap in xcframeworks.flatMap(\.moduleMaps) {
+            let metadata = moduleMap.parentDirectory.appending(component: SwiftPackageHeadersExporter.metadataFileName)
+            if try await fileSystem.exists(metadata) {
+                result.insert(moduleMap)
+            }
+        }
+        return result
+    }
+
     /// The settings that put the vendor module maps of `xcframeworks` on a consumer's search path, on
     /// every SDK when `sdkCondition` is `nil` and on that SDK only otherwise. A conditioned key starts
     /// with `$(inherited)`, which resolves to the unconditioned value of the same level, so it adds to
@@ -300,7 +316,8 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         for xcframeworks: [GraphDependency.XCFramework],
         sdkCondition: String?,
         derivedDirectory: AbsolutePath,
-        project: Project
+        project: Project,
+        portableModuleMaps: Set<AbsolutePath>
     ) -> SettingsDictionary {
         let key: (String) -> String = { name in sdkCondition.map { "\(name)[\($0)]" } ?? name }
         let inherited = sdkCondition == nil ? [] : ["$(inherited)"]
@@ -309,7 +326,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         // discover from whichever `Headers` root wins the search path, so that the module
         // and the headers its umbrella imports always come from the same directory.
         let moduleMapFlags = xcframeworks
-            .filter { Self.nestedModuleMap(for: $0) == nil }
+            .filter { Self.nestedModuleMap(for: $0, portableModuleMaps: portableModuleMaps) == nil }
             .map { moduleMapFlag(for: $0, derivedDirectory: derivedDirectory, project: project) }
         if !moduleMapFlags.isEmpty {
             settings[key("OTHER_SWIFT_FLAGS")] = .array(inherited + moduleMapFlags.flatMap { ["-Xcc", $0] })
@@ -324,7 +341,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                     // prefix, which only resolves with the `Headers` root (the parent of the
                     // module's subdirectory) on the search path. Flat layouts keep their headers
                     // directly in the module map's own directory.
-                    let searchPath = Self.nestedModuleMap(for: xcframework) != nil
+                    let searchPath = Self.nestedModuleMap(for: xcframework, portableModuleMaps: portableModuleMaps) != nil
                         ? moduleMap.parentDirectory.parentDirectory
                         : derivedHeadersDirectory(for: xcframework, derivedDirectory: derivedDirectory)
                     return "\"$(SRCROOT)/\(searchPath.relative(to: project.path).pathString)\""
@@ -378,8 +395,12 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     /// copy makes a second module map reachable, `import of shadowed module`. Leaving the module
     /// map out lets clang discover it next to whichever headers actually win the search path, so
     /// the module is always defined over the copy its umbrella imports.
-    private static func nestedModuleMap(for xcframework: GraphDependency.XCFramework) -> AbsolutePath? {
+    private static func nestedModuleMap(
+        for xcframework: GraphDependency.XCFramework,
+        portableModuleMaps: Set<AbsolutePath>
+    ) -> AbsolutePath? {
         guard let moduleMap = xcframework.moduleMaps.first else { return nil }
+        if portableModuleMaps.contains(moduleMap) { return moduleMap }
         return moduleMap.parentDirectory.basename == xcframework.path.basenameWithoutExt ? moduleMap : nil
     }
 
@@ -534,7 +555,8 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     /// Generates a modulemap and headers that can be referenced from downstream targets.
     private func generateModuleMapAndUmbrellaHeader(
         for staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies: [GraphDependency.XCFramework],
-        derivedDirectory: AbsolutePath
+        derivedDirectory: AbsolutePath,
+        portableModuleMaps: Set<AbsolutePath>
     ) async throws -> [SideEffectDescriptor] {
         let fileSystem = fileSystem
         return try await staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
@@ -543,7 +565,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 else { return [] }
                 // Nested layouts are consumed through the xcframework's own module map and headers
                 // (see `moduleMapFlag` / `HEADER_SEARCH_PATHS`), so no derived copy is generated.
-                guard Self.nestedModuleMap(for: xcframework) == nil else { return [] }
+                guard Self.nestedModuleMap(for: xcframework, portableModuleMaps: portableModuleMaps) == nil else { return [] }
                 let name = xcframework.path.basenameWithoutExt
                 let sourceHeadersDirectory = moduleMap.parentDirectory
                 let sourceHeaderEntries = try await fileSystem.glob(
@@ -648,7 +670,10 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 )
                 target.settings = targetSettings.with(
                     base: targetSettings.base
-                        .combine(with: settings[.target(name: target.name, path: project.path)] ?? SettingsDictionary())
+                        .combine(
+                            with: settings[.target(name: target.name, path: project.path)]?
+                                .anchoringSrcRootPaths(at: project.path) ?? SettingsDictionary()
+                        )
                         .removeDuplicates()
                 )
                 return target
@@ -670,6 +695,23 @@ extension SettingsDictionary {
                 return .string(stringValue.resolvingSrcRootPath(from: sourcePath, to: destinationPath))
             case let .array(arrayValue):
                 return .array(arrayValue.map { $0.resolvingSrcRootPath(from: sourcePath, to: destinationPath) })
+            }
+        }
+    }
+
+    /// Re-anchors the `$(SRCROOT)/…` paths the mapper wrote for a project at `projectPath` through
+    /// `relative(toSourceRoot:)`. Runs once on each target's final values: the logical form is what
+    /// `resolvingSrcRootPaths` reads while propagating settings between projects.
+    func anchoringSrcRootPaths(at projectPath: AbsolutePath) -> SettingsDictionary {
+        func anchored(_ value: String) -> String {
+            value.replacingSrcRootPath(from: projectPath) { $0.relative(toSourceRoot: projectPath) }
+        }
+        return mapValues { value in
+            switch value {
+            case let .string(stringValue):
+                return .string(anchored(stringValue))
+            case let .array(arrayValue):
+                return .array(arrayValue.map(anchored))
             }
         }
     }
@@ -795,6 +837,14 @@ extension String {
         from sourcePath: AbsolutePath,
         to destinationPath: AbsolutePath
     ) -> String {
+        replacingSrcRootPath(from: sourcePath) { $0.relative(to: destinationPath) }
+    }
+
+    /// Rewrites the `$(SRCROOT)/…` path in this value, read relative to `sourcePath`, as `rewrite(absolutePath)`.
+    fileprivate func replacingSrcRootPath(
+        from sourcePath: AbsolutePath,
+        with rewrite: (AbsolutePath) -> RelativePath
+    ) -> String {
         let srcRootMarker = "$(SRCROOT)"
         guard contains(srcRootMarker) else { return self }
 
@@ -812,9 +862,42 @@ extension String {
 
         guard let relativePath = try? RelativePath(validating: relativePathString) else { return self }
 
-        let absolutePath = sourcePath.appending(relativePath)
-        let resolvedComponents = absolutePath.relative(to: destinationPath).components
+        let resolvedComponents = rewrite(sourcePath.appending(relativePath)).components
 
         return prefix + (pathComponents[...srcRootIndex] + resolvedComponents).joined(separator: "/") + suffix
+    }
+}
+
+extension AbsolutePath {
+    /// This path relative to a project at `projectPath`, for a `$(SRCROOT)/<relative>` setting.
+    ///
+    /// Xcode resolves symlinks into `SRCROOT`, and clang walks `..` through the filesystem. So when the project sits
+    /// behind a symlink below the directory it shares with this path (`Tuist/.build` linked to a cache volume, with
+    /// cached binaries in `~/.cache/tuist/Binaries`), climbing from the project's logical path lands in the wrong
+    /// directory. Only then is the path made relative to the resolved project directory, so every other value, and
+    /// the binary-cache hashes that include it, keep their logical form.
+    fileprivate func relative(toSourceRoot projectPath: AbsolutePath) -> RelativePath {
+        var ancestor = projectPath
+        while !isDescendantOfOrEqual(to: ancestor) {
+            ancestor = ancestor.parentDirectory
+        }
+        let resolvedAncestor = ancestor.resolvingSymlinks()
+        let resolvedProject = projectPath.resolvingSymlinks()
+        guard resolvedProject != resolvedAncestor.appending(projectPath.relative(to: ancestor)) else {
+            return relative(to: projectPath)
+        }
+        return resolvedAncestor.appending(relative(to: ancestor)).relative(to: resolvedProject)
+    }
+
+    /// Resolves symlinks in the deepest existing ancestor, keeping the components below it.
+    private func resolvingSymlinks() -> AbsolutePath {
+        var existing = self
+        while !FileManager.default.fileExists(atPath: existing.pathString), existing.parentDirectory != existing {
+            existing = existing.parentDirectory
+        }
+        let resolved = (try? AbsolutePath(
+            validating: URL(fileURLWithPath: existing.pathString).resolvingSymlinksInPath().path
+        )) ?? existing
+        return resolved.appending(relative(to: existing))
     }
 }

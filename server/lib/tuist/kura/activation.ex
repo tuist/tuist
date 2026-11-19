@@ -23,11 +23,13 @@ defmodule Tuist.Kura.Activation do
          account when not is_nil(account) <- Identity.account_for_handle(handle),
          true <- handle in Identity.client_handles(account),
          {:authenticated, %{active: true} = identity} <- {:authenticated, Introspection.token_response(token)},
+         {:billing, false} <- {:billing, payment_required?(identity, account)},
          %{active: true, cache_grants: grants} <- Introspection.token_response(token, account),
          true <- has_grants?(grants) do
       activate(account, identity)
     else
       {:authenticated, _} -> {:error, :unauthorized}
+      {:billing, true} -> {:error, :payment_required}
       _ -> {:error, :forbidden}
     end
   end
@@ -85,6 +87,13 @@ defmodule Tuist.Kura.Activation do
     else
       :error
     end
+  end
+
+  # Billing removes grants. Verified refusal claims may explain a denial even
+  # with empty grants, but must never become permission to route or provision.
+  defp payment_required?(identity, account) do
+    handle = String.downcase(account.name)
+    Enum.any?(Map.get(identity, :cache_payment_required, []), &(String.downcase(&1) == handle))
   end
 
   defp has_grants?(grants) do

@@ -84,10 +84,10 @@
       }
 
       /* Right-click brand menu. The panel and its rows are stock Noora
-         dropdown pieces (noora-dropdown-content + noora-dropdown-item, as in
-         the dashboard's projects dropdown); this wrapper only positions the
-         panel under the logo and drives open/close with the same motion as
-         the navbar's other dropdowns. */
+         menu pieces (noora-menu-panel + Noora.Menu items, as in the
+         breadcrumb menu); this wrapper only positions the panel under the
+         logo and drives open/close with the same motion as the navbar's
+         other dropdowns. */
       & > [data-part="logo-menu"] {
         position: absolute;
         /* Same placement as the shared dropdown viewport: flush under the
@@ -95,7 +95,6 @@
            border hairline draws inside it), left-aligned to the page
            container edge. */
         top: calc(100% + var(--noora-spacing-2));
-        left: 0;
         transform: translateY(-8px);
         visibility: hidden;
         opacity: 0;
@@ -104,8 +103,7 @@
           opacity 0.18s var(--ease-out-cubic),
           transform 0.18s var(--ease-out-cubic),
           visibility 0.18s;
-        width: max-content;
-        min-width: 250px;
+        inset-inline-start: 0;
 
         &[data-open="true"] {
           transform: translateY(0);
@@ -113,26 +111,47 @@
           opacity: 1;
         }
 
-        & .noora-dropdown-item {
-          white-space: nowrap;
+        /* The items aren't driven by Zag here, so nothing sets
+           data-highlighted; highlight on hover like the breadcrumb menu. */
+        & .noora-menu-item:hover {
+          background: var(--noora-surface-background-secondary);
+        }
 
-          /* The check icon fades in while the hook's data-copied flag is
-             set; the label itself never changes. */
-          & [data-part="right-icon"] {
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            color: var(--noora-surface-label-primary);
+        /* The check draws itself while the hook's data-copied flag is set,
+           with the Noora checkbox's stroke animation (checkbox_control.css):
+           the path has pathLength 1, and the offset hides it a little past
+           its length so no cap shows. On reset it fades out and only then
+           rewinds, so it never draws backwards. Sized like the leading
+           icon. */
+        & .noora-menu-item > [data-part="extra"] {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+
+          & svg {
+            width: 100%;
+            height: 100%;
           }
 
-          &[data-copied="true"] [data-part="right-icon"] {
-            opacity: 1;
+          & path {
+            opacity: 0;
+            transition:
+              opacity 100ms var(--ease-out-cubic),
+              stroke-dashoffset 0s linear 100ms;
+            stroke-dasharray: 1 2;
+            stroke-dashoffset: 1.05;
           }
         }
 
-        /* Give the separator the same breathing room the dashboard's
-           dropdown rows create around it. */
-        & [data-part="separator"] {
-          margin-block: var(--noora-spacing-2);
+        & .noora-menu-item[data-copied="true"] > [data-part="extra"] path {
+          opacity: 1;
+          transition: stroke-dashoffset 180ms var(--ease-out-quad) 60ms;
+          stroke-dashoffset: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          & .noora-menu-item > [data-part="extra"] path {
+            transition: none;
+          }
         }
       }
     }
@@ -144,8 +163,8 @@
       gap: var(--noora-spacing-4);
       /* Menus sit next to the logo (not centered): spacing-8 from the logo,
          spacing-4 between items; the actions cluster absorbs the slack via
-         margin-left: auto. */
-      margin-left: var(--noora-spacing-8);
+         margin-inline-start: auto. */
+      margin-inline-start: var(--noora-spacing-8);
 
       @media (min-width: 960px) {
         display: flex;
@@ -169,16 +188,16 @@
           border-radius: var(--noora-radius-2);
           background: transparent;
           padding-top: var(--noora-spacing-2);
-          padding-right: var(--noora-spacing-3);
+          padding-inline-end: var(--noora-spacing-3);
           padding-bottom: var(--noora-spacing-2);
-          padding-left: var(--noora-spacing-3);
+          padding-inline-start: var(--noora-spacing-3);
           font: inherit;
           text-decoration: none;
 
           /* Reduce padding on medium screens */
           @media (min-width: 960px) and (max-width: 1024px) {
-            padding-right: var(--noora-spacing-2);
-            padding-left: var(--noora-spacing-2);
+            padding-inline-start: var(--noora-spacing-2);
+            padding-inline-end: var(--noora-spacing-2);
           }
 
           /* Labels rest at secondary, chevrons at tertiary; both lift to
@@ -218,10 +237,10 @@
             padding: var(--noora-spacing-2) var(--noora-spacing-3);
 
             @media (min-width: 960px) and (max-width: 1024px) {
-              margin-right: calc(-1 * var(--noora-spacing-2));
-              margin-left: calc(-1 * var(--noora-spacing-2));
-              padding-right: var(--noora-spacing-2);
-              padding-left: var(--noora-spacing-2);
+              margin-inline-start: calc(-1 * var(--noora-spacing-2));
+              margin-inline-end: calc(-1 * var(--noora-spacing-2));
+              padding-inline-start: var(--noora-spacing-2);
+              padding-inline-end: var(--noora-spacing-2);
             }
           }
 
@@ -254,7 +273,7 @@
       align-items: center;
       gap: var(--noora-spacing-5);
       /* Push the actions to the right edge now that the menus hug the logo. */
-      margin-left: auto;
+      margin-inline-start: auto;
 
       /* On mobile only Sign up remains; Log in lives in the sign-up flow. */
       & > [data-part="log-in"] {
@@ -263,17 +282,12 @@
         }
       }
 
-      /* Slack/GitHub neutral buttons: 20px icons + the button's 6px padding
-         match the 32px height of the text buttons. Hover comes from the
-         neutral button itself. */
+      /* Slack/GitHub ghost buttons, sized and styled by the ghost button
+         itself: a 16px icon in a 32px square, the height of the text
+         buttons. */
       & > [data-part="icon"] {
         @media (max-width: 960px) {
           display: none;
-        }
-
-        & > svg {
-          width: 20px;
-          height: 20px;
         }
       }
 
@@ -332,7 +346,7 @@
           margin-top: 0;
           /* Noora hairline ring; its [data-theme="dark"] override swaps in
              the dark-scheme ring. */
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           border-radius: var(--noora-radius-6);
           background: var(--noora-surface-background-primary);
 
@@ -374,6 +388,15 @@
       & > [data-part="mobile-menu-button"] {
         @media (min-width: 960px) {
           display: none;
+        }
+
+        /* Unlike other ghost buttons, the burger has no hover or press
+           fill, and no native tap highlight either. */
+        -webkit-tap-highlight-color: transparent;
+
+        &:not(:disabled):hover,
+        &:not(:disabled):active {
+          background: unset;
         }
 
         /* Hamburger <-> X: each bar spins about its own centre while
@@ -419,8 +442,6 @@
        attempt; iOS resolved it to the content height, exposing the page
        below the menu.) */
     top: var(--marketing-navbar-height);
-    right: 0;
-    left: 0;
     flex-direction: column;
     align-items: stretch;
     /* spacing-8 (24px) between top-level rows. */
@@ -434,6 +455,8 @@
       transform 0.18s var(--ease-out-cubic),
       visibility 0s linear 0.18s;
     box-sizing: border-box;
+    inset-inline-end: 0;
+    inset-inline-start: 0;
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-7) var(--noora-spacing-4);
     height: calc(100vh - var(--marketing-navbar-height));
@@ -453,7 +476,7 @@
        Accordion list items. */
     & [data-part="dropdown"] > [data-part="item"] {
       color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
       text-decoration: none;
     }
 
@@ -471,7 +494,7 @@
       align-items: stretch;
 
       /* A real button (keyboard-operable before the hook mounts), reset
-         to the row it always was; the chevron carries the hover state. */
+         to the row it always was. */
       & > [data-part="action"] {
         display: flex;
         flex-direction: row;
@@ -486,22 +509,24 @@
         width: 100%;
         color: inherit;
         font: inherit;
-        text-align: left;
+        text-align: start;
+        -webkit-tap-highlight-color: transparent;
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
         }
 
-        /* Chevron dressed as a neutral button, like the burger icon.
-           Points right when collapsed, rotates down when open. */
+        /* Chevron inset like the burger icon so their right edges line
+           up; no vertical padding, so the row stays the title's line
+           height and the 24px row gap is exact. Points right when
+           collapsed, rotates down when open. */
         & > [data-part="chevron"] {
           display: inline-flex;
           justify-content: center;
           align-items: center;
-          border-radius: var(--noora-radius-3);
-          padding: var(--noora-spacing-3);
-          color: var(--noora-button-neutral-label);
+          padding: 0 var(--noora-spacing-3);
+          color: var(--noora-button-ghost-secondary-label);
 
           & svg {
             transform: rotate(-90deg);
@@ -509,10 +534,6 @@
             width: 20px;
             height: 20px;
           }
-        }
-
-        &:hover > [data-part="chevron"] {
-          background: var(--noora-button-neutral-background-hover);
         }
 
         &[data-open="true"] > [data-part="chevron"] svg {
@@ -523,28 +544,32 @@
       & > [data-part="dropdown"] {
         display: flex;
         flex-direction: column;
-        gap: var(--noora-spacing-5);
+        gap: var(--noora-spacing-6);
 
         /* Title-to-first-item spacing lives INSIDE the height-animated
            box (child margin, not container padding): container padding
            pops in before the height transition starts and makes the
            sections below jump. */
         & > [data-part="item"]:first-child {
-          margin-top: var(--noora-spacing-5);
+          margin-top: var(--noora-spacing-8);
         }
       }
     }
 
-    /* Theme row: static placeholder until dark mode ships. */
+    /* Theme row: held to the title's line height (1lh) so the taller
+       switcher overflows evenly instead of widening the row gap. */
     & > [data-part="theme"] {
       display: flex;
       flex-direction: row;
       justify-content: space-between;
       align-items: center;
+      height: 1lh;
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
 
+      /* An <h3>, so it needs the font restated over heading defaults. */
       & > [data-part="title"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+        font: inherit;
       }
     }
 
@@ -925,7 +950,7 @@
     /* Hairline ring from Noora + the Figma depth layer (0 8px 32px #08090a)
        rebuilt from the Noora neutral ramp at 10% alpha. */
     box-shadow:
-      var(--noora-border-light-default),
+      var(--noora-border-small-default),
       0 8px 32px
         color-mix(
           in oklch,
@@ -980,6 +1005,23 @@
     &[data-motion="to-end"] {
       animation-name: marketing-nav-exit-to-right;
     }
+
+    /* The triggers run right to left in RTL, so start/end swap sides. */
+    [dir="rtl"] &[data-motion="from-start"] {
+      animation-name: marketing-nav-enter-from-right;
+    }
+
+    [dir="rtl"] &[data-motion="from-end"] {
+      animation-name: marketing-nav-enter-from-left;
+    }
+
+    [dir="rtl"] &[data-motion="to-start"] {
+      animation-name: marketing-nav-exit-to-right;
+    }
+
+    [dir="rtl"] &[data-motion="to-end"] {
+      animation-name: marketing-nav-exit-to-left;
+    }
   }
 
   /* Item hover: an arrow slides in next to the title (no background
@@ -992,7 +1034,7 @@
        global focus ring (see marketing.css) inward so the clip can't
        shave it. */
     &:focus-visible {
-      outline-offset: -2px;
+      outline-offset: calc(-1 * var(--noora-focus-ring-width));
       border-radius: var(--noora-radius-2);
     }
 
@@ -1108,7 +1150,7 @@
 
       /* Middle/right columns carry the vertical hairlines. */
       &:not(:nth-child(3n + 1)) {
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
       }
 
       /* Second row carries the horizontal hairline. */
@@ -1184,7 +1226,7 @@
       display: flex;
       position: relative;
       flex-direction: column;
-      border-left: 1px solid var(--marketing-stroke-default);
+      border-inline-start: 1px solid var(--marketing-stroke-default);
       background: var(--noora-surface-background-primary);
       overflow: hidden;
 
@@ -1296,7 +1338,7 @@
 
       /* Right column cells (Slack onwards) carry the vertical hairline. */
       &:nth-child(n + 4) {
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
       }
 
       /* Horizontal hairlines between rows: every cell below the first row
@@ -1382,4 +1424,10 @@
       transition: none;
     }
   }
+}
+
+/* The Atlas support chat sits at the maximum z-index, so the open mobile
+   menu can't cover it; hide it until the menu closes. */
+body:has(#marketing-navbar[data-mobile-menu-open="true"]) > atlas-support-chat {
+  display: none;
 }

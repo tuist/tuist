@@ -1,0 +1,485 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr "Language: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:132
+#: lib/tuist_web/live/sandboxes_live.ex:887
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "Ativo"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:165
+#: lib/tuist_web/live/sandboxes_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:170
+#: lib/tuist_web/live/sandbox_live.html.heex:121
+#: lib/tuist_web/live/sandboxes_live.ex:861
+#: lib/tuist_web/live/sandboxes_live.html.heex:295
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr "Criado"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr "Excluir"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:150
+#: lib/tuist_web/live/sandbox_live.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "Delete sandbox"
+msgstr "Excluir sandbox"
+
+#: lib/tuist_web/live/sandboxes_live.ex:895
+#, elixir-autogen, elixir-format
+msgid "Deleting"
+msgstr "Excluindo"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Deleting…"
+msgstr "Excluindo…"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:117
+#: lib/tuist_web/live/sandboxes_live.ex:845
+#, elixir-autogen, elixir-format
+msgid "Disk"
+msgstr "Disco"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:138
+#: lib/tuist_web/live/sandboxes_live.ex:894
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "Falhou"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:133
+#: lib/tuist_web/live/sandboxes_live.ex:889
+#, elixir-autogen, elixir-format
+msgid "Idle"
+msgstr "Inativo"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:171
+#: lib/tuist_web/live/sandbox_live.html.heex:127
+#: lib/tuist_web/live/sandboxes_live.ex:850
+#, elixir-autogen, elixir-format
+msgid "Last active"
+msgstr "Última atividade"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:113
+#: lib/tuist_web/live/sandboxes_live.ex:171
+#: lib/tuist_web/live/sandboxes_live.ex:842
+#, elixir-autogen, elixir-format
+msgid "Memory"
+msgstr "Memória"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Pause"
+msgstr "Pausar"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:136
+#: lib/tuist_web/live/sandbox_live.html.heex:133
+#: lib/tuist_web/live/sandboxes_live.ex:892
+#, elixir-autogen, elixir-format
+msgid "Paused"
+msgstr "Pausado"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Pausing…"
+msgstr "Pausando…"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Resume"
+msgstr "Retomar"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:135
+#: lib/tuist_web/live/sandboxes_live.ex:891
+#, elixir-autogen, elixir-format
+msgid "Resuming"
+msgstr "Retomando"
+
+#: lib/tuist_web/live/sandbox_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "Resuming would exceed this account's vCPU or memory limit."
+msgstr "A retomada excederia o limite de vCPU ou memória desta conta."
+
+#: lib/tuist_web/live/sandbox_live.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Resuming…"
+msgstr "Retomando…"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Run agents in sandboxes"
+msgstr "Executar agentes em sandboxes"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "Sandbox ID"
+msgstr "ID da sandbox"
+
+#: lib/tuist_web/live/sandbox_live.ex:77
+#, elixir-autogen, elixir-format
+msgid "Sandbox deleted."
+msgstr "Sandbox excluída."
+
+#: lib/tuist_web/components/dashboard_navigation.ex:42
+#: lib/tuist_web/live/sandbox_live.ex:41
+#: lib/tuist_web/live/sandboxes_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "Sandboxes"
+msgstr "Sandboxes"
+
+#: lib/tuist_web/live/sandbox_live.ex:112
+#: lib/tuist_web/live/sandbox_live.ex:145
+#, elixir-autogen, elixir-format
+msgid "Something went wrong. Please retry."
+msgstr "Ocorreu um erro. Tente novamente."
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:134
+#: lib/tuist_web/live/sandboxes_live.ex:890
+#, elixir-autogen, elixir-format
+msgid "Starting"
+msgstr "A iniciar"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:128
+#: lib/tuist_web/live/sandboxes_live.ex:832
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "Estado"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "The machine running it reported an error."
+msgstr "A máquina que o executa reportou um erro."
+
+#: lib/tuist_web/live/sandbox_live.ex:143
+#, elixir-autogen, elixir-format
+msgid "The machine running this sandbox is unreachable. Please retry."
+msgstr "A máquina que executa esta sandbox está inacessível. Tente novamente."
+
+#: lib/tuist_web/live/sandbox_live.ex:137
+#, elixir-autogen, elixir-format
+msgid "The sandbox changed state in the meantime. Please retry."
+msgstr "O sandbox mudou de estado nesse meio tempo. Tente novamente."
+
+#: lib/tuist_web/live/sandbox_live.ex:85
+#, elixir-autogen, elixir-format
+msgid "The sandbox is busy with an agent task and was not paused."
+msgstr "O sandbox está ocupado com uma tarefa do agente e não foi pausado."
+
+#: lib/tuist_web/live/sandbox_live.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
+msgstr "O sandbox é interrompido e seu disco é descartado. O trabalho que não foi enviado é perdido."
+
+#: lib/tuist_web/live/sandbox_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "This sandbox failed"
+msgstr "Este sandbox falhou"
+
+#: lib/tuist_web/live/sandbox_live.ex:154
+#, elixir-autogen, elixir-format
+msgid "This sandbox was deleted."
+msgstr "Este sandbox foi excluído."
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:146
+#: lib/tuist_web/live/sandbox_live.html.heex:109
+#: lib/tuist_web/live/sandboxes_live.ex:159
+#: lib/tuist_web/live/sandboxes_live.ex:839
+#, elixir-autogen, elixir-format
+msgid "vCPUs"
+msgstr "vCPUs"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:137
+#: lib/tuist_web/live/sandbox_live.html.heex:139
+#: lib/tuist_web/live/sandboxes_live.ex:893
+#, elixir-autogen, elixir-format
+msgid "Archived"
+msgstr "Arquivado"
+
+#: lib/tuist_web/live/sandboxes_live.ex:161
+#: lib/tuist_web/live/sandboxes_live.ex:173
+#, elixir-autogen, elixir-format
+msgid "%{count} of %{limit} in use now"
+msgstr "%{count} de %{limit} em uso agora"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "Análises"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:63
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "Aplicar"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "Avg. session duration"
+msgstr "Duração média da sessão"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:306
+#, elixir-autogen, elixir-format
+msgid "Concurrency"
+msgstr "Concorrência"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "Personalizado"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
+msgstr "Quanto tempo um sandbox é executado antes de ser pausado, arquivado, excluído ou falhar."
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "Últimos 12 meses"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "Últimas 24 horas"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "Últimos 30 dias"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "Últimos 7 dias"
+
+#: lib/tuist_web/live/sandboxes_live.ex:199
+#, elixir-autogen, elixir-format
+msgid "Limit"
+msgstr "Limite"
+
+#: lib/tuist_web/live/sandboxes_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Peak memory (GB)"
+msgstr "Memória de pico (GB)"
+
+#: lib/tuist_web/live/sandboxes_live.ex:167
+#, elixir-autogen, elixir-format
+msgid "Peak vCPUs"
+msgstr "vCPUs de pico"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Sandboxes agents started in the selected window."
+msgstr "Agentes de sandboxes iniciados na janela selecionada."
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Sandboxes created"
+msgstr "Sandboxes criadas"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "p50 session duration"
+msgstr "duração da sessão p50"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:104
+#, elixir-autogen, elixir-format
+msgid "p90 session duration"
+msgstr "duração da sessão p90"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "p99 session duration"
+msgstr "duração da sessão p99"
+
+#: lib/tuist_web/live/sandboxes_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "desde o mês passado"
+
+#: lib/tuist_web/live/sandboxes_live.ex:128
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "desde o último período"
+
+#: lib/tuist_web/live/sandboxes_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "desde a semana passada"
+
+#: lib/tuist_web/live/sandboxes_live.ex:127
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "desde o ano passado"
+
+#: lib/tuist_web/live/sandboxes_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "desde ontem"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
+msgstr "O tempo que o Tuist leva para inicializar um sandbox, seja a partir do modelo, de uma captura instantânea do projeto ou restaurando-o de um arquivo. A configuração não está incluída."
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:161
+#, elixir-autogen, elixir-format
+msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
+msgstr "O tempo que a configuração .agents/setup do seu projeto leva em um Amp Orb iniciado a partir do modelo. Orbs iniciados a partir de uma captura instantânea do projeto ignoram essa etapa, então é aqui que o seu trabalho de configuração aparece."
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Avg. Setup"
+msgstr "Configuração média"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Avg. Time to start"
+msgstr "Tempo médio de início"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "p50 Setup"
+msgstr "Configuração p50"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "p50 Time to start"
+msgstr "Tempo de início p50"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:155
+#, elixir-autogen, elixir-format
+msgid "p90 Setup"
+msgstr "Configuração p90"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "p90 Time to start"
+msgstr "Tempo de início p90"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "p99 Setup"
+msgstr "p99 Configuração"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "p99 Time to start"
+msgstr "p99 Tempo de inicialização"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Next"
+msgstr "Próximo"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:73
+#, elixir-autogen, elixir-format
+msgid "Page %{page} of %{total}"
+msgstr "Página %{page} de %{total}"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Prev"
+msgstr "Anterior"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:347
+#, elixir-autogen, elixir-format
+msgid "Recent sandboxes"
+msgstr "Sandboxes recentes"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:355
+#, elixir-autogen, elixir-format
+msgid "View more"
+msgstr "Ver mais"
+
+#: lib/tuist_web/components/dashboard_navigation.ex:45
+#: lib/tuist_web/live/sandbox_instances_live.ex:27
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:3
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:12
+#: lib/tuist_web/live/sandbox_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Instances"
+msgstr "Instâncias"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Every sandbox in the account."
+msgstr "Todos os sandboxes da conta."
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr "Filtrar"
+
+#: lib/tuist_web/live/sandboxes_live.ex:870
+#, elixir-autogen, elixir-format
+msgid "No sandboxes found"
+msgstr "Nenhum sandbox encontrado"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Sort by:"
+msgstr "Ordenar por:"
+
+#: lib/tuist_web/live/sandboxes_live.ex:871
+#, elixir-autogen, elixir-format
+msgid "Try a different search or filter."
+msgstr "Tente uma pesquisa ou filtro diferente."
+
+#: lib/tuist_web/live/sandbox_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Sandbox details"
+msgstr "Detalhes do sandbox"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Archive"
+msgstr "Arquivar"
+
+#: lib/tuist_web/live/sandbox_live.ex:95
+#, elixir-autogen, elixir-format
+msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
+msgstr "Arquivamento iniciado. O sandbox será exibido como arquivado assim que seus discos forem enviados."
+
+#: lib/tuist_web/live/sandbox_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Archiving…"
+msgstr "Arquivando…"
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Start your first sandbox from your terminal by running:"
+msgstr "Inicie sua primeira sandbox pelo terminal executando:"
+
+#: lib/tuist_web/live/sandbox_live.html.heex:105
+#: lib/tuist_web/live/sandboxes_live.ex:836
+#, elixir-autogen, elixir-format
+msgid "Created by"
+msgstr "Criado por"
+
+#: lib/tuist_web/live/sandbox_instances_live.ex:172
+#: lib/tuist_web/live/sandboxes_live.ex:826
+#, elixir-autogen, elixir-format
+msgid "Instance"
+msgstr "Instância"
+
+#: lib/tuist_web/live/sandbox_instances_live.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Search by instance..."
+msgstr "Buscar por instância..."

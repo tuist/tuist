@@ -1,18 +1,62 @@
-ARG ELIXIR_VERSION=1.20.2
-ARG OTP_VERSION=29.0.3
 ARG DOCKER_IMAGE_PREFIX=
 ARG DOCKER_OFFICIAL_IMAGE_PREFIX=
-# hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
-# linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
-ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
-# The plain debian:bookworm-20260406-slim tag is amd64-only. Use the unpinned
-# bookworm-slim tag for the runner base so the final image supports both
-# amd64 and arm64. Trading a small amount of reproducibility for multi-arch.
-ARG DEBIAN_RUNNER_VERSION=bookworm-slim
-ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
-ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
-ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
+# Renovate bumps the *_IMAGE tags below. The Elixir and OTP versions in the
+# builder tag match mise.toml.
+ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim"
+ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:bookworm-20261027-slim"
+# Swift 6.4 includes the FoundationNetworking fix for concurrent registry
+# redirects on Bookworm (swiftlang/swift-corelibs-foundation#5448).
+ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.4.1-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
+# The loader and libraries the `nsh` stage copies into the runner come from it.
+ARG NSH_LIBS_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:trixie-20261104-slim"
+
+FROM scratch AS certificate-trust
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
+
+# Keep Aube 1.6.2's esbuild behavior, but rebuild its embedded TLS verifier/roots.
+FROM rust:1.94-bookworm AS aube-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+WORKDIR /aube
+RUN git init . && git remote add origin https://github.com/endevco/aube.git \
+    && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
+    && git checkout --detach FETCH_HEAD \
+    && cargo update -p rustls-webpki --precise 0.103.16 \
+    && cargo update -p webpki-roots --precise 1.0.10 \
+    && cargo build --release --locked --bin aube
+
+# NSH's command line, which builds and checks the cards a Thread's model
+# writes (Tuist.Threads.Cards): the official release, checksum-pinned. NSH
+# publishes no signatures or attestations yet, so the pinned SHA-256 is what
+# stops a replaced asset. Keep the version and checksums with server/mise.lock
+# and the version with Luft's NSH SDK (luft/modules/nsh.star). It needs
+# glibc 2.39 and the runner is Bookworm (2.36), so it ships with Trixie's loader
+# and the three libraries it links, and `nsh` runs it through them; the rest of
+# the image keeps Bookworm's glibc. It starts no other programs, which would
+# miss them.
+FROM ${NSH_LIBS_IMAGE} AS nsh
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+  case "$TARGETARCH" in \
+    amd64) asset=nsh-linux-x86_64.tar.gz; sha=f34729e613196ca122d956deb543a92f319e053ff17dfc09ba04a6ec2fb79c74; loader=/lib64/ld-linux-x86-64.so.2; libs=/lib/x86_64-linux-gnu ;; \
+    arm64) asset=nsh-linux-arm64.tar.gz; sha=6f182e61ce68115b99d29a096f4a935bf3e7aa2733cdf9f135274ccec00dfef6; loader=/lib/ld-linux-aarch64.so.1; libs=/lib/aarch64-linux-gnu ;; \
+    *) echo "NSH has no Linux release for $TARGETARCH" >&2; exit 1 ;; \
+  esac; \
+  curl -fsSL "https://github.com/longbridge/nsh/releases/download/v0.5.1/$asset" -o /tmp/nsh.tar.gz; \
+  echo "$sha  /tmp/nsh.tar.gz" | sha256sum -c -; \
+  mkdir -p /opt/nsh/bin /opt/nsh/lib; \
+  tar -xzf /tmp/nsh.tar.gz -C /tmp nsh/bin/nsh; \
+  mv /tmp/nsh/bin/nsh /opt/nsh/bin/nsh; \
+  rm -rf /tmp/nsh /tmp/nsh.tar.gz; \
+  cp -L "$loader" /opt/nsh/lib/ld.so; \
+  for lib in libc.so.6 libm.so.6 libgcc_s.so.1; do cp -L "$libs/$lib" /opt/nsh/lib/; done; \
+  printf '#!/bin/sh\nexec /opt/nsh/lib/ld.so --library-path /opt/nsh/lib /opt/nsh/bin/nsh "$@"\n' > /opt/nsh/nsh; \
+  chmod +x /opt/nsh/nsh; \
+  /opt/nsh/nsh --version
 
 # ========================================
 # Stage: Swift parser builder
@@ -23,8 +67,11 @@ ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 # ========================================
 FROM ${SWIFT_IMAGE} AS swift-builder
 
-RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+RUN apt-get update -qq && apt-get install -y -qq unzip ca-certificates > /dev/null 2>&1 \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 WORKDIR /nif
 
@@ -51,7 +98,14 @@ COPY --from=swift-builder /nif/swift-libs/ /swift-libs/
 FROM ${NODE_IMAGE} AS npm-deps
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
+# Replace Node's bundled roots; --use-system-ca would only add the OS roots.
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
@@ -76,8 +130,13 @@ RUN mkdir /_build
 FROM ${BUILDER_IMAGE} AS deps-builder
 
 RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -108,6 +167,7 @@ RUN mkdir config
 COPY tuist_common/mix.exs /tuist_common/mix.exs
 COPY tuist_ex/mix.exs /tuist_ex/mix.exs
 COPY noora/mix.exs /noora/mix.exs
+COPY condukt/mix.exs /condukt/mix.exs
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
@@ -161,6 +221,8 @@ FROM deps-builder AS compiled
 COPY tuist_common /tuist_common
 COPY tuist_ex /tuist_ex
 COPY noora /noora
+COPY condukt/lib /condukt/lib
+COPY condukt/priv /condukt/priv
 COPY server/priv priv
 COPY skills/skills priv/static/skills
 COPY server/assets assets
@@ -172,12 +234,19 @@ COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
-RUN --mount=type=bind,from=mix-cache,source=/_build,target=/mix-cache \
+# Colocated hooks and CSS (phoenix-colocated) are written only when their module
+# compiles, so restored project builds without them would drop those modules'
+# assets from the bundles. Snapshots without the folder are not restored.
+RUN --mount=type=bind,from=mix-cache,source=/,target=/mix-cache \
     mkdir -p "_build/${MIX_ENV}/lib" && \
-    cp -a /mix-cache/. "_build/${MIX_ENV}/lib/" && \
+    if [ -d /mix-cache/phoenix-colocated ]; then \
+      cp -a /mix-cache/_build/. "_build/${MIX_ENV}/lib/" && \
+      cp -a /mix-cache/phoenix-colocated "_build/${MIX_ENV}/phoenix-colocated"; \
+    fi && \
     mix compile --warnings-as-errors
 
-# Keep fetched dependencies layer-cached; retain only the four local projects.
+# Keep fetched dependencies layer-cached; retain only the four local projects
+# and their colocated assets.
 # Export before assets/release so the snapshot never contains an old release.
 FROM scratch AS mix-cache-export
 ARG MIX_ENV=prod
@@ -185,6 +254,7 @@ COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist/ /_build/tuist/
 COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_common/ /_build/tuist_common/
 COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_ex/ /_build/tuist_ex/
 COPY --from=compiled /app/_build/${MIX_ENV}/lib/noora/ /_build/noora/
+COPY --from=compiled /app/_build/${MIX_ENV}/phoenix-colocated/ /phoenix-colocated/
 
 FROM compiled AS builder
 
@@ -217,15 +287,19 @@ RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
 # ========================================
 FROM ${RUNNER_IMAGE} AS runner-base
 
-# APT_CACHE_BUST is passed from CI (e.g. the commit SHA) to invalidate the
-# apt layer so `apt-get upgrade` picks up the latest security patches instead
-# of reusing a stale cached layer.
+# Builds that pass APT_CACHE_BUST rebuild the apt layer so `apt-get upgrade`
+# picks up the latest security patches. Deployed images don't pass it: their
+# apt layer is rebuilt when RUNNER_IMAGE changes, so consecutive deploys share
+# it and nodes pull it once.
 ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential chromium fonts-noto-cjk fonts-noto-core gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
@@ -257,6 +331,9 @@ ENV TUIST_VERSION=$TUIST_VERSION
 # (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
 COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
+
+COPY --from=nsh /opt/nsh /opt/nsh
+RUN ln -s /opt/nsh/nsh /usr/local/bin/nsh
 
 # Release taken from release-with-parser so xcactivitylog-parser is already
 # under lib/tuist-<vsn>/priv/native where Tuist.Processor.XCActivityLogParser

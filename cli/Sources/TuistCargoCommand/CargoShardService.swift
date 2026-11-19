@@ -4,6 +4,7 @@ import Foundation
 #endif
 import Path
 import TuistCI
+import TuistHTTP
 import TuistProcess
 import TuistServer
 
@@ -15,6 +16,14 @@ struct CargoShardService {
     }
 
     let runner: CommandRunning
+
+    /// Shard archives live on a single store per site, which refuses connections for some seconds while it restarts.
+    /// Backing off from half a second to the 30-second cap over seven retries waits about a minute, which outlasts that
+    /// restart. Replaying a lookup, a part, or a completion is safe: the server answers a completion it already made
+    /// with success, and a replayed start leaves an unused upload that the store's lifecycle aborts.
+    static var storeRetryProvider: RetryProvider {
+        RetryProvider(maximumRetryCount: 7, delayProvider: DelayProvider(baseDelayMilliseconds: 500))
+    }
 
     func plan(
         arguments: [String],
@@ -47,13 +56,14 @@ struct CargoShardService {
             directory: directory
         )
         let inventory = try JSONDecoder().decode(NextestInventory.self, from: Data(listing.utf8))
-        guard !inventory.modules.isEmpty else { throw CargoReportError(message: "No enabled nextest test binaries were found.") }
+        guard !inventory.modules.isEmpty else { throw CargoReportError(message: "No enabled Cargo test binaries were found.") }
         let options = parsed.options
         let plan = try await CreateShardPlanService(concurrentModules: inventory.modules).createShardPlan(
             fullHandle: fullHandle, serverURL: serverURL, reference: reference, modules: inventory.modules,
             parallelizableModules: nil, testSuites: nil, skippedTestSuites: nil,
             shardMin: options["--shard-min"], shardMax: options["--shard-max"], shardTotal: options["--shard-total"],
-            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil
+            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil,
+            testImpactRunId: nil
         )
         if environment["TUIST_TEST_SHARD_ARCHIVE_PATH"] == nil {
             try await upload(archive, planID: plan.id, reference: reference, fullHandle: fullHandle, serverURL: serverURL)
@@ -87,14 +97,17 @@ struct CargoShardService {
     }
 
     private func upload(_ archive: URL, planID: String, reference: String, fullHandle: String, serverURL: URL) async throws {
-        let uploadID = try await StartShardUploadService().startUpload(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            shardPlanId: planID,
-            reference: reference,
-            artifact: nil
-        )
-        let parts = try await MultipartUploadArtifactService().multipartUploadArtifact(
+        let retryProvider = Self.storeRetryProvider
+        let uploadID = try await retryProvider.runWithRetries {
+            try await StartShardUploadService().startUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                shardPlanId: planID,
+                reference: reference,
+                artifact: nil
+            )
+        }
+        let parts = try await MultipartUploadArtifactService(retryProvider: retryProvider).multipartUploadArtifact(
             artifactPath: AbsolutePath(validating: archive.path),
             generateUploadURL: { part in
                 try await MultipartUploadGenerateURLShardsService().generateUploadURL(
@@ -108,18 +121,21 @@ struct CargoShardService {
                 )
             }, updateProgress: { _ in }
         )
-        try await MultipartUploadCompleteShardsService().completeUpload(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            shardPlanId: planID,
-            reference: reference,
-            uploadId: uploadID,
-            parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) },
-            artifact: nil
-        )
+        let completedParts = parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
+        try await retryProvider.runWithRetries {
+            try await MultipartUploadCompleteShardsService().completeUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                shardPlanId: planID,
+                reference: reference,
+                uploadId: uploadID,
+                parts: completedParts,
+                artifact: nil
+            )
+        }
     }
 
-    private static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
+    static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
         let shards = Array(0 ..< plan.shard_count)
         let data = try JSONSerialization.data(
             withJSONObject: ["shard_plan_id": plan.id, "shards": shards],
@@ -149,26 +165,28 @@ struct CargoShardService {
         guard let reference = environment["TUIST_SHARD_REFERENCE"] ?? CIController().ciInfo()?.shardReference ?? planID else {
             throw CargoReportError(message: "Set TUIST_SHARD_REFERENCE or TUIST_SHARD_PLAN_ID for shard execution.")
         }
-        let shard = try await GetShardService().getShard(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            reference: reference,
-            shardPlanId: planID,
-            shardIndex: index
-        )
+        let shard = try await Self.storeRetryProvider.runWithRetries {
+            try await GetShardService().getShard(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference,
+                shardPlanId: planID,
+                shardIndex: index
+            )
+        }
         guard shard.suites.additionalProperties.isEmpty, (shard.skip ?? []).isEmpty else {
             throw CargoReportError(message: "Rust execution requires a module-granularity shard plan.")
         }
         if let local = environment["TUIST_TEST_SHARD_ARCHIVE_PATH"] {
             let archive = URL(fileURLWithPath: local, relativeTo: URL(fileURLWithPath: directory.pathString)).standardizedFileURL
             guard FileManager.default.fileExists(atPath: archive.path)
-            else { throw CargoReportError(message: "The local nextest shard archive is missing.") }
+            else { throw CargoReportError(message: "The local Cargo shard archive is missing.") }
             return Shard(id: shard.shard_plan_id, modules: shard.modules, archive: archive)
         }
         guard shard.download_urls.count == 1, let url = URL(string: shard.download_urls[0]),
               ["https", "http"].contains(url.scheme ?? "")
         else {
-            throw CargoReportError(message: "The nextest shard archive is not available.")
+            throw CargoReportError(message: "The Cargo shard archive is not available.")
         }
         let archive = temporary.appendingPathComponent("tests.tar.zst")
         try await Self.downloadArchive(from: url, to: archive)
@@ -178,12 +196,12 @@ struct CargoShardService {
     static func downloadArchive(
         from url: URL,
         to archive: URL,
-        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .shared)
+        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .tuistDefault, retryProvider: storeRetryProvider)
     ) async throws {
         let (file, response) = try await transfer.download(URLRequest(url: url))
         guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {
             try? FileManager.default.removeItem(at: file)
-            throw CargoReportError(message: "Downloading the nextest shard archive failed.")
+            throw CargoReportError(message: "Downloading the Cargo shard archive failed.")
         }
         try FileManager.default.moveItem(at: file, to: archive)
     }

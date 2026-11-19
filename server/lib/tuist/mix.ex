@@ -301,6 +301,7 @@ defmodule Tuist.Mix do
   @build_string_fields [
     :elixir_version,
     :otp_version,
+    :tuist_version,
     :mix_env,
     :git_branch,
     :git_commit_sha,
@@ -371,6 +372,8 @@ defmodule Tuist.Mix do
       network_bytes_out: bytes(sample, :network_bytes_out),
       disk_bytes_read: bytes(sample, :disk_bytes_read),
       disk_bytes_written: bytes(sample, :disk_bytes_written),
+      disk_total_bytes: integer_value(sample, :disk_total_bytes),
+      disk_available_bytes: integer_value(sample, :disk_available_bytes),
       inserted_at: now
     }
   end

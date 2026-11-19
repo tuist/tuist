@@ -33,7 +33,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,6 +66,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(clusterv2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 }
 
@@ -75,6 +77,7 @@ func main() {
 		enableLeaderElection      bool
 		secretsNamespace          string
 		ovhPrivateNetworkConfig   string
+		ovhRunnerEgressConfig     string
 		vultrPrivateNetworkConfig string
 		rackCardRootSecret        string
 
@@ -124,6 +127,7 @@ func main() {
 		orphanReclaimClaimNamePrefix string
 		orphanReclaimZonesRaw        string
 		orphanReclaimInterval        time.Duration
+		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -135,6 +139,8 @@ func main() {
 		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
 	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
 		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&ovhRunnerEgressConfig, "ovh-runner-egress-config", "",
+		"ConfigMap in the secrets namespace declaring OVH runner vRack egress")
 	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
 		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
@@ -198,7 +204,7 @@ func main() {
 			"host logs to. Points at the tailnet hostname of the Tailscale-operator "+
 			"proxy in front of the k8s-monitoring chart's alloy-receiver, which "+
 			"already serves this endpoint for the xcresult processor's Tart guests. "+
-			"Pushing there rather than to Grafana Cloud keeps every ingest "+
+			"Pushing there rather than straight to Pulse keeps every ingest "+
 			"credential off the fleet: the tailnet ACL is the access control and "+
 			"Alloy forwards with the token it already holds. Empty disables the "+
 			"host-log step. Flows from the chart's macosFleet.hostLogs.url.")
@@ -253,9 +259,7 @@ func main() {
 			"resolves it to an ID (creating the PN from the CIDR if absent), "+
 			"attaches every Mac mini to it, resolves the per-host VLAN, and "+
 			"bootstrap materializes the VLAN interface + VM egress pass + NAT. "+
-			"The same name as the kura fleet's privateNetworkName, so the Macs "+
-			"and the Elastic Metal cache node share one PN per env. Flows from "+
-			"the chart's macosFleet.vmCachePrivateNetwork.name.")
+			"Flows from the chart's macosFleet.vmCachePrivateNetwork.name.")
 	flag.StringVar(&vmCachePNCIDR, "vm-cache-pn-cidr",
 		envOrDefault("CAPI_VM_CACHE_PN_CIDR", ""),
 		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22), "+
@@ -494,6 +498,10 @@ func main() {
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
+	flag.DurationVar(&ovhPoolPrepInterval, "ovh-pool-prep-interval", 5*time.Minute,
+		"How often the OVH pool prep pass looks for boxes named prep-<adoptDisplayNamePrefix> "+
+			"and moves them on. Each pass reads every unclaimed box's displayName; an install "+
+			"takes 20 to 40 minutes. 0 disables it.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -649,12 +657,31 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
+	// controller-runtime's 15s lease / 10s renew deadline makes the manager
+	// exit whenever the apiserver is unreachable for 10s. Replacing a
+	// control-plane Machine (a Kubernetes upgrade) blackholes the in-cluster
+	// apiserver Service for 35s or more per member, so every upgrade
+	// crash-looped this pod. Nothing here is latency-sensitive, so trade
+	// slower failover for riding out a control-plane member swap. Releasing
+	// on cancel keeps rolling deploys from waiting out the longer lease;
+	// main exits as soon as the manager stops.
+	leaseDuration, renewDeadline, retryPeriod := 90*time.Second, 60*time.Second, 10*time.Second
 	mgrOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &leaseDuration,
+		RenewDeadline:                 &renewDeadline,
+		RetryPeriod:                   &retryPeriod,
+		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
+		// and managedFields are a third to a half of each object. No
+		// controller reads them.
+		Cache: cache.Options{
+			DefaultTransform: cache.TransformStripManagedFields(),
+		},
 	}
 	// When the egress reconciler is wired, scope the Services
 	// informer to the egress namespace. The cache's default is a
@@ -665,12 +692,10 @@ func main() {
 	// touches Services there, so narrowing the cache matches both
 	// the RBAC shape and the actual access pattern.
 	if egressProxyGroup != "" && egressNamespace != "" {
-		mgrOptions.Cache = cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&corev1.Service{}: {
-					Namespaces: map[string]cache.Config{
-						egressNamespace: {},
-					},
+		mgrOptions.Cache.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {
+				Namespaces: map[string]cache.Config{
+					egressNamespace: {},
 				},
 			},
 		}
@@ -711,8 +736,8 @@ func main() {
 		Minter: ghAppClient,
 	}
 
-	// Shared by both reconcilers so the Apple Silicon and Elastic Metal fleets
-	// resolve the runner-cache Private Network by name to one PN per env.
+	// Resolves the Apple Silicon fleet's runner-cache Private Network by name
+	// to one PN per env.
 	vpcClient, err := scaleway.NewVPCClientFromEnv()
 	if err != nil {
 		setupLog.Error(err, "scaleway vpc client")
@@ -720,6 +745,8 @@ func main() {
 	}
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
+		APIReader:                     mgr.GetAPIReader(),
+		ProcessorDeploymentName:       fleetSpreadDeployment,
 		Client:                        mgr.GetClient(),
 		Scheme:                        mgr.GetScheme(),
 		ScalewayClient:                scwClient,
@@ -972,33 +999,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
-	// provider, separate reconciler from Apple Silicon: bare-metal servers
-	// ordered through the Baremetal API that pass through an OS-install wait,
-	// attach the PN as a tagged VLAN, then SSH-bootstrap a rendered self-join.
-	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
-	if err != nil {
-		setupLog.Error(err, "scaleway baremetal client")
-		os.Exit(1)
-	}
-	if err := (&linux.ScalewayElasticMetalMachineReconciler{
-		Client:             mgr.GetClient(),
-		APIReader:          mgr.GetAPIReader(),
-		Scheme:             mgr.GetScheme(),
-		ScalewayClient:     baremetalClient,
-		VPC:                vpcClient,
-		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),
-		CredentialsManager: credsManager,
-		Kubeconfig:         kubeconfigBuilder,
-		KubernetesMinor:    "v1.34",
-		DefaultOfferType:   "EM-B220E-NVME",
-		DefaultOS:          "ubuntu_noble",
-		DefaultZone:        "fr-par-1",
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup ScalewayElasticMetalMachineReconciler")
-		os.Exit(1)
-	}
-
 	// OVH dedicated (bare-metal) machines (customer-facing Kura cache regions).
 	// Per-vendor failover-IP movers, populated below for whichever vendors have
 	// creds in this environment. The FailoverIP placement reconciler (registered
@@ -1032,11 +1032,31 @@ func main() {
 			DefaultOS:                "ubuntu_24.04",
 			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
 			PrivateNetworkNamespace:  secretsNamespace,
+			RunnerEgressConfigName:   ovhRunnerEgressConfig,
+			RunnerEgressNamespace:    secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
+		if ovhPoolPrepInterval > 0 {
+			if err := mgr.Add(&linux.OVHPoolPrep{
+				Client:    mgr.GetClient(),
+				APIReader: mgr.GetAPIReader(),
+				OVH:       ovhClient,
+				FleetKey: func(ctx context.Context, fleet string) (string, error) {
+					return linux.FleetPublicKey(ctx, credsManager, fleet)
+				},
+				Recorder:          mgr.GetEventRecorderFor("ovh-pool-prep"),
+				Interval:          ovhPoolPrepInterval,
+				DefaultDatacenter: "vin",
+				DefaultOS:         "ubuntu_24.04",
+				Log:               ctrl.Log.WithName("ovh-pool-prep"),
+			}); err != nil {
+				setupLog.Error(err, "setup OVHPoolPrep")
+				os.Exit(1)
+			}
+		}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 

@@ -102,8 +102,18 @@ defmodule Tuist.Builds.Steps do
     if opts[:end_ms], do: from(e in query, where: e.start_ms < ^opts.end_ms), else: query
   end
 
-  def order(query, "start_ms"), do: from(e in query, order_by: [asc: e.start_ms, asc: e.event_id])
-  def order(query, "duration_ms"), do: from(e in query, order_by: [desc: e.duration_ms, asc: e.event_id])
+  # Without an explicit order, start times run earliest first and durations longest first.
+  def order(query, sort_by, sort_order \\ nil)
+
+  def order(query, "start_ms", order),
+    do: from(e in query, order_by: [{^direction(order, :asc), e.start_ms}, asc: e.event_id])
+
+  def order(query, "duration_ms", order),
+    do: from(e in query, order_by: [{^direction(order, :desc), e.duration_ms}, asc: e.event_id])
+
+  def direction("asc", _default), do: :asc
+  def direction("desc", _default), do: :desc
+  def direction(_order, default), do: default
 
   defp serialize(step), do: step |> Map.put(:id, to_string(step.event_id)) |> Map.delete(:event_id)
   defp availability(_build, true), do: "available"

@@ -12,7 +12,7 @@ extension TestPlanDescriptor {
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         rootPath: AbsolutePath
-    ) -> TestPlanDescriptor? {
+    ) throws -> TestPlanDescriptor? {
         guard testPlan.kind == .generated else { return nil }
 
         var testTargets: [TestPlanDescriptor.TestTarget] = []
@@ -42,6 +42,27 @@ extension TestPlanDescriptor {
 
         guard !testTargets.isEmpty else { return nil }
 
-        return TestPlanDescriptor(path: testPlan.path, testTargets: testTargets)
+        let codeCoverageTargets = try testPlan.codeCoverageTargets.map { target -> TestPlanDescriptor.CodeCoverageTarget in
+            guard let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name),
+                  let generatedProject = generatedProjects[graphTarget.project.xcodeProjPath],
+                  let pbxTarget = generatedProject.targets[target.name]
+            else {
+                throw SchemeDescriptorsGeneratorError.unresolvedTestPlanCoverageTarget(plan: testPlan.path, target: target)
+            }
+
+            return TestPlanDescriptor.CodeCoverageTarget(
+                pbxTarget: pbxTarget,
+                containerPath: "container:\(graphTarget.project.xcodeProjPath.relative(to: rootPath).pathString)"
+            )
+        }
+
+        return TestPlanDescriptor(
+            path: testPlan.path,
+            testTargets: testTargets,
+            coverage: testPlan.coverage,
+            codeCoverageTargets: codeCoverageTargets,
+            language: testPlan.language,
+            region: testPlan.region
+        )
     }
 }

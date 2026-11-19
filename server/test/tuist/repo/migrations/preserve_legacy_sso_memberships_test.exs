@@ -1,3 +1,5 @@
+# Historical schema and data changes roll back with each serialized sandbox transaction.
+# excellent_migrations:safety-assured-for-this-file operation_query
 Code.require_file(
   Path.expand("../../../../priv/repo/migrations/20261027103000_preserve_legacy_sso_memberships.exs", __DIR__)
 )
@@ -13,6 +15,12 @@ defmodule Tuist.Repo.Migrations.PreserveLegacySsoMembershipsTest do
   alias Tuist.Repo
   alias Tuist.Repo.Migrations.PreserveLegacySsoMemberships
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  setup do
+    # Recreate the historical schema only within this serialized sandbox transaction.
+    Repo.query!("ALTER TABLE organizations ADD COLUMN sso_legacy_email_domain_fallback boolean NOT NULL DEFAULT false")
+    :ok
+  end
 
   test "preserves each implicit member and the configured role for Okta and custom providers" do
     for provider <- [:okta, :oauth2] do
@@ -94,22 +102,30 @@ defmodule Tuist.Repo.Migrations.PreserveLegacySsoMembershipsTest do
     tenant = "tenant-#{System.unique_integer([:positive])}.example"
     issuer = if provider == :okta, do: tenant, else: "https://#{tenant}"
 
-    AccountsFixtures.organization_fixture(
-      Keyword.merge(
-        [
-          sso_provider: provider,
-          sso_organization_id: issuer,
-          sso_legacy_email_domain_fallback: true,
-          sso_automatic_enrollment: true,
-          oauth2_client_id: "client",
-          oauth2_client_secret: "secret",
-          oauth2_authorize_url: "https://#{tenant}/authorize",
-          oauth2_token_url: "https://#{tenant}/token",
-          oauth2_user_info_url: "https://#{tenant}/userinfo"
-        ],
-        opts
+    organization =
+      AccountsFixtures.organization_fixture(
+        Keyword.merge(
+          [
+            sso_provider: provider,
+            sso_organization_id: issuer,
+            existing_sso_configuration: true,
+            sso_automatic_enrollment: true,
+            oauth2_client_id: "client",
+            oauth2_client_secret: "secret",
+            oauth2_authorize_url: "https://#{tenant}/authorize",
+            oauth2_token_url: "https://#{tenant}/token",
+            oauth2_user_info_url: "https://#{tenant}/userinfo"
+          ],
+          Keyword.delete(opts, :sso_legacy_email_domain_fallback)
+        )
       )
-    )
+
+    Repo.query!("UPDATE organizations SET sso_legacy_email_domain_fallback = $1 WHERE id = $2", [
+      Keyword.get(opts, :sso_legacy_email_domain_fallback, true),
+      organization.id
+    ])
+
+    organization
   end
 
   defp linked_user(organization) do

@@ -1,10 +1,121 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Synchronization
 import Testing
 @testable import SwifterPMCore
 
 struct ResolveTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
+    func forcedRegistryInstallReplacesRetainedVersion(downgrade: Bool, warmCache: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        try await withLocalHTTPServer { server in
+            // A unique scope keeps native SwiftPM's registry fingerprints isolated.
+            let scope = "test" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            let identity = "\(scope).dependency"
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            let manifest = try await fileSystem.readFile(at: dependency.appendingPathComponent("Package.swift").absolutePath)
+            server.respond(to: "/availability", with: [.ok("")])
+            server.respond(to: "/\(scope)/dependency", with: [.init(
+                statusCode: 200,
+                headers: ["Content-Type": "application/json", "Content-Version": "1"],
+                body: #"{"releases":{"1.0.0":{},"2.0.0":{}}}"#
+            )])
+            for version in ["1.0.0", "2.0.0"] {
+                try await fileSystem.atomicWrite(version, to: dependency.appendingPathComponent("version.txt"))
+                let archive = root.appendingPathComponent("dependency-\(version).zip")
+                try await SystemProcess.run("zip", ["-qr", archive.path, "."], workingDirectory: dependency)
+                let archiveData = try await fileSystem.readFile(at: archive.absolutePath)
+                let checksum = Hashing.sha256Hex(archiveData)
+                let path = "/\(scope)/dependency/\(version)"
+                server.respond(to: path, with: [.init(
+                    statusCode: 200,
+                    headers: ["Content-Type": "application/json", "Content-Version": "1"],
+                    body: """
+                    {"id":"\(identity)","version":"\(version)","resources":[
+                        {"name":"source-archive","type":"application/zip","checksum":"\(checksum)"}
+                    ]}
+                    """
+                )])
+                server.respond(to: path + "/Package.swift", with: [.init(
+                    statusCode: 200,
+                    headers: ["Content-Type": "text/x-swift", "Content-Version": "1"],
+                    data: manifest
+                )])
+                server.respond(to: path + ".zip", with: [.init(
+                    statusCode: 200,
+                    headers: ["Content-Type": "application/zip", "Content-Version": "1"],
+                    data: archiveData
+                )])
+            }
+            let package = root.appendingPathComponent("App")
+            let oldVersion = downgrade ? "2.0.0" : "1.0.0"
+            let newVersion = downgrade ? "1.0.0" : "2.0.0"
+            func writeManifest(version: String) async throws {
+                try await fileSystem.atomicWrite(
+                    """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+                    let package = Package(name: "App", dependencies: [
+                        .package(id: "\(identity)", exact: "\(version)"),
+                    ])
+                    """,
+                    to: package.appendingPathComponent("Package.swift")
+                )
+            }
+            var request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: root.appendingPathComponent("cache"),
+                defaultRegistryURL: server.url(path: "").absoluteString,
+                disableSandbox: true,
+                quiet: true
+            )
+            try await writeManifest(version: oldVersion)
+            _ = try await SwifterPM().resolve(request)
+
+            // Produce a valid new lockfile in a separate workspace, as another
+            // developer would, while keeping CI's previous workspace intact.
+            try await writeManifest(version: newVersion)
+            let lockfile = package.appendingPathComponent("Package.resolved")
+            try await fileSystem.remove(lockfile.absolutePath)
+            var updated = request
+            updated.scratchDirectory = root.appendingPathComponent("fresh-workspace")
+            if !warmCache { updated.cacheDirectory = root.appendingPathComponent("fresh-cache") }
+            _ = try await SwifterPM().resolve(updated)
+            let originalLockfile = try await fileSystem.readFile(at: lockfile.absolutePath)
+            let statePath = package.appendingPathComponent(".build/workspace-state.json")
+            #expect(try await fileSystem.readTextFile(at: statePath.absolutePath).contains(oldVersion))
+
+            request.forceResolvedVersions = true
+            let result = try await SwifterPM().resolve(request)
+            #expect(result.pins.first?.version == newVersion)
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+            let state = try JSONSerialization.jsonObject(with: await fileSystem.readFile(at: statePath.absolutePath))
+                as? [String: Any]
+            let dependencies = (state?["object"] as? [String: Any])?["dependencies"] as? [[String: Any]]
+            #expect((dependencies?.first?["state"] as? [String: Any])?["version"] as? String == newVersion)
+            let restoredSource = package.appendingPathComponent(".build/registry/downloads/\(scope)/dependency/\(newVersion)")
+            #expect(try await fileSystem.readTextFile(at: restoredSource.appendingPathComponent("version.txt").absolutePath) == newVersion)
+
+            // An empty cache and scratch must follow the same locked-install contract.
+            request.cacheDirectory = root.appendingPathComponent("empty-cache")
+            request.scratchDirectory = root.appendingPathComponent("empty-workspace")
+            let fresh = try await SwifterPM().resolve(request)
+            #expect(fresh.pins == result.pins)
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+
+            // Repairing derived state must never make an actually stale lockfile valid.
+            try await writeManifest(version: oldVersion)
+            request.cacheDirectory = root.appendingPathComponent("invalid-cache")
+            let error = await #expect(throws: ToolError.self) {
+                try await SwifterPM().resolve(request)
+            }
+            #expect(error?.description.contains("out-of-date") == true)
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func warmValidationReusesManifestsWhenFetchCredentialsRotate() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL
@@ -128,8 +239,8 @@ struct ResolveTests {
         #expect(error?.description.contains("out-of-date") == true)
     }
 
-    @Test(.inTemporaryDirectory, arguments: [false, true])
-    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool) async throws {
+    @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
+    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool, warmCache: Bool) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL
         let dependency = root.appendingPathComponent("Dependency")
         try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
@@ -137,7 +248,7 @@ struct ResolveTests {
         let package = root.appendingPathComponent("App")
         try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
         let scratch = package.appendingPathComponent(".build")
-        let sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
+        var sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
         var request = SwifterPMResolutionRequest(
             packageDirectory: package,
             cacheDirectory: sharedCache,
@@ -151,6 +262,10 @@ struct ResolveTests {
 
         if !retainWorkspace {
             try await fileSystem.remove(scratch.absolutePath)
+        }
+        if !warmCache {
+            sharedCache = root.appendingPathComponent("cold cache")
+            request.cacheDirectory = sharedCache
         }
         request.forceResolvedVersions = true
         let warm = try await SwifterPM().resolve(request)
@@ -230,6 +345,40 @@ struct ResolveTests {
                     .path
                     == root.path)
         }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func forcedInstallWithoutLockfileRequiresOnlyLocalDependencies(unpinnedSourceControl: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        let package = root.appendingPathComponent("App")
+        if unpinnedSourceControl {
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
+        } else {
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [.package(path: "../Dependency")])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+        }
+        let request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: root.appendingPathComponent("cache"),
+            disableSandbox: true,
+            forceResolvedVersions: true,
+            quiet: true
+        )
+        if unpinnedSourceControl {
+            await #expect(throws: ToolError.self) { try await SwifterPM().resolve(request) }
+        } else {
+            #expect(try await SwifterPM().resolve(request).pins.isEmpty)
+        }
+        #expect(try await !fileSystem.exists(package.appendingPathComponent("Package.resolved").absolutePath))
     }
 
     @Test
@@ -317,6 +466,277 @@ struct ResolveTests {
                 )
             }
         }
+    }
+
+    /// The restoration path cannot fetch prebuilts, so a warm install into a fresh checkout records swift-syntax's
+    /// prebuilts only if SwiftPM runs against the restored workspace. Other graphs keep the restoration path SwiftPM-free.
+    @Test(.inTemporaryDirectory, arguments: [("swift-syntax", true), ("Dependency", false)])
+    func warmInstallRunsSwiftPMOnlyWhenSwiftSyntaxHasNoRecordedPrebuilts(
+        dependencyName: String,
+        runsSwiftPM: Bool
+    ) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent(dependencyName)
+        try await writeLibraryPackageManifest(at: dependency, name: dependencyName)
+        try await initGitDependency(at: dependency, tags: ["1.0.0"])
+        let cache = root.appendingPathComponent("cache")
+        let first = root.appendingPathComponent("first/App")
+        let second = root.appendingPathComponent("second/App")
+        for package in [first, second] {
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, dependencyName: dependencyName)
+        }
+        _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+            packageDirectory: first, cacheDirectory: cache, disableSandbox: true, quiet: true
+        ))
+        let resolved = try await fileSystem.readTextFile(at: first.appendingPathComponent("Package.resolved").absolutePath)
+        try await fileSystem.atomicWrite(resolved, to: second.appendingPathComponent("Package.resolved"))
+
+        let messages = Mutex([String]())
+        try await SwifterPM.withDebugHandler({ message in messages.withLock { $0.append(message) } }) {
+            _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+                packageDirectory: second, cacheDirectory: cache, disableSandbox: true, quiet: true
+            ))
+        }
+
+        let phases = messages.withLock { $0 }
+        #expect(phases.contains { $0.hasPrefix("writing workspace state took") })
+        #expect(phases.contains { $0.hasPrefix("validating Package.resolved with SwiftPM took") } == runsSwiftPM)
+    }
+
+    enum PreparedCheckout: CaseIterable {
+        /// A Git-free copy SwiftPM can use as is.
+        case privateCopy
+        /// A link into a legacy shared Git cache entry, which SwiftPM must fetch again.
+        case legacyGitLink
+    }
+
+    /// Recording prebuilts is an optimization, so a failed SwiftPM run only warns. Preparing the workspace for it detaches
+    /// links into legacy shared Git checkouts for SwiftPM to fetch again, so when it fails, the install links them again
+    /// rather than going on without them.
+    @Test(.inTemporaryDirectory, arguments: PreparedCheckout.allCases)
+    func failedPrebuiltRecordingWarnsAndKeepsRestoredCheckouts(_ checkout: PreparedCheckout) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let (package, scratch) = try await packageWhoseSwiftPMValidationFails(root: root)
+        let checkouts = scratch.appendingPathComponent("checkouts")
+        switch checkout {
+        case .privateCopy:
+            try await writeLibraryPackageManifest(at: checkouts.appendingPathComponent("swift-syntax"), name: "SwiftSyntax")
+        case .legacyGitLink:
+            let legacy = root.appendingPathComponent("legacy-cache/swift-syntax")
+            try await writeLibraryPackageManifest(at: legacy, name: "SwiftSyntax")
+            try await initGitDependency(at: legacy, tags: ["1.0.0"])
+            try await fileSystem.makeDirectory(at: checkouts.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.createSymbolicLink(
+                from: checkouts.appendingPathComponent("swift-syntax").absolutePath, to: legacy.absolutePath
+            )
+        }
+        let warnings = Mutex([String]())
+
+        try await Environment.$warningHandler.withValue({ message in warnings.withLock { $0.append(message) } }) {
+            try await recordMissingPrebuilts(package: package, scratch: scratch, cache: root.appendingPathComponent("cache"))
+        }
+
+        #expect(warnings.withLock { $0 }.contains { $0.contains("could not record SwiftPM's prebuilts") })
+        let swiftSyntax = checkouts.appendingPathComponent("swift-syntax")
+        #expect(try await fileSystem.exists(swiftSyntax.appendingPathComponent("Package.swift").absolutePath))
+        if checkout == .legacyGitLink {
+            #expect(fileSystem.isSymlink(swiftSyntax))
+            #expect(
+                swiftSyntax.resolvingSymlinksInPath().path
+                    == root.appendingPathComponent("legacy-cache/swift-syntax").resolvingSymlinksInPath().path
+            )
+        }
+    }
+
+    /// SwiftPM records prebuilts while it resolves, before the forced-lockfile check can fail, for example on a lockfile
+    /// another Xcode wrote. Then swift-syntax uses the prebuilt, so warning that it builds from source would be wrong.
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func failedPrebuiltRecordingWarnsOnlyWhenSwiftPMRecordedNoPrebuilts(swiftPMRecordsPrebuilts: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let (package, scratch) = try await packageWhoseSwiftPMValidationFails(root: root)
+        try await writeLibraryPackageManifest(
+            at: scratch.appendingPathComponent("checkouts/swift-syntax"), name: "SwiftSyntax"
+        )
+        let recordedState = root.appendingPathComponent("recorded")
+        try await writeWorkspaceState(
+            prebuilts: swiftPMRecordsPrebuilts
+                ? [swiftSyntaxPrebuilt(scratchDir: scratch, version: "1.0.0", name: "swiftlang-6.4.0.34.1-macosx27.2")] : [],
+            scratchDir: recordedState
+        )
+        let bin = root.appendingPathComponent("bin")
+        try await fileSystem.atomicWrite(
+            #"""
+            #!/bin/sh
+            case " $* " in
+              *" resolve "*)
+                cp "$SWIFTERPM_TEST_RECORDED_STATE" "$SWIFTERPM_TEST_SCRATCH/workspace-state.json"
+                echo "error: an out-of-date resolved file was detected" >&2
+                exit 1
+                ;;
+            esac
+            exec "$SWIFTERPM_TEST_NATIVE_SWIFT" "$@"
+            """#,
+            to: bin.appendingPathComponent("swift")
+        )
+        try await SystemProcess.run("/bin/chmod", ["+x", bin.appendingPathComponent("swift").path])
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "\(bin.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
+        environment["SWIFTERPM_TEST_NATIVE_SWIFT"] = try await SystemProcess.output("/usr/bin/which", ["swift"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        environment["SWIFTERPM_TEST_RECORDED_STATE"] = recordedState.appendingPathComponent("workspace-state.json").path
+        environment["SWIFTERPM_TEST_SCRATCH"] = scratch.path
+        let warnings = Mutex([String]())
+
+        try await Environment.$manifestValues.withValue(environment) {
+            try await Environment.$warningHandler.withValue({ message in warnings.withLock { $0.append(message) } }) {
+                try await recordMissingPrebuilts(package: package, scratch: scratch, cache: root.appendingPathComponent("cache"))
+            }
+        }
+
+        #expect(try await recordedPrebuiltPaths(scratchDir: scratch).count == (swiftPMRecordsPrebuilts ? 1 : 0))
+        #expect(warnings.withLock { $0 }.contains { $0.contains("builds from source") } == !swiftPMRecordsPrebuilts)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func cancelledPrebuiltRecordingThrowsInsteadOfWarning() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let (package, scratch) = try await packageWhoseSwiftPMValidationFails(root: root)
+        try await writeLibraryPackageManifest(
+            at: scratch.appendingPathComponent("checkouts/swift-syntax"), name: "SwiftSyntax"
+        )
+        let warnings = Mutex([String]())
+
+        let recording = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await Environment.$warningHandler.withValue({ message in warnings.withLock { $0.append(message) } }) {
+                try await recordMissingPrebuilts(package: package, scratch: scratch, cache: root.appendingPathComponent("cache"))
+            }
+        }
+
+        await #expect(throws: CancellationError.self) { try await recording.value }
+        #expect(warnings.withLock { $0 }.isEmpty)
+    }
+
+    /// A package pinning swift-syntax without recorded prebuilts, so recording them runs SwiftPM, whose manifest SwiftPM
+    /// fails to load.
+    private func packageWhoseSwiftPMValidationFails(root: URL) async throws -> (package: URL, scratch: URL) {
+        let package = root.appendingPathComponent("App")
+        try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+        try await fileSystem.atomicWrite(
+            "// swift-tools-version:5.9\nthis is not a manifest\n", to: package.appendingPathComponent("Package.swift")
+        )
+        return (package, package.appendingPathComponent(".build"))
+    }
+
+    private func recordMissingPrebuilts(package: URL, scratch: URL, cache: URL) async throws {
+        try await PackageResolver.recordMissingPrebuilts(
+            resolved: ResolvedPins(originHash: nil, pins: [swiftSyntaxPin(version: "1.0.0")], version: 3),
+            packageDir: package,
+            scratchDir: scratch,
+            cacheDir: cache,
+            registryConfigurationPath: nil,
+            defaultRegistryURL: nil,
+            disableSandbox: true,
+            scmToRegistryTransformation: .disabled
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func forcedValidationIsReusedAcrossCheckoutsOfTheSameInputs() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0", "2.0.0"])
+        let cache = root.appendingPathComponent("cache")
+        let first = root.appendingPathComponent("first/App")
+        let second = root.appendingPathComponent("second/App")
+        try await writeAppPackageManifest(at: first, dependencyURL: dependency.path, exactVersion: "1.0.0")
+        _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+            packageDirectory: first, cacheDirectory: cache, disableSandbox: true, quiet: true
+        ))
+        try await writeAppPackageManifest(at: second, dependencyURL: dependency.path, exactVersion: "1.0.0")
+        let resolved = try await fileSystem.readTextFile(at: first.appendingPathComponent("Package.resolved").absolutePath)
+        try await fileSystem.atomicWrite(resolved, to: second.appendingPathComponent("Package.resolved"))
+
+        let messages = Mutex([String]())
+        func install(_ package: URL) async throws {
+            try await SwifterPM.withDebugHandler({ message in messages.withLock { $0.append(message) } }) {
+                _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+                    packageDirectory: package, cacheDirectory: cache, disableSandbox: true,
+                    forceResolvedVersions: true, quiet: true
+                ))
+            }
+        }
+        func validations() -> [String] {
+            messages.withLock { messages in
+                defer { messages.removeAll() }
+                return messages.compactMap {
+                    if $0.hasPrefix("validating Package.resolved with SwiftPM took") { return "validated" }
+                    return $0.hasSuffix("skipping it") ? "skipped" : nil
+                }
+            }
+        }
+
+        try await install(first)
+        #expect(validations() == ["validated"])
+        try await install(first)
+        #expect(validations() == ["skipped"])
+        try await install(second)
+        #expect(validations() == ["skipped"])
+
+        // A lockfile edited to a pin the manifest rejects keeps its origin hash, but it is a
+        // new input, so SwiftPM validates it again and rejects it.
+        let revision = { (tag: String) async throws -> String in
+            try await String(
+                decoding: SystemProcess.run("git", ["rev-parse", "\(tag)^{commit}"], workingDirectory: dependency).stdout,
+                as: UTF8.self
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let edited = try await resolved
+            .replacingOccurrences(of: revision("1.0.0"), with: revision("2.0.0"))
+            .replacingOccurrences(of: "\"1.0.0\"", with: "\"2.0.0\"")
+        try await fileSystem.atomicWrite(edited, to: second.appendingPathComponent("Package.resolved"))
+        await #expect(throws: ToolError.self) { try await install(second) }
+        #expect(!validations().contains("skipped"))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func forcedValidationKeyIgnoresTheCheckoutLocationButNotItsInputs() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        func key(_ worktree: String) async -> String? {
+            let package = root.appendingPathComponent("\(worktree)/App")
+            return await ResolvedFileValidation.key(
+                packageDir: package, scratchDir: package.appendingPathComponent(".build"),
+                registryConfigurationPath: nil, defaultRegistryURL: nil, disableSandbox: true,
+                scmToRegistryTransformation: .disabled
+            )
+        }
+        for worktree in ["first", "second"] {
+            let package = root.appendingPathComponent("\(worktree)/App")
+            try await writeMinimalPackageManifest(at: root.appendingPathComponent("\(worktree)/Local"), name: "Local")
+            try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                """
+                // swift-tools-version: 6.0
+                import PackageDescription
+                let package = Package(name: "App", dependencies: [.package(path: "../Local")])
+                """,
+                to: package.appendingPathComponent("Package.swift")
+            )
+            try await fileSystem.atomicWrite(#"{"pins":[],"version":3}"#, to: package.appendingPathComponent("Package.resolved"))
+        }
+        let first = try #require(await key("first"))
+        #expect(await key("second") == first)
+
+        try await fileSystem.atomicWrite(
+            #"{"object":{"prebuilts":[{"identity":"swift-syntax","version":"602.0.0","libraryName":"MacroSupport","path":"/prebuilts/MacroSupport"}]},"version":7}"#,
+            to: root.appendingPathComponent("second/App/.build/workspace-state.json")
+        )
+        let withPrebuilts = await key("second")
+        #expect(withPrebuilts != first)
+
+        try await writeMinimalPackageManifest(at: root.appendingPathComponent("second/Local"), name: "Renamed")
+        #expect(await key("second") != withPrebuilts)
     }
 
     @Test
@@ -425,6 +845,97 @@ struct ResolveTests {
             #expect(entry["version"] as? String == "1.0.0")
             let packageInfoPath = try #require(entry["package_info_path"] as? String)
             #expect(try await fileSystem.exists(URL(fileURLWithPath: packageInfoPath).absolutePath))
+        }
+    }
+
+    @Test
+    func coldResolutionWritesTheOriginHashForPackagesBelowToolsVersion510() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0", "1.1.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, toolsVersion: "5.9")
+            func resolveCold(_ name: String) async throws -> ResolvedPins {
+                let cacheDirectory = root.appendingPathComponent("\(name)-cache")
+                #expect(
+                    try await PackageResolver.shouldUseNativeColdPath(
+                        packageDir: package,
+                        cacheRoot: cacheDirectory,
+                        registryConfig: RegistryConfig()
+                    )
+                )
+                _ = try await SwifterPM().resolve(
+                    .init(
+                        packageDirectory: package,
+                        cacheDirectory: cacheDirectory,
+                        scratchDirectory: root.appendingPathComponent("\(name)-scratch"),
+                        disableSandbox: true,
+                        quiet: true
+                    ))
+                return try await ResolvedFile.read(packageDir: package)
+            }
+
+            let cold = try await resolveCold("cold")
+            #expect(cold.version == 2)
+            #expect(cold.pins.map(\.state.version) == ["1.0.0"])
+            #expect(cold.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+
+            // SwiftPM leaves Package.resolved alone when its pins are unchanged.
+            var withoutOriginHash = cold
+            withoutOriginHash.originHash = nil
+            try await ResolvedFile.write(packageDir: package, resolved: withoutOriginHash, mirrors: MirrorConfig())
+            let unchanged = try await resolveCold("unchanged")
+            #expect(unchanged.pins == cold.pins)
+            #expect(unchanged.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+
+            try await writeAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "1.1.0", toolsVersion: "5.9"
+            )
+            let bumped = try await resolveCold("bumped")
+            #expect(bumped.version == 2)
+            #expect(bumped.pins.map(\.state.version) == ["1.1.0"])
+            #expect(bumped.originHash == (try await ResolvedFile.packageOriginHash(packageDir: package)))
+            #expect(try await ResolvedFile.readIfCurrent(packageDir: package) != nil)
+        }
+    }
+
+    @Test
+    func coldForcedResolutionLeavesTheResolvedFileWithoutAnOriginHashUntouched() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, toolsVersion: "5.9")
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("cache"),
+                    scratchDirectory: root.appendingPathComponent("scratch"),
+                    disableSandbox: true,
+                    quiet: true
+                ))
+            var withoutOriginHash = try await ResolvedFile.read(packageDir: package)
+            withoutOriginHash.originHash = nil
+            try await ResolvedFile.write(packageDir: package, resolved: withoutOriginHash, mirrors: MirrorConfig())
+            let lockfile = package.appendingPathComponent("Package.resolved")
+            let original = try await fileSystem.readFile(at: lockfile.absolutePath)
+
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: root.appendingPathComponent("forced-cache"),
+                    scratchDirectory: root.appendingPathComponent("forced-scratch"),
+                    disableSandbox: true,
+                    forceResolvedVersions: true,
+                    restorePackage: false,
+                    quiet: true
+                ))
+
+            #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == original)
         }
     }
 
@@ -1093,8 +1604,8 @@ struct ResolveTests {
         }
     }
 
-    @Test
-    func pruningDropsUnreachableRegistryPinWithoutItsManifest() async throws {
+    @Test(arguments: ["", "registry.example-12345678/"])
+    func pruningDropsUnreachableRegistryPinWithoutItsManifest(registryPrefix: String) async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
             try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
@@ -1122,12 +1633,27 @@ struct ResolveTests {
                 state: .init(branch: nil, revision: "abc", version: "1.0.0")
             )
             let scratch = root.appendingPathComponent("scratch")
-            let directSource = scratch.appendingPathComponent("registry/downloads/example/direct/1.0.0")
+            let subpath = "\(registryPrefix)example/direct/1.0.0"
+            let directSource = scratch.appendingPathComponent("registry/downloads/\(subpath)")
             try await writeMinimalPackageManifest(at: directSource, name: "Direct")
             try await ResolvedFile.write(
                 packageDir: package,
                 resolved: .init(originHash: "stale", pins: [direct, orphan, sourceOrphan], version: 3),
                 mirrors: MirrorConfig()
+            )
+            try await fileSystem.atomicWrite(
+                JSONFormatter.prettyData([
+                    "version": 7,
+                    "object": [
+                        "dependencies": [[
+                            "packageRef": ["identity": "example.direct", "kind": "registry"],
+                            "state": ["name": "registryDownload", "version": "1.0.0"],
+                            "subpath": subpath,
+                        ]],
+                        "artifacts": [],
+                    ],
+                ]),
+                to: scratch.appendingPathComponent("workspace-state.json")
             )
 
             try await PackageResolver.pruneStalePinsIfNeeded(
@@ -2507,7 +3033,8 @@ struct ResolveTests {
         dependencyURL: String,
         exactVersion: String = "1.0.0",
         fromVersion: String? = nil,
-        dependencyName: String = "Dependency"
+        dependencyName: String = "Dependency",
+        toolsVersion: String = "6.0"
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
@@ -2521,7 +3048,7 @@ struct ResolveTests {
             }
         try await fileSystem.atomicWrite(
             """
-            // swift-tools-version: 6.0
+            // swift-tools-version: \(toolsVersion)
             import PackageDescription
 
             let package = Package(

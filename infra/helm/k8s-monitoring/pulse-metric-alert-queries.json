@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "uid": "ps-afx2mswafmvi8a",
+      "title": "[Pulse] Kura - instance retention horizon under a day",
+      "queries": {
+        "A": "histogram_quantile(0.5,\n  sum by (cluster, pod, le) (\n    increase(kura_segment_shed_age_seconds_bucket{cluster=\"tuist-production\"}[1d])\n  )\n  * on (cluster, pod) group_left(region, tenant_id)\n    max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster=\"tuist-production\"})\n)\nand on (cluster, pod) (\n  min by (cluster, pod) (\n    min_over_time(kura_backfill_ring_fullness_percent{cluster=\"tuist-production\"}[1d])\n  ) >= 100\n)"
+      }
+    },
+    {
+      "uid": "ps-dfygid92hevi8d",
+      "title": "[Pulse] Kura - instance retention horizon under a day for three days",
+      "queries": {
+        "A": "histogram_quantile(0.5,\n  sum by (cluster, pod, le) (\n    increase(kura_segment_shed_age_seconds_bucket{cluster=\"tuist-production\"}[3d])\n  )\n  * on (cluster, pod) group_left(region, tenant_id)\n    max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster=\"tuist-production\"})\n)\nand on (cluster, pod) (\n  min by (cluster, pod) (\n    min_over_time(kura_backfill_ring_fullness_percent{cluster=\"tuist-production\"}[3d])\n  ) >= 100\n)"
+      }
+    }
+  ]
+}

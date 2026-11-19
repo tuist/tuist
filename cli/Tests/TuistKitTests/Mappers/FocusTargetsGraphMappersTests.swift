@@ -746,6 +746,61 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertTrue(prunedNames.contains("UnrelatedTests"))
     }
 
+    func test_map_when_selective_testing_pruned_all_scheme_test_targets_prunes_scheme_build_action_targets() throws {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let path = try temporaryPath()
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: path, name: "App")])
+        let initialProject = Project.test(
+            path: path,
+            targets: [appTarget, framework, appTests],
+            schemes: [
+                .test(
+                    name: "App",
+                    buildAction: buildAction,
+                    testAction: .test(targets: [.test(target: TargetReference(projectPath: path, name: "AppTests"))])
+                ),
+            ]
+        )
+        let initialGraph = Graph.test(
+            projects: [initialProject.path: initialProject],
+            dependencies: [
+                .target(name: appTarget.name, path: path): [.target(name: framework.name, path: path)],
+                .target(name: appTests.name, path: path): [.target(name: appTarget.name, path: path)],
+            ]
+        )
+        let project = Project.test(
+            path: path,
+            targets: [appTarget, framework],
+            schemes: [.test(name: "App", buildAction: buildAction, testAction: .test(targets: []))]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: appTarget.name, path: path): [.target(name: framework.name, path: path)],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+        let subject = FocusTargetsGraphMappers(
+            schemeName: "App",
+            includedTargets: Set(),
+            includedProducts: [.unitTests, .uiTests]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: environment)
+        let prunedNames = gotGraph.projects.values.flatMap(\.targets.values)
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+            .map(\.name)
+            .sorted()
+
+        // Then
+        XCTAssertEqual(prunedNames, ["App", "Framework"])
+    }
+
     func test_map_when_scheme_name_not_found_falls_back_to_included_products() throws {
         // Given
         let framework = Target.test(name: "Framework")

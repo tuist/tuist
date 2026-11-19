@@ -30,6 +30,8 @@ defmodule Atlas.Push.Workers.Deliver do
   alias Atlas.Push.Installation
   alias Atlas.Push.Message
   alias Atlas.Repo
+  alias Atlas.Signals.Signal
+  alias Atlas.Signals.Source
   alias Atlas.Users.User
 
   @max_retry_after_seconds 3600
@@ -99,10 +101,27 @@ defmodule Atlas.Push.Workers.Deliver do
     end
   end
 
+  defp notification_alert(%{"kind" => "orbit_signal", "record_id" => thread_id} = args, installation) do
+    with {:ok, signal_id} <- Ecto.UUID.cast(args["signal_id"]),
+         %Thread{status: "active", kind: "shared", origin: "signal"} = thread <- Repo.get(Thread, thread_id),
+         %User{} = user <- Repo.get(User, installation.user_id),
+         true <- Access.can_read?(thread, user),
+         %Signal{status: "opened", thread_id: ^thread_id} = signal <- Repo.get(Signal, signal_id),
+         %Source{} = source <- Repo.get(Source, signal.source_id),
+         true <- user.id in source.reader_ids and Access.holds_all?(user, source.required_scopes),
+         true <- source.owner_id == user.id or Enum.any?(signal.decision["routing"], &(&1["id"] == user.id)) do
+      {:ok, %{title: "Atlas", body: "An Orbit investigation needs your attention"}}
+    else
+      _ ->
+        Push.audit_delivery(installation, args, "cancelled", :destination_unavailable)
+        :destination_unavailable
+    end
+  end
+
   defp notification_alert(_args, _installation), do: {:ok, %{title: Message.title(), body: Message.body()}}
 
-  defp send_message(%Installation{platform: "ios"} = installation, message, alert, opts),
-    do: APNs.deliver(installation, Message.apns_payload(message, alert), opts)
+  defp send_message(%Installation{platform: platform} = installation, message, alert, opts)
+       when platform in ["ios", "macos"], do: APNs.deliver(installation, Message.apns_payload(message, alert), opts)
 
   defp send_message(%Installation{platform: "android"} = installation, message, alert, opts),
     do: FCM.deliver(installation, Message.fcm_data(message, alert), opts)

@@ -44,7 +44,8 @@ export default defineConfig({
 /security/secure-development-policy /security/secure-development-and-operations/secure-development-policy 301
 /security/penetration-testing-policy /security/secure-development-and-operations/penetration-testing-policy 301
 /security/vulnerability-scanning-policy /security/secure-development-and-operations/vulnerability-scanning-policy 301
-/pdfs/operations-security-policy-bsi.pdf /pdfs/security/secure-development-and-operations/operations-security-policy-bsi.pdf 301
+/pdfs/operations-security-policy-bsi.pdf /security/secure-development-and-operations/operations-security-policy 301
+/pdfs/security/secure-development-and-operations/operations-security-policy-bsi.pdf /security/secure-development-and-operations/operations-security-policy 301
 /security/physical-security-policy /security/physical-and-asset-security/physical-security-policy 301
 /security/asset-management-policy /security/physical-and-asset-security/asset-management-policy 301
 /security/business-continuity-and-disaster-recovery-plan /security/business-continuity-and-data-protection/business-continuity-and-disaster-recovery-plan 301
@@ -245,7 +246,7 @@ export default defineConfig({
               },
               {
                 text: "Operations security policy",
-                link: "/pdfs/security/secure-development-and-operations/operations-security-policy-bsi.pdf",
+                link: "/security/secure-development-and-operations/operations-security-policy",
               },
             ],
           },

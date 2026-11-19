@@ -153,8 +153,10 @@ variables with the builder's `env` and external files/directories with its
 `inputs`, relative to the consuming project. Native keys automatically include
 standard build environment variables such as `PATH`, `CC`, `CXX`, `CFLAGS`,
 `LDFLAGS`, `SDKROOT` and `RUSTFLAGS`, using the dependency's effective `system_env`
-overrides. Resolved Mix project configuration also enters native builder keys;
-opaque function-valued configuration cannot be cached.
+overrides. Resolved Mix project configuration also enters builder keys.
+Functions defined in the dependency's own `mix.exs`, such as a captured compile
+alias, enter by name because that file's bytes are already an input; other
+function-valued configuration cannot be cached.
 
 Optional `tools` names are resolved on that effective `PATH`; relative tool paths
 are relative to the dependency source directory. The executable bytes and resolved
@@ -172,7 +174,8 @@ paths relative to that dependency's source directory in `generated`, for example
 inputs. Do not exclude original resources or source files: they must remain
 inputs. Paths are literal, without globs or traversal. The contract, platform,
 additional inputs, environment values and any custom dependency compile command
-all participate in keys. `compile: false` remains an opt-out from compilation.
+all participate in keys. `compile: false` remains an opt-out from compilation;
+such dependencies are neither cached nor reported.
 
 Audited snapshots materialize source-backed `ebin`, `priv`, `include` and `src`
 resources into the restored application. Native libraries, port executables,
@@ -183,6 +186,41 @@ All upstream application resources enter downstream keys, including ordinary
 `priv` resources and custom output directories, not just native libraries or BEAMs.
 Code that directly reads producer source paths is not relocated; builders with
 mandatory side effects outside the application artifact still need those steps.
+
+### Non-native builders
+
+Some custom compile steps run no native toolchain: an alias that copies a file
+the package already ships, runs `mix format` on formatted sources or creates an
+empty directory, an application source script, a rebar3 plugin that only adds a
+documentation provider, or a precompiled NIF download verified against a
+checksum file in the package. Audit those with `native: false` instead of a
+`platform`:
+
+```elixir
+cache: [
+  builders: [
+    phoenix: [native: false, outputs: []],
+    lumis: [
+      native: false,
+      outputs: ["priv/native"],
+      generated: ["priv/native"],
+      env: ["LUMIS_BUILD", "LUMIS_USE_LEGACY_ARTIFACTS", "TARGET_ARCH", "TARGET_OS"]
+    ]
+  ]
+]
+```
+
+These keys leave out `PATH` and the other native build variables, so machines
+with different images and toolchain locations share artifacts. `tools` and
+`platform` are not accepted. Everything else still applies: sources, the
+dependency's resolved configuration and compile aliases, Elixir/OTP and the
+operating system family stay in the key, and `outputs`, `generated`, `env` and
+`inputs` mean the same as above. Declare every variable the step reads, for
+example the ones that select a precompiled NIF variant or force a source build.
+A step that writes into `deps/` must list those paths in `generated`. Changed
+sources are still caught after compilation. Use `native: false` only for a step
+whose output does not depend on a native toolchain; when a compiler runs, use a
+`platform` contract.
 
 Keep custom builders excluded until their inputs and outputs are audited. A
 contract does not remove cold SDK bootstrap compilation, the 64 MiB artifact
@@ -196,6 +234,16 @@ on producer paths, opt into reuse between different checkout locations:
 ```elixir
 cache: [portable: true]
 ```
+
+Configured values that embed the checkout path, such as paths built from
+`__DIR__` in `config/config.exs`, don't change portable keys. Neither does where
+your Elixir toolchain is installed: archives and rebar3 count by their contents.
+Builder keys leave out `PATH`, name declared `tools` by name and bytes rather
+than by where they were found, and replace the checkout path inside the other
+native build variables. A native dependency built with the same tools on the
+same `platform` therefore keeps its key on another machine. Its downstream
+dependencies share keys too when the native outputs are byte-identical, which
+compiler debug information that records absolute paths prevents.
 
 Cached BEAMs retain producer debug/source paths and compile-time `__DIR__`,
 `__ENV__.file` and `File.cwd!()` values. Portable reuse does not rewrite them.
@@ -213,7 +261,8 @@ closure from the same cache rather than recompiling it independently.
 | `endpoint` | Discovered automatically | Override the account's HTTPS REAPI endpoint. |
 
 `upload: false` controls client behavior, not authorization. Project cache
-permissions are enforced by the server. Project `endpoint:` options and discovered
+permissions are enforced by the server. Credentials that can only read the
+project's cache skip uploads automatically. Project `endpoint:` options and discovered
 endpoints require HTTPS, except for loopback (`localhost`, `127.0.0.1`, `::1`)
 development endpoints.
 
@@ -247,6 +296,14 @@ eviction and project-cleanup rules.
   carry no artifact key, transfer bytes, restore latency or estimated time saved. To test a
   snapshot restore, clean just a supported dependency's build with
   `mix deps.clean NAME --build` after it has populated the cache, then compile again.
+- Because current outputs aren't published, a CI job that keeps its `_build`
+  between runs uploads only the dependencies it recompiles. To give other
+  machines hits for everything, compile from an empty `_build` with write
+  access in every `MIX_ENV` they use.
+- Set `TUIST_DEBUG=1` to print each dependency's outcome (`local_hit`,
+  `remote_hit`, `miss` or `bypass` with its reason) and artifact key. This works
+  even when the build report can't be submitted, for example with a read-only
+  cache token. Compare keys between machines to find a differing input.
 - Match `MIX_ENV`, `MIX_TARGET`, compiler settings and declared inputs. Path changes
   also change keys unless portable reuse is enabled.
 - Unsupported dependencies appear as **Not cached**, not misses. They are excluded
@@ -269,25 +326,9 @@ servers; a retained invalid field still fails on the single retry.
 
 ## Manual compile integration
 
-If setup cannot edit your project's configuration safely, integrate this alias
-manually, preserving any custom compile actions:
-
-```elixir
-compile: [
-  "deps.compile tuist_ex --include-children",
-  "deps.loadpaths --no-compile --no-deps-check",
-  "tuist.compile"
-]
-```
-
-These steps compile and load Tuist before other dependencies, including on cold
-parallel builds. The wrapper restores normal dependency checks afterward. The
-same alias works with Hex, Git and path installations; no script path is needed.
-
-For jobs that prepare an uploaded build and then run with `--no-compile`, guard
-all bootstrap work too. Mix forwards arguments only to the final task of a list
-alias, so its earlier `deps.compile` otherwise runs unconditionally. Use a local
-function in your Mix project module instead:
+If setup cannot edit your project's configuration safely, add this alias and
+these functions to your Mix project module manually, preserving any custom
+compile actions:
 
 ```elixir
 # In aliases/0:
@@ -296,17 +337,32 @@ compile: &compile/1
 # In the same Mix project module:
 defp compile(args) do
   if "--no-compile" not in args do
-    Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+    compile_tuist_ex()
   end
 
   Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
   Mix.Task.run("tuist.compile", args)
 end
+
+defp compile_tuist_ex do
+  deps =
+    ["tuist_ex"]
+    |> Mix.Dep.filter_by_name(Mix.Dep.load_and_cache(), include_children: true)
+    |> Enum.reject(&(Mix.Dep.ok?(&1) and &1.scm.fetchable?()))
+    |> Enum.map(&Atom.to_string(&1.app))
+
+  if deps != [], do: Mix.Task.run("deps.compile", deps)
+end
 ```
 
-This is a project-local function, not a capture of an SDK function that is not
-loaded yet. Treat it as a custom integration: `tuist.setup` refuses customized
-compile aliases rather than replacing them.
+These functions compile and load Tuist before other dependencies, including on
+cold parallel builds, and skip that work when Tuist and its dependencies are
+already compiled or the command runs with `--no-compile`. The same functions
+work with Hex, Git and path installations; no script path is needed.
+
+If your alias starts with `deps.compile tuist_ex --include-children`, every
+`mix compile` rebuilds Tuist's dependencies and can recompile your whole
+project. Run `mix tuist.setup` again to replace it.
 
 ## How it works
 

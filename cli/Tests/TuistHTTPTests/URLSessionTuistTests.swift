@@ -9,6 +9,35 @@
     @Suite(.serialized)
     struct URLSessionTuistTests {
         @Test(.withMockedEnvironment())
+        func all_Apple_session_factories_install_the_trust_policy_without_custom_anchors() {
+            let discovery = URLSession.tuistDiscovery
+            defer { discovery.invalidateAndCancel() }
+            let sessions = [URLSession.tuistDefault, .tuistShared, .tuistCAS, .tuistLargeTransfer, discovery]
+            #expect(sessions.allSatisfy { $0.delegate is TuistURLSessionDelegate })
+            let configuration = URLSessionConfiguration.default
+            configuration.timeoutIntervalForRequest = 37
+            configuration.timeoutIntervalForResource = 4321
+            let configured = URLSession.tuist(configuration: configuration)
+            defer { configured.invalidateAndCancel() }
+            #expect(configured.delegate is TuistURLSessionDelegate)
+            #expect(configured.configuration.timeoutIntervalForRequest == 37)
+            #expect(configured.configuration.timeoutIntervalForResource == 4321)
+            #expect(URLSession.tuistDefault.configuration.timeoutIntervalForRequest == URLSession.shared.configuration
+                .timeoutIntervalForRequest)
+            #expect(URLSession.tuistDefault.configuration.timeoutIntervalForResource == URLSession.shared.configuration
+                .timeoutIntervalForResource)
+        }
+
+        @Test(.withMockedEnvironment())
+        func multipart_upload_lanes_give_concurrent_parts_separate_sessions() {
+            let concurrentParts = (1 ... 10).map { URLSession.tuistMultipartUpload(lane: $0) }
+            #expect(Set(concurrentParts.map(ObjectIdentifier.init)).count == 10)
+            #expect(!concurrentParts.contains { $0 === URLSession.tuistShared })
+            #expect(URLSession.tuistMultipartUpload(lane: 11) === URLSession.tuistMultipartUpload(lane: 1))
+            #expect(concurrentParts.allSatisfy { $0.delegate is TuistURLSessionDelegate })
+        }
+
+        @Test(.withMockedEnvironment())
         func tuistURLSessionConfiguration_uses_environment_proxy_when_enabled() async throws {
             let environment = try #require(Environment.mocked)
             environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
@@ -31,6 +60,7 @@
             let session = URLSession.tuistDiscovery
             defer { session.invalidateAndCancel() }
             let configuration = session.configuration
+            #expect(session.delegate is TuistURLSessionDelegate)
             #expect(configuration
                 .connectionProxyDictionary?[kCFNetworkProxiesHTTPSProxy as String] as? String == "proxy.tuist.dev")
             #expect(configuration.httpCookieStorage == nil)
