@@ -1,3 +1,0 @@
-# AWS-LC is compiled as cc_library targets from the sources vendored in the `aws-lc-sys` crate
-# (defined via crate.annotation in //:MODULE.bazel, exposed on the @crates hub as `aws_lc_cc`).
-# aws_lc_sources.bzl lists those sources; this package exists so the annotation can load it.
