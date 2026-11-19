@@ -245,6 +245,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
     func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output
+    /// Updates a model
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/models/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)`.
+    func updateOrganizationAIModel(_ input: Operations.updateOrganizationAIModel.Input) async throws -> Operations.updateOrganizationAIModel.Output
+    /// Removes a model
+    ///
+    /// Also removes its task routes, so those tasks fall back to the default model. If no default remains (none was selected, or this was it), every task without a route stops sending requests until a default is selected.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/models/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)`.
+    func deleteOrganizationAIModel(_ input: Operations.deleteOrganizationAIModel.Input) async throws -> Operations.deleteOrganizationAIModel.Output
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -449,6 +461,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/workflows`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/workflows/get(listRunnerWorkflows)`.
     func listRunnerWorkflows(_ input: Operations.listRunnerWorkflows.Input) async throws -> Operations.listRunnerWorkflows.Output
+    /// Get the project's remote execution usage over a period.
+    ///
+    /// Executions and measured execution time, in total, per VM shape, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366 days.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/remote-execution/usage`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)`.
+    func getRemoteExecutionUsage(_ input: Operations.getRemoteExecutionUsage.Input) async throws -> Operations.getRemoteExecutionUsage.Output
     /// List a sandbox's commands.
     ///
     /// The 100 most recent commands, newest first. Finished commands are kept for seven days.
@@ -506,6 +525,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/get(listBuildCASOutputs)`.
     func listBuildCASOutputs(_ input: Operations.listBuildCASOutputs.Input) async throws -> Operations.listBuildCASOutputs.Output
+    /// Routes a task to a model
+    ///
+    /// A task has at most one route; tasks without one use the default model.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/task-routes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)`.
+    func createOrganizationAITaskRoute(_ input: Operations.createOrganizationAITaskRoute.Input) async throws -> Operations.createOrganizationAITaskRoute.Output
     /// Returns a project based on the handle.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
@@ -575,6 +601,8 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing/post(findMissingCommits)`.
     func findMissingCommits(_ input: Operations.findMissingCommits.Input) async throws -> Operations.findMissingCommits.Output
     /// Lists the signed-in user's push devices
+    ///
+    /// Lists the devices of the app making the request: the Tuist app's, or Luft's.
     ///
     /// - Remark: HTTP `GET /api/me/push-devices`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
@@ -734,11 +762,25 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/xcode/builds`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/post(createBuild)`.
     func createBuild(_ input: Operations.createBuild.Input) async throws -> Operations.createBuild.Output
+    /// List the project's remote actions running and queued right now.
+    ///
+    /// A snapshot of the account's execution scheduler. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/remote-execution/activity`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)`.
+    func getRemoteExecutionActivity(_ input: Operations.getRemoteExecutionActivity.Input) async throws -> Operations.getRemoteExecutionActivity.Output
     /// Time-bucketed build duration percentiles for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/duration`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)`.
     func buildDurationMetrics(_ input: Operations.buildDurationMetrics.Input) async throws -> Operations.buildDurationMetrics.Output
+    /// Selects the default model
+    ///
+    /// Tasks without a route use the default. Null clears it, so only routed tasks send requests.
+    ///
+    /// - Remark: HTTP `PUT /api/accounts/{account_handle}/ai/default-model`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)`.
+    func setOrganizationAIDefaultModel(_ input: Operations.setOrganizationAIDefaultModel.Input) async throws -> Operations.setOrganizationAIDefaultModel.Output
     /// Start a multipart upload for the test products bundle.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start`.
@@ -871,9 +913,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/me/notification-rules/{id}`.
     /// - Remark: Generated from `#/paths//api/me/notification-rules/{id}/delete(deleteNotificationRule)`.
     func deleteNotificationRule(_ input: Operations.deleteNotificationRule.Input) async throws -> Operations.deleteNotificationRule.Output
-    /// List recorded history for a Once action across builds.
+    /// List recorded history for a Struo action across builds.
     ///
-    /// List recorded history for a Once action across builds.
+    /// List recorded history for a Struo action across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/get(listProjectOnceActionHistory)`.
@@ -923,6 +965,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/files`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/files/get(listBuildFiles)`.
     func listBuildFiles(_ input: Operations.listBuildFiles.Input) async throws -> Operations.listBuildFiles.Output
+    /// Create a snapshot build.
+    ///
+    /// Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)`.
+    func createSnapshotBuild(_ input: Operations.createSnapshotBuild.Input) async throws -> Operations.createSnapshotBuild.Output
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -954,9 +1003,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
     func getShard(_ input: Operations.getShard.Input) async throws -> Operations.getShard.Output
-    /// Signal that a commit's coverage pipeline finished.
+    /// Signal that a commit's CI pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -1061,6 +1110,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/webhooks`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/webhooks/get(listWebhookEndpoints)`.
     func listWebhookEndpoints(_ input: Operations.listWebhookEndpoints.Input) async throws -> Operations.listWebhookEndpoints.Output
+    /// Updates an AI provider
+    ///
+    /// A new key replaces the old one for every model using the provider. Linked Claude organizations can't be edited.
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/providers/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)`.
+    func updateOrganizationAIProvider(_ input: Operations.updateOrganizationAIProvider.Input) async throws -> Operations.updateOrganizationAIProvider.Output
+    /// Removes an AI provider
+    ///
+    /// Deletes its stored key, its models and their task routes. Removing a linked Claude organization first unlinks it at Anthropic. Revoke the key at the provider to revoke access there.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/providers/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)`.
+    func deleteOrganizationAIProvider(_ input: Operations.deleteOrganizationAIProvider.Input) async throws -> Operations.deleteOrganizationAIProvider.Output
     /// List a project's notification alert rules.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
@@ -1078,6 +1141,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/start`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
     func startCacheArtifactMultipartUpload(_ input: Operations.startCacheArtifactMultipartUpload.Input) async throws -> Operations.startCacheArtifactMultipartUpload.Output
+    /// Complete a snapshot build.
+    ///
+    /// Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)`.
+    func completeSnapshotBuild(_ input: Operations.completeSnapshotBuild.Input) async throws -> Operations.completeSnapshotBuild.Output
     /// Get one recorded Bazel build step.
     ///
     /// Returns recorded metadata and separately fetched sanitized action output when published by Bazel. Older summaries do not include per-action logs.
@@ -1217,6 +1287,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/listings/missing`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/listings/missing/post(findMissingCommitListings)`.
     func findMissingCommitListings(_ input: Operations.findMissingCommitListings.Input) async throws -> Operations.findMissingCommitListings.Output
+    /// Get a snapshot build.
+    ///
+    /// The build's state and verdict, which clients poll after completing it.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)`.
+    func getSnapshotBuild(_ input: Operations.getSnapshotBuild.Input) async throws -> Operations.getSnapshotBuild.Output
     /// Revoke an account token.
     ///
     /// This endpoint revokes (deletes) an account token by name.
@@ -1337,9 +1414,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/runs/{once_run_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/runs/{once_run_id}/get(getOnceRun)`.
     func getOnceRun(_ input: Operations.getOnceRun.Input) async throws -> Operations.getOnceRun.Output
-    /// List Once actions across builds.
+    /// Adds a model
     ///
-    /// List Once actions across builds.
+    /// Adding a model never selects it as the default.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/models`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)`.
+    func createOrganizationAIModel(_ input: Operations.createOrganizationAIModel.Input) async throws -> Operations.createOrganizationAIModel.Output
+    /// List Struo actions across builds.
+    ///
+    /// List Struo actions across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/get(listProjectOnceActions)`.
@@ -1451,6 +1535,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
     /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
     func pollChatGPTSubscriptionLogin(_ input: Operations.pollChatGPTSubscriptionLogin.Input) async throws -> Operations.pollChatGPTSubscriptionLogin.Output
+    /// Get the baseline of a snapshot set for a checkout.
+    ///
+    /// The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)`.
+    func getSnapshotBaseline(_ input: Operations.getSnapshotBaseline.Input) async throws -> Operations.getSnapshotBaseline.Output
     /// Lists the feature flags enabled for the signed-in user
     ///
     /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
@@ -1468,6 +1559,18 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}/get(getWebhookEndpoint)`.
     func getWebhookEndpoint(_ input: Operations.getWebhookEndpoint.Input) async throws -> Operations.getWebhookEndpoint.Output
+    /// Updates a task route
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/task-routes/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)`.
+    func updateOrganizationAITaskRoute(_ input: Operations.updateOrganizationAITaskRoute.Input) async throws -> Operations.updateOrganizationAITaskRoute.Output
+    /// Removes a task route
+    ///
+    /// The task uses the default model again, or sends no requests without one.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/task-routes/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)`.
+    func deleteOrganizationAITaskRoute(_ input: Operations.deleteOrganizationAITaskRoute.Input) async throws -> Operations.deleteOrganizationAITaskRoute.Output
     /// List recorded history for a Bazel action across builds.
     ///
     /// List recorded history for a Bazel action across builds.
@@ -1511,9 +1614,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/me/notification-rules`.
     /// - Remark: Generated from `#/paths//api/me/notification-rules/post(createNotificationRule)`.
     func createNotificationRule(_ input: Operations.createNotificationRule.Input) async throws -> Operations.createNotificationRule.Output
-    /// Get a Once action and its analytics across builds.
+    /// Get a Struo action and its analytics across builds.
     ///
-    /// Get a Once action and its analytics across builds.
+    /// Get a Struo action and its analytics across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/get(getProjectOnceAction)`.
@@ -1535,6 +1638,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics/dimensions/{dimension}/values`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/metrics/dimensions/{dimension}/values/get(gradleMetricDimensionValues)`.
     func gradleMetricDimensionValues(_ input: Operations.gradleMetricDimensionValues.Input) async throws -> Operations.gradleMetricDimensionValues.Output
+    /// Adds an AI provider
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/providers`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)`.
+    func createOrganizationAIProvider(_ input: Operations.createOrganizationAIProvider.Input) async throws -> Operations.createOrganizationAIProvider.Output
     /// Get a Bazel remote-cache event by its identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}`.
@@ -1542,7 +1650,7 @@ public protocol APIProtocol: Sendable {
     func getBazelCacheEvent(_ input: Operations.getBazelCacheEvent.Input) async throws -> Operations.getBazelCacheEvent.Output
     /// Registers this app installation for push notifications
     ///
-    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
     ///
     /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
@@ -1611,6 +1719,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
+    /// Shows an organization's AI configuration
+    ///
+    /// Lists providers (without keys), models, the default model, task routes and the model each task uses now.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/ai`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)`.
+    func getOrganizationAIConfiguration(_ input: Operations.getOrganizationAIConfiguration.Input) async throws -> Operations.getOrganizationAIConfiguration.Output
     /// Create an upload for a sandbox.
     ///
     /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
@@ -2241,6 +2356,36 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Updates a model
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/models/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)`.
+    public func updateOrganizationAIModel(
+        path: Operations.updateOrganizationAIModel.Input.Path,
+        headers: Operations.updateOrganizationAIModel.Input.Headers = .init(),
+        body: Operations.updateOrganizationAIModel.Input.Body
+    ) async throws -> Operations.updateOrganizationAIModel.Output {
+        try await updateOrganizationAIModel(Operations.updateOrganizationAIModel.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Removes a model
+    ///
+    /// Also removes its task routes, so those tasks fall back to the default model. If no default remains (none was selected, or this was it), every task without a route stops sending requests until a default is selected.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/models/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)`.
+    public func deleteOrganizationAIModel(
+        path: Operations.deleteOrganizationAIModel.Input.Path,
+        headers: Operations.deleteOrganizationAIModel.Input.Headers = .init()
+    ) async throws -> Operations.deleteOrganizationAIModel.Output {
+        try await deleteOrganizationAIModel(Operations.deleteOrganizationAIModel.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -2749,6 +2894,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get the project's remote execution usage over a period.
+    ///
+    /// Executions and measured execution time, in total, per VM shape, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366 days.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/remote-execution/usage`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)`.
+    public func getRemoteExecutionUsage(
+        path: Operations.getRemoteExecutionUsage.Input.Path,
+        query: Operations.getRemoteExecutionUsage.Input.Query = .init(),
+        headers: Operations.getRemoteExecutionUsage.Input.Headers = .init()
+    ) async throws -> Operations.getRemoteExecutionUsage.Output {
+        try await getRemoteExecutionUsage(Operations.getRemoteExecutionUsage.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// List a sandbox's commands.
     ///
     /// The 100 most recent commands, newest first. Finished commands are kept for seven days.
@@ -2878,6 +3040,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Routes a task to a model
+    ///
+    /// A task has at most one route; tasks without one use the default model.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/task-routes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)`.
+    public func createOrganizationAITaskRoute(
+        path: Operations.createOrganizationAITaskRoute.Input.Path,
+        headers: Operations.createOrganizationAITaskRoute.Input.Headers = .init(),
+        body: Operations.createOrganizationAITaskRoute.Input.Body
+    ) async throws -> Operations.createOrganizationAITaskRoute.Output {
+        try await createOrganizationAITaskRoute(Operations.createOrganizationAITaskRoute.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Returns a project based on the handle.
@@ -3063,6 +3242,8 @@ extension APIProtocol {
         ))
     }
     /// Lists the signed-in user's push devices
+    ///
+    /// Lists the devices of the app making the request: the Tuist app's, or Luft's.
     ///
     /// - Remark: HTTP `GET /api/me/push-devices`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
@@ -3450,6 +3631,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// List the project's remote actions running and queued right now.
+    ///
+    /// A snapshot of the account's execution scheduler. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/remote-execution/activity`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)`.
+    public func getRemoteExecutionActivity(
+        path: Operations.getRemoteExecutionActivity.Input.Path,
+        headers: Operations.getRemoteExecutionActivity.Input.Headers = .init()
+    ) async throws -> Operations.getRemoteExecutionActivity.Output {
+        try await getRemoteExecutionActivity(Operations.getRemoteExecutionActivity.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Time-bucketed build duration percentiles for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/duration`.
@@ -3463,6 +3659,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Selects the default model
+    ///
+    /// Tasks without a route use the default. Null clears it, so only routed tasks send requests.
+    ///
+    /// - Remark: HTTP `PUT /api/accounts/{account_handle}/ai/default-model`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)`.
+    public func setOrganizationAIDefaultModel(
+        path: Operations.setOrganizationAIDefaultModel.Input.Path,
+        headers: Operations.setOrganizationAIDefaultModel.Input.Headers = .init(),
+        body: Operations.setOrganizationAIDefaultModel.Input.Body
+    ) async throws -> Operations.setOrganizationAIDefaultModel.Output {
+        try await setOrganizationAIDefaultModel(Operations.setOrganizationAIDefaultModel.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Start a multipart upload for the test products bundle.
@@ -3777,9 +3990,9 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List recorded history for a Once action across builds.
+    /// List recorded history for a Struo action across builds.
     ///
-    /// List recorded history for a Once action across builds.
+    /// List recorded history for a Struo action across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/get(listProjectOnceActionHistory)`.
@@ -3905,6 +4118,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Create a snapshot build.
+    ///
+    /// Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)`.
+    public func createSnapshotBuild(
+        path: Operations.createSnapshotBuild.Input.Path,
+        headers: Operations.createSnapshotBuild.Input.Headers = .init(),
+        body: Operations.createSnapshotBuild.Input.Body? = nil
+    ) async throws -> Operations.createSnapshotBuild.Output {
+        try await createSnapshotBuild(Operations.createSnapshotBuild.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -3984,9 +4214,9 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Signal that a commit's coverage pipeline finished.
+    /// Signal that a commit's CI pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -4239,6 +4469,38 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Updates an AI provider
+    ///
+    /// A new key replaces the old one for every model using the provider. Linked Claude organizations can't be edited.
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/providers/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)`.
+    public func updateOrganizationAIProvider(
+        path: Operations.updateOrganizationAIProvider.Input.Path,
+        headers: Operations.updateOrganizationAIProvider.Input.Headers = .init(),
+        body: Operations.updateOrganizationAIProvider.Input.Body
+    ) async throws -> Operations.updateOrganizationAIProvider.Output {
+        try await updateOrganizationAIProvider(Operations.updateOrganizationAIProvider.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Removes an AI provider
+    ///
+    /// Deletes its stored key, its models and their task routes. Removing a linked Claude organization first unlinks it at Anthropic. Revoke the key at the provider to revoke access there.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/providers/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)`.
+    public func deleteOrganizationAIProvider(
+        path: Operations.deleteOrganizationAIProvider.Input.Path,
+        headers: Operations.deleteOrganizationAIProvider.Input.Headers = .init()
+    ) async throws -> Operations.deleteOrganizationAIProvider.Output {
+        try await deleteOrganizationAIProvider(Operations.deleteOrganizationAIProvider.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// List a project's notification alert rules.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
@@ -4279,6 +4541,21 @@ extension APIProtocol {
     ) async throws -> Operations.startCacheArtifactMultipartUpload.Output {
         try await startCacheArtifactMultipartUpload(Operations.startCacheArtifactMultipartUpload.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// Complete a snapshot build.
+    ///
+    /// Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)`.
+    public func completeSnapshotBuild(
+        path: Operations.completeSnapshotBuild.Input.Path,
+        headers: Operations.completeSnapshotBuild.Input.Headers = .init()
+    ) async throws -> Operations.completeSnapshotBuild.Output {
+        try await completeSnapshotBuild(Operations.completeSnapshotBuild.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -4623,6 +4900,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get a snapshot build.
+    ///
+    /// The build's state and verdict, which clients poll after completing it.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)`.
+    public func getSnapshotBuild(
+        path: Operations.getSnapshotBuild.Input.Path,
+        headers: Operations.getSnapshotBuild.Input.Headers = .init()
+    ) async throws -> Operations.getSnapshotBuild.Output {
+        try await getSnapshotBuild(Operations.getSnapshotBuild.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Revoke an account token.
     ///
     /// This endpoint revokes (deletes) an account token by name.
@@ -4907,9 +5199,26 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List Once actions across builds.
+    /// Adds a model
     ///
-    /// List Once actions across builds.
+    /// Adding a model never selects it as the default.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/models`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)`.
+    public func createOrganizationAIModel(
+        path: Operations.createOrganizationAIModel.Input.Path,
+        headers: Operations.createOrganizationAIModel.Input.Headers = .init(),
+        body: Operations.createOrganizationAIModel.Input.Body
+    ) async throws -> Operations.createOrganizationAIModel.Output {
+        try await createOrganizationAIModel(Operations.createOrganizationAIModel.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List Struo actions across builds.
+    ///
+    /// List Struo actions across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/get(listProjectOnceActions)`.
@@ -5187,6 +5496,23 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get the baseline of a snapshot set for a checkout.
+    ///
+    /// The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)`.
+    public func getSnapshotBaseline(
+        path: Operations.getSnapshotBaseline.Input.Path,
+        query: Operations.getSnapshotBaseline.Input.Query,
+        headers: Operations.getSnapshotBaseline.Input.Headers = .init()
+    ) async throws -> Operations.getSnapshotBaseline.Output {
+        try await getSnapshotBaseline(Operations.getSnapshotBaseline.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Lists the feature flags enabled for the signed-in user
     ///
     /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
@@ -5218,6 +5544,36 @@ extension APIProtocol {
         headers: Operations.getWebhookEndpoint.Input.Headers = .init()
     ) async throws -> Operations.getWebhookEndpoint.Output {
         try await getWebhookEndpoint(Operations.getWebhookEndpoint.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Updates a task route
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/task-routes/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)`.
+    public func updateOrganizationAITaskRoute(
+        path: Operations.updateOrganizationAITaskRoute.Input.Path,
+        headers: Operations.updateOrganizationAITaskRoute.Input.Headers = .init(),
+        body: Operations.updateOrganizationAITaskRoute.Input.Body
+    ) async throws -> Operations.updateOrganizationAITaskRoute.Output {
+        try await updateOrganizationAITaskRoute(Operations.updateOrganizationAITaskRoute.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Removes a task route
+    ///
+    /// The task uses the default model again, or sends no requests without one.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/task-routes/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)`.
+    public func deleteOrganizationAITaskRoute(
+        path: Operations.deleteOrganizationAITaskRoute.Input.Path,
+        headers: Operations.deleteOrganizationAITaskRoute.Input.Headers = .init()
+    ) async throws -> Operations.deleteOrganizationAITaskRoute.Output {
+        try await deleteOrganizationAITaskRoute(Operations.deleteOrganizationAITaskRoute.Input(
             path: path,
             headers: headers
         ))
@@ -5323,9 +5679,9 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Get a Once action and its analytics across builds.
+    /// Get a Struo action and its analytics across builds.
     ///
-    /// Get a Once action and its analytics across builds.
+    /// Get a Struo action and its analytics across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/get(getProjectOnceAction)`.
@@ -5385,6 +5741,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Adds an AI provider
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/providers`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)`.
+    public func createOrganizationAIProvider(
+        path: Operations.createOrganizationAIProvider.Input.Path,
+        headers: Operations.createOrganizationAIProvider.Input.Headers = .init(),
+        body: Operations.createOrganizationAIProvider.Input.Body
+    ) async throws -> Operations.createOrganizationAIProvider.Output {
+        try await createOrganizationAIProvider(Operations.createOrganizationAIProvider.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Get a Bazel remote-cache event by its identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}`.
@@ -5400,7 +5771,7 @@ extension APIProtocol {
     }
     /// Registers this app installation for push notifications
     ///
-    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
     ///
     /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
@@ -5557,6 +5928,21 @@ extension APIProtocol {
         try await createProject(Operations.createProject.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// Shows an organization's AI configuration
+    ///
+    /// Lists providers (without keys), models, the default model, task routes and the model each task uses now.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/ai`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)`.
+    public func getOrganizationAIConfiguration(
+        path: Operations.getOrganizationAIConfiguration.Input.Path,
+        headers: Operations.getOrganizationAIConfiguration.Input.Headers = .init()
+    ) async throws -> Operations.getOrganizationAIConfiguration.Output {
+        try await getOrganizationAIConfiguration(Operations.getOrganizationAIConfiguration.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Create an upload for a sandbox.
@@ -6349,6 +6735,7 @@ public enum Components {
                 case mix = "mix"
                 case bazel = "bazel"
                 case cargo = "cargo"
+                case struo = "struo"
                 case once = "once"
             }
             /// The build system used by the test run.
@@ -10049,6 +10436,58 @@ public enum Components {
                 case _type = "type"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider`.
+        public struct OrganizationAIProvider: Codable, Hashable, Sendable {
+            /// Null for a linked Claude organization.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider/base_url`.
+            public var base_url: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider/id`.
+            public var id: Swift.Int
+            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider/kind`.
+            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case api_key = "api_key"
+                case claude_linked_billing = "claude_linked_billing"
+            }
+            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider/kind`.
+            public var kind: Components.Schemas.OrganizationAIProvider.kindPayload
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIProvider/updated_at`.
+            public var updated_at: Foundation.Date
+            /// Creates a new `OrganizationAIProvider`.
+            ///
+            /// - Parameters:
+            ///   - base_url: Null for a linked Claude organization.
+            ///   - id:
+            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+            ///   - name:
+            ///   - updated_at:
+            public init(
+                base_url: Swift.String? = nil,
+                id: Swift.Int,
+                kind: Components.Schemas.OrganizationAIProvider.kindPayload,
+                name: Swift.String,
+                updated_at: Foundation.Date
+            ) {
+                self.base_url = base_url
+                self.id = id
+                self.kind = kind
+                self.name = name
+                self.updated_at = updated_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case base_url
+                case id
+                case kind
+                case name
+                case updated_at
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CoverageRunRow`.
         public struct CoverageRunRow: Codable, Hashable, Sendable {
             /// Line coverage the run measured, in percent.
@@ -11808,6 +12247,74 @@ public enum Components {
                 case recovery_enabled
                 case trigger_actions
                 case trigger_config
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageShape`.
+        public struct RemoteExecutionUsageShape: Codable, Hashable, Sendable {
+            /// Measured execution time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageShape/execution_ms`.
+            public var execution_ms: Swift.Int
+            /// Executions that ran in a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageShape/executions`.
+            public var executions: Swift.Int
+            /// Memory in GB of the VM shape.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageShape/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// vCPUs of the VM shape.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageShape/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `RemoteExecutionUsageShape`.
+            ///
+            /// - Parameters:
+            ///   - execution_ms: Measured execution time.
+            ///   - executions: Executions that ran in a VM.
+            ///   - memory_gb: Memory in GB of the VM shape.
+            ///   - vcpus: vCPUs of the VM shape.
+            public init(
+                execution_ms: Swift.Int,
+                executions: Swift.Int,
+                memory_gb: Swift.Int,
+                vcpus: Swift.Int
+            ) {
+                self.execution_ms = execution_ms
+                self.executions = executions
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case execution_ms
+                case executions
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.execution_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .execution_ms
+                )
+                self.executions = try container.decode(
+                    Swift.Int.self,
+                    forKey: .executions
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Int.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "execution_ms",
+                    "executions",
+                    "memory_gb",
+                    "vcpus"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail`.
@@ -14284,6 +14791,166 @@ public enum Components {
                 ])
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse`.
+        public struct CreateSnapshotBuildResponse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build`.
+            public struct buildPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/added_count`.
+                public var added_count: Swift.Int?
+                /// The build this one was compared with.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/baseline_build_id`.
+                public var baseline_build_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/changed_count`.
+                public var changed_count: Swift.Int?
+                /// The id of the build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/removed_count`.
+                public var removed_count: Swift.Int?
+                /// Removed images whose content reappeared under another name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/renamed_count`.
+                public var renamed_count: Swift.Int?
+                /// Images a selective run didn't render, carried over from the baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/skipped_count`.
+                public var skipped_count: Swift.Int?
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case uploading = "uploading"
+                    case processing = "processing"
+                    case processed = "processed"
+                    case failed = "failed"
+                }
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/state`.
+                public var state: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statePayload
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case processing = "processing"
+                    case failed = "failed"
+                    case passed = "passed"
+                    case baseline = "baseline"
+                    case approved = "approved"
+                    case rejected = "rejected"
+                    case needs_review = "needs_review"
+                }
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/status`.
+                public var status: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statusPayload
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/unchanged_count`.
+                public var unchanged_count: Swift.Int?
+                /// The build's review page on the dashboard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build/url`.
+                public var url: Swift.String
+                /// Creates a new `buildPayload`.
+                ///
+                /// - Parameters:
+                ///   - added_count:
+                ///   - baseline_build_id: The build this one was compared with.
+                ///   - changed_count:
+                ///   - id: The id of the build.
+                ///   - removed_count:
+                ///   - renamed_count: Removed images whose content reappeared under another name.
+                ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                ///   - state: Where the build is in its lifecycle.
+                ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///   - unchanged_count:
+                ///   - url: The build's review page on the dashboard.
+                public init(
+                    added_count: Swift.Int? = nil,
+                    baseline_build_id: Swift.String? = nil,
+                    changed_count: Swift.Int? = nil,
+                    id: Swift.String,
+                    removed_count: Swift.Int? = nil,
+                    renamed_count: Swift.Int? = nil,
+                    skipped_count: Swift.Int? = nil,
+                    state: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statePayload,
+                    status: Components.Schemas.CreateSnapshotBuildResponse.buildPayload.statusPayload,
+                    unchanged_count: Swift.Int? = nil,
+                    url: Swift.String
+                ) {
+                    self.added_count = added_count
+                    self.baseline_build_id = baseline_build_id
+                    self.changed_count = changed_count
+                    self.id = id
+                    self.removed_count = removed_count
+                    self.renamed_count = renamed_count
+                    self.skipped_count = skipped_count
+                    self.state = state
+                    self.status = status
+                    self.unchanged_count = unchanged_count
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case added_count
+                    case baseline_build_id
+                    case changed_count
+                    case id
+                    case removed_count
+                    case renamed_count
+                    case skipped_count
+                    case state
+                    case status
+                    case unchanged_count
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/build`.
+            public var build: Components.Schemas.CreateSnapshotBuildResponse.buildPayload
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploadsPayload`.
+            public struct uploadsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploadsPayload/content_hash`.
+                public var content_hash: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploadsPayload/url`.
+                public var url: Swift.String
+                /// Creates a new `uploadsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - content_hash:
+                ///   - url:
+                public init(
+                    content_hash: Swift.String,
+                    url: Swift.String
+                ) {
+                    self.content_hash = content_hash
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case content_hash
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploads`.
+            public typealias uploadsPayload = [Components.Schemas.CreateSnapshotBuildResponse.uploadsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildResponse/uploads`.
+            public var uploads: Components.Schemas.CreateSnapshotBuildResponse.uploadsPayload
+            /// Creates a new `CreateSnapshotBuildResponse`.
+            ///
+            /// - Parameters:
+            ///   - build:
+            ///   - uploads:
+            public init(
+                build: Components.Schemas.CreateSnapshotBuildResponse.buildPayload,
+                uploads: Components.Schemas.CreateSnapshotBuildResponse.uploadsPayload
+            ) {
+                self.build = build
+                self.uploads = uploads
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build
+                case uploads
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/WebhookEndpoint`.
         public struct WebhookEndpoint: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/WebhookEndpoint/event_types`.
@@ -15671,6 +16338,41 @@ public enum Components {
                 case bundle
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage`.
+        public struct SnapshotBaselineImage: Codable, Hashable, Sendable {
+            /// The SHA-256 of the PNG.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage/content_hash`.
+            public var content_hash: Swift.String
+            /// The image's path relative to the uploaded directory.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage/name`.
+            public var name: Swift.String
+            /// A presigned URL to download the PNG from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineImage/url`.
+            public var url: Swift.String
+            /// Creates a new `SnapshotBaselineImage`.
+            ///
+            /// - Parameters:
+            ///   - content_hash: The SHA-256 of the PNG.
+            ///   - name: The image's path relative to the uploaded directory.
+            ///   - url: A presigned URL to download the PNG from.
+            public init(
+                content_hash: Swift.String,
+                name: Swift.String,
+                url: Swift.String
+            ) {
+                self.content_hash = content_hash
+                self.name = name
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case content_hash
+                case name
+                case url
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/PulseWidget`.
         public struct PulseWidget: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PulseWidget/id`.
@@ -15924,6 +16626,118 @@ public enum Components {
                 case memory_gb
                 case platform
                 case vcpus
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBuild`.
+        public struct SnapshotBuild: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/added_count`.
+            public var added_count: Swift.Int?
+            /// The build this one was compared with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/baseline_build_id`.
+            public var baseline_build_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/changed_count`.
+            public var changed_count: Swift.Int?
+            /// The id of the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/removed_count`.
+            public var removed_count: Swift.Int?
+            /// Removed images whose content reappeared under another name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/renamed_count`.
+            public var renamed_count: Swift.Int?
+            /// Images a selective run didn't render, carried over from the baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/skipped_count`.
+            public var skipped_count: Swift.Int?
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/state`.
+            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case uploading = "uploading"
+                case processing = "processing"
+                case processed = "processed"
+                case failed = "failed"
+            }
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/state`.
+            public var state: Components.Schemas.SnapshotBuild.statePayload
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case processing = "processing"
+                case failed = "failed"
+                case passed = "passed"
+                case baseline = "baseline"
+                case approved = "approved"
+                case rejected = "rejected"
+                case needs_review = "needs_review"
+            }
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/status`.
+            public var status: Components.Schemas.SnapshotBuild.statusPayload
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/unchanged_count`.
+            public var unchanged_count: Swift.Int?
+            /// The build's review page on the dashboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBuild/url`.
+            public var url: Swift.String
+            /// Creates a new `SnapshotBuild`.
+            ///
+            /// - Parameters:
+            ///   - added_count:
+            ///   - baseline_build_id: The build this one was compared with.
+            ///   - changed_count:
+            ///   - id: The id of the build.
+            ///   - removed_count:
+            ///   - renamed_count: Removed images whose content reappeared under another name.
+            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+            ///   - state: Where the build is in its lifecycle.
+            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///   - unchanged_count:
+            ///   - url: The build's review page on the dashboard.
+            public init(
+                added_count: Swift.Int? = nil,
+                baseline_build_id: Swift.String? = nil,
+                changed_count: Swift.Int? = nil,
+                id: Swift.String,
+                removed_count: Swift.Int? = nil,
+                renamed_count: Swift.Int? = nil,
+                skipped_count: Swift.Int? = nil,
+                state: Components.Schemas.SnapshotBuild.statePayload,
+                status: Components.Schemas.SnapshotBuild.statusPayload,
+                unchanged_count: Swift.Int? = nil,
+                url: Swift.String
+            ) {
+                self.added_count = added_count
+                self.baseline_build_id = baseline_build_id
+                self.changed_count = changed_count
+                self.id = id
+                self.removed_count = removed_count
+                self.renamed_count = renamed_count
+                self.skipped_count = skipped_count
+                self.state = state
+                self.status = status
+                self.unchanged_count = unchanged_count
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case added_count
+                case baseline_build_id
+                case changed_count
+                case id
+                case removed_count
+                case renamed_count
+                case skipped_count
+                case state
+                case status
+                case unchanged_count
+                case url
             }
         }
         /// Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
@@ -17316,6 +18130,211 @@ public enum Components {
                 case _type = "type"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest`.
+        public struct CreateSnapshotBuildRequest: Codable, Hashable, Sendable {
+            /// The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/all_image_names`.
+            public var all_image_names: [Swift.String]?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/build_system`.
+            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case gradle = "gradle"
+                case xcode = "xcode"
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/build_system`.
+            public var build_system: Components.Schemas.CreateSnapshotBuildRequest.build_systemPayload?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_branch`.
+            public var git_branch: Swift.String?
+            /// A commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_commit_sha`.
+            public var git_commit_sha: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_ref`.
+            public var git_ref: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/git_remote_url_origin`.
+            public var git_remote_url_origin: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload`.
+            public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                /// The SHA-256 of the PNG.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/content_hash`.
+                public var content_hash: Swift.String
+                /// The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/diff_threshold`.
+                public var diff_threshold: Swift.Double?
+                /// How the review page names the image. Defaults to `name`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/display_name`.
+                public var display_name: Swift.String?
+                /// Images of a group are reviewed together.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/group`.
+                public var group: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/height`.
+                public var height: Swift.Int?
+                /// The image's path relative to the uploaded directory.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/name`.
+                public var name: Swift.String
+                /// Labels such as `theme: dark` or `device: pixel_7`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/tags`.
+                public struct tagsPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `tagsPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// Labels such as `theme: dark` or `device: pixel_7`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/tags`.
+                public var tags: Components.Schemas.CreateSnapshotBuildRequest.imagesPayloadPayload.tagsPayload?
+                /// The test that recorded the image, when known.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/test_identifier`.
+                public var test_identifier: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/imagesPayload/width`.
+                public var width: Swift.Int?
+                /// Creates a new `imagesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - content_hash: The SHA-256 of the PNG.
+                ///   - diff_threshold: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                ///   - display_name: How the review page names the image. Defaults to `name`.
+                ///   - group: Images of a group are reviewed together.
+                ///   - height:
+                ///   - name: The image's path relative to the uploaded directory.
+                ///   - tags: Labels such as `theme: dark` or `device: pixel_7`.
+                ///   - test_identifier: The test that recorded the image, when known.
+                ///   - width:
+                public init(
+                    content_hash: Swift.String,
+                    diff_threshold: Swift.Double? = nil,
+                    display_name: Swift.String? = nil,
+                    group: Swift.String? = nil,
+                    height: Swift.Int? = nil,
+                    name: Swift.String,
+                    tags: Components.Schemas.CreateSnapshotBuildRequest.imagesPayloadPayload.tagsPayload? = nil,
+                    test_identifier: Swift.String? = nil,
+                    width: Swift.Int? = nil
+                ) {
+                    self.content_hash = content_hash
+                    self.diff_threshold = diff_threshold
+                    self.display_name = display_name
+                    self.group = group
+                    self.height = height
+                    self.name = name
+                    self.tags = tags
+                    self.test_identifier = test_identifier
+                    self.width = width
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case content_hash
+                    case diff_threshold
+                    case display_name
+                    case group
+                    case height
+                    case name
+                    case tags
+                    case test_identifier
+                    case width
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/images`.
+            public typealias imagesPayload = [Components.Schemas.CreateSnapshotBuildRequest.imagesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/images`.
+            public var images: Components.Schemas.CreateSnapshotBuildRequest.imagesPayload
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/is_ci`.
+            public var is_ci: Swift.Bool?
+            /// A commit SHA.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/merge_base_sha`.
+            public var merge_base_sha: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/pull_request_number`.
+            public var pull_request_number: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/pull_request_title`.
+            public var pull_request_title: Swift.String?
+            /// The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/selective`.
+            public var selective: Swift.Bool?
+            /// The snapshot set, such as `android-phone`: builds are compared within a set.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSnapshotBuildRequest/set`.
+            public var set: Swift.String
+            /// Creates a new `CreateSnapshotBuildRequest`.
+            ///
+            /// - Parameters:
+            ///   - all_image_names: The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+            ///   - build_system:
+            ///   - git_branch:
+            ///   - git_commit_sha: A commit SHA.
+            ///   - git_ref:
+            ///   - git_remote_url_origin:
+            ///   - images:
+            ///   - is_ci:
+            ///   - merge_base_sha: A commit SHA.
+            ///   - pull_request_number:
+            ///   - pull_request_title:
+            ///   - selective: The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+            ///   - set: The snapshot set, such as `android-phone`: builds are compared within a set.
+            public init(
+                all_image_names: [Swift.String]? = nil,
+                build_system: Components.Schemas.CreateSnapshotBuildRequest.build_systemPayload? = nil,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String,
+                git_ref: Swift.String? = nil,
+                git_remote_url_origin: Swift.String? = nil,
+                images: Components.Schemas.CreateSnapshotBuildRequest.imagesPayload,
+                is_ci: Swift.Bool? = nil,
+                merge_base_sha: Swift.String? = nil,
+                pull_request_number: Swift.Int? = nil,
+                pull_request_title: Swift.String? = nil,
+                selective: Swift.Bool? = nil,
+                set: Swift.String
+            ) {
+                self.all_image_names = all_image_names
+                self.build_system = build_system
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
+                self.git_remote_url_origin = git_remote_url_origin
+                self.images = images
+                self.is_ci = is_ci
+                self.merge_base_sha = merge_base_sha
+                self.pull_request_number = pull_request_number
+                self.pull_request_title = pull_request_title
+                self.selective = selective
+                self.set = set
+            }
+            public enum CodingKeys: String, CodingKey {
+                case all_image_names
+                case build_system
+                case git_branch
+                case git_commit_sha
+                case git_ref
+                case git_remote_url_origin
+                case images
+                case is_ci
+                case merge_base_sha
+                case pull_request_number
+                case pull_request_title
+                case selective
+                case set
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Hashable, Sendable {
             /// The build system used by the project, such as xcode, gradle, bazel, once, or mix. New values can be added without notice, so clients must accept values they don't recognize.
@@ -17636,6 +18655,266 @@ public enum Components {
                 case exit_code
                 case stderr
                 case stdout
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration`.
+        public struct OrganizationAIConfiguration: Codable, Hashable, Sendable {
+            /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/default_model_id`.
+            public var default_model_id: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/modelsPayload`.
+            public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/modelsPayload/id`.
+                public var id: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/modelsPayload/name`.
+                public var name: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/modelsPayload/provider_id`.
+                public var provider_id: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/modelsPayload/updated_at`.
+                public var updated_at: Foundation.Date
+                /// The model ID requests send to the provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/modelsPayload/upstream_model_id`.
+                public var upstream_model_id: Swift.String
+                /// Creates a new `modelsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                ///   - name:
+                ///   - provider_id:
+                ///   - updated_at:
+                ///   - upstream_model_id: The model ID requests send to the provider.
+                public init(
+                    id: Swift.Int,
+                    name: Swift.String,
+                    provider_id: Swift.Int,
+                    updated_at: Foundation.Date,
+                    upstream_model_id: Swift.String
+                ) {
+                    self.id = id
+                    self.name = name
+                    self.provider_id = provider_id
+                    self.updated_at = updated_at
+                    self.upstream_model_id = upstream_model_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case id
+                    case name
+                    case provider_id
+                    case updated_at
+                    case upstream_model_id
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/models`.
+            public typealias modelsPayload = [Components.Schemas.OrganizationAIConfiguration.modelsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/models`.
+            public var models: Components.Schemas.OrganizationAIConfiguration.modelsPayload
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload`.
+            public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                /// Null for a linked Claude organization.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload/base_url`.
+                public var base_url: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload/id`.
+                public var id: Swift.Int
+                /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload/kind`.
+                @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case api_key = "api_key"
+                    case claude_linked_billing = "claude_linked_billing"
+                }
+                /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload/kind`.
+                public var kind: Components.Schemas.OrganizationAIConfiguration.providersPayloadPayload.kindPayload
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload/name`.
+                public var name: Swift.String
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providersPayload/updated_at`.
+                public var updated_at: Foundation.Date
+                /// Creates a new `providersPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - base_url: Null for a linked Claude organization.
+                ///   - id:
+                ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                ///   - name:
+                ///   - updated_at:
+                public init(
+                    base_url: Swift.String? = nil,
+                    id: Swift.Int,
+                    kind: Components.Schemas.OrganizationAIConfiguration.providersPayloadPayload.kindPayload,
+                    name: Swift.String,
+                    updated_at: Foundation.Date
+                ) {
+                    self.base_url = base_url
+                    self.id = id
+                    self.kind = kind
+                    self.name = name
+                    self.updated_at = updated_at
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case base_url
+                    case id
+                    case kind
+                    case name
+                    case updated_at
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providers`.
+            public typealias providersPayload = [Components.Schemas.OrganizationAIConfiguration.providersPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/providers`.
+            public var providers: Components.Schemas.OrganizationAIConfiguration.providersPayload
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routesPayload`.
+            public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routesPayload/id`.
+                public var id: Swift.Int
+                /// The configured model the task uses instead of the default.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routesPayload/model_id`.
+                public var model_id: Swift.Int
+                /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routesPayload/task`.
+                @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case pulse_grouping = "pulse_grouping"
+                    case pulse_explanation = "pulse_explanation"
+                }
+                /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routesPayload/task`.
+                public var task: Components.Schemas.OrganizationAIConfiguration.task_routesPayloadPayload.taskPayload
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routesPayload/updated_at`.
+                public var updated_at: Foundation.Date
+                /// Creates a new `task_routesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                ///   - model_id: The configured model the task uses instead of the default.
+                ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                ///   - updated_at:
+                public init(
+                    id: Swift.Int,
+                    model_id: Swift.Int,
+                    task: Components.Schemas.OrganizationAIConfiguration.task_routesPayloadPayload.taskPayload,
+                    updated_at: Foundation.Date
+                ) {
+                    self.id = id
+                    self.model_id = model_id
+                    self.task = task
+                    self.updated_at = updated_at
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case id
+                    case model_id
+                    case task
+                    case updated_at
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routes`.
+            public typealias task_routesPayload = [Components.Schemas.OrganizationAIConfiguration.task_routesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/task_routes`.
+            public var task_routes: Components.Schemas.OrganizationAIConfiguration.task_routesPayload
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload`.
+            public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                /// The product area the task belongs to.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/category`.
+                @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case pulse = "pulse"
+                }
+                /// The product area the task belongs to.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/category`.
+                public var category: Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload.categoryPayload
+                /// The configured model the task uses, or null when it sends no requests.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/model_id`.
+                public var model_id: Swift.Int?
+                /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/source`.
+                @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case route = "route"
+                    case _default = "default"
+                    case none = "none"
+                }
+                /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/source`.
+                public var source: Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload.sourcePayload
+                /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/task`.
+                @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case pulse_grouping = "pulse_grouping"
+                    case pulse_explanation = "pulse_explanation"
+                }
+                /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasksPayload/task`.
+                public var task: Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload.taskPayload
+                /// Creates a new `tasksPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - category: The product area the task belongs to.
+                ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                public init(
+                    category: Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload.categoryPayload,
+                    model_id: Swift.Int? = nil,
+                    source: Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload.sourcePayload,
+                    task: Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload.taskPayload
+                ) {
+                    self.category = category
+                    self.model_id = model_id
+                    self.source = source
+                    self.task = task
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case category
+                    case model_id
+                    case source
+                    case task
+                }
+            }
+            /// Every routable task and the model its requests use now.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasks`.
+            public typealias tasksPayload = [Components.Schemas.OrganizationAIConfiguration.tasksPayloadPayload]
+            /// Every routable task and the model its requests use now.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIConfiguration/tasks`.
+            public var tasks: Components.Schemas.OrganizationAIConfiguration.tasksPayload
+            /// Creates a new `OrganizationAIConfiguration`.
+            ///
+            /// - Parameters:
+            ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+            ///   - models:
+            ///   - providers:
+            ///   - task_routes:
+            ///   - tasks: Every routable task and the model its requests use now.
+            public init(
+                default_model_id: Swift.Int? = nil,
+                models: Components.Schemas.OrganizationAIConfiguration.modelsPayload,
+                providers: Components.Schemas.OrganizationAIConfiguration.providersPayload,
+                task_routes: Components.Schemas.OrganizationAIConfiguration.task_routesPayload,
+                tasks: Components.Schemas.OrganizationAIConfiguration.tasksPayload
+            ) {
+                self.default_model_id = default_model_id
+                self.models = models
+                self.providers = providers
+                self.task_routes = task_routes
+                self.tasks = tasks
+            }
+            public enum CodingKeys: String, CodingKey {
+                case default_model_id
+                case models
+                case providers
+                case task_routes
+                case tasks
             }
         }
         /// - Remark: Generated from `#/components/schemas/CargoBuildDetail`.
@@ -20218,6 +21497,49 @@ public enum Components {
                 case observed_at
                 case parent_id
                 case status
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OrganizationAIModel`.
+        public struct OrganizationAIModel: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIModel/id`.
+            public var id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIModel/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIModel/provider_id`.
+            public var provider_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIModel/updated_at`.
+            public var updated_at: Foundation.Date
+            /// The model ID requests send to the provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAIModel/upstream_model_id`.
+            public var upstream_model_id: Swift.String
+            /// Creates a new `OrganizationAIModel`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            ///   - provider_id:
+            ///   - updated_at:
+            ///   - upstream_model_id: The model ID requests send to the provider.
+            public init(
+                id: Swift.Int,
+                name: Swift.String,
+                provider_id: Swift.Int,
+                updated_at: Foundation.Date,
+                upstream_model_id: Swift.String
+            ) {
+                self.id = id
+                self.name = name
+                self.provider_id = provider_id
+                self.updated_at = updated_at
+                self.upstream_model_id = upstream_model_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
+                case provider_id
+                case updated_at
+                case upstream_model_id
             }
         }
         /// Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
@@ -23309,6 +24631,306 @@ public enum Components {
                 ])
             }
         }
+        /// Executions recorded by the execution node, with the time the executor ran in each single-use VM, from its start to its exit. It includes fetching inputs and uploading outputs, not queueing or preparing the VM. Results served from the cache are not executions. Every bucket of the period is listed.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage`.
+        public struct RemoteExecutionUsage: Codable, Hashable, Sendable {
+            /// Measured execution time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/execution_ms`.
+            public var execution_ms: Swift.Int
+            /// Executions that ran in a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/executions`.
+            public var executions: Swift.Int
+            /// Start of the period, inclusive.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/from`.
+            public var from: Foundation.Date
+            /// Bucket size of `series`: `hour`, `day` or `month`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/granularity`.
+            public var granularity: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/modesPayload`.
+            public struct modesPayloadPayload: Codable, Hashable, Sendable {
+                /// Measured execution time.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/modesPayload/execution_ms`.
+                public var execution_ms: Swift.Int
+                /// Executions that ran in a VM.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/modesPayload/executions`.
+                public var executions: Swift.Int
+                /// How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/modesPayload/mode`.
+                public var mode: Swift.String
+                /// Creates a new `modesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - execution_ms: Measured execution time.
+                ///   - executions: Executions that ran in a VM.
+                ///   - mode: How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string.
+                public init(
+                    execution_ms: Swift.Int,
+                    executions: Swift.Int,
+                    mode: Swift.String
+                ) {
+                    self.execution_ms = execution_ms
+                    self.executions = executions
+                    self.mode = mode
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case execution_ms
+                    case executions
+                    case mode
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.execution_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .execution_ms
+                    )
+                    self.executions = try container.decode(
+                        Swift.Int.self,
+                        forKey: .executions
+                    )
+                    self.mode = try container.decode(
+                        Swift.String.self,
+                        forKey: .mode
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "execution_ms",
+                        "executions",
+                        "mode"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/modes`.
+            public typealias modesPayload = [Components.Schemas.RemoteExecutionUsage.modesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/modes`.
+            public var modes: Components.Schemas.RemoteExecutionUsage.modesPayload
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/seriesPayload`.
+            public struct seriesPayloadPayload: Codable, Hashable, Sendable {
+                /// The bucket's start in UTC, formatted for its granularity.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/seriesPayload/bucket`.
+                public var bucket: Swift.String
+                /// Measured execution time.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/seriesPayload/execution_ms`.
+                public var execution_ms: Swift.Int
+                /// Executions that ran in a VM.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/seriesPayload/executions`.
+                public var executions: Swift.Int
+                /// Creates a new `seriesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - bucket: The bucket's start in UTC, formatted for its granularity.
+                ///   - execution_ms: Measured execution time.
+                ///   - executions: Executions that ran in a VM.
+                public init(
+                    bucket: Swift.String,
+                    execution_ms: Swift.Int,
+                    executions: Swift.Int
+                ) {
+                    self.bucket = bucket
+                    self.execution_ms = execution_ms
+                    self.executions = executions
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case bucket
+                    case execution_ms
+                    case executions
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.bucket = try container.decode(
+                        Swift.String.self,
+                        forKey: .bucket
+                    )
+                    self.execution_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .execution_ms
+                    )
+                    self.executions = try container.decode(
+                        Swift.Int.self,
+                        forKey: .executions
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "bucket",
+                        "execution_ms",
+                        "executions"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/series`.
+            public typealias seriesPayload = [Components.Schemas.RemoteExecutionUsage.seriesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/series`.
+            public var series: Components.Schemas.RemoteExecutionUsage.seriesPayload
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapesPayload`.
+            public struct shapesPayloadPayload: Codable, Hashable, Sendable {
+                /// Measured execution time.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapesPayload/execution_ms`.
+                public var execution_ms: Swift.Int
+                /// Executions that ran in a VM.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapesPayload/executions`.
+                public var executions: Swift.Int
+                /// Memory in GB of the VM shape.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapesPayload/memory_gb`.
+                public var memory_gb: Swift.Int
+                /// vCPUs of the VM shape.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapesPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `shapesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - execution_ms: Measured execution time.
+                ///   - executions: Executions that ran in a VM.
+                ///   - memory_gb: Memory in GB of the VM shape.
+                ///   - vcpus: vCPUs of the VM shape.
+                public init(
+                    execution_ms: Swift.Int,
+                    executions: Swift.Int,
+                    memory_gb: Swift.Int,
+                    vcpus: Swift.Int
+                ) {
+                    self.execution_ms = execution_ms
+                    self.executions = executions
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case execution_ms
+                    case executions
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.execution_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .execution_ms
+                    )
+                    self.executions = try container.decode(
+                        Swift.Int.self,
+                        forKey: .executions
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Int.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "execution_ms",
+                        "executions",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapes`.
+            public typealias shapesPayload = [Components.Schemas.RemoteExecutionUsage.shapesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/shapes`.
+            public var shapes: Components.Schemas.RemoteExecutionUsage.shapesPayload
+            /// End of the period, exclusive.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsage/to`.
+            public var to: Foundation.Date
+            /// Creates a new `RemoteExecutionUsage`.
+            ///
+            /// - Parameters:
+            ///   - execution_ms: Measured execution time.
+            ///   - executions: Executions that ran in a VM.
+            ///   - from: Start of the period, inclusive.
+            ///   - granularity: Bucket size of `series`: `hour`, `day` or `month`.
+            ///   - modes:
+            ///   - series:
+            ///   - shapes:
+            ///   - to: End of the period, exclusive.
+            public init(
+                execution_ms: Swift.Int,
+                executions: Swift.Int,
+                from: Foundation.Date,
+                granularity: Swift.String,
+                modes: Components.Schemas.RemoteExecutionUsage.modesPayload,
+                series: Components.Schemas.RemoteExecutionUsage.seriesPayload,
+                shapes: Components.Schemas.RemoteExecutionUsage.shapesPayload,
+                to: Foundation.Date
+            ) {
+                self.execution_ms = execution_ms
+                self.executions = executions
+                self.from = from
+                self.granularity = granularity
+                self.modes = modes
+                self.series = series
+                self.shapes = shapes
+                self.to = to
+            }
+            public enum CodingKeys: String, CodingKey {
+                case execution_ms
+                case executions
+                case from
+                case granularity
+                case modes
+                case series
+                case shapes
+                case to
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.execution_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .execution_ms
+                )
+                self.executions = try container.decode(
+                    Swift.Int.self,
+                    forKey: .executions
+                )
+                self.from = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .from
+                )
+                self.granularity = try container.decode(
+                    Swift.String.self,
+                    forKey: .granularity
+                )
+                self.modes = try container.decode(
+                    Components.Schemas.RemoteExecutionUsage.modesPayload.self,
+                    forKey: .modes
+                )
+                self.series = try container.decode(
+                    Components.Schemas.RemoteExecutionUsage.seriesPayload.self,
+                    forKey: .series
+                )
+                self.shapes = try container.decode(
+                    Components.Schemas.RemoteExecutionUsage.shapesPayload.self,
+                    forKey: .shapes
+                )
+                self.to = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .to
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "execution_ms",
+                    "executions",
+                    "from",
+                    "granularity",
+                    "modes",
+                    "series",
+                    "shapes",
+                    "to"
+                ])
+            }
+        }
         /// Time-bucketed duration metrics for build or test runs. The bucket granularity (hour, day, or month) is derived from the requested time range.
         ///
         /// - Remark: Generated from `#/components/schemas/DurationMetrics`.
@@ -23610,6 +25232,126 @@ public enum Components {
                 case payment_failed
                 case payment_required
                 case projects
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction`.
+        public struct RemoteExecutionActiveAction: Codable, Hashable, Sendable {
+            /// The REAPI action digest as `hash/size`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/action_digest`.
+            public var action_digest: Swift.String
+            /// The Bazel invocation that requested the action, from its request metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/invocation_id`.
+            public var invocation_id: Swift.String?
+            /// Memory in GB of the VM the action runs or will run in.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// The action's mnemonic, such as `CppCompile`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/mnemonic`.
+            public var mnemonic: Swift.String?
+            /// When the action entered its current state.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/since`.
+            public var since: Foundation.Date
+            /// `running` or `queued`. Open string: more states can be added.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/state`.
+            public var state: Swift.String
+            /// The label of the target the action belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/target`.
+            public var target: Swift.String?
+            /// vCPUs of the VM the action runs or will run in.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActiveAction/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `RemoteExecutionActiveAction`.
+            ///
+            /// - Parameters:
+            ///   - action_digest: The REAPI action digest as `hash/size`.
+            ///   - invocation_id: The Bazel invocation that requested the action, from its request metadata.
+            ///   - memory_gb: Memory in GB of the VM the action runs or will run in.
+            ///   - mnemonic: The action's mnemonic, such as `CppCompile`.
+            ///   - since: When the action entered its current state.
+            ///   - state: `running` or `queued`. Open string: more states can be added.
+            ///   - target: The label of the target the action belongs to.
+            ///   - vcpus: vCPUs of the VM the action runs or will run in.
+            public init(
+                action_digest: Swift.String,
+                invocation_id: Swift.String? = nil,
+                memory_gb: Swift.Int,
+                mnemonic: Swift.String? = nil,
+                since: Foundation.Date,
+                state: Swift.String,
+                target: Swift.String? = nil,
+                vcpus: Swift.Int
+            ) {
+                self.action_digest = action_digest
+                self.invocation_id = invocation_id
+                self.memory_gb = memory_gb
+                self.mnemonic = mnemonic
+                self.since = since
+                self.state = state
+                self.target = target
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case action_digest
+                case invocation_id
+                case memory_gb
+                case mnemonic
+                case since
+                case state
+                case target
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.action_digest = try container.decode(
+                    Swift.String.self,
+                    forKey: .action_digest
+                )
+                self.invocation_id = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .invocation_id
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Int.self,
+                    forKey: .memory_gb
+                )
+                self.mnemonic = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .mnemonic
+                )
+                self.since = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .since
+                )
+                self.state = try container.decode(
+                    Swift.String.self,
+                    forKey: .state
+                )
+                self.target = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .target
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "action_digest",
+                    "invocation_id",
+                    "memory_gb",
+                    "mnemonic",
+                    "since",
+                    "state",
+                    "target",
+                    "vcpus"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/PulseRow`.
@@ -24538,6 +26280,182 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case pagination_metadata
                 case runs
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild`.
+        public struct SnapshotBaselineBuild: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/added_count`.
+            public var added_count: Swift.Int?
+            /// The build this one was compared with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/baseline_build_id`.
+            public var baseline_build_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/changed_count`.
+            public var changed_count: Swift.Int?
+            /// The id of the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/removed_count`.
+            public var removed_count: Swift.Int?
+            /// Removed images whose content reappeared under another name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/renamed_count`.
+            public var renamed_count: Swift.Int?
+            /// Images a selective run didn't render, carried over from the baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/skipped_count`.
+            public var skipped_count: Swift.Int?
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/state`.
+            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case uploading = "uploading"
+                case processing = "processing"
+                case processed = "processed"
+                case failed = "failed"
+            }
+            /// Where the build is in its lifecycle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/state`.
+            public var state: Components.Schemas.SnapshotBaselineBuild.statePayload
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case processing = "processing"
+                case failed = "failed"
+                case passed = "passed"
+                case baseline = "baseline"
+                case approved = "approved"
+                case rejected = "rejected"
+                case needs_review = "needs_review"
+            }
+            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/status`.
+            public var status: Components.Schemas.SnapshotBaselineBuild.statusPayload
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/unchanged_count`.
+            public var unchanged_count: Swift.Int?
+            /// The build's review page on the dashboard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaselineBuild/url`.
+            public var url: Swift.String
+            /// Creates a new `SnapshotBaselineBuild`.
+            ///
+            /// - Parameters:
+            ///   - added_count:
+            ///   - baseline_build_id: The build this one was compared with.
+            ///   - changed_count:
+            ///   - id: The id of the build.
+            ///   - removed_count:
+            ///   - renamed_count: Removed images whose content reappeared under another name.
+            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+            ///   - state: Where the build is in its lifecycle.
+            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+            ///   - unchanged_count:
+            ///   - url: The build's review page on the dashboard.
+            public init(
+                added_count: Swift.Int? = nil,
+                baseline_build_id: Swift.String? = nil,
+                changed_count: Swift.Int? = nil,
+                id: Swift.String,
+                removed_count: Swift.Int? = nil,
+                renamed_count: Swift.Int? = nil,
+                skipped_count: Swift.Int? = nil,
+                state: Components.Schemas.SnapshotBaselineBuild.statePayload,
+                status: Components.Schemas.SnapshotBaselineBuild.statusPayload,
+                unchanged_count: Swift.Int? = nil,
+                url: Swift.String
+            ) {
+                self.added_count = added_count
+                self.baseline_build_id = baseline_build_id
+                self.changed_count = changed_count
+                self.id = id
+                self.removed_count = removed_count
+                self.renamed_count = renamed_count
+                self.skipped_count = skipped_count
+                self.state = state
+                self.status = status
+                self.unchanged_count = unchanged_count
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case added_count
+                case baseline_build_id
+                case changed_count
+                case id
+                case removed_count
+                case renamed_count
+                case skipped_count
+                case state
+                case status
+                case unchanged_count
+                case url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/OrganizationAITask`.
+        public struct OrganizationAITask: Codable, Hashable, Sendable {
+            /// The product area the task belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/category`.
+            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case pulse = "pulse"
+            }
+            /// The product area the task belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/category`.
+            public var category: Components.Schemas.OrganizationAITask.categoryPayload
+            /// The configured model the task uses, or null when it sends no requests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/model_id`.
+            public var model_id: Swift.Int?
+            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/source`.
+            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case route = "route"
+                case _default = "default"
+                case none = "none"
+            }
+            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/source`.
+            public var source: Components.Schemas.OrganizationAITask.sourcePayload
+            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/task`.
+            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case pulse_grouping = "pulse_grouping"
+                case pulse_explanation = "pulse_explanation"
+            }
+            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITask/task`.
+            public var task: Components.Schemas.OrganizationAITask.taskPayload
+            /// Creates a new `OrganizationAITask`.
+            ///
+            /// - Parameters:
+            ///   - category: The product area the task belongs to.
+            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+            public init(
+                category: Components.Schemas.OrganizationAITask.categoryPayload,
+                model_id: Swift.Int? = nil,
+                source: Components.Schemas.OrganizationAITask.sourcePayload,
+                task: Components.Schemas.OrganizationAITask.taskPayload
+            ) {
+                self.category = category
+                self.model_id = model_id
+                self.source = source
+                self.task = task
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case model_id
+                case source
+                case task
             }
         }
         /// - Remark: Generated from `#/components/schemas/SandboxCommand`.
@@ -27089,6 +29007,342 @@ public enum Components {
                 case targets
             }
         }
+        /// Running actions first, each group oldest first. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish. `invocations` lists the running Bazel invocations, newest first.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity`.
+        public struct RemoteExecutionActivity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload`.
+            public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                /// The REAPI action digest as `hash/size`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/action_digest`.
+                public var action_digest: Swift.String
+                /// The Bazel invocation that requested the action, from its request metadata.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/invocation_id`.
+                public var invocation_id: Swift.String?
+                /// Memory in GB of the VM the action runs or will run in.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/memory_gb`.
+                public var memory_gb: Swift.Int
+                /// The action's mnemonic, such as `CppCompile`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/mnemonic`.
+                public var mnemonic: Swift.String?
+                /// When the action entered its current state.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/since`.
+                public var since: Foundation.Date
+                /// `running` or `queued`. Open string: more states can be added.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/state`.
+                public var state: Swift.String
+                /// The label of the target the action belongs to.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/target`.
+                public var target: Swift.String?
+                /// vCPUs of the VM the action runs or will run in.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actionsPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `actionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - action_digest: The REAPI action digest as `hash/size`.
+                ///   - invocation_id: The Bazel invocation that requested the action, from its request metadata.
+                ///   - memory_gb: Memory in GB of the VM the action runs or will run in.
+                ///   - mnemonic: The action's mnemonic, such as `CppCompile`.
+                ///   - since: When the action entered its current state.
+                ///   - state: `running` or `queued`. Open string: more states can be added.
+                ///   - target: The label of the target the action belongs to.
+                ///   - vcpus: vCPUs of the VM the action runs or will run in.
+                public init(
+                    action_digest: Swift.String,
+                    invocation_id: Swift.String? = nil,
+                    memory_gb: Swift.Int,
+                    mnemonic: Swift.String? = nil,
+                    since: Foundation.Date,
+                    state: Swift.String,
+                    target: Swift.String? = nil,
+                    vcpus: Swift.Int
+                ) {
+                    self.action_digest = action_digest
+                    self.invocation_id = invocation_id
+                    self.memory_gb = memory_gb
+                    self.mnemonic = mnemonic
+                    self.since = since
+                    self.state = state
+                    self.target = target
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case action_digest
+                    case invocation_id
+                    case memory_gb
+                    case mnemonic
+                    case since
+                    case state
+                    case target
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.action_digest = try container.decode(
+                        Swift.String.self,
+                        forKey: .action_digest
+                    )
+                    self.invocation_id = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .invocation_id
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Int.self,
+                        forKey: .memory_gb
+                    )
+                    self.mnemonic = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .mnemonic
+                    )
+                    self.since = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .since
+                    )
+                    self.state = try container.decode(
+                        Swift.String.self,
+                        forKey: .state
+                    )
+                    self.target = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .target
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "action_digest",
+                        "invocation_id",
+                        "memory_gb",
+                        "mnemonic",
+                        "since",
+                        "state",
+                        "target",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actions`.
+            public typealias actionsPayload = [Components.Schemas.RemoteExecutionActivity.actionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/actions`.
+            public var actions: Components.Schemas.RemoteExecutionActivity.actionsPayload
+            /// An invocation that started in the last 24 hours and has not finished.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload`.
+            public struct invocationsPayloadPayload: Codable, Hashable, Sendable {
+                /// The Bazel command, or null while the build event stream has not reported it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/command`.
+                public var command: Swift.String?
+                /// The Git branch, or empty when not reported.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/git_branch`.
+                public var git_branch: Swift.String
+                /// The Git commit, or empty when not reported.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/git_commit_sha`.
+                public var git_commit_sha: Swift.String
+                /// The Bazel invocation ID.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/invocation_id`.
+                public var invocation_id: Swift.String
+                /// Whether it runs on CI; null when unknown.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Its remote actions waiting for a VM.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/queued`.
+                public var queued: Swift.Int
+                /// Its remote actions executing in a VM.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/running`.
+                public var running: Swift.Int
+                /// When the invocation started.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/started_at`.
+                public var started_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocationsPayload/target_patterns`.
+                public var target_patterns: [Swift.String]
+                /// Creates a new `invocationsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - command: The Bazel command, or null while the build event stream has not reported it.
+                ///   - git_branch: The Git branch, or empty when not reported.
+                ///   - git_commit_sha: The Git commit, or empty when not reported.
+                ///   - invocation_id: The Bazel invocation ID.
+                ///   - is_ci: Whether it runs on CI; null when unknown.
+                ///   - queued: Its remote actions waiting for a VM.
+                ///   - running: Its remote actions executing in a VM.
+                ///   - started_at: When the invocation started.
+                ///   - target_patterns:
+                public init(
+                    command: Swift.String? = nil,
+                    git_branch: Swift.String,
+                    git_commit_sha: Swift.String,
+                    invocation_id: Swift.String,
+                    is_ci: Swift.Bool? = nil,
+                    queued: Swift.Int,
+                    running: Swift.Int,
+                    started_at: Foundation.Date,
+                    target_patterns: [Swift.String]
+                ) {
+                    self.command = command
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.invocation_id = invocation_id
+                    self.is_ci = is_ci
+                    self.queued = queued
+                    self.running = running
+                    self.started_at = started_at
+                    self.target_patterns = target_patterns
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case command
+                    case git_branch
+                    case git_commit_sha
+                    case invocation_id
+                    case is_ci
+                    case queued
+                    case running
+                    case started_at
+                    case target_patterns
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.command = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .command
+                    )
+                    self.git_branch = try container.decode(
+                        Swift.String.self,
+                        forKey: .git_branch
+                    )
+                    self.git_commit_sha = try container.decode(
+                        Swift.String.self,
+                        forKey: .git_commit_sha
+                    )
+                    self.invocation_id = try container.decode(
+                        Swift.String.self,
+                        forKey: .invocation_id
+                    )
+                    self.is_ci = try container.decodeIfPresent(
+                        Swift.Bool.self,
+                        forKey: .is_ci
+                    )
+                    self.queued = try container.decode(
+                        Swift.Int.self,
+                        forKey: .queued
+                    )
+                    self.running = try container.decode(
+                        Swift.Int.self,
+                        forKey: .running
+                    )
+                    self.started_at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .started_at
+                    )
+                    self.target_patterns = try container.decode(
+                        [Swift.String].self,
+                        forKey: .target_patterns
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "command",
+                        "git_branch",
+                        "git_commit_sha",
+                        "invocation_id",
+                        "is_ci",
+                        "queued",
+                        "running",
+                        "started_at",
+                        "target_patterns"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocations`.
+            public typealias invocationsPayload = [Components.Schemas.RemoteExecutionActivity.invocationsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/invocations`.
+            public var invocations: Components.Schemas.RemoteExecutionActivity.invocationsPayload
+            /// When the scheduler was read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/observed_at`.
+            public var observed_at: Foundation.Date
+            /// Actions waiting for a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/queued`.
+            public var queued: Swift.Int
+            /// Actions executing in a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionActivity/running`.
+            public var running: Swift.Int
+            /// Creates a new `RemoteExecutionActivity`.
+            ///
+            /// - Parameters:
+            ///   - actions:
+            ///   - invocations:
+            ///   - observed_at: When the scheduler was read.
+            ///   - queued: Actions waiting for a VM.
+            ///   - running: Actions executing in a VM.
+            public init(
+                actions: Components.Schemas.RemoteExecutionActivity.actionsPayload,
+                invocations: Components.Schemas.RemoteExecutionActivity.invocationsPayload,
+                observed_at: Foundation.Date,
+                queued: Swift.Int,
+                running: Swift.Int
+            ) {
+                self.actions = actions
+                self.invocations = invocations
+                self.observed_at = observed_at
+                self.queued = queued
+                self.running = running
+            }
+            public enum CodingKeys: String, CodingKey {
+                case actions
+                case invocations
+                case observed_at
+                case queued
+                case running
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.actions = try container.decode(
+                    Components.Schemas.RemoteExecutionActivity.actionsPayload.self,
+                    forKey: .actions
+                )
+                self.invocations = try container.decode(
+                    Components.Schemas.RemoteExecutionActivity.invocationsPayload.self,
+                    forKey: .invocations
+                )
+                self.observed_at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .observed_at
+                )
+                self.queued = try container.decode(
+                    Swift.Int.self,
+                    forKey: .queued
+                )
+                self.running = try container.decode(
+                    Swift.Int.self,
+                    forKey: .running
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "actions",
+                    "invocations",
+                    "observed_at",
+                    "queued",
+                    "running"
+                ])
+            }
+        }
         /// The maximum number of builds to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/MixBuildsIndexPageSize`.
@@ -28853,6 +31107,61 @@ public enum Components {
                 case source
                 case submission_auth
                 case verified_account_handle
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsagePoint`.
+        public struct RemoteExecutionUsagePoint: Codable, Hashable, Sendable {
+            /// The bucket's start in UTC, formatted for its granularity.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsagePoint/bucket`.
+            public var bucket: Swift.String
+            /// Measured execution time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsagePoint/execution_ms`.
+            public var execution_ms: Swift.Int
+            /// Executions that ran in a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsagePoint/executions`.
+            public var executions: Swift.Int
+            /// Creates a new `RemoteExecutionUsagePoint`.
+            ///
+            /// - Parameters:
+            ///   - bucket: The bucket's start in UTC, formatted for its granularity.
+            ///   - execution_ms: Measured execution time.
+            ///   - executions: Executions that ran in a VM.
+            public init(
+                bucket: Swift.String,
+                execution_ms: Swift.Int,
+                executions: Swift.Int
+            ) {
+                self.bucket = bucket
+                self.execution_ms = execution_ms
+                self.executions = executions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case bucket
+                case execution_ms
+                case executions
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.bucket = try container.decode(
+                    Swift.String.self,
+                    forKey: .bucket
+                )
+                self.execution_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .execution_ms
+                )
+                self.executions = try container.decode(
+                    Swift.Int.self,
+                    forKey: .executions
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "bucket",
+                    "execution_ms",
+                    "executions"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/PulseAnalytics`.
@@ -31469,6 +33778,178 @@ public enum Components {
                 case os_version
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SnapshotBaseline`.
+        public struct SnapshotBaseline: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build`.
+            public struct buildPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/added_count`.
+                public var added_count: Swift.Int?
+                /// The build this one was compared with.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/baseline_build_id`.
+                public var baseline_build_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/changed_count`.
+                public var changed_count: Swift.Int?
+                /// The id of the build.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/removed_count`.
+                public var removed_count: Swift.Int?
+                /// Removed images whose content reappeared under another name.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/renamed_count`.
+                public var renamed_count: Swift.Int?
+                /// Images a selective run didn't render, carried over from the baseline.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/skipped_count`.
+                public var skipped_count: Swift.Int?
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case uploading = "uploading"
+                    case processing = "processing"
+                    case processed = "processed"
+                    case failed = "failed"
+                }
+                /// Where the build is in its lifecycle.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/state`.
+                public var state: Components.Schemas.SnapshotBaseline.buildPayload.statePayload
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case processing = "processing"
+                    case failed = "failed"
+                    case passed = "passed"
+                    case baseline = "baseline"
+                    case approved = "approved"
+                    case rejected = "rejected"
+                    case needs_review = "needs_review"
+                }
+                /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/status`.
+                public var status: Components.Schemas.SnapshotBaseline.buildPayload.statusPayload
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/unchanged_count`.
+                public var unchanged_count: Swift.Int?
+                /// The build's review page on the dashboard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build/url`.
+                public var url: Swift.String
+                /// Creates a new `buildPayload`.
+                ///
+                /// - Parameters:
+                ///   - added_count:
+                ///   - baseline_build_id: The build this one was compared with.
+                ///   - changed_count:
+                ///   - id: The id of the build.
+                ///   - removed_count:
+                ///   - renamed_count: Removed images whose content reappeared under another name.
+                ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                ///   - state: Where the build is in its lifecycle.
+                ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                ///   - unchanged_count:
+                ///   - url: The build's review page on the dashboard.
+                public init(
+                    added_count: Swift.Int? = nil,
+                    baseline_build_id: Swift.String? = nil,
+                    changed_count: Swift.Int? = nil,
+                    id: Swift.String,
+                    removed_count: Swift.Int? = nil,
+                    renamed_count: Swift.Int? = nil,
+                    skipped_count: Swift.Int? = nil,
+                    state: Components.Schemas.SnapshotBaseline.buildPayload.statePayload,
+                    status: Components.Schemas.SnapshotBaseline.buildPayload.statusPayload,
+                    unchanged_count: Swift.Int? = nil,
+                    url: Swift.String
+                ) {
+                    self.added_count = added_count
+                    self.baseline_build_id = baseline_build_id
+                    self.changed_count = changed_count
+                    self.id = id
+                    self.removed_count = removed_count
+                    self.renamed_count = renamed_count
+                    self.skipped_count = skipped_count
+                    self.state = state
+                    self.status = status
+                    self.unchanged_count = unchanged_count
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case added_count
+                    case baseline_build_id
+                    case changed_count
+                    case id
+                    case removed_count
+                    case renamed_count
+                    case skipped_count
+                    case state
+                    case status
+                    case unchanged_count
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/build`.
+            public var build: Components.Schemas.SnapshotBaseline.buildPayload?
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload`.
+            public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                /// The SHA-256 of the PNG.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload/content_hash`.
+                public var content_hash: Swift.String
+                /// The image's path relative to the uploaded directory.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload/name`.
+                public var name: Swift.String
+                /// A presigned URL to download the PNG from.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/imagesPayload/url`.
+                public var url: Swift.String
+                /// Creates a new `imagesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - content_hash: The SHA-256 of the PNG.
+                ///   - name: The image's path relative to the uploaded directory.
+                ///   - url: A presigned URL to download the PNG from.
+                public init(
+                    content_hash: Swift.String,
+                    name: Swift.String,
+                    url: Swift.String
+                ) {
+                    self.content_hash = content_hash
+                    self.name = name
+                    self.url = url
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case content_hash
+                    case name
+                    case url
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/images`.
+            public typealias imagesPayload = [Components.Schemas.SnapshotBaseline.imagesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SnapshotBaseline/images`.
+            public var images: Components.Schemas.SnapshotBaseline.imagesPayload
+            /// Creates a new `SnapshotBaseline`.
+            ///
+            /// - Parameters:
+            ///   - build:
+            ///   - images:
+            public init(
+                build: Components.Schemas.SnapshotBaseline.buildPayload? = nil,
+                images: Components.Schemas.SnapshotBaseline.imagesPayload
+            ) {
+                self.build = build
+                self.images = images
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build
+                case images
+            }
+        }
         /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexAfter`.
@@ -31618,6 +34099,61 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CommitCoverageFilesPageSize`.
         public typealias CommitCoverageFilesPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageMode`.
+        public struct RemoteExecutionUsageMode: Codable, Hashable, Sendable {
+            /// Measured execution time.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageMode/execution_ms`.
+            public var execution_ms: Swift.Int
+            /// Executions that ran in a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageMode/executions`.
+            public var executions: Swift.Int
+            /// How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionUsageMode/mode`.
+            public var mode: Swift.String
+            /// Creates a new `RemoteExecutionUsageMode`.
+            ///
+            /// - Parameters:
+            ///   - execution_ms: Measured execution time.
+            ///   - executions: Executions that ran in a VM.
+            ///   - mode: How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string.
+            public init(
+                execution_ms: Swift.Int,
+                executions: Swift.Int,
+                mode: Swift.String
+            ) {
+                self.execution_ms = execution_ms
+                self.executions = executions
+                self.mode = mode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case execution_ms
+                case executions
+                case mode
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.execution_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .execution_ms
+                )
+                self.executions = try container.decode(
+                    Swift.Int.self,
+                    forKey: .executions
+                )
+                self.mode = try container.decode(
+                    Swift.String.self,
+                    forKey: .mode
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "execution_ms",
+                    "executions",
+                    "mode"
+                ])
+            }
+        }
         /// Parameters to complete a multipart upload for a build.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadCompletionParams`.
@@ -32109,6 +34645,105 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case build_id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry`.
+        public struct SnapshotImageManifestEntry: Codable, Hashable, Sendable {
+            /// The SHA-256 of the PNG.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/content_hash`.
+            public var content_hash: Swift.String
+            /// The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/diff_threshold`.
+            public var diff_threshold: Swift.Double?
+            /// How the review page names the image. Defaults to `name`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/display_name`.
+            public var display_name: Swift.String?
+            /// Images of a group are reviewed together.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/group`.
+            public var group: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/height`.
+            public var height: Swift.Int?
+            /// The image's path relative to the uploaded directory.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/name`.
+            public var name: Swift.String
+            /// Labels such as `theme: dark` or `device: pixel_7`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/tags`.
+            public struct tagsPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                public var additionalProperties: [String: Swift.String]
+                /// Creates a new `tagsPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(additionalProperties: [String: Swift.String] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                public init(from decoder: any Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// Labels such as `theme: dark` or `device: pixel_7`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/tags`.
+            public var tags: Components.Schemas.SnapshotImageManifestEntry.tagsPayload?
+            /// The test that recorded the image, when known.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/test_identifier`.
+            public var test_identifier: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SnapshotImageManifestEntry/width`.
+            public var width: Swift.Int?
+            /// Creates a new `SnapshotImageManifestEntry`.
+            ///
+            /// - Parameters:
+            ///   - content_hash: The SHA-256 of the PNG.
+            ///   - diff_threshold: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+            ///   - display_name: How the review page names the image. Defaults to `name`.
+            ///   - group: Images of a group are reviewed together.
+            ///   - height:
+            ///   - name: The image's path relative to the uploaded directory.
+            ///   - tags: Labels such as `theme: dark` or `device: pixel_7`.
+            ///   - test_identifier: The test that recorded the image, when known.
+            ///   - width:
+            public init(
+                content_hash: Swift.String,
+                diff_threshold: Swift.Double? = nil,
+                display_name: Swift.String? = nil,
+                group: Swift.String? = nil,
+                height: Swift.Int? = nil,
+                name: Swift.String,
+                tags: Components.Schemas.SnapshotImageManifestEntry.tagsPayload? = nil,
+                test_identifier: Swift.String? = nil,
+                width: Swift.Int? = nil
+            ) {
+                self.content_hash = content_hash
+                self.diff_threshold = diff_threshold
+                self.display_name = display_name
+                self.group = group
+                self.height = height
+                self.name = name
+                self.tags = tags
+                self.test_identifier = test_identifier
+                self.width = width
+            }
+            public enum CodingKeys: String, CodingKey {
+                case content_hash
+                case diff_threshold
+                case display_name
+                case group
+                case height
+                case name
+                case tags
+                case test_identifier
+                case width
             }
         }
         /// - Remark: Generated from `#/components/schemas/Sandboxes`.
@@ -34386,6 +37021,139 @@ public enum Components {
                 ])
             }
         }
+        /// An invocation that started in the last 24 hours and has not finished.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation`.
+        public struct RemoteExecutionRunningInvocation: Codable, Hashable, Sendable {
+            /// The Bazel command, or null while the build event stream has not reported it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/command`.
+            public var command: Swift.String?
+            /// The Git branch, or empty when not reported.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/git_branch`.
+            public var git_branch: Swift.String
+            /// The Git commit, or empty when not reported.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/git_commit_sha`.
+            public var git_commit_sha: Swift.String
+            /// The Bazel invocation ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/invocation_id`.
+            public var invocation_id: Swift.String
+            /// Whether it runs on CI; null when unknown.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/is_ci`.
+            public var is_ci: Swift.Bool?
+            /// Its remote actions waiting for a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/queued`.
+            public var queued: Swift.Int
+            /// Its remote actions executing in a VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/running`.
+            public var running: Swift.Int
+            /// When the invocation started.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/started_at`.
+            public var started_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RemoteExecutionRunningInvocation/target_patterns`.
+            public var target_patterns: [Swift.String]
+            /// Creates a new `RemoteExecutionRunningInvocation`.
+            ///
+            /// - Parameters:
+            ///   - command: The Bazel command, or null while the build event stream has not reported it.
+            ///   - git_branch: The Git branch, or empty when not reported.
+            ///   - git_commit_sha: The Git commit, or empty when not reported.
+            ///   - invocation_id: The Bazel invocation ID.
+            ///   - is_ci: Whether it runs on CI; null when unknown.
+            ///   - queued: Its remote actions waiting for a VM.
+            ///   - running: Its remote actions executing in a VM.
+            ///   - started_at: When the invocation started.
+            ///   - target_patterns:
+            public init(
+                command: Swift.String? = nil,
+                git_branch: Swift.String,
+                git_commit_sha: Swift.String,
+                invocation_id: Swift.String,
+                is_ci: Swift.Bool? = nil,
+                queued: Swift.Int,
+                running: Swift.Int,
+                started_at: Foundation.Date,
+                target_patterns: [Swift.String]
+            ) {
+                self.command = command
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.invocation_id = invocation_id
+                self.is_ci = is_ci
+                self.queued = queued
+                self.running = running
+                self.started_at = started_at
+                self.target_patterns = target_patterns
+            }
+            public enum CodingKeys: String, CodingKey {
+                case command
+                case git_branch
+                case git_commit_sha
+                case invocation_id
+                case is_ci
+                case queued
+                case running
+                case started_at
+                case target_patterns
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.command = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .command
+                )
+                self.git_branch = try container.decode(
+                    Swift.String.self,
+                    forKey: .git_branch
+                )
+                self.git_commit_sha = try container.decode(
+                    Swift.String.self,
+                    forKey: .git_commit_sha
+                )
+                self.invocation_id = try container.decode(
+                    Swift.String.self,
+                    forKey: .invocation_id
+                )
+                self.is_ci = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .is_ci
+                )
+                self.queued = try container.decode(
+                    Swift.Int.self,
+                    forKey: .queued
+                )
+                self.running = try container.decode(
+                    Swift.Int.self,
+                    forKey: .running
+                )
+                self.started_at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .started_at
+                )
+                self.target_patterns = try container.decode(
+                    [Swift.String].self,
+                    forKey: .target_patterns
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "command",
+                    "git_branch",
+                    "git_commit_sha",
+                    "invocation_id",
+                    "is_ci",
+                    "queued",
+                    "running",
+                    "started_at",
+                    "target_patterns"
+                ])
+            }
+        }
         /// A list of project tokens.
         ///
         /// - Remark: Generated from `#/components/schemas/Tokens`.
@@ -34710,6 +37478,52 @@ public enum Components {
         @frozen public enum SelectiveTestingDecision: String, Codable, Hashable, Sendable, CaseIterable {
             case selected = "selected"
             case skipped = "skipped"
+        }
+        /// - Remark: Generated from `#/components/schemas/OrganizationAITaskRoute`.
+        public struct OrganizationAITaskRoute: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITaskRoute/id`.
+            public var id: Swift.Int
+            /// The configured model the task uses instead of the default.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITaskRoute/model_id`.
+            public var model_id: Swift.Int
+            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITaskRoute/task`.
+            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case pulse_grouping = "pulse_grouping"
+                case pulse_explanation = "pulse_explanation"
+            }
+            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITaskRoute/task`.
+            public var task: Components.Schemas.OrganizationAITaskRoute.taskPayload
+            /// - Remark: Generated from `#/components/schemas/OrganizationAITaskRoute/updated_at`.
+            public var updated_at: Foundation.Date
+            /// Creates a new `OrganizationAITaskRoute`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - model_id: The configured model the task uses instead of the default.
+            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+            ///   - updated_at:
+            public init(
+                id: Swift.Int,
+                model_id: Swift.Int,
+                task: Components.Schemas.OrganizationAITaskRoute.taskPayload,
+                updated_at: Foundation.Date
+            ) {
+                self.id = id
+                self.model_id = model_id
+                self.task = task
+                self.updated_at = updated_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case model_id
+                case task
+                case updated_at
+            }
         }
         /// - Remark: Generated from `#/components/schemas/PulseSentryEnvelopeResponse`.
         public struct PulseSentryEnvelopeResponse: Codable, Hashable, Sendable {
@@ -50525,6 +53339,7 @@ public enum Operations {
                         case mix = "mix"
                         case bazel = "bazel"
                         case cargo = "cargo"
+                        case struo = "struo"
                         case once = "once"
                     }
                     /// The build system used by the test run.
@@ -55921,6 +58736,1203 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.revokeProjectToken.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Updates a model
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/models/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)`.
+    public enum updateOrganizationAIModel {
+        public static let id: Swift.String = "updateOrganizationAIModel"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The record ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/path/id`.
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                ///   - id: The record ID.
+                public init(
+                    account_handle: Swift.String,
+                    id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.updateOrganizationAIModel.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationAIModel.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationAIModel.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateOrganizationAIModel.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/requestBody/json/name`.
+                    public var name: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/requestBody/json/provider_id`.
+                    public var provider_id: Swift.Int?
+                    /// The model ID from the provider, unique for the provider.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/requestBody/json/upstream_model_id`.
+                    public var upstream_model_id: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name:
+                    ///   - provider_id:
+                    ///   - upstream_model_id: The model ID from the provider, unique for the provider.
+                    public init(
+                        name: Swift.String? = nil,
+                        provider_id: Swift.Int? = nil,
+                        upstream_model_id: Swift.String? = nil
+                    ) {
+                        self.name = name
+                        self.provider_id = provider_id
+                        self.upstream_model_id = upstream_model_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case name
+                        case provider_id
+                        case upstream_model_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/requestBody/content/application\/json`.
+                case json(Operations.updateOrganizationAIModel.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateOrganizationAIModel.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateOrganizationAIModel.Input.Path,
+                headers: Operations.updateOrganizationAIModel.Input.Headers = .init(),
+                body: Operations.updateOrganizationAIModel.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/models`.
+                        public var models: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/providers`.
+                        public var providers: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/json/tasks`.
+                        public var tasks: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/200/content/application\/json`.
+                    case json(Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.updateOrganizationAIModel.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIModel.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIModel.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateOrganizationAIModel.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateOrganizationAIModel.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIModel.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIModel.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganizationAIModel.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.updateOrganizationAIModel.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIModel.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIModel.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateOrganizationAIModel.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateOrganizationAIModel.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIModel.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIModel.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateOrganizationAIModel.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateOrganizationAIModel.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/PATCH/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIModel.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIModel.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The configuration is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/patch(updateOrganizationAIModel)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.updateOrganizationAIModel.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.updateOrganizationAIModel.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Removes a model
+    ///
+    /// Also removes its task routes, so those tasks fall back to the default model. If no default remains (none was selected, or this was it), every task without a route stops sending requests until a default is selected.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/models/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)`.
+    public enum deleteOrganizationAIModel {
+        public static let id: Swift.String = "deleteOrganizationAIModel"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The record ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/path/id`.
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                ///   - id: The record ID.
+                public init(
+                    account_handle: Swift.String,
+                    id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.deleteOrganizationAIModel.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganizationAIModel.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganizationAIModel.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.deleteOrganizationAIModel.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.deleteOrganizationAIModel.Input.Path,
+                headers: Operations.deleteOrganizationAIModel.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/models`.
+                        public var models: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/providers`.
+                        public var providers: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/json/tasks`.
+                        public var tasks: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/200/content/application\/json`.
+                    case json(Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.deleteOrganizationAIModel.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIModel.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIModel.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.deleteOrganizationAIModel.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.deleteOrganizationAIModel.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIModel.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIModel.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteOrganizationAIModel.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.deleteOrganizationAIModel.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIModel.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIModel.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteOrganizationAIModel.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.deleteOrganizationAIModel.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/{id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIModel.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIModel.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/{id}/delete(deleteOrganizationAIModel)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteOrganizationAIModel.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.deleteOrganizationAIModel.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -73368,6 +77380,657 @@ public enum Operations {
             }
         }
     }
+    /// Get the project's remote execution usage over a period.
+    ///
+    /// Executions and measured execution time, in total, per VM shape, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366 days.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/remote-execution/usage`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)`.
+    public enum getRemoteExecutionUsage {
+        public static let id: Swift.String = "getRemoteExecutionUsage"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getRemoteExecutionUsage.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/query/to`.
+                public var to: Foundation.Date?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/query/from`.
+                public var from: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - to:
+                ///   - from:
+                public init(
+                    to: Foundation.Date? = nil,
+                    from: Foundation.Date? = nil
+                ) {
+                    self.to = to
+                    self.from = from
+                }
+            }
+            public var query: Operations.getRemoteExecutionUsage.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRemoteExecutionUsage.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRemoteExecutionUsage.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRemoteExecutionUsage.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getRemoteExecutionUsage.Input.Path,
+                query: Operations.getRemoteExecutionUsage.Input.Query = .init(),
+                headers: Operations.getRemoteExecutionUsage.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// Executions recorded by the execution node, with the time the executor ran in each single-use VM, from its start to its exit. It includes fetching inputs and uploading outputs, not queueing or preparing the VM. Results served from the cache are not executions. Every bucket of the period is listed.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Measured execution time.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/execution_ms`.
+                        public var execution_ms: Swift.Int
+                        /// Executions that ran in a VM.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/executions`.
+                        public var executions: Swift.Int
+                        /// Start of the period, inclusive.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/from`.
+                        public var from: Foundation.Date
+                        /// Bucket size of `series`: `hour`, `day` or `month`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/granularity`.
+                        public var granularity: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/modesPayload`.
+                        public struct modesPayloadPayload: Codable, Hashable, Sendable {
+                            /// Measured execution time.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/modesPayload/execution_ms`.
+                            public var execution_ms: Swift.Int
+                            /// Executions that ran in a VM.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/modesPayload/executions`.
+                            public var executions: Swift.Int
+                            /// How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/modesPayload/mode`.
+                            public var mode: Swift.String
+                            /// Creates a new `modesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - execution_ms: Measured execution time.
+                            ///   - executions: Executions that ran in a VM.
+                            ///   - mode: How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string.
+                            public init(
+                                execution_ms: Swift.Int,
+                                executions: Swift.Int,
+                                mode: Swift.String
+                            ) {
+                                self.execution_ms = execution_ms
+                                self.executions = executions
+                                self.mode = mode
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case execution_ms
+                                case executions
+                                case mode
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.execution_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .execution_ms
+                                )
+                                self.executions = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .executions
+                                )
+                                self.mode = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .mode
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "execution_ms",
+                                    "executions",
+                                    "mode"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/modes`.
+                        public typealias modesPayload = [Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.modesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/modes`.
+                        public var modes: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.modesPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/seriesPayload`.
+                        public struct seriesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The bucket's start in UTC, formatted for its granularity.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/seriesPayload/bucket`.
+                            public var bucket: Swift.String
+                            /// Measured execution time.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/seriesPayload/execution_ms`.
+                            public var execution_ms: Swift.Int
+                            /// Executions that ran in a VM.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/seriesPayload/executions`.
+                            public var executions: Swift.Int
+                            /// Creates a new `seriesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - bucket: The bucket's start in UTC, formatted for its granularity.
+                            ///   - execution_ms: Measured execution time.
+                            ///   - executions: Executions that ran in a VM.
+                            public init(
+                                bucket: Swift.String,
+                                execution_ms: Swift.Int,
+                                executions: Swift.Int
+                            ) {
+                                self.bucket = bucket
+                                self.execution_ms = execution_ms
+                                self.executions = executions
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case bucket
+                                case execution_ms
+                                case executions
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.bucket = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .bucket
+                                )
+                                self.execution_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .execution_ms
+                                )
+                                self.executions = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .executions
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "bucket",
+                                    "execution_ms",
+                                    "executions"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/series`.
+                        public typealias seriesPayload = [Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.seriesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/series`.
+                        public var series: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.seriesPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapesPayload`.
+                        public struct shapesPayloadPayload: Codable, Hashable, Sendable {
+                            /// Measured execution time.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapesPayload/execution_ms`.
+                            public var execution_ms: Swift.Int
+                            /// Executions that ran in a VM.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapesPayload/executions`.
+                            public var executions: Swift.Int
+                            /// Memory in GB of the VM shape.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapesPayload/memory_gb`.
+                            public var memory_gb: Swift.Int
+                            /// vCPUs of the VM shape.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapesPayload/vcpus`.
+                            public var vcpus: Swift.Int
+                            /// Creates a new `shapesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - execution_ms: Measured execution time.
+                            ///   - executions: Executions that ran in a VM.
+                            ///   - memory_gb: Memory in GB of the VM shape.
+                            ///   - vcpus: vCPUs of the VM shape.
+                            public init(
+                                execution_ms: Swift.Int,
+                                executions: Swift.Int,
+                                memory_gb: Swift.Int,
+                                vcpus: Swift.Int
+                            ) {
+                                self.execution_ms = execution_ms
+                                self.executions = executions
+                                self.memory_gb = memory_gb
+                                self.vcpus = vcpus
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case execution_ms
+                                case executions
+                                case memory_gb
+                                case vcpus
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.execution_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .execution_ms
+                                )
+                                self.executions = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .executions
+                                )
+                                self.memory_gb = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .memory_gb
+                                )
+                                self.vcpus = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .vcpus
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "execution_ms",
+                                    "executions",
+                                    "memory_gb",
+                                    "vcpus"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapes`.
+                        public typealias shapesPayload = [Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.shapesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/shapes`.
+                        public var shapes: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.shapesPayload
+                        /// End of the period, exclusive.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/json/to`.
+                        public var to: Foundation.Date
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - execution_ms: Measured execution time.
+                        ///   - executions: Executions that ran in a VM.
+                        ///   - from: Start of the period, inclusive.
+                        ///   - granularity: Bucket size of `series`: `hour`, `day` or `month`.
+                        ///   - modes:
+                        ///   - series:
+                        ///   - shapes:
+                        ///   - to: End of the period, exclusive.
+                        public init(
+                            execution_ms: Swift.Int,
+                            executions: Swift.Int,
+                            from: Foundation.Date,
+                            granularity: Swift.String,
+                            modes: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.modesPayload,
+                            series: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.seriesPayload,
+                            shapes: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.shapesPayload,
+                            to: Foundation.Date
+                        ) {
+                            self.execution_ms = execution_ms
+                            self.executions = executions
+                            self.from = from
+                            self.granularity = granularity
+                            self.modes = modes
+                            self.series = series
+                            self.shapes = shapes
+                            self.to = to
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case execution_ms
+                            case executions
+                            case from
+                            case granularity
+                            case modes
+                            case series
+                            case shapes
+                            case to
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.execution_ms = try container.decode(
+                                Swift.Int.self,
+                                forKey: .execution_ms
+                            )
+                            self.executions = try container.decode(
+                                Swift.Int.self,
+                                forKey: .executions
+                            )
+                            self.from = try container.decode(
+                                Foundation.Date.self,
+                                forKey: .from
+                            )
+                            self.granularity = try container.decode(
+                                Swift.String.self,
+                                forKey: .granularity
+                            )
+                            self.modes = try container.decode(
+                                Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.modesPayload.self,
+                                forKey: .modes
+                            )
+                            self.series = try container.decode(
+                                Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.seriesPayload.self,
+                                forKey: .series
+                            )
+                            self.shapes = try container.decode(
+                                Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload.shapesPayload.self,
+                                forKey: .shapes
+                            )
+                            self.to = try container.decode(
+                                Foundation.Date.self,
+                                forKey: .to
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "execution_ms",
+                                "executions",
+                                "from",
+                                "granularity",
+                                "modes",
+                                "series",
+                                "shapes",
+                                "to"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/200/content/application\/json`.
+                    case json(Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getRemoteExecutionUsage.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionUsage.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRemoteExecutionUsage.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Remote execution usage
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRemoteExecutionUsage.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRemoteExecutionUsage.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionUsage.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRemoteExecutionUsage.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The period is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getRemoteExecutionUsage.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getRemoteExecutionUsage.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionUsage.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRemoteExecutionUsage.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRemoteExecutionUsage.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRemoteExecutionUsage.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getRemoteExecutionUsage.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/usage/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionUsage.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getRemoteExecutionUsage.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getRemoteExecutionUsage.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/usage/get(getRemoteExecutionUsage)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getRemoteExecutionUsage.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getRemoteExecutionUsage.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List a sandbox's commands.
     ///
     /// The 100 most recent commands, newest first. Finished commands are kept for seven days.
@@ -77965,6 +82628,645 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Routes a task to a model
+    ///
+    /// A task has at most one route; tasks without one use the default model.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/task-routes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)`.
+    public enum createOrganizationAITaskRoute {
+        public static let id: Swift.String = "createOrganizationAITaskRoute"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.createOrganizationAITaskRoute.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationAITaskRoute.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationAITaskRoute.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createOrganizationAITaskRoute.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The configured model the task uses.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/requestBody/json/model_id`.
+                    public var model_id: Swift.Int
+                    /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/requestBody/json/task`.
+                    @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case pulse_grouping = "pulse_grouping"
+                        case pulse_explanation = "pulse_explanation"
+                    }
+                    /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/requestBody/json/task`.
+                    public var task: Operations.createOrganizationAITaskRoute.Input.Body.jsonPayload.taskPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - model_id: The configured model the task uses.
+                    ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                    public init(
+                        model_id: Swift.Int,
+                        task: Operations.createOrganizationAITaskRoute.Input.Body.jsonPayload.taskPayload
+                    ) {
+                        self.model_id = model_id
+                        self.task = task
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case model_id
+                        case task
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/requestBody/content/application\/json`.
+                case json(Operations.createOrganizationAITaskRoute.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createOrganizationAITaskRoute.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createOrganizationAITaskRoute.Input.Path,
+                headers: Operations.createOrganizationAITaskRoute.Input.Headers = .init(),
+                body: Operations.createOrganizationAITaskRoute.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/models`.
+                        public var models: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/providers`.
+                        public var providers: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/json/tasks`.
+                        public var tasks: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/200/content/application\/json`.
+                    case json(Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createOrganizationAITaskRoute.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAITaskRoute.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAITaskRoute.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createOrganizationAITaskRoute.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createOrganizationAITaskRoute.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAITaskRoute.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAITaskRoute.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createOrganizationAITaskRoute.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createOrganizationAITaskRoute.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAITaskRoute.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAITaskRoute.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createOrganizationAITaskRoute.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createOrganizationAITaskRoute.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAITaskRoute.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAITaskRoute.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createOrganizationAITaskRoute.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createOrganizationAITaskRoute.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAITaskRoute.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAITaskRoute.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The configuration is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/post(createOrganizationAITaskRoute)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createOrganizationAITaskRoute.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.createOrganizationAITaskRoute.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
                             response: self
                         )
                     }
@@ -85192,6 +90494,8 @@ public enum Operations {
     }
     /// Lists the signed-in user's push devices
     ///
+    /// Lists the devices of the app making the request: the Tuist app's, or Luft's.
+    ///
     /// - Remark: HTTP `GET /api/me/push-devices`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/get(listPushDevices)`.
     public enum listPushDevices {
@@ -85231,7 +90535,7 @@ public enum Operations {
                             public var last_seen_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/name`.
                             public var name: Swift.String?
-                            /// ios or android
+                            /// ios, macos or android
                             ///
                             /// - Remark: Generated from `#/paths/api/me/push-devices/GET/responses/200/content/json/devicesPayload/platform`.
                             public var platform: Swift.String
@@ -85245,7 +90549,7 @@ public enum Operations {
                             ///   - installation_id:
                             ///   - last_seen_at:
                             ///   - name:
-                            ///   - platform: ios or android
+                            ///   - platform: ios, macos or android
                             ///   - registered_at:
                             ///   - registration_id:
                             public init(
@@ -99656,6 +104960,666 @@ public enum Operations {
             }
         }
     }
+    /// List the project's remote actions running and queued right now.
+    ///
+    /// A snapshot of the account's execution scheduler. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/remote-execution/activity`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)`.
+    public enum getRemoteExecutionActivity {
+        public static let id: Swift.String = "getRemoteExecutionActivity"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getRemoteExecutionActivity.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRemoteExecutionActivity.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRemoteExecutionActivity.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRemoteExecutionActivity.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getRemoteExecutionActivity.Input.Path,
+                headers: Operations.getRemoteExecutionActivity.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// Running actions first, each group oldest first. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish. `invocations` lists the running Bazel invocations, newest first.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload`.
+                        public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The REAPI action digest as `hash/size`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/action_digest`.
+                            public var action_digest: Swift.String
+                            /// The Bazel invocation that requested the action, from its request metadata.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/invocation_id`.
+                            public var invocation_id: Swift.String?
+                            /// Memory in GB of the VM the action runs or will run in.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/memory_gb`.
+                            public var memory_gb: Swift.Int
+                            /// The action's mnemonic, such as `CppCompile`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/mnemonic`.
+                            public var mnemonic: Swift.String?
+                            /// When the action entered its current state.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/since`.
+                            public var since: Foundation.Date
+                            /// `running` or `queued`. Open string: more states can be added.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/state`.
+                            public var state: Swift.String
+                            /// The label of the target the action belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/target`.
+                            public var target: Swift.String?
+                            /// vCPUs of the VM the action runs or will run in.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actionsPayload/vcpus`.
+                            public var vcpus: Swift.Int
+                            /// Creates a new `actionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - action_digest: The REAPI action digest as `hash/size`.
+                            ///   - invocation_id: The Bazel invocation that requested the action, from its request metadata.
+                            ///   - memory_gb: Memory in GB of the VM the action runs or will run in.
+                            ///   - mnemonic: The action's mnemonic, such as `CppCompile`.
+                            ///   - since: When the action entered its current state.
+                            ///   - state: `running` or `queued`. Open string: more states can be added.
+                            ///   - target: The label of the target the action belongs to.
+                            ///   - vcpus: vCPUs of the VM the action runs or will run in.
+                            public init(
+                                action_digest: Swift.String,
+                                invocation_id: Swift.String? = nil,
+                                memory_gb: Swift.Int,
+                                mnemonic: Swift.String? = nil,
+                                since: Foundation.Date,
+                                state: Swift.String,
+                                target: Swift.String? = nil,
+                                vcpus: Swift.Int
+                            ) {
+                                self.action_digest = action_digest
+                                self.invocation_id = invocation_id
+                                self.memory_gb = memory_gb
+                                self.mnemonic = mnemonic
+                                self.since = since
+                                self.state = state
+                                self.target = target
+                                self.vcpus = vcpus
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case action_digest
+                                case invocation_id
+                                case memory_gb
+                                case mnemonic
+                                case since
+                                case state
+                                case target
+                                case vcpus
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.action_digest = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .action_digest
+                                )
+                                self.invocation_id = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .invocation_id
+                                )
+                                self.memory_gb = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .memory_gb
+                                )
+                                self.mnemonic = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .mnemonic
+                                )
+                                self.since = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .since
+                                )
+                                self.state = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .state
+                                )
+                                self.target = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .target
+                                )
+                                self.vcpus = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .vcpus
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "action_digest",
+                                    "invocation_id",
+                                    "memory_gb",
+                                    "mnemonic",
+                                    "since",
+                                    "state",
+                                    "target",
+                                    "vcpus"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actions`.
+                        public typealias actionsPayload = [Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.actionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/actions`.
+                        public var actions: Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.actionsPayload
+                        /// An invocation that started in the last 24 hours and has not finished.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload`.
+                        public struct invocationsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The Bazel command, or null while the build event stream has not reported it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/command`.
+                            public var command: Swift.String?
+                            /// The Git branch, or empty when not reported.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/git_branch`.
+                            public var git_branch: Swift.String
+                            /// The Git commit, or empty when not reported.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String
+                            /// The Bazel invocation ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/invocation_id`.
+                            public var invocation_id: Swift.String
+                            /// Whether it runs on CI; null when unknown.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/is_ci`.
+                            public var is_ci: Swift.Bool?
+                            /// Its remote actions waiting for a VM.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/queued`.
+                            public var queued: Swift.Int
+                            /// Its remote actions executing in a VM.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/running`.
+                            public var running: Swift.Int
+                            /// When the invocation started.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/started_at`.
+                            public var started_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocationsPayload/target_patterns`.
+                            public var target_patterns: [Swift.String]
+                            /// Creates a new `invocationsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - command: The Bazel command, or null while the build event stream has not reported it.
+                            ///   - git_branch: The Git branch, or empty when not reported.
+                            ///   - git_commit_sha: The Git commit, or empty when not reported.
+                            ///   - invocation_id: The Bazel invocation ID.
+                            ///   - is_ci: Whether it runs on CI; null when unknown.
+                            ///   - queued: Its remote actions waiting for a VM.
+                            ///   - running: Its remote actions executing in a VM.
+                            ///   - started_at: When the invocation started.
+                            ///   - target_patterns:
+                            public init(
+                                command: Swift.String? = nil,
+                                git_branch: Swift.String,
+                                git_commit_sha: Swift.String,
+                                invocation_id: Swift.String,
+                                is_ci: Swift.Bool? = nil,
+                                queued: Swift.Int,
+                                running: Swift.Int,
+                                started_at: Foundation.Date,
+                                target_patterns: [Swift.String]
+                            ) {
+                                self.command = command
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.invocation_id = invocation_id
+                                self.is_ci = is_ci
+                                self.queued = queued
+                                self.running = running
+                                self.started_at = started_at
+                                self.target_patterns = target_patterns
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case command
+                                case git_branch
+                                case git_commit_sha
+                                case invocation_id
+                                case is_ci
+                                case queued
+                                case running
+                                case started_at
+                                case target_patterns
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.command = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .command
+                                )
+                                self.git_branch = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .git_branch
+                                )
+                                self.git_commit_sha = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .git_commit_sha
+                                )
+                                self.invocation_id = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .invocation_id
+                                )
+                                self.is_ci = try container.decodeIfPresent(
+                                    Swift.Bool.self,
+                                    forKey: .is_ci
+                                )
+                                self.queued = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .queued
+                                )
+                                self.running = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .running
+                                )
+                                self.started_at = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .started_at
+                                )
+                                self.target_patterns = try container.decode(
+                                    [Swift.String].self,
+                                    forKey: .target_patterns
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "command",
+                                    "git_branch",
+                                    "git_commit_sha",
+                                    "invocation_id",
+                                    "is_ci",
+                                    "queued",
+                                    "running",
+                                    "started_at",
+                                    "target_patterns"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocations`.
+                        public typealias invocationsPayload = [Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.invocationsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/invocations`.
+                        public var invocations: Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.invocationsPayload
+                        /// When the scheduler was read.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/observed_at`.
+                        public var observed_at: Foundation.Date
+                        /// Actions waiting for a VM.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/queued`.
+                        public var queued: Swift.Int
+                        /// Actions executing in a VM.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/json/running`.
+                        public var running: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - actions:
+                        ///   - invocations:
+                        ///   - observed_at: When the scheduler was read.
+                        ///   - queued: Actions waiting for a VM.
+                        ///   - running: Actions executing in a VM.
+                        public init(
+                            actions: Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.actionsPayload,
+                            invocations: Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.invocationsPayload,
+                            observed_at: Foundation.Date,
+                            queued: Swift.Int,
+                            running: Swift.Int
+                        ) {
+                            self.actions = actions
+                            self.invocations = invocations
+                            self.observed_at = observed_at
+                            self.queued = queued
+                            self.running = running
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case actions
+                            case invocations
+                            case observed_at
+                            case queued
+                            case running
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.actions = try container.decode(
+                                Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.actionsPayload.self,
+                                forKey: .actions
+                            )
+                            self.invocations = try container.decode(
+                                Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload.invocationsPayload.self,
+                                forKey: .invocations
+                            )
+                            self.observed_at = try container.decode(
+                                Foundation.Date.self,
+                                forKey: .observed_at
+                            )
+                            self.queued = try container.decode(
+                                Swift.Int.self,
+                                forKey: .queued
+                            )
+                            self.running = try container.decode(
+                                Swift.Int.self,
+                                forKey: .running
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "actions",
+                                "invocations",
+                                "observed_at",
+                                "queued",
+                                "running"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/200/content/application\/json`.
+                    case json(Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getRemoteExecutionActivity.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionActivity.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRemoteExecutionActivity.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Running and queued actions
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRemoteExecutionActivity.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRemoteExecutionActivity.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionActivity.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRemoteExecutionActivity.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRemoteExecutionActivity.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRemoteExecutionActivity.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getRemoteExecutionActivity.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionActivity.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getRemoteExecutionActivity.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getRemoteExecutionActivity.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getRemoteExecutionActivity.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getRemoteExecutionActivity.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/remote-execution/activity/GET/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRemoteExecutionActivity.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRemoteExecutionActivity.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// The scheduler did not answer; retry shortly
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/remote-execution/activity/get(getRemoteExecutionActivity)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.getRemoteExecutionActivity.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.getRemoteExecutionActivity.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Time-bucketed build duration percentiles for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/duration`.
@@ -100021,6 +105985,575 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Selects the default model
+    ///
+    /// Tasks without a route use the default. Null clears it, so only routed tasks send requests.
+    ///
+    /// - Remark: HTTP `PUT /api/accounts/{account_handle}/ai/default-model`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)`.
+    public enum setOrganizationAIDefaultModel {
+        public static let id: Swift.String = "setOrganizationAIDefaultModel"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.setOrganizationAIDefaultModel.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.setOrganizationAIDefaultModel.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.setOrganizationAIDefaultModel.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.setOrganizationAIDefaultModel.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/requestBody/json/model_id`.
+                    public var model_id: Swift.Int?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - model_id:
+                    public init(model_id: Swift.Int? = nil) {
+                        self.model_id = model_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case model_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/requestBody/content/application\/json`.
+                case json(Operations.setOrganizationAIDefaultModel.Input.Body.jsonPayload)
+            }
+            public var body: Operations.setOrganizationAIDefaultModel.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.setOrganizationAIDefaultModel.Input.Path,
+                headers: Operations.setOrganizationAIDefaultModel.Input.Headers = .init(),
+                body: Operations.setOrganizationAIDefaultModel.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/models`.
+                        public var models: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/providers`.
+                        public var providers: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/json/tasks`.
+                        public var tasks: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/200/content/application\/json`.
+                    case json(Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.setOrganizationAIDefaultModel.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.setOrganizationAIDefaultModel.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.setOrganizationAIDefaultModel.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.setOrganizationAIDefaultModel.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.setOrganizationAIDefaultModel.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.setOrganizationAIDefaultModel.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.setOrganizationAIDefaultModel.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.setOrganizationAIDefaultModel.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.setOrganizationAIDefaultModel.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.setOrganizationAIDefaultModel.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.setOrganizationAIDefaultModel.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.setOrganizationAIDefaultModel.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.setOrganizationAIDefaultModel.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/default-model/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.setOrganizationAIDefaultModel.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.setOrganizationAIDefaultModel.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/default-model/put(setOrganizationAIDefaultModel)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.setOrganizationAIDefaultModel.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.setOrganizationAIDefaultModel.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -110844,9 +117377,9 @@ public enum Operations {
             }
         }
     }
-    /// List recorded history for a Once action across builds.
+    /// List recorded history for a Struo action across builds.
     ///
-    /// List recorded history for a Once action across builds.
+    /// List recorded history for a Struo action across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/get(listProjectOnceActionHistory)`.
@@ -111208,7 +117741,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// List recorded history for a Once action across builds.
+            /// List recorded history for a Struo action across builds.
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions/get(listProjectOnceActionHistory)/responses/200`.
             ///
@@ -114639,6 +121172,725 @@ public enum Operations {
             }
         }
     }
+    /// Create a snapshot build.
+    ///
+    /// Creates a build of a snapshot set at a commit from the manifest of its images. The dashboard pools a commit's builds, every set, shard and rerun, and reviews them together. The response lists the content hashes the server doesn't store yet, each with a presigned URL to PUT the PNG to; complete the build once they are uploaded.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)`.
+    public enum createSnapshotBuild {
+        public static let id: Swift.String = "createSnapshotBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createSnapshotBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSnapshotBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSnapshotBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createSnapshotBuild.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/all_image_names`.
+                    public var all_image_names: [Swift.String]?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/build_system`.
+                    @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case gradle = "gradle"
+                        case xcode = "xcode"
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/build_system`.
+                    public var build_system: Operations.createSnapshotBuild.Input.Body.jsonPayload.build_systemPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// A commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload`.
+                    public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The SHA-256 of the PNG.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/content_hash`.
+                        public var content_hash: Swift.String
+                        /// The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/diff_threshold`.
+                        public var diff_threshold: Swift.Double?
+                        /// How the review page names the image. Defaults to `name`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/display_name`.
+                        public var display_name: Swift.String?
+                        /// Images of a group are reviewed together.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/group`.
+                        public var group: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/height`.
+                        public var height: Swift.Int?
+                        /// The image's path relative to the uploaded directory.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/name`.
+                        public var name: Swift.String
+                        /// Labels such as `theme: dark` or `device: pixel_7`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/tags`.
+                        public struct tagsPayload: Codable, Hashable, Sendable {
+                            /// A container of undocumented properties.
+                            public var additionalProperties: [String: Swift.String]
+                            /// Creates a new `tagsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - additionalProperties: A container of undocumented properties.
+                            public init(additionalProperties: [String: Swift.String] = .init()) {
+                                self.additionalProperties = additionalProperties
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeAdditionalProperties(additionalProperties)
+                            }
+                        }
+                        /// Labels such as `theme: dark` or `device: pixel_7`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/tags`.
+                        public var tags: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayloadPayload.tagsPayload?
+                        /// The test that recorded the image, when known.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/test_identifier`.
+                        public var test_identifier: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/imagesPayload/width`.
+                        public var width: Swift.Int?
+                        /// Creates a new `imagesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - content_hash: The SHA-256 of the PNG.
+                        ///   - diff_threshold: The share of pixels that may differ from the baseline before the image counts as changed. Defaults to 0.
+                        ///   - display_name: How the review page names the image. Defaults to `name`.
+                        ///   - group: Images of a group are reviewed together.
+                        ///   - height:
+                        ///   - name: The image's path relative to the uploaded directory.
+                        ///   - tags: Labels such as `theme: dark` or `device: pixel_7`.
+                        ///   - test_identifier: The test that recorded the image, when known.
+                        ///   - width:
+                        public init(
+                            content_hash: Swift.String,
+                            diff_threshold: Swift.Double? = nil,
+                            display_name: Swift.String? = nil,
+                            group: Swift.String? = nil,
+                            height: Swift.Int? = nil,
+                            name: Swift.String,
+                            tags: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayloadPayload.tagsPayload? = nil,
+                            test_identifier: Swift.String? = nil,
+                            width: Swift.Int? = nil
+                        ) {
+                            self.content_hash = content_hash
+                            self.diff_threshold = diff_threshold
+                            self.display_name = display_name
+                            self.group = group
+                            self.height = height
+                            self.name = name
+                            self.tags = tags
+                            self.test_identifier = test_identifier
+                            self.width = width
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case content_hash
+                            case diff_threshold
+                            case display_name
+                            case group
+                            case height
+                            case name
+                            case tags
+                            case test_identifier
+                            case width
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/images`.
+                    public typealias imagesPayload = [Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/images`.
+                    public var images: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/is_ci`.
+                    public var is_ci: Swift.Bool?
+                    /// A commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/merge_base_sha`.
+                    public var merge_base_sha: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/pull_request_number`.
+                    public var pull_request_number: Swift.Int?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/pull_request_title`.
+                    public var pull_request_title: Swift.String?
+                    /// The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/selective`.
+                    public var selective: Swift.Bool?
+                    /// The snapshot set, such as `android-phone`: builds are compared within a set.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/json/set`.
+                    public var set: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - all_image_names: The names of every image the suite renders, for a run that rendered only some: those it didn't upload are skipped, and baseline images missing from the list are removed.
+                    ///   - build_system:
+                    ///   - git_branch:
+                    ///   - git_commit_sha: A commit SHA.
+                    ///   - git_ref:
+                    ///   - git_remote_url_origin:
+                    ///   - images:
+                    ///   - is_ci:
+                    ///   - merge_base_sha: A commit SHA.
+                    ///   - pull_request_number:
+                    ///   - pull_request_title:
+                    ///   - selective: The run rendered only some images: baseline images it didn't upload are skipped, not removed. Prefer `all_image_names`, which still detects removals.
+                    ///   - set: The snapshot set, such as `android-phone`: builds are compared within a set.
+                    public init(
+                        all_image_names: [Swift.String]? = nil,
+                        build_system: Operations.createSnapshotBuild.Input.Body.jsonPayload.build_systemPayload? = nil,
+                        git_branch: Swift.String? = nil,
+                        git_commit_sha: Swift.String,
+                        git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
+                        images: Operations.createSnapshotBuild.Input.Body.jsonPayload.imagesPayload,
+                        is_ci: Swift.Bool? = nil,
+                        merge_base_sha: Swift.String? = nil,
+                        pull_request_number: Swift.Int? = nil,
+                        pull_request_title: Swift.String? = nil,
+                        selective: Swift.Bool? = nil,
+                        set: Swift.String
+                    ) {
+                        self.all_image_names = all_image_names
+                        self.build_system = build_system
+                        self.git_branch = git_branch
+                        self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
+                        self.images = images
+                        self.is_ci = is_ci
+                        self.merge_base_sha = merge_base_sha
+                        self.pull_request_number = pull_request_number
+                        self.pull_request_title = pull_request_title
+                        self.selective = selective
+                        self.set = set
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case all_image_names
+                        case build_system
+                        case git_branch
+                        case git_commit_sha
+                        case git_ref
+                        case git_remote_url_origin
+                        case images
+                        case is_ci
+                        case merge_base_sha
+                        case pull_request_number
+                        case pull_request_title
+                        case selective
+                        case set
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/requestBody/content/application\/json`.
+                case json(Operations.createSnapshotBuild.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createSnapshotBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createSnapshotBuild.Input.Path,
+                headers: Operations.createSnapshotBuild.Input.Headers = .init(),
+                body: Operations.createSnapshotBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build`.
+                        public struct buildPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/added_count`.
+                            public var added_count: Swift.Int?
+                            /// The build this one was compared with.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/baseline_build_id`.
+                            public var baseline_build_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/changed_count`.
+                            public var changed_count: Swift.Int?
+                            /// The id of the build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/removed_count`.
+                            public var removed_count: Swift.Int?
+                            /// Removed images whose content reappeared under another name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/renamed_count`.
+                            public var renamed_count: Swift.Int?
+                            /// Images a selective run didn't render, carried over from the baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/skipped_count`.
+                            public var skipped_count: Swift.Int?
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/state`.
+                            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case uploading = "uploading"
+                                case processing = "processing"
+                                case processed = "processed"
+                                case failed = "failed"
+                            }
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/state`.
+                            public var state: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statePayload
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case processing = "processing"
+                                case failed = "failed"
+                                case passed = "passed"
+                                case baseline = "baseline"
+                                case approved = "approved"
+                                case rejected = "rejected"
+                                case needs_review = "needs_review"
+                            }
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/status`.
+                            public var status: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/unchanged_count`.
+                            public var unchanged_count: Swift.Int?
+                            /// The build's review page on the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build/url`.
+                            public var url: Swift.String
+                            /// Creates a new `buildPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - added_count:
+                            ///   - baseline_build_id: The build this one was compared with.
+                            ///   - changed_count:
+                            ///   - id: The id of the build.
+                            ///   - removed_count:
+                            ///   - renamed_count: Removed images whose content reappeared under another name.
+                            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                            ///   - state: Where the build is in its lifecycle.
+                            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///   - unchanged_count:
+                            ///   - url: The build's review page on the dashboard.
+                            public init(
+                                added_count: Swift.Int? = nil,
+                                baseline_build_id: Swift.String? = nil,
+                                changed_count: Swift.Int? = nil,
+                                id: Swift.String,
+                                removed_count: Swift.Int? = nil,
+                                renamed_count: Swift.Int? = nil,
+                                skipped_count: Swift.Int? = nil,
+                                state: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statePayload,
+                                status: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload.statusPayload,
+                                unchanged_count: Swift.Int? = nil,
+                                url: Swift.String
+                            ) {
+                                self.added_count = added_count
+                                self.baseline_build_id = baseline_build_id
+                                self.changed_count = changed_count
+                                self.id = id
+                                self.removed_count = removed_count
+                                self.renamed_count = renamed_count
+                                self.skipped_count = skipped_count
+                                self.state = state
+                                self.status = status
+                                self.unchanged_count = unchanged_count
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case added_count
+                                case baseline_build_id
+                                case changed_count
+                                case id
+                                case removed_count
+                                case renamed_count
+                                case skipped_count
+                                case state
+                                case status
+                                case unchanged_count
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/build`.
+                        public var build: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploadsPayload`.
+                        public struct uploadsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploadsPayload/content_hash`.
+                            public var content_hash: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploadsPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `uploadsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - content_hash:
+                            ///   - url:
+                            public init(
+                                content_hash: Swift.String,
+                                url: Swift.String
+                            ) {
+                                self.content_hash = content_hash
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case content_hash
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploads`.
+                        public typealias uploadsPayload = [Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.uploadsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/json/uploads`.
+                        public var uploads: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.uploadsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - build:
+                        ///   - uploads:
+                        public init(
+                            build: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.buildPayload,
+                            uploads: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload.uploadsPayload
+                        ) {
+                            self.build = build
+                            self.uploads = uploads
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case build
+                            case uploads
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/200/content/application\/json`.
+                    case json(Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createSnapshotBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The build and the images to upload
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createSnapshotBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createSnapshotBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The manifest is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createSnapshotBuild.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createSnapshotBuild.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createSnapshotBuild.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createSnapshotBuild.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createSnapshotBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createSnapshotBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSnapshotBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSnapshotBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/post(createSnapshotBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createSnapshotBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createSnapshotBuild.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -116816,9 +124068,9 @@ public enum Operations {
             }
         }
     }
-    /// Signal that a commit's coverage pipeline finished.
+    /// Signal that a commit's CI pipeline finished.
     ///
-    /// Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`).
+    /// Tells the server that every run of the commit that gathers coverage or uploads snapshots has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend, and its snapshots are marked complete. Runs landing afterwards still join the commit. Meant for a final CI job that depends on every test job (`tuist coverage complete`, or the Gradle plugin's `tuistCoverageComplete`).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/post(completeCommitCoverage)`.
@@ -125245,6 +132497,1258 @@ public enum Operations {
             }
         }
     }
+    /// Updates an AI provider
+    ///
+    /// A new key replaces the old one for every model using the provider. Linked Claude organizations can't be edited.
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/providers/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)`.
+    public enum updateOrganizationAIProvider {
+        public static let id: Swift.String = "updateOrganizationAIProvider"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The record ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/path/id`.
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                ///   - id: The record ID.
+                public init(
+                    account_handle: Swift.String,
+                    id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.updateOrganizationAIProvider.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationAIProvider.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationAIProvider.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateOrganizationAIProvider.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Stored encrypted and never returned. When updating, omit it to keep the current key, unless the base URL changes.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/requestBody/json/api_key`.
+                    public var api_key: Swift.String?
+                    /// Public HTTPS endpoint for an OpenAI-compatible API, including any /v1 prefix. Requests append /chat/completions.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/requestBody/json/base_url`.
+                    public var base_url: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/requestBody/json/name`.
+                    public var name: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - api_key: Stored encrypted and never returned. When updating, omit it to keep the current key, unless the base URL changes.
+                    ///   - base_url: Public HTTPS endpoint for an OpenAI-compatible API, including any /v1 prefix. Requests append /chat/completions.
+                    ///   - name:
+                    public init(
+                        api_key: Swift.String? = nil,
+                        base_url: Swift.String? = nil,
+                        name: Swift.String? = nil
+                    ) {
+                        self.api_key = api_key
+                        self.base_url = base_url
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case api_key
+                        case base_url
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/requestBody/content/application\/json`.
+                case json(Operations.updateOrganizationAIProvider.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateOrganizationAIProvider.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateOrganizationAIProvider.Input.Path,
+                headers: Operations.updateOrganizationAIProvider.Input.Headers = .init(),
+                body: Operations.updateOrganizationAIProvider.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/models`.
+                        public var models: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/providers`.
+                        public var providers: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/json/tasks`.
+                        public var tasks: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/200/content/application\/json`.
+                    case json(Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.updateOrganizationAIProvider.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIProvider.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIProvider.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateOrganizationAIProvider.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateOrganizationAIProvider.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIProvider.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIProvider.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganizationAIProvider.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.updateOrganizationAIProvider.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIProvider.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIProvider.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateOrganizationAIProvider.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateOrganizationAIProvider.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIProvider.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIProvider.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateOrganizationAIProvider.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateOrganizationAIProvider.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/PATCH/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAIProvider.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAIProvider.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The configuration is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/patch(updateOrganizationAIProvider)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.updateOrganizationAIProvider.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.updateOrganizationAIProvider.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Removes an AI provider
+    ///
+    /// Deletes its stored key, its models and their task routes. Removing a linked Claude organization first unlinks it at Anthropic. Revoke the key at the provider to revoke access there.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/providers/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)`.
+    public enum deleteOrganizationAIProvider {
+        public static let id: Swift.String = "deleteOrganizationAIProvider"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The record ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/path/id`.
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                ///   - id: The record ID.
+                public init(
+                    account_handle: Swift.String,
+                    id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.deleteOrganizationAIProvider.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganizationAIProvider.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganizationAIProvider.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.deleteOrganizationAIProvider.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.deleteOrganizationAIProvider.Input.Path,
+                headers: Operations.deleteOrganizationAIProvider.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/models`.
+                        public var models: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/providers`.
+                        public var providers: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/json/tasks`.
+                        public var tasks: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/200/content/application\/json`.
+                    case json(Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.deleteOrganizationAIProvider.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIProvider.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIProvider.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.deleteOrganizationAIProvider.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.deleteOrganizationAIProvider.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIProvider.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIProvider.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteOrganizationAIProvider.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.deleteOrganizationAIProvider.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIProvider.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIProvider.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteOrganizationAIProvider.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.deleteOrganizationAIProvider.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIProvider.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIProvider.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteOrganizationAIProvider.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.deleteOrganizationAIProvider.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/{id}/DELETE/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAIProvider.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAIProvider.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// Anthropic couldn't unlink the Claude organization
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/{id}/delete(deleteOrganizationAIProvider)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.deleteOrganizationAIProvider.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.deleteOrganizationAIProvider.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List a project's notification alert rules.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/notification-alerts`.
@@ -127134,6 +135638,470 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Complete a snapshot build.
+    ///
+    /// Tells the server the images are uploaded, which queues the comparison with the baseline. Answers 400 with the hashes still missing otherwise. Completing a build again changes nothing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)`.
+    public enum completeSnapshotBuild {
+        public static let id: Swift.String = "completeSnapshotBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The id of the snapshot build.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - build_id: The id of the snapshot build.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.completeSnapshotBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeSnapshotBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeSnapshotBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.completeSnapshotBuild.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.completeSnapshotBuild.Input.Path,
+                headers: Operations.completeSnapshotBuild.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/added_count`.
+                        public var added_count: Swift.Int?
+                        /// The build this one was compared with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/baseline_build_id`.
+                        public var baseline_build_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/changed_count`.
+                        public var changed_count: Swift.Int?
+                        /// The id of the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/removed_count`.
+                        public var removed_count: Swift.Int?
+                        /// Removed images whose content reappeared under another name.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/renamed_count`.
+                        public var renamed_count: Swift.Int?
+                        /// Images a selective run didn't render, carried over from the baseline.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/skipped_count`.
+                        public var skipped_count: Swift.Int?
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case uploading = "uploading"
+                            case processing = "processing"
+                            case processed = "processed"
+                            case failed = "failed"
+                        }
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/state`.
+                        public var state: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case processing = "processing"
+                            case failed = "failed"
+                            case passed = "passed"
+                            case baseline = "baseline"
+                            case approved = "approved"
+                            case rejected = "rejected"
+                            case needs_review = "needs_review"
+                        }
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/status`.
+                        public var status: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/unchanged_count`.
+                        public var unchanged_count: Swift.Int?
+                        /// The build's review page on the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - added_count:
+                        ///   - baseline_build_id: The build this one was compared with.
+                        ///   - changed_count:
+                        ///   - id: The id of the build.
+                        ///   - removed_count:
+                        ///   - renamed_count: Removed images whose content reappeared under another name.
+                        ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                        ///   - state: Where the build is in its lifecycle.
+                        ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///   - unchanged_count:
+                        ///   - url: The build's review page on the dashboard.
+                        public init(
+                            added_count: Swift.Int? = nil,
+                            baseline_build_id: Swift.String? = nil,
+                            changed_count: Swift.Int? = nil,
+                            id: Swift.String,
+                            removed_count: Swift.Int? = nil,
+                            renamed_count: Swift.Int? = nil,
+                            skipped_count: Swift.Int? = nil,
+                            state: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            unchanged_count: Swift.Int? = nil,
+                            url: Swift.String
+                        ) {
+                            self.added_count = added_count
+                            self.baseline_build_id = baseline_build_id
+                            self.changed_count = changed_count
+                            self.id = id
+                            self.removed_count = removed_count
+                            self.renamed_count = renamed_count
+                            self.skipped_count = skipped_count
+                            self.state = state
+                            self.status = status
+                            self.unchanged_count = unchanged_count
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case added_count
+                            case baseline_build_id
+                            case changed_count
+                            case id
+                            case removed_count
+                            case renamed_count
+                            case skipped_count
+                            case state
+                            case status
+                            case unchanged_count
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/200/content/application\/json`.
+                    case json(Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.completeSnapshotBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The build
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completeSnapshotBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.completeSnapshotBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Images are missing
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.completeSnapshotBuild.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.completeSnapshotBuild.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeSnapshotBuild.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.completeSnapshotBuild.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeSnapshotBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.completeSnapshotBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeSnapshotBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeSnapshotBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/complete/post(completeSnapshotBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeSnapshotBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.completeSnapshotBuild.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -139081,6 +148049,419 @@ public enum Operations {
             }
         }
     }
+    /// Get a snapshot build.
+    ///
+    /// The build's state and verdict, which clients poll after completing it.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)`.
+    public enum getSnapshotBuild {
+        public static let id: Swift.String = "getSnapshotBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The id of the snapshot build.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - build_id: The id of the snapshot build.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.getSnapshotBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSnapshotBuild.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getSnapshotBuild.Input.Path,
+                headers: Operations.getSnapshotBuild.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/added_count`.
+                        public var added_count: Swift.Int?
+                        /// The build this one was compared with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/baseline_build_id`.
+                        public var baseline_build_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/changed_count`.
+                        public var changed_count: Swift.Int?
+                        /// The id of the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/removed_count`.
+                        public var removed_count: Swift.Int?
+                        /// Removed images whose content reappeared under another name.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/renamed_count`.
+                        public var renamed_count: Swift.Int?
+                        /// Images a selective run didn't render, carried over from the baseline.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/skipped_count`.
+                        public var skipped_count: Swift.Int?
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case uploading = "uploading"
+                            case processing = "processing"
+                            case processed = "processed"
+                            case failed = "failed"
+                        }
+                        /// Where the build is in its lifecycle.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/state`.
+                        public var state: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case processing = "processing"
+                            case failed = "failed"
+                            case passed = "passed"
+                            case baseline = "baseline"
+                            case approved = "approved"
+                            case rejected = "rejected"
+                            case needs_review = "needs_review"
+                        }
+                        /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/unchanged_count`.
+                        public var unchanged_count: Swift.Int?
+                        /// The build's review page on the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - added_count:
+                        ///   - baseline_build_id: The build this one was compared with.
+                        ///   - changed_count:
+                        ///   - id: The id of the build.
+                        ///   - removed_count:
+                        ///   - renamed_count: Removed images whose content reappeared under another name.
+                        ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                        ///   - state: Where the build is in its lifecycle.
+                        ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                        ///   - unchanged_count:
+                        ///   - url: The build's review page on the dashboard.
+                        public init(
+                            added_count: Swift.Int? = nil,
+                            baseline_build_id: Swift.String? = nil,
+                            changed_count: Swift.Int? = nil,
+                            id: Swift.String,
+                            removed_count: Swift.Int? = nil,
+                            renamed_count: Swift.Int? = nil,
+                            skipped_count: Swift.Int? = nil,
+                            state: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload.statusPayload,
+                            unchanged_count: Swift.Int? = nil,
+                            url: Swift.String
+                        ) {
+                            self.added_count = added_count
+                            self.baseline_build_id = baseline_build_id
+                            self.changed_count = changed_count
+                            self.id = id
+                            self.removed_count = removed_count
+                            self.renamed_count = renamed_count
+                            self.skipped_count = skipped_count
+                            self.state = state
+                            self.status = status
+                            self.unchanged_count = unchanged_count
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case added_count
+                            case baseline_build_id
+                            case changed_count
+                            case id
+                            case removed_count
+                            case renamed_count
+                            case skipped_count
+                            case state
+                            case status
+                            case unchanged_count
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSnapshotBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The build
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSnapshotBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSnapshotBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getSnapshotBuild.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getSnapshotBuild.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSnapshotBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSnapshotBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/builds/{build_id}/get(getSnapshotBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getSnapshotBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getSnapshotBuild.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Revoke an account token.
     ///
     /// This endpoint revokes (deletes) an account token by name.
@@ -147882,9 +157263,645 @@ public enum Operations {
             }
         }
     }
-    /// List Once actions across builds.
+    /// Adds a model
     ///
-    /// List Once actions across builds.
+    /// Adding a model never selects it as the default.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/models`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)`.
+    public enum createOrganizationAIModel {
+        public static let id: Swift.String = "createOrganizationAIModel"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.createOrganizationAIModel.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationAIModel.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationAIModel.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createOrganizationAIModel.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/requestBody/json/name`.
+                    public var name: Swift.String
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/requestBody/json/provider_id`.
+                    public var provider_id: Swift.Int
+                    /// The model ID from the provider, unique for the provider.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/requestBody/json/upstream_model_id`.
+                    public var upstream_model_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name:
+                    ///   - provider_id:
+                    ///   - upstream_model_id: The model ID from the provider, unique for the provider.
+                    public init(
+                        name: Swift.String,
+                        provider_id: Swift.Int,
+                        upstream_model_id: Swift.String
+                    ) {
+                        self.name = name
+                        self.provider_id = provider_id
+                        self.upstream_model_id = upstream_model_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case name
+                        case provider_id
+                        case upstream_model_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/requestBody/content/application\/json`.
+                case json(Operations.createOrganizationAIModel.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createOrganizationAIModel.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createOrganizationAIModel.Input.Path,
+                headers: Operations.createOrganizationAIModel.Input.Headers = .init(),
+                body: Operations.createOrganizationAIModel.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/models`.
+                        public var models: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/providers`.
+                        public var providers: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/json/tasks`.
+                        public var tasks: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/200/content/application\/json`.
+                    case json(Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createOrganizationAIModel.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIModel.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIModel.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createOrganizationAIModel.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createOrganizationAIModel.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIModel.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIModel.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createOrganizationAIModel.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createOrganizationAIModel.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIModel.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIModel.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createOrganizationAIModel.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createOrganizationAIModel.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIModel.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIModel.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createOrganizationAIModel.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createOrganizationAIModel.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/models/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIModel.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIModel.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The configuration is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/models/post(createOrganizationAIModel)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createOrganizationAIModel.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.createOrganizationAIModel.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List Struo actions across builds.
+    ///
+    /// List Struo actions across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/get(listProjectOnceActions)`.
@@ -148131,7 +158148,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// List Once actions across builds.
+            /// List Struo actions across builds.
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/get(listProjectOnceActions)/responses/200`.
             ///
@@ -157110,6 +167127,513 @@ public enum Operations {
             }
         }
     }
+    /// Get the baseline of a snapshot set for a checkout.
+    ///
+    /// The build a build of the set uploaded from this checkout would be compared with, and its images, each with a presigned URL to download the PNG from. Clients use it to verify images locally against the baseline instead of keeping reference images in the repository. `build` is null and `images` empty while the set has no baseline.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/snapshots/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)`.
+    public enum getSnapshotBaseline {
+        public static let id: Swift.String = "getSnapshotBaseline"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getSnapshotBaseline.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The snapshot set.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/set`.
+                public var set: Swift.String
+                /// The checkout's commit.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/git_commit_sha`.
+                public var git_commit_sha: Swift.String
+                /// The commit's merge base with the base branch, when the checkout knows it.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/merge_base_sha`.
+                public var merge_base_sha: Swift.String?
+                /// The checkout's origin URL, to look the merge base up in the commit graph clients upload.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/query/git_remote_url_origin`.
+                public var git_remote_url_origin: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - set: The snapshot set.
+                ///   - git_commit_sha: The checkout's commit.
+                ///   - merge_base_sha: The commit's merge base with the base branch, when the checkout knows it.
+                ///   - git_remote_url_origin: The checkout's origin URL, to look the merge base up in the commit graph clients upload.
+                public init(
+                    set: Swift.String,
+                    git_commit_sha: Swift.String,
+                    merge_base_sha: Swift.String? = nil,
+                    git_remote_url_origin: Swift.String? = nil
+                ) {
+                    self.set = set
+                    self.git_commit_sha = git_commit_sha
+                    self.merge_base_sha = merge_base_sha
+                    self.git_remote_url_origin = git_remote_url_origin
+                }
+            }
+            public var query: Operations.getSnapshotBaseline.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBaseline.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSnapshotBaseline.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSnapshotBaseline.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getSnapshotBaseline.Input.Path,
+                query: Operations.getSnapshotBaseline.Input.Query,
+                headers: Operations.getSnapshotBaseline.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build`.
+                        public struct buildPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/added_count`.
+                            public var added_count: Swift.Int?
+                            /// The build this one was compared with.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/baseline_build_id`.
+                            public var baseline_build_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/changed_count`.
+                            public var changed_count: Swift.Int?
+                            /// The id of the build.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/removed_count`.
+                            public var removed_count: Swift.Int?
+                            /// Removed images whose content reappeared under another name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/renamed_count`.
+                            public var renamed_count: Swift.Int?
+                            /// Images a selective run didn't render, carried over from the baseline.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/skipped_count`.
+                            public var skipped_count: Swift.Int?
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/state`.
+                            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case uploading = "uploading"
+                                case processing = "processing"
+                                case processed = "processed"
+                                case failed = "failed"
+                            }
+                            /// Where the build is in its lifecycle.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/state`.
+                            public var state: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statePayload
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case processing = "processing"
+                                case failed = "failed"
+                                case passed = "passed"
+                                case baseline = "baseline"
+                                case approved = "approved"
+                                case rejected = "rejected"
+                                case needs_review = "needs_review"
+                            }
+                            /// The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/status`.
+                            public var status: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/unchanged_count`.
+                            public var unchanged_count: Swift.Int?
+                            /// The build's review page on the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build/url`.
+                            public var url: Swift.String
+                            /// Creates a new `buildPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - added_count:
+                            ///   - baseline_build_id: The build this one was compared with.
+                            ///   - changed_count:
+                            ///   - id: The id of the build.
+                            ///   - removed_count:
+                            ///   - renamed_count: Removed images whose content reappeared under another name.
+                            ///   - skipped_count: Images a selective run didn't render, carried over from the baseline.
+                            ///   - state: Where the build is in its lifecycle.
+                            ///   - status: The verdict: `needs_review` when images changed or were removed against the baseline and nobody reviewed them yet, `rejected` when a reviewer rejected those changes.
+                            ///   - unchanged_count:
+                            ///   - url: The build's review page on the dashboard.
+                            public init(
+                                added_count: Swift.Int? = nil,
+                                baseline_build_id: Swift.String? = nil,
+                                changed_count: Swift.Int? = nil,
+                                id: Swift.String,
+                                removed_count: Swift.Int? = nil,
+                                renamed_count: Swift.Int? = nil,
+                                skipped_count: Swift.Int? = nil,
+                                state: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statePayload,
+                                status: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload.statusPayload,
+                                unchanged_count: Swift.Int? = nil,
+                                url: Swift.String
+                            ) {
+                                self.added_count = added_count
+                                self.baseline_build_id = baseline_build_id
+                                self.changed_count = changed_count
+                                self.id = id
+                                self.removed_count = removed_count
+                                self.renamed_count = renamed_count
+                                self.skipped_count = skipped_count
+                                self.state = state
+                                self.status = status
+                                self.unchanged_count = unchanged_count
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case added_count
+                                case baseline_build_id
+                                case changed_count
+                                case id
+                                case removed_count
+                                case renamed_count
+                                case skipped_count
+                                case state
+                                case status
+                                case unchanged_count
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/build`.
+                        public var build: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload`.
+                        public struct imagesPayloadPayload: Codable, Hashable, Sendable {
+                            /// The SHA-256 of the PNG.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload/content_hash`.
+                            public var content_hash: Swift.String
+                            /// The image's path relative to the uploaded directory.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload/name`.
+                            public var name: Swift.String
+                            /// A presigned URL to download the PNG from.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/imagesPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `imagesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - content_hash: The SHA-256 of the PNG.
+                            ///   - name: The image's path relative to the uploaded directory.
+                            ///   - url: A presigned URL to download the PNG from.
+                            public init(
+                                content_hash: Swift.String,
+                                name: Swift.String,
+                                url: Swift.String
+                            ) {
+                                self.content_hash = content_hash
+                                self.name = name
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case content_hash
+                                case name
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/images`.
+                        public typealias imagesPayload = [Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.imagesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/json/images`.
+                        public var images: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.imagesPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - build:
+                        ///   - images:
+                        public init(
+                            build: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.buildPayload? = nil,
+                            images: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload.imagesPayload
+                        ) {
+                            self.build = build
+                            self.images = images
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case build
+                            case images
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSnapshotBaseline.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The baseline and its images
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSnapshotBaseline.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSnapshotBaseline.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getSnapshotBaseline.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getSnapshotBaseline.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSnapshotBaseline.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSnapshotBaseline.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/snapshots/baseline/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSnapshotBaseline.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSnapshotBaseline.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project or build was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/snapshots/baseline/get(getSnapshotBaseline)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getSnapshotBaseline.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getSnapshotBaseline.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Lists the feature flags enabled for the signed-in user
     ///
     /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or a signed-in first-party app (the Tuist app or Luft) can read them.
@@ -158322,6 +168846,1206 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Updates a task route
+    ///
+    /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/ai/task-routes/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)`.
+    public enum updateOrganizationAITaskRoute {
+        public static let id: Swift.String = "updateOrganizationAITaskRoute"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The record ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/path/id`.
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                ///   - id: The record ID.
+                public init(
+                    account_handle: Swift.String,
+                    id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.updateOrganizationAITaskRoute.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationAITaskRoute.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationAITaskRoute.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.updateOrganizationAITaskRoute.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The configured model the task uses.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/requestBody/json/model_id`.
+                    public var model_id: Swift.Int?
+                    /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/requestBody/json/task`.
+                    @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case pulse_grouping = "pulse_grouping"
+                        case pulse_explanation = "pulse_explanation"
+                    }
+                    /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/requestBody/json/task`.
+                    public var task: Operations.updateOrganizationAITaskRoute.Input.Body.jsonPayload.taskPayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - model_id: The configured model the task uses.
+                    ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                    public init(
+                        model_id: Swift.Int? = nil,
+                        task: Operations.updateOrganizationAITaskRoute.Input.Body.jsonPayload.taskPayload? = nil
+                    ) {
+                        self.model_id = model_id
+                        self.task = task
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case model_id
+                        case task
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/requestBody/content/application\/json`.
+                case json(Operations.updateOrganizationAITaskRoute.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateOrganizationAITaskRoute.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.updateOrganizationAITaskRoute.Input.Path,
+                headers: Operations.updateOrganizationAITaskRoute.Input.Headers = .init(),
+                body: Operations.updateOrganizationAITaskRoute.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/models`.
+                        public var models: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/providers`.
+                        public var providers: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/json/tasks`.
+                        public var tasks: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/200/content/application\/json`.
+                    case json(Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.updateOrganizationAITaskRoute.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAITaskRoute.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAITaskRoute.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateOrganizationAITaskRoute.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.updateOrganizationAITaskRoute.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAITaskRoute.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAITaskRoute.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganizationAITaskRoute.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.updateOrganizationAITaskRoute.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAITaskRoute.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAITaskRoute.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.updateOrganizationAITaskRoute.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.updateOrganizationAITaskRoute.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAITaskRoute.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAITaskRoute.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateOrganizationAITaskRoute.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.updateOrganizationAITaskRoute.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/PATCH/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationAITaskRoute.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.updateOrganizationAITaskRoute.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The configuration is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/patch(updateOrganizationAITaskRoute)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.updateOrganizationAITaskRoute.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.updateOrganizationAITaskRoute.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Removes a task route
+    ///
+    /// The task uses the default model again, or sends no requests without one.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/ai/task-routes/{id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)`.
+    public enum deleteOrganizationAITaskRoute {
+        public static let id: Swift.String = "deleteOrganizationAITaskRoute"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The record ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/path/id`.
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                ///   - id: The record ID.
+                public init(
+                    account_handle: Swift.String,
+                    id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.id = id
+                }
+            }
+            public var path: Operations.deleteOrganizationAITaskRoute.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganizationAITaskRoute.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganizationAITaskRoute.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.deleteOrganizationAITaskRoute.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.deleteOrganizationAITaskRoute.Input.Path,
+                headers: Operations.deleteOrganizationAITaskRoute.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/models`.
+                        public var models: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/providers`.
+                        public var providers: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/json/tasks`.
+                        public var tasks: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/200/content/application\/json`.
+                    case json(Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAITaskRoute.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.deleteOrganizationAITaskRoute.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.deleteOrganizationAITaskRoute.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAITaskRoute.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAITaskRoute.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteOrganizationAITaskRoute.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.deleteOrganizationAITaskRoute.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAITaskRoute.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAITaskRoute.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteOrganizationAITaskRoute.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.deleteOrganizationAITaskRoute.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/task-routes/{id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganizationAITaskRoute.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteOrganizationAITaskRoute.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/task-routes/{id}/delete(deleteOrganizationAITaskRoute)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteOrganizationAITaskRoute.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.deleteOrganizationAITaskRoute.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -161552,9 +173276,9 @@ public enum Operations {
             }
         }
     }
-    /// Get a Once action and its analytics across builds.
+    /// Get a Struo action and its analytics across builds.
     ///
-    /// Get a Once action and its analytics across builds.
+    /// Get a Struo action and its analytics across builds.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/get(getProjectOnceAction)`.
@@ -162071,7 +173795,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Get a Once action and its analytics across builds.
+            /// Get a Struo action and its analytics across builds.
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/get(getProjectOnceAction)/responses/200`.
             ///
@@ -163708,6 +175432,642 @@ public enum Operations {
             }
         }
     }
+    /// Adds an AI provider
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/ai/providers`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)`.
+    public enum createOrganizationAIProvider {
+        public static let id: Swift.String = "createOrganizationAIProvider"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.createOrganizationAIProvider.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationAIProvider.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationAIProvider.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createOrganizationAIProvider.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Stored encrypted and never returned. When updating, omit it to keep the current key, unless the base URL changes.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/requestBody/json/api_key`.
+                    public var api_key: Swift.String
+                    /// Public HTTPS endpoint for an OpenAI-compatible API, including any /v1 prefix. Requests append /chat/completions.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/requestBody/json/base_url`.
+                    public var base_url: Swift.String
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/requestBody/json/name`.
+                    public var name: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - api_key: Stored encrypted and never returned. When updating, omit it to keep the current key, unless the base URL changes.
+                    ///   - base_url: Public HTTPS endpoint for an OpenAI-compatible API, including any /v1 prefix. Requests append /chat/completions.
+                    ///   - name:
+                    public init(
+                        api_key: Swift.String,
+                        base_url: Swift.String,
+                        name: Swift.String
+                    ) {
+                        self.api_key = api_key
+                        self.base_url = base_url
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case api_key
+                        case base_url
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/requestBody/content/application\/json`.
+                case json(Operations.createOrganizationAIProvider.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createOrganizationAIProvider.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createOrganizationAIProvider.Input.Path,
+                headers: Operations.createOrganizationAIProvider.Input.Headers = .init(),
+                body: Operations.createOrganizationAIProvider.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/models`.
+                        public var models: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/providers`.
+                        public var providers: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/json/tasks`.
+                        public var tasks: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/200/content/application\/json`.
+                    case json(Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createOrganizationAIProvider.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIProvider.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIProvider.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createOrganizationAIProvider.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createOrganizationAIProvider.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIProvider.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIProvider.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createOrganizationAIProvider.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createOrganizationAIProvider.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIProvider.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIProvider.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createOrganizationAIProvider.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createOrganizationAIProvider.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIProvider.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIProvider.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createOrganizationAIProvider.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createOrganizationAIProvider.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/providers/POST/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationAIProvider.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createOrganizationAIProvider.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The configuration is invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/providers/post(createOrganizationAIProvider)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.createOrganizationAIProvider.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.createOrganizationAIProvider.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a Bazel remote-cache event by its identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}`.
@@ -164064,7 +176424,7 @@ public enum Operations {
     }
     /// Registers this app installation for push notifications
     ///
-    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app can register. The registration lasts while that sign-in remains active.
+    /// Associates the installation and its platform push token with the signed-in user. Only the signed-in Tuist app or Luft can register. The registration lasts while that sign-in remains active.
     ///
     /// - Remark: HTTP `PUT /api/me/push-devices/{installation_id}`.
     /// - Remark: Generated from `#/paths//api/me/push-devices/{installation_id}/put(registerPushDevice)`.
@@ -164117,18 +176477,19 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/name`.
                     public var name: Swift.String?
-                    /// The device platform.
+                    /// The device platform. Only Luft registers macOS devices.
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case ios = "ios"
+                        case macos = "macos"
                         case android = "android"
                     }
-                    /// The device platform.
+                    /// The device platform. Only Luft registers macOS devices.
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/platform`.
                     public var platform: Operations.registerPushDevice.Input.Body.jsonPayload.platformPayload
-                    /// The APNs device token (hex) on iOS or the FCM registration token on Android.
+                    /// The APNs device token (hex) on iOS and macOS or the FCM registration token on Android.
                     ///
                     /// - Remark: Generated from `#/paths/api/me/push-devices/{installation_id}/PUT/requestBody/json/token`.
                     public var token: Swift.String
@@ -164137,8 +176498,8 @@ public enum Operations {
                     /// - Parameters:
                     ///   - environment: The APNs environment. Android is always production.
                     ///   - name: The device model shown in the user's device list, for example iPhone 17 Pro.
-                    ///   - platform: The device platform.
-                    ///   - token: The APNs device token (hex) on iOS or the FCM registration token on Android.
+                    ///   - platform: The device platform. Only Luft registers macOS devices.
+                    ///   - token: The APNs device token (hex) on iOS and macOS or the FCM registration token on Android.
                     public init(
                         environment: Operations.registerPushDevice.Input.Body.jsonPayload.environmentPayload,
                         name: Swift.String? = nil,
@@ -168918,6 +181279,7 @@ public enum Operations {
                         case xcode = "xcode"
                         case gradle = "gradle"
                         case bazel = "bazel"
+                        case struo = "struo"
                         case once = "once"
                         case mix = "mix"
                         case cargo = "cargo"
@@ -169182,6 +181544,551 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Shows an organization's AI configuration
+    ///
+    /// Lists providers (without keys), models, the default model, task routes and the model each task uses now.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/ai`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)`.
+    public enum getOrganizationAIConfiguration {
+        public static let id: Swift.String = "getOrganizationAIConfiguration"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The organization handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The organization handle.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.getOrganizationAIConfiguration.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getOrganizationAIConfiguration.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getOrganizationAIConfiguration.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getOrganizationAIConfiguration.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getOrganizationAIConfiguration.Input.Path,
+                headers: Operations.getOrganizationAIConfiguration.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/default_model_id`.
+                        public var default_model_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/modelsPayload`.
+                        public struct modelsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/modelsPayload/id`.
+                            public var id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/modelsPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/modelsPayload/provider_id`.
+                            public var provider_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/modelsPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// The model ID requests send to the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/modelsPayload/upstream_model_id`.
+                            public var upstream_model_id: Swift.String
+                            /// Creates a new `modelsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - name:
+                            ///   - provider_id:
+                            ///   - updated_at:
+                            ///   - upstream_model_id: The model ID requests send to the provider.
+                            public init(
+                                id: Swift.Int,
+                                name: Swift.String,
+                                provider_id: Swift.Int,
+                                updated_at: Foundation.Date,
+                                upstream_model_id: Swift.String
+                            ) {
+                                self.id = id
+                                self.name = name
+                                self.provider_id = provider_id
+                                self.updated_at = updated_at
+                                self.upstream_model_id = upstream_model_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case name
+                                case provider_id
+                                case updated_at
+                                case upstream_model_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/models`.
+                        public typealias modelsPayload = [Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.modelsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/models`.
+                        public var models: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.modelsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload`.
+                        public struct providersPayloadPayload: Codable, Hashable, Sendable {
+                            /// Null for a linked Claude organization.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload/base_url`.
+                            public var base_url: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload/id`.
+                            public var id: Swift.Int
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case api_key = "api_key"
+                                case claude_linked_billing = "claude_linked_billing"
+                            }
+                            /// `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload/kind`.
+                            public var kind: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providersPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `providersPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - base_url: Null for a linked Claude organization.
+                            ///   - id:
+                            ///   - kind: `api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.
+                            ///   - name:
+                            ///   - updated_at:
+                            public init(
+                                base_url: Swift.String? = nil,
+                                id: Swift.Int,
+                                kind: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.providersPayloadPayload.kindPayload,
+                                name: Swift.String,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.base_url = base_url
+                                self.id = id
+                                self.kind = kind
+                                self.name = name
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case base_url
+                                case id
+                                case kind
+                                case name
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providers`.
+                        public typealias providersPayload = [Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.providersPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/providers`.
+                        public var providers: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.providersPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routesPayload`.
+                        public struct task_routesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routesPayload/id`.
+                            public var id: Swift.Int
+                            /// The configured model the task uses instead of the default.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routesPayload/model_id`.
+                            public var model_id: Swift.Int
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routesPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routesPayload/task`.
+                            public var task: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routesPayload/updated_at`.
+                            public var updated_at: Foundation.Date
+                            /// Creates a new `task_routesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - model_id: The configured model the task uses instead of the default.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///   - updated_at:
+                            public init(
+                                id: Swift.Int,
+                                model_id: Swift.Int,
+                                task: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.task_routesPayloadPayload.taskPayload,
+                                updated_at: Foundation.Date
+                            ) {
+                                self.id = id
+                                self.model_id = model_id
+                                self.task = task
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case model_id
+                                case task
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routes`.
+                        public typealias task_routesPayload = [Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.task_routesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/task_routes`.
+                        public var task_routes: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.task_routesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/category`.
+                            @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse = "pulse"
+                            }
+                            /// The product area the task belongs to.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/category`.
+                            public var category: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload
+                            /// The configured model the task uses, or null when it sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/model_id`.
+                            public var model_id: Swift.Int?
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case route = "route"
+                                case _default = "default"
+                                case none = "none"
+                            }
+                            /// `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/source`.
+                            public var source: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/task`.
+                            @frozen public enum taskPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case pulse_grouping = "pulse_grouping"
+                                case pulse_explanation = "pulse_explanation"
+                            }
+                            /// `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasksPayload/task`.
+                            public var task: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category: The product area the task belongs to.
+                            ///   - model_id: The configured model the task uses, or null when it sends no requests.
+                            ///   - source: `route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests.
+                            ///   - task: `pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.
+                            public init(
+                                category: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload.categoryPayload,
+                                model_id: Swift.Int? = nil,
+                                source: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload.sourcePayload,
+                                task: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload.taskPayload
+                            ) {
+                                self.category = category
+                                self.model_id = model_id
+                                self.source = source
+                                self.task = task
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case model_id
+                                case source
+                                case task
+                            }
+                        }
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// Every routable task and the model its requests use now.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/json/tasks`.
+                        public var tasks: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - default_model_id: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                        ///   - models:
+                        ///   - providers:
+                        ///   - task_routes:
+                        ///   - tasks: Every routable task and the model its requests use now.
+                        public init(
+                            default_model_id: Swift.Int? = nil,
+                            models: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.modelsPayload,
+                            providers: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.providersPayload,
+                            task_routes: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.task_routesPayload,
+                            tasks: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.default_model_id = default_model_id
+                            self.models = models
+                            self.providers = providers
+                            self.task_routes = task_routes
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case default_model_id
+                            case models
+                            case providers
+                            case task_routes
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/200/content/application\/json`.
+                    case json(Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getOrganizationAIConfiguration.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganizationAIConfiguration.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getOrganizationAIConfiguration.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization's AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getOrganizationAIConfiguration.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getOrganizationAIConfiguration.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganizationAIConfiguration.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getOrganizationAIConfiguration.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getOrganizationAIConfiguration.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getOrganizationAIConfiguration.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganizationAIConfiguration.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getOrganizationAIConfiguration.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only an organization administrator can manage its AI configuration
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getOrganizationAIConfiguration.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getOrganizationAIConfiguration.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/ai/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganizationAIConfiguration.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getOrganizationAIConfiguration.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The organization, its AI configuration or the record wasn't found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/ai/get(getOrganizationAIConfiguration)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getOrganizationAIConfiguration.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getOrganizationAIConfiguration.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

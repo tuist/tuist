@@ -78,7 +78,7 @@ defmodule Tuist.Sandboxes.Commands do
                   ~S"""
                   set -eu
                   mkdir -p "$d"
-                  printf '%s' "$TUIST_COMMAND" > "$d/command"
+                  printf 'export PATH="$HOME/.local/share/mise/shims:$PATH"\n%s' "$TUIST_COMMAND" > "$d/command"
                   : > "$d/stdout"
                   : > "$d/stderr"
                   : > "$d/stdin"
@@ -96,6 +96,10 @@ defmodule Tuist.Sandboxes.Commands do
                   }
                   FEED
                   unset TUIST_COMMAND TUIST_STDIN TUIST_CWD
+                  # Both clients append progress here (`read/3` returns the last line).
+                  : "${STRUO_PROGRESS:=$d/struo-progress.jsonl}"
+                  : "${ONCE_PROGRESS:=$d/struo-progress.jsonl}"
+                  export STRUO_PROGRESS ONCE_PROGRESS
                   perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' \
                     /bin/bash -c 'echo $$ > "$1/pid"; perl "$1/feed.pl" "$1" | /bin/bash -l "$1/command" > "$1/stdout" 2> "$1/stderr"; echo $? > "$1/exit_code.tmp"; mv "$1/exit_code.tmp" "$1/exit_code"' _ "$d" \
                     < /dev/null > /dev/null 2>&1 &
@@ -107,8 +111,10 @@ defmodule Tuist.Sandboxes.Commands do
                   done
                   """
 
-  # Prints `<state> <exit code or -> <stdout size> <stderr size> <reason or ->`
-  # on the first line, then the stdout chunk; the stderr chunk goes to stderr.
+  # Prints `<state> <exit code or -> <stdout size> <stderr size> <reason or ->
+  # <progress or ->` on the first line, then the stdout chunk; the stderr chunk
+  # goes to stderr. Progress is the base64 of the last line Struo appended to
+  # the command's `STRUO_PROGRESS` file, its build or test run so far.
   # The exit code is checked before the sizes are taken, so a finished
   # command's last read holds all of its output.
   @read_script @dir <>
@@ -138,7 +144,14 @@ defmodule Tuist.Sandboxes.Commands do
                  [ -e "$d/exit_code" ] && code=$(cat "$d/exit_code")
                  reason=-
                  [ -s "$d/killed" ] && reason=$(cat "$d/killed")
-                 echo "$state $code $so $se $reason"
+                 progress=-
+                 progress_file="$d/struo-progress.jsonl"
+                 [ -s "$progress_file" ] || progress_file="$d/once-progress.jsonl"
+                 if [ -s "$progress_file" ]; then
+                   progress=$(tail -n 1 "$progress_file" | head -c 8192 | base64 | tr -d '\n')
+                   [ -n "$progress" ] || progress=-
+                 fi
+                 echo "$state $code $so $se $reason $progress"
                  n=$(( so - TUIST_STDOUT_OFFSET )); [ "$n" -gt "$TUIST_CHUNK" ] && n=$TUIST_CHUNK
                  [ "$n" -gt 0 ] && tail -c +$((TUIST_STDOUT_OFFSET + 1)) "$d/stdout" | head -c "$n"
                  n=$(( se - TUIST_STDERR_OFFSET )); [ "$n" -gt "$TUIST_CHUNK" ] && n=$TUIST_CHUNK
@@ -735,7 +748,8 @@ defmodule Tuist.Sandboxes.Commands do
 
   defp parse(%{exit_code: 0, stdout: stdout, stderr: stderr}, stdout_offset, stderr_offset) do
     with [header, out] <- String.split(stdout, "\n", parts: 2),
-         [state, code, stdout_size, stderr_size, reason] <- String.split(header, " "),
+         [state, code, stdout_size, stderr_size, reason | progress] when length(progress) <= 1 <-
+           String.split(header, " "),
          {stdout_size, ""} <- Integer.parse(stdout_size),
          {stderr_size, ""} <- Integer.parse(stderr_size) do
       {out, out_bytes} = utf8_prefix(out)
@@ -751,6 +765,7 @@ defmodule Tuist.Sandboxes.Commands do
          stderr_offset: stderr_offset + err_bytes,
          stdout_size: stdout_size,
          stderr_size: stderr_size,
+         progress: progress(progress),
          complete:
            state != "running" and stdout_offset + out_bytes >= stdout_size and
              stderr_offset + err_bytes >= stderr_size
@@ -761,6 +776,19 @@ defmodule Tuist.Sandboxes.Commands do
   end
 
   defp parse(%{stderr: stderr}, _so, _se), do: {:error, "could not read the command: " <> String.trim(stderr)}
+
+  # The latest snapshot a Once run in the command reported, or nil. Guest
+  # output: anything that is not a JSON object is ignored.
+  defp progress([encoded]) when encoded != "-" do
+    with {:ok, line} <- Base.decode64(encoded),
+         {:ok, %{} = snapshot} <- JSON.decode(line) do
+      snapshot
+    else
+      _ -> nil
+    end
+  end
+
+  defp progress(_none), do: nil
 
   defp status("running", _reason), do: :running
   defp status("lost", _reason), do: :lost

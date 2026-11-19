@@ -262,6 +262,59 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
     end
 
+    test "reserves a paused sandbox's measured use plus one resume's growth, and its ceiling while unmeasured or running",
+         %{template: template} do
+      templates = [%{name: template, tag: "sha-1", ready: true, rootfs_bytes: 8 * @gib}]
+      node = node_name()
+      sized = [template: template, node_name: node, memory_mb: 4096, workspace_gb: 10]
+      small = sandbox_fixture([state: :paused] ++ sized)
+      large = sandbox_fixture([state: :paused] ++ sized)
+      unmeasured = sandbox_fixture([state: :paused] ++ sized)
+      running = sandbox_fixture([state: :running] ++ sized)
+
+      connect(node, template, %{
+        templates: templates,
+        disk: %{available_bytes: 500 * @gib, budget_bytes: 200 * @gib},
+        sandboxes: [
+          %{id: small.id, state: "paused", disk_bytes: 2 * @gib},
+          %{id: large.id, state: "paused", disk_bytes: 5 * @gib},
+          %{id: unmeasured.id, state: "paused"},
+          %{id: running.id, state: "running", disk_bytes: @gib}
+        ]
+      })
+
+      {:ok, _pid, info} = Nodes.lookup(node)
+      ceiling = 8 * @gib + 10 * @gib + 4 * @gib + 64 * @mib
+
+      # 2 + 5 GiB used, the small one's growth back to its ceiling, and the
+      # ceilings of the unmeasured and the running sandbox.
+      assert Capacity.reserved_disk_bytes(Map.put(info, :name, node)) ==
+               2 * @gib + 5 * @gib + (ceiling - 2 * @gib) + 2 * ceiling
+    end
+
+    test "resumes a measured paused sandbox only while the budget takes its ceiling back", %{template: template} do
+      templates = [%{name: template, tag: "sha-1", ready: true, rootfs_bytes: 8 * @gib}]
+      node = node_name()
+      sized = [template: template, state: :paused, node_name: node, memory_mb: 4096, workspace_gb: 10]
+      first = sandbox_fixture(sized)
+      second = sandbox_fixture(sized)
+
+      # Two ceilings of 22 GiB do not fit 30 GiB, but their use and one
+      # resume's growth do.
+      connect(node, template, %{
+        templates: templates,
+        disk: %{available_bytes: 500 * @gib, budget_bytes: 30 * @gib},
+        sandboxes: [
+          %{id: first.id, state: "paused", disk_bytes: 2 * @gib},
+          %{id: second.id, state: "paused", disk_bytes: 2 * @gib}
+        ]
+      })
+
+      assert {:ok, %Sandbox{state: :resuming}} = Capacity.admit(first)
+      assert {:error, :no_capacity} = Capacity.admit(second)
+      assert %Sandbox{state: :paused} = Repo.reload!(second)
+    end
+
     test "answers no_capacity when every ready node is out of disk", %{template: template} do
       connect(node_name(), template, %{disk: %{available_bytes: 1 * @gib, sandboxes_bytes: 0, budget_bytes: 0}})
 
@@ -840,6 +893,28 @@ defmodule Tuist.Sandboxes.CapacityTest do
       stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
 
       assert {:ok, limit} = Capacity.shrink(node_info(node), true)
+      assert limit == 9 * @gib
+    end
+
+    test "a fresh grant's warm floor grows an execution carve-out ahead of any action and bounds its shrink" do
+      {node, _image} = connect_execution(%{})
+      slots = fn n -> n * 4160 * @mib + 512 * @mib end
+      set_grant(node, allocation_warm_bytes: slots.(4))
+      apply_resizes(node)
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+
+      # No VM is placed, yet the carve-out grows to four slots (16.6 GiB, whole GiB up).
+      assert :ok = Capacity.reconcile_allocation(node)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 17 * @gib
+
+      # A lower floor shrinks it to three slots, not to the chart's 9 GiB floor.
+      set_grant(node, allocation_warm_bytes: slots.(3), grown_at: DateTime.add(DateTime.utc_now(:second), -600, :second))
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 13 * @gib
+
+      # A stale grant (a stopped controller) leaves only the chart's floor.
+      set_grant(node, allocation_observed_at: DateTime.add(DateTime.utc_now(), -60, :second))
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
       assert limit == 9 * @gib
     end
 

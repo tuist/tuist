@@ -16,8 +16,12 @@ struct LuftApp: App {
     var body: some Scene {
         WindowGroup(id: WorkspaceCommands.window) {
             #if targetEnvironment(simulator)
-                if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") {
+                if ProcessInfo.processInfo.arguments.contains("-LuftToolPreview") {
+                    ToolPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("-LuftCardPreview") {
                     CardPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("-LuftSandboxPreview") {
+                    SandboxReadyPreview()
                 } else {
                     AppWorkspace(client: client)
                 }

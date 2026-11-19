@@ -308,7 +308,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
         vcpus: sandbox["vcpus"],
         memory_mb: sandbox["memory_mb"],
         workspace_gb: sandbox["workspace_gb"],
-        worker_running: sandbox["worker_running"] == true
+        worker_running: sandbox["worker_running"] == true,
+        disk_bytes: sandbox["disk_bytes"]
       }
     end
   end

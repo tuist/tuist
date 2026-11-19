@@ -144,6 +144,68 @@ defmodule Tuist.Threads.HostTest do
     refute Map.has_key?(reply, :ui)
   end
 
+  test "inference receives multimodal images and workspace copies of documents and binary files" do
+    user = AccountsFixtures.user_fixture()
+    parent = self()
+    png = Base.encode64(<<137, "PNG\r\n", 26, "\n", 0>>)
+    pdf = Base.encode64("%PDF-1.7\nprivate document")
+    binary = Base.encode64(<<0, 255, 1>>)
+
+    stub(Sandboxes, :exec, fn _, ["python3", "-c", _, "write", path, "1048576"], opts ->
+      send(parent, {:uploaded, path, opts[:env]["CONDUKT_DATA_0"]})
+      {:ok, %{exit_code: 0, stdout: ""}}
+    end)
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      send(parent, {:model_request, request})
+
+      response = %{
+        id: "attachment-completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [
+          %{index: 0, message: %{role: "assistant", content: "I received the attachments."}, finish_reason: "stop"}
+        ],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    files = [
+      %{"name" => "screen.png", "mime_type" => "image/png", "data_base64" => png},
+      %{"name" => "doc.pdf", "mime_type" => "application/pdf", "data_base64" => pdf},
+      %{"name" => "input.bin", "mime_type" => "application/octet-stream", "data_base64" => binary}
+    ]
+
+    assert {:ok, thread} = Threads.create(user, user.account, Map.put(request(""), "attachments", files))
+    host_until_idle(thread.id)
+    [message] = thread.messages
+
+    for {encoded, index} <- Enum.with_index([png, pdf, binary]) do
+      path = ".tuist-attachment-#{message.id}-#{index}"
+      assert_receive {:uploaded, ^path, ^encoded}
+    end
+
+    assert_receive {:model_request, model_request}
+    parts = model_request["messages"] |> Enum.filter(&(&1["role"] == "user")) |> Enum.flat_map(& &1["content"])
+    assert Enum.any?(parts, &(&1["type"] == "image_url" and &1["image_url"]["url"] == "data:image/png;base64,#{png}"))
+    assert Enum.any?(parts, &(&1["type"] == "text" and String.contains?(&1["text"], "doc.pdf")))
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert fresh.agent_status == "idle"
+    assert List.last(fresh.messages).body == "I received the attachments."
+  end
+
   test "a thread on a runner works through the runner, with the tools its owner allowed" do
     user = AccountsFixtures.user_fixture()
     {:ok, runner, _token} = Runners.register(user, %{"name" => "macbook", "platform" => "macos"})

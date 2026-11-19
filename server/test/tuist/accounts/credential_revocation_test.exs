@@ -95,6 +95,19 @@ defmodule Tuist.Accounts.CredentialRevocationTest do
     end
   end
 
+  describe "revoke_legacy_tokens/0" do
+    test "rejects legacy user and project tokens and leaves every other credential working" do
+      %{credentials: credentials} = organization_with_credentials()
+
+      CredentialRevocation.revoke_legacy_tokens()
+
+      assert credentials |> Map.drop([:legacy_user, :legacy_project]) |> authenticating() |> Enum.sort() ==
+               credentials |> Map.drop([:legacy_user, :legacy_project]) |> Map.keys() |> Enum.sort()
+
+      assert authenticating(Map.take(credentials, [:legacy_user, :legacy_project])) == []
+    end
+  end
+
   describe "revoke_everything/0" do
     test "revokes every customer credential" do
       first = organization_with_credentials()

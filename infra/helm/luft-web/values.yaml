@@ -1,0 +1,89 @@
+global:
+  commonLabels: {}
+  podLabels: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tuist/luft-web
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+automountServiceAccountToken: false
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecretName: ""
+  annotations: {}
+
+certificate:
+  enabled: false
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: ""
+
+resources: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  # The nginx user of the nginx-unprivileged base image.
+  runAsUser: 101
+  runAsGroup: 101
+podAnnotations: {}
+podLabels: {}
+affinity: {}
+nodeSelector: {}
+tolerations: []
+terminationGracePeriodSeconds: 30
+networkPolicy:
+  enabled: false
+  ingressControllerNamespace: platform
+  ingressControllerPodLabels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller
+
+probes:
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /healthz
+    initialDelaySeconds: 0
+    periodSeconds: 2
+    timeoutSeconds: 3
+    failureThreshold: 30

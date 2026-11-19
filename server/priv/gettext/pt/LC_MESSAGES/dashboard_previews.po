@@ -134,7 +134,7 @@ msgstr "Executar"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Execute o comando a seguir para compartilhar a pré-visualização do app."
+msgstr "Execute o seguinte comando para compartilhar a prévia do app."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
@@ -150,7 +150,7 @@ msgstr "Escaneie este código QR no seu dispositivo iOS para instalar esta vers�
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "Compartilhe previews de apps com um clique"
+msgstr "Compartilhe previsualizações de apps com um clique"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -160,17 +160,17 @@ msgstr "Plataformas suportadas"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "Este preview é compatível apenas com simuladores e não pode ser instalado em um dispositivo físico"
+msgstr "Esta previsualização é suportada apenas em simuladores e não pode ser instalada em um dispositivo físico"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "Este preview não está disponível para instalação em dispositivos"
+msgstr "Esta previsualização não está disponível para instalação em dispositivos"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "Para executar o preview diretamente pelo navegador, baixe e instale o app Tuist para macOS"
+msgstr "Para executar a previsualização diretamente do navegador, baixe e instale o app Tuist para macOS"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "Nome do pacote"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "Escaneie este código QR no seu dispositivo Android para baixar e instalar esta versão do aplicativo"
+msgstr "Escaneie este código QR no seu dispositivo Android para baixar e instalar esta versão do app"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
@@ -217,7 +217,7 @@ msgstr "Esta prévia não está disponível para download"
 #: lib/tuist_web/live/preview_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "Prévia do aplicativo"
+msgstr "Prévia do app"
 
 #: lib/tuist_web/live/preview_live.ex:53
 #, elixir-autogen, elixir-format
@@ -237,17 +237,17 @@ msgstr "CLI"
 #: lib/tuist_web/live/preview_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Command-line preview"
-msgstr "Pré-visualização via linha de comando"
+msgstr "Pré-visualização na linha de comando"
 
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "As pré-visualizações desktop são executadas como o seu utilizador, com acesso aos seus ficheiros e ambiente. Não estão isoladas."
+msgstr "As pré-visualizações no desktop são executadas como o seu usuário, com acesso aos seus arquivos e ambiente. Elas não são isoladas."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Only run previews you trust"
-msgstr "Execute apenas pré-visualizações em que confia"
+msgstr "Execute apenas pré-visualizações confiáveis"
 
 #: lib/tuist_web/live/preview_live.html.heex:214
 #, elixir-autogen, elixir-format
@@ -257,4 +257,4 @@ msgstr "Executar pré-visualização"
 #: lib/tuist_web/live/preview_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Open in app"
-msgstr "Abrir na aplicação"
+msgstr "Abrir no app"

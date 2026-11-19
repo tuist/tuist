@@ -79,6 +79,20 @@ defmodule Tuist.RemoteExecution.Scheduler do
     end
   end
 
+  @doc """
+  The project's operations queued or running in this scheduler right now.
+  Leases are not actions: the gateway leases VMs ahead of demand and claims
+  them on the node directly, so the scheduler never sees what runs on them.
+  The scheduler is never started for this: without one the account has
+  nothing queued or running here.
+  """
+  def activity(account_id, project_id) do
+    case whereis(account_id) do
+      nil -> {:ok, []}
+      pid -> call(pid, {:activity, project_id}, 0)
+    end
+  end
+
   def reload(account_id) do
     case whereis(account_id) do
       nil -> :ok
@@ -197,6 +211,29 @@ defmodule Tuist.RemoteExecution.Scheduler do
             wait_for(state, op.id, from, :done, wait_ms)
         end
     end
+  end
+
+  def handle_call({:activity, project_id}, _from, state) do
+    now = now_ms()
+    wall_now = System.system_time(:millisecond)
+
+    actions =
+      for {_id, %{project_id: ^project_id, state: op_state} = op} <- state.ops, op_state in [:queued, :executing] do
+        mono = if op_state == :queued, do: op.queued_mono, else: op.dispatched_mono
+
+        %{
+          id: op.id,
+          state: if(op_state == :queued, do: "queued", else: "running"),
+          action_digest: "#{op.hash}/#{op.size}",
+          invocation_id: op.invocation_id,
+          mnemonic: op.mnemonic,
+          target: op.target,
+          memory_gb: op.memory_gb,
+          since: DateTime.from_unix!(wall_now - (now - mono), :millisecond)
+        }
+      end
+
+    {:reply, {:ok, actions}, state}
   end
 
   def handle_call({:lease, attrs, wait_ms}, from, state) do
@@ -815,7 +852,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
   defp outcome(14), do: "unavailable"
   defp outcome(_code), do: "other"
 
-  defp queue_limit(settings), do: min(settings.max_concurrency * 4, 512)
+  # `tuist bazel setup` gives every client `--jobs` of twice max_concurrency, so
+  # the queue holds about eight cold clients at once, such as a CI pipeline's
+  # parallel Bazel jobs. Queued operations past max_concurrency hold no inputs.
+  defp queue_limit(settings), do: min(settings.max_concurrency * 16, 2048)
   defp put_op(state, op), do: %{state | ops: Map.put(state.ops, op.id, op)}
   defp put_vm(state, vm), do: %{state | vms: Map.put(state.vms, vm.id, vm)}
   defp now_ms, do: System.monotonic_time(:millisecond)

@@ -707,6 +707,9 @@ server:
       item: ""
       field: password
       secret: ""
+      # Secret (key targets.json) the shard-storage-rustfs chart publishes for
+      # its public store, merged with the map above.
+      publicSecret: ""
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
@@ -842,6 +845,14 @@ server:
       enabled: false
       item: CHATGPT_OAUTH
       field: client_id
+    # Claude linked billing (Tuist.Accounts.ClaudeLinkedBilling): the
+    # Claude Console OAuth app and Workload Identity Federation ids, one
+    # text field each. Enable only after the item exists with all six
+    # fields in the environment's vault; a missing item fails the
+    # pre-upgrade ExternalSecret and blocks the deploy.
+    claudeLinkedBilling:
+      enabled: false
+      item: ANTHROPIC_LINKED_BILLING
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:
@@ -1192,8 +1203,9 @@ agents:
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
   # server with TUIST_MODE=processor, which (a) disables the Phoenix
-  # web endpoint and (b) narrows the Oban queue set to :process_build and
-  # :process_bazel_tests, each with an independent concurrency limit.
+  # web endpoint and (b) narrows the Oban queue set to :process_build,
+  # :process_bazel_tests and :process_snapshots, each with an independent
+  # concurrency limit.
   # Jobs flow from any `ProcessBuildWorker.new()` enqueue (server side) to
   # these pods via SELECT … FOR UPDATE SKIP LOCKED; a saturated pod doesn't
   # claim more work, so jobs naturally flow to whichever replica has headroom.
@@ -1210,6 +1222,9 @@ processor:
   # report processor. Keeping this separate prevents a burst of reports from
   # consuming xcactivitylog parsing capacity.
   bazelTestQueueConcurrency: 1
+  # Per-pod concurrency for snapshot comparisons, which decode and diff
+  # full-resolution images (a few hundred megabytes per job).
+  snapshotQueueConcurrency: 2
   resources: {}
   extraEnv: []
   # When true, the chart provisions an ExternalSecret that syncs the
@@ -2727,6 +2742,12 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  # Fleet-wide floor of remote execution VM slots (infra/helm/remote-execution
+  # workers on shared Linux hosts) that the runners-controller's compute
+  # allocator keeps ready ahead of runner warm stock, spread over the workers
+  # and grown before any action arrives. Queued CI jobs still outrank it.
+  # 0 leaves remote execution out of the allocator.
+  remoteExecutionFloorSlots: 0
   macos:
     enabled: false
     templateName: macos
@@ -3117,7 +3138,7 @@ runnersFleet:
   # template defaults (replicas: 0, pod sizing from the catalog's
   # `default: true` shape, no autoscaling).
   #
-  # The runners-controller's fleet allocator apportions the
+  # The runners-controller's compute allocator apportions the
   # fleet's guest-slot budget across every macOS pool sharing this
   # fleetSelector using the same three-tier (floor / load /
   # headroom) policy as the Linux pools. `maxReplicas` is per-pool
@@ -3129,7 +3150,7 @@ runnersFleet:
     #   pod:                           # Optional. Defaults to the catalog's default shape.
     #     cpuMilli: 6000
     #     memoryMB: 14336
-    #   autoscaling:                   # Preferred for managed envs (joins the fleet allocator).
+    #   autoscaling:                   # Preferred for managed envs (joins the compute allocator).
     #     enabled: true
     #     minWarmPoolFloor: 1          # Always-on warm guarantee (joint sum ≤ hostCount).
     #     maxReplicas: 9               # Per-pool ceiling; allocator caps the joint sum.
@@ -3564,7 +3585,7 @@ kataContainers:
   # so the chart requires at least 3584Mi when any pool is exclusive.
   # Keep this aligned with measured guest memory and host resident
   # usage; the runners-controller reads the live RuntimeClass so its
-  # fleet allocator uses the same cost as the scheduler.
+  # compute allocator uses the same cost as the scheduler.
   podFixed:
     cpu: "250m"
     memory: "2560Mi"

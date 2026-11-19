@@ -2530,6 +2530,16 @@ containerd; running Pods keep the old budget until they are replaced. Every
 cached inode also pins host kernel memory outside the Pod's cgroup, which is
 why the budget is four times the default rather than unbounded.
 
+The same sysctl file pins the kernel default dirty ratios
+(`vm.dirty_ratio = 20`, `vm.dirty_background_ratio = 10`). A 256 MiB host-wide
+`vm.dirty_bytes` cap (2026-11-18) kept virtiofsd's dirty page cache inside an
+exclusive-CPU Pod's headroom, but it throttled every host writer: the runner
+cache-volume agent's snapshot compression went from about 4 s to 95 s and
+checkout publication timed out, which failed canary acceptance. Do not reintroduce a
+host-wide byte cap; writing a ratio zeroes it, so the repair's `sysctl -p` lifts
+it on running hosts. With the defaults, exclusive-CPU Pods are again exposed to
+that QEMU OOM.
+
 The alternatives were rejected. A pod-template `ulimit` changes nothing, since
 the guest process limit is already high. `--inode-file-handles` would avoid the
 descriptors only for filesystems with decodable file handles, which the

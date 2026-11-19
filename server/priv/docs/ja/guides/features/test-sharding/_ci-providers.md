@@ -1,4 +1,4 @@
-Tuist は以下の CI プロバイダーを自動的に検出します。
+Tuist は以下の CI プロバイダーを自動検出します。
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)

@@ -73,7 +73,7 @@ defmodule Tuist.Docs.SidebarTest do
              {"Elixir project", "/en/guides/get-started/elixir-project"},
              {"Rust project", "/en/guides/get-started/rust-project"},
              {"Bazel project", "/en/guides/get-started/bazel-project"},
-             {"Once project", "/en/guides/get-started/once-project"}
+             {"Struo project", "/en/guides/get-started/struo-project"}
            ]
 
     assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
@@ -95,7 +95,7 @@ defmodule Tuist.Docs.SidebarTest do
              {"Xcode", "/en/guides/features/previews/xcode", "brand_apple"},
              {"Gradle", "/en/guides/features/previews/gradle", "brand_gradle"},
              {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"},
-             {"Once", "/en/guides/features/previews/once", "brand_once"}
+             {"Struo", "/en/guides/features/previews/struo", "brand_once"}
            ]
 
     assert Enum.map(run.items, &{&1.label, &1.slug}) == [
@@ -216,6 +216,35 @@ defmodule Tuist.Docs.SidebarTest do
     assert Sidebar.category_for_slug("/ko/guides/install-tuist") == "Guides"
     assert Sidebar.category_for_slug("/en/guides/get-started/ask") == "Guides"
     assert Sidebar.category_for_slug("/en/not-in-the-sidebar") == "Docs"
+  end
+
+  @tag :locale
+  test "localized Struo navigation preserves existing Once translations" do
+    paths = [
+      "get-started/once-project",
+      "features/cache/once",
+      "features/build-insights/once",
+      "features/test-insights/once",
+      "features/test-insights/flaky-tests/once",
+      "features/test-sharding/once",
+      "features/runners/once",
+      "features/previews/once"
+    ]
+
+    for locale <- ~w(ja es) do
+      slugs = collect_slugs(Sidebar.tree_for_tab(:guides, locale))
+
+      for path <- paths do
+        slug = "/#{locale}/guides/#{path}"
+        assert slug in slugs
+        assert %{slug: ^slug} = Docs.get_page(slug)
+      end
+    end
+
+    # Without either translation, keep the current name for the English fallback.
+    assert "/untranslated/guides/get-started/struo-project" in collect_slugs(
+             Sidebar.tree_for_tab(:guides, "untranslated")
+           )
   end
 
   defp collect_slugs(groups) do

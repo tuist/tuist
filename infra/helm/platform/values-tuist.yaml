@@ -275,3 +275,11 @@ kuraGatewayNetworkPolicy:
 
 clusterPortsHostPolicy:
   enabled: true
+
+# luft.work serves the Luft web edge (infra/helm/luft-web), which runs only in
+# this cluster, so only production runs its external-dns. The Cloudflare token
+# in `cloudflare-api-token` needs Zone.DNS:Edit on luft.work for both it and the
+# letsencrypt-cloudflare DNS-01 solver.
+luftDNS:
+  enabled: true
+  ownerId: tuist-production-luft

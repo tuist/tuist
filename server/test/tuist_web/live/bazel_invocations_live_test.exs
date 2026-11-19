@@ -1,6 +1,7 @@
 defmodule TuistWeb.BazelInvocationsLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
+  use Mimic
 
   import Phoenix.LiveViewTest
 
@@ -9,9 +10,11 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.ReapiCache.CacheEvent
+  alias Tuist.RemoteExecution.Scheduler
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   @render_async_timeout 1_000
 
@@ -146,6 +149,75 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     render_patch(view, path <> "?tab=remote-execution")
     render_async(view)
     assert has_element?(view, "#remote-actions-table", "Compile App")
+  end
+
+  test "a running invocation shows its live remote actions until its finished row replaces it", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/running-ui"
+    assert_raise NotFoundError, fn -> live(conn, path) end
+
+    now = DateTime.utc_now()
+
+    :ok =
+      Bazel.create_invocation_starts([
+        %{
+          project_id: project.id,
+          invocation_id: "running-ui",
+          command: "test",
+          target_patterns: ["//app/..."],
+          git_branch: "main",
+          is_ci: true,
+          started_at: now |> DateTime.add(-60, :second) |> DateTime.to_naive()
+        }
+      ])
+
+    action = fn state, invocation_id, mnemonic, memory_gb ->
+      %{
+        id: Ecto.UUID.generate(),
+        state: state,
+        action_digest: "0123456789abcdef/10",
+        invocation_id: invocation_id,
+        mnemonic: mnemonic,
+        target: "//app:lib",
+        memory_gb: memory_gb,
+        since: DateTime.add(now, -5, :second)
+      }
+    end
+
+    stub(Scheduler, :activity, fn _account_id, _project_id ->
+      {:ok,
+       [
+         action.("running", "running-ui", "CppCompile", 8),
+         action.("queued", "running-ui", nil, 16),
+         action.("running", "another-build", "Javac", 8)
+       ]}
+    end)
+
+    {:ok, view, _} = live(conn, path <> "?tab=remote-execution")
+    assert has_element?(view, "#bazel-invocation [data-part=badge-processing]")
+    assert has_element?(view, "#bazel-invocation-command", "bazel test //app/...")
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "Running")
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "CppCompile")
+    # An action Bazel did not describe falls back to its digest.
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "Queued")
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "0123456789ab")
+    assert has_element?(view, "#running-remote-actions", "8 vCPU · 16 GB")
+    refute has_element?(view, "#running-remote-actions", "Javac")
+
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:error, :unavailable} end)
+    send(view.pid, :refresh_running)
+    render_async(view)
+    assert has_element?(view, "#running-remote-actions", "Running executions are unavailable")
+
+    Bazel.create_invocations([
+      invocation_attributes(project, "running-ui", "test", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    send(view.pid, :refresh_running)
+    assert_redirect(view, path <> "?tab=remote-execution")
   end
 
   test "the build Status filter scopes the summary and analytics", %{

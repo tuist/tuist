@@ -3,7 +3,7 @@
 # delivery/ios-device/Luft.ipa. Follows atlas-native/ios/distribution/bundle.sh:
 # the shared Apple Distribution certificate plus the Tuist Code Ad Hoc profile for the
 # app and the Tuist Code Live Activity Ad Hoc profile for its extension, all read from
-# 1Password into a disposable keychain. Never mutates Once's outputs.
+# 1Password into a disposable keychain. Never mutates Struo's outputs.
 set -euo pipefail
 umask 077
 
@@ -12,7 +12,7 @@ cd "$(dirname "$0")/../.."
 source ios/distribution/keychain.sh
 # shellcheck source-path=SCRIPTDIR/../..
 source ios/distribution/live-activity.sh
-app_source="$PWD/.once/out/LuftIOSDevice/Luft.app"
+app_source="$PWD/.struo/out/LuftIOSDevice/Luft.app"
 team=U6LC622NKF
 application_id="$team.dev.tuist.code"
 profile_ref="op://tuist/Tuist Code Ad Hoc/Tuist_Code_Ad_Hoc.mobileprovision"

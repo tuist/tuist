@@ -78,6 +78,17 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
       assert %{complete: true, completeness: "signal"} = Commits.summary(project.id, "q")
     end
+
+    test "also completes the commit's snapshots", %{conn: conn, prefix: prefix, project: project} do
+      sha = String.duplicate("e", 40)
+      {:ok, _build, _} = Tuist.Snapshots.create_build(project, %{set_name: "phone", git_commit_sha: sha}, [])
+      assert {:ok, %{completed_at: nil}} = Tuist.Snapshots.get_commit(project, sha)
+
+      conn |> post("#{prefix}/commits/#{sha}/complete") |> json_response(:accepted)
+
+      assert {:ok, commit} = Tuist.Snapshots.get_commit(project, sha)
+      assert Tuist.Snapshots.Commit.completeness(commit) == :complete
+    end
   end
 
   describe "reading coverage" do

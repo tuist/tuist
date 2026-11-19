@@ -1,7 +1,7 @@
 ---
 {
   "editLink": false,
-  "titleTemplate": ":title · 예제 · 참조 · Tuist"
+  "titleTemplate": ":title · 예제 · 레퍼런스 · Tuist"
 }
 ---
 <script setup>

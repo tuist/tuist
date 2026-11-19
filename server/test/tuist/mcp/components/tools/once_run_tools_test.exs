@@ -15,6 +15,15 @@ defmodule Tuist.MCP.Components.Tools.OnceRunToolsTest do
     %{conn: %Plug.Conn{assigns: %{current_user: user}}, user: user, project: project, args: args}
   end
 
+  test "Struo labels preserve the legacy MCP tool names" do
+    assert ListOnceRuns.name() == "list_once_runs"
+    assert GetOnceRun.name() == "get_once_run"
+    assert ListOnceRuns.description() =~ "Struo"
+    assert GetOnceRun.description() =~ "Struo"
+    refute ListOnceRuns.description() =~ "Once"
+    refute GetOnceRun.description() =~ "Once"
+  end
+
   test "private runs require the project's build-read access", %{user: user, project: project, args: args} do
     id = run(project, host_class: "private-host-secret")
     other_user = AccountsFixtures.user_fixture(preload: [:account])

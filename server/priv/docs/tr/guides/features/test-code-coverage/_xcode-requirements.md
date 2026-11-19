@@ -1,4 +1,4 @@
 > [!IMPORTANT]
 > **Gereksinimler**
 >
-> - Tuist 4.216.6 veya üzeri
+> - Tuist 4.216.6 veya sonrası

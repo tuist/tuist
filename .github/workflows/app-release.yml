@@ -66,7 +66,7 @@ jobs:
       release-branch: ${{ steps.hotfix.outputs.release-branch }}
       build-number: ${{ steps.hotfix.outputs.build-number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -92,7 +92,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     timeout-minutes: 50
     permissions:
       contents: write
@@ -102,11 +102,10 @@ jobs:
       packages: write
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.check-releases.outputs.source-sha }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -146,6 +145,8 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Generate Sparkle appcast
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         # generate_appcast mutates the directory it reads: archives it considers old
         # are moved into old_updates. Point it at a copy so that decision can never
         # remove the DMG the release is about to upload.
@@ -187,7 +188,7 @@ jobs:
 
       - name: Upload App artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: app-artifacts
           if-no-files-found: error
@@ -203,7 +204,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: github.event_name == 'push' && needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-macos-27-0
+    runs-on: tuist-macos
     # Matches release-app. `app:upload-ios` archives before it uploads,
     # and `tuist generate` runs with --no-binary-cache, so a cold
     # compilation cache (any runner image roll invalidates it) makes
@@ -217,7 +218,7 @@ jobs:
       statuses: write
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: tuist/xcode-cache@v1
@@ -267,10 +268,8 @@ jobs:
       pull-requests: read
       statuses: write
       packages: write
-    env:
-      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
@@ -285,7 +284,7 @@ jobs:
         run: tuist auth login
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
         with:
           cache-disabled: true
 
@@ -298,12 +297,16 @@ jobs:
           sed -i "s/versionName = \".*\"/versionName = \"$VERSION_NUMBER\"/" app/build.gradle.kts
 
       - name: Setup signing and credentials
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore
           op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json
 
       - name: Publish to Google Play
         working-directory: android
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           export ANDROID_KEYSTORE_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
           export ANDROID_KEY_ALIAS=tuist
@@ -323,7 +326,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           ref: ${{ needs.check-releases.outputs.source-sha }}
@@ -355,7 +358,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Download App artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: app-artifacts
           path: app
@@ -382,7 +385,7 @@ jobs:
             exit 1
           fi
       - name: Create App GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -405,7 +408,7 @@ jobs:
         # same-named asset on the `appcast` release each app release;
         # make_latest is off so this housekeeping release never shadows the
         # real "latest".
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           prerelease: false

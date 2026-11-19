@@ -478,6 +478,91 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
     );
 }
 #[test]
+fn thread_attachments_preserve_bytes_and_retry_identity_without_text_only_offline_queueing() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let file = json!({"name":"notes.txt", "mime_type":"text/plain", "data_base64":"SGVsbG8="});
+    let args = json!({"id":id, "content":"", "attachments":[file.clone()]});
+    h.offline = true;
+    let offline = call(&mut c, &mut h, "send_message", args.clone());
+    assert!(offline["error"].as_str().unwrap().contains("internet"));
+    h.offline = false;
+    assert_eq!(
+        call(&mut c, &mut h, "flush_outbox", json!({}))["data"]["sent"],
+        0
+    );
+    for _ in 0..3 {
+        h.responses.push_back((503, json!({})));
+    }
+    call(&mut c, &mut h, "send_message", args.clone());
+    call(&mut c, &mut h, "send_message", args.clone());
+    let mut changed = args.clone();
+    changed["attachments"][0]["data_base64"] = json!("V29ybGQ=");
+    call(&mut c, &mut h, "send_message", changed);
+    let posts: Vec<Value> = h
+        .actions
+        .iter()
+        .filter(|a| {
+            a["method"] == "POST" && a["url"].as_str().unwrap_or_default().ends_with("/messages")
+        })
+        .map(|a| serde_json::from_str(a["body"].as_str().unwrap()).unwrap())
+        .collect();
+    let last = &posts[posts.len() - 3..];
+    assert_eq!(last[0]["attachments"], json!([file]));
+    assert_eq!(last[0]["content"], "");
+    assert_eq!(last[0]["request_id"], last[1]["request_id"]);
+    assert_ne!(last[1]["request_id"], last[2]["request_id"]);
+    let mut files = vec![file.clone(); 4];
+    files[0]["data_base64"] =
+        json!(base64::engine::general_purpose::STANDARD.encode(vec![42; 1_048_576]));
+    let message = json!({"id":"message-1","role":"user","content":"","attachments":files});
+    h.responses.push_back((
+        200,
+        json!({"id":id,"status":"idle","archive_status":"active","messages":[message.clone()]}),
+    ));
+    let sent = call(
+        &mut c,
+        &mut h,
+        "send_message",
+        json!({"id":id,"content":"","attachments":files}),
+    );
+    assert!(sent.get("error").is_none(), "{sent}");
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":id}));
+    assert_eq!(
+        cached["data"]["messages"][0]["attachments"],
+        message["attachments"]
+    );
+    let count = h.actions.len();
+    assert!(
+        call(
+            &mut c,
+            &mut h,
+            "send_message",
+            json!({"id":id,"content":"x","attachments":vec![file; 5]})
+        )["error"]
+            .is_string()
+    );
+    for invalid in [
+        json!({"name":"../secret", "mime_type":"text/plain", "data_base64":"YQ=="}),
+        json!({"name":"empty", "mime_type":"text/plain", "data_base64":""}),
+        json!({"name":"bad", "mime_type":"text/plain", "data_base64":"???"}),
+        json!({"name":"large", "mime_type":"text/plain", "data_base64":base64::engine::general_purpose::STANDARD.encode(vec![42; 1_048_577])}),
+    ] {
+        assert!(
+            call(
+                &mut c,
+                &mut h,
+                "send_message",
+                json!({"id":id,"content":"x","attachments":[invalid]})
+            )["error"]
+                .is_string()
+        );
+    }
+    assert_eq!(h.actions.len(), count);
+}
+
+#[test]
 fn conversations_start_on_the_server_without_a_repository_and_retry_idempotently() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
@@ -585,6 +670,36 @@ fn conversations_start_on_the_server_without_a_repository_and_retry_idempotently
     let disabled = call(&mut c, &mut h, "start_thread", content);
     assert_eq!(disabled["error"], THREADS_UNAVAILABLE);
     assert_eq!(posts(&h).len(), 4);
+}
+
+#[test]
+fn workspace_readiness_is_live_only_and_not_replayed_from_cached_history() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    h.responses.push_back((
+        200,
+        json!({"id":id,"status":"running","archive_status":"active",
+            "workspace_ready_id":"threads:run:3","messages":[]}),
+    ));
+    let live = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(live["data"]["workspace_ready_id"], "threads:run:3");
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":id}));
+    assert!(cached["data"]["workspace_ready_id"].is_null());
+    h.offline = true;
+    let offline = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(offline["data"]["freshness"]["state"], "cached");
+    assert!(offline["data"]["workspace_ready_id"].is_null());
+    h.offline = false;
+    for status in ["idle", "failed"] {
+        h.responses.push_back((
+            200,
+            json!({"id":id,"status":status,"archive_status":"active",
+                "workspace_ready_id":"threads:run:3","messages":[]}),
+        ));
+        let ended = call(&mut c, &mut h, "thread", json!({"id":id}));
+        assert!(ended["data"]["workspace_ready_id"].is_null());
+    }
 }
 #[test]
 fn complete_project_enumeration_detects_repeated_pages_and_filters_account() {
@@ -1152,6 +1267,10 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
             "/dms/12345678-1234-5678-9abc-123456789abc",
             Destination::Conversation("dms", "12345678-1234-5678-9abc-123456789abc".into()),
         ),
+        (
+            "/threads/12345678-1234-5678-9abc-123456789abc/snooze",
+            Destination::Snooze("12345678-1234-5678-9abc-123456789abc".into()),
+        ),
     ] {
         for value in [
             path.to_owned(),
@@ -1181,6 +1300,10 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
         "/threads/------------------------------------",
         "/threads/",
         "/halls/not-an-id",
+        "/threads/new/snooze",
+        "/threads/snooze",
+        "/halls/12345678-1234-5678-9abc-123456789abc/snooze",
+        "/threads/12345678-1234-5678-9abc-123456789abc/snooze/",
         "/channels",
         "/profile?",
         "/profile#fragment",
@@ -1776,6 +1899,114 @@ fn cards_get_the_height_of_their_size_class_and_unshowable_ones_fall_back_to_tex
 }
 
 #[test]
+fn tool_results_unwrap_text_without_replacing_raw_evidence() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let payload = json!({"test_cases":[
+        {"name":"shard_with_remote_test_products()", "module_name":"TuistServerAcceptanceTests",
+         "suite_name":"ShardAcceptanceTests", "is_flaky":true, "state":"muted", "id":"keep-in-raw"},
+        {"name":"test_run_tests_with_specified_arch()", "is_flaky":false}
+    ]});
+    let raw = json!({"content":[{"type":"text","text":payload.to_string()}]}).to_string();
+    let mixed = json!({"content":[{"type":"text","text":"keep me"},
+        {"type":"image","data":"image-evidence","mimeType":"image/png"}]})
+    .to_string();
+    let long = "🛠".repeat(1201);
+    let messages = json!([
+        {"role":"tool","content":raw},
+        {"role":"tool","content":"{truncated"},
+        {"role":"tool","content":mixed},
+        {"role":"tool","content":long},
+        {"role":"assistant","content":raw},
+        {"role":"tool","content":json!({"content":[{"type":"text","text":"First"},{"type":"text","text":"Second"}]}).to_string()}
+    ]);
+    h.responses.push_back((200, server_thread(messages)));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    let shown = &thread["data"]["messages"];
+    assert_eq!(shown[0]["content"], raw);
+    assert_eq!(
+        serde_json::from_str::<Value>(shown[0]["toolResult"]["text"].as_str().unwrap()).unwrap(),
+        payload
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(shown[0]["toolResult"]["raw"].as_str().unwrap()).unwrap(),
+        serde_json::from_str::<Value>(&raw).unwrap()
+    );
+    assert_eq!(
+        shown[0]["toolResult"]["testCases"][0],
+        json!({
+            "name":"shard_with_remote_test_products()", "module":"TuistServerAcceptanceTests",
+            "suite":"ShardAcceptanceTests", "flaky":true, "state":"muted"
+        })
+    );
+    assert_eq!(shown[0]["toolResult"]["testCases"][1]["flaky"], false);
+    assert_eq!(shown[1]["toolResult"]["text"], "{truncated");
+    assert_eq!(shown[1]["toolResult"]["raw"], "{truncated");
+    assert!(
+        shown[2]["toolResult"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("image-evidence")
+    );
+    assert_eq!(shown[3]["toolResult"]["preview"], "🛠".repeat(1200));
+    assert_eq!(shown[3]["toolResult"]["text"], long);
+    assert_eq!(shown[4].get("toolResult"), None);
+    assert_eq!(shown[5]["toolResult"]["text"], "First\n\nSecond");
+}
+
+#[test]
+fn a_bash_calls_struo_build_shows_its_share_of_planned_targets_while_it_runs() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let build = |state: &str, planned: u64, done: u64| {
+        json!({"command":"build","state":state,"target":"//app","planned":planned,"done":done,
+               "cached":1,"failed":0,"running":[],"tests":{"passed":0,"failed":0,"skipped":0}})
+    };
+    let messages = json!([
+        {"role":"user","content":"Build it"},
+        {"role":"tool","content":"Building //app with Struo · 3 of 4 targets (1 cached)","toolName":"Bash",
+         "toolStatus":"running","build":build("running", 4, 3)},
+        {"role":"tool","content":"Building","toolName":"Bash","toolStatus":"running","build":build("running", 0, 2)},
+        {"role":"tool","content":"done","toolName":"Bash","toolStatus":"complete","build":build("succeeded", 4, 4)},
+        {"role":"tool","content":"Building","toolName":"Bash","toolStatus":"running",
+         "build":{"command":"deploy","state":"running"}},
+        {"role":"tool","content":"Testing","toolName":"Bash","toolStatus":"running",
+         "build":{"command":"test","state":"running","planned":2,"done":3,"cached":0,"failed":0,
+                  "tests":{"passed":5,"failed":1,"skipped":0}}},
+    ]);
+    h.responses
+        .push_back((200, server_thread(messages.clone())));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    let shown = &thread["data"]["messages"];
+    assert_eq!(shown[1]["build"]["fraction"], json!(0.75), "{thread}");
+    assert_eq!(shown[1]["build"]["active"], true);
+    // No plan yet: the share is unknown, not zero.
+    assert_eq!(shown[2]["build"]["fraction"], Value::Null);
+    // A finished call's build stays as evidence but no longer animates.
+    assert_eq!(shown[3]["build"]["active"], false);
+    assert_eq!(shown[3]["build"]["fraction"], json!(1.0));
+    // A build this core can't show falls back to the message's content.
+    assert_eq!(shown[4].get("build"), None);
+    // Edges draw what the core decided: no tests until a case ran, counts
+    // within the plan, and a failing case marks the build failing.
+    assert_eq!(shown[1]["build"]["tests"], Value::Null);
+    assert_eq!(shown[1]["build"]["failing"], false);
+    assert_eq!(shown[5]["build"]["done"], 2);
+    assert_eq!(shown[5]["build"]["fraction"], json!(1.0));
+    assert_eq!(shown[5]["build"]["failing"], true);
+    assert_eq!(
+        shown[5]["build"]["tests"],
+        json!({"passed":5,"failed":1,"skipped":0})
+    );
+
+    let mut ended = server_thread(messages);
+    ended["status"] = json!("interrupted");
+    h.responses.push_back((200, ended));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(thread["data"]["messages"][1]["build"]["active"], false);
+}
+
+#[test]
 fn only_the_answering_runs_plan_is_active_and_says_what_the_thread_does_now() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
@@ -2325,4 +2556,318 @@ fn threads_start_on_a_runner_only_online_and_runners_register_with_their_secret(
             .all(|t| t["pending"] != true),
         "{inbox}"
     );
+}
+
+#[test]
+fn snooze_options_follow_the_local_clock() {
+    use crate::threads::snooze_options;
+    let until = |options: &Value, id: &str| {
+        options["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["id"] == id)
+            .map(|o| o["until"].clone())
+    };
+    // Wednesday 2026-11-18 08:30 UTC is 09:30 in Berlin (UTC+1).
+    let wednesday = 1794990600;
+    let options = snooze_options(wednesday, 3600, true);
+    assert_eq!(until(&options, "until_needed"), Some(Value::Null));
+    assert_eq!(
+        until(&options, "in_2_hours"),
+        Some(json!("2026-11-18T10:30:00Z"))
+    );
+    // 18:00 and 09:00 Berlin time, in UTC.
+    assert_eq!(
+        until(&options, "this_evening"),
+        Some(json!("2026-11-18T17:00:00Z"))
+    );
+    assert_eq!(
+        until(&options, "tomorrow"),
+        Some(json!("2026-11-19T08:00:00Z"))
+    );
+    assert_eq!(
+        until(&options, "next_week"),
+        Some(json!("2026-11-23T08:00:00Z"))
+    );
+    // A finished thread has nothing to wait for.
+    assert_eq!(
+        until(&snooze_options(wednesday, 3600, false), "until_needed"),
+        None
+    );
+    // At 17:30 Berlin, the evening is here already.
+    assert_eq!(
+        until(
+            &snooze_options(wednesday + 8 * 3600, 3600, false),
+            "this_evening"
+        ),
+        None
+    );
+    // 23:30 UTC on Wednesday is already Thursday in Tokyo (UTC+9).
+    let tokyo = snooze_options(wednesday + 15 * 3600, 9 * 3600, false);
+    assert_eq!(
+        until(&tokyo, "tomorrow"),
+        Some(json!("2026-11-20T00:00:00Z"))
+    );
+    // On a Sunday, next week starts the Monday after tomorrow.
+    let sunday = wednesday + 4 * 86_400;
+    assert_eq!(
+        until(&snooze_options(sunday, 3600, false), "next_week"),
+        Some(json!("2026-11-30T08:00:00Z"))
+    );
+}
+
+#[test]
+fn snoozed_threads_leave_their_section_until_the_snooze_ends() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let id = "6f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
+    let later = "2099-01-01T09:00:00Z";
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[
+                {"id":"a","status":"running","archive_status":"active","snoozed_until_needed":true},
+                {"id":"b","status":"idle","archive_status":"active","snoozed_until":later},
+                {"id":"c","status":"idle","archive_status":"active","snoozed_until":"2020-01-01T09:00:00Z"},
+                {"id":"d","status":"idle","archive_status":"active","snoozed_until_needed":true}
+            ],"next_cursor":null}),
+        ),
+        (
+            200,
+            json!({"id":id,"status":"running","archive_status":"active","snoozed_until":later,"messages":[]}),
+        ),
+        (409, json!({})),
+    ]);
+    let page = call(&mut c, &mut h, "threads", json!({}));
+    let shown: Vec<_> = page["data"]["threads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| (t["section"].as_str().unwrap(), t["snooze"].clone()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("snoozed", json!({"until":null,"until_needed":true})),
+            ("snoozed", json!({"until":later,"until_needed":false})),
+            ("recent", Value::Null),
+            ("recent", Value::Null),
+        ]
+    );
+
+    let snoozed = call(
+        &mut c,
+        &mut h,
+        "snooze_thread",
+        json!({"id":id,"snooze":later}),
+    );
+    assert_eq!(snoozed["data"]["section"], "snoozed", "{snoozed}");
+    assert_eq!(snoozed["data"]["working"], true);
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "PATCH");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/accounts/ana/threads/{id}")
+    );
+    assert_eq!(sent_body(&h), json!({"snooze":{"until":later}}));
+
+    let finished = call(
+        &mut c,
+        &mut h,
+        "snooze_thread",
+        json!({"id":id,"snooze":"until_needed"}),
+    );
+    assert!(
+        finished["error"]
+            .as_str()
+            .unwrap()
+            .contains("nothing to wait for")
+    );
+    let count = h.actions.len();
+    for snooze in [
+        json!("2020-01-01T09:00:00Z"),
+        json!("tomorrow"),
+        json!(true),
+    ] {
+        assert!(
+            call(
+                &mut c,
+                &mut h,
+                "snooze_thread",
+                json!({"id":id,"snooze":snooze})
+            )["error"]
+                .is_string()
+        );
+    }
+    assert_eq!(h.actions.len(), count);
+
+    // The stored conversation keeps the snooze offline.
+    h.offline = true;
+    let cached = call(&mut c, &mut h, "thread", json!({"id":id}));
+    assert_eq!(cached["data"]["section"], "snoozed", "{cached}");
+}
+
+#[test]
+fn archiving_and_restoring_a_thread_moves_it_in_the_stored_inbox() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[{"id":SERVER_ID,"status":"running","archive_status":"active"}],"next_cursor":null}),
+        ),
+        (
+            200,
+            json!({"id":SERVER_ID,"status":"idle","archive_status":"archived","messages":[]}),
+        ),
+    ]);
+    call(&mut c, &mut h, "threads", json!({}));
+
+    let archived = call(&mut c, &mut h, "archive_thread", json!({"id":SERVER_ID}));
+    assert_eq!(archived["data"]["section"], "archived", "{archived}");
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "PATCH");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/accounts/ana/threads/{SERVER_ID}")
+    );
+    assert_eq!(sent_body(&h), json!({"status":"archived"}));
+
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert_eq!(
+        inbox["data"]["threads"][0]["section"], "archived",
+        "{inbox}"
+    );
+
+    h.responses.push_back((
+        200,
+        json!({"id":SERVER_ID,"status":"idle","archive_status":"active","messages":[]}),
+    ));
+    let restored = call(
+        &mut c,
+        &mut h,
+        "archive_thread",
+        json!({"id":SERVER_ID,"archived":false}),
+    );
+    assert_eq!(restored["data"]["section"], "recent", "{restored}");
+    assert_eq!(sent_body(&h), json!({"status":"active"}));
+    let inbox = call(&mut c, &mut h, "cached_threads", json!({}));
+    assert_eq!(inbox["data"]["threads"][0]["section"], "recent", "{inbox}");
+
+    let count = h.actions.len();
+    let invalid = call(
+        &mut c,
+        &mut h,
+        "archive_thread",
+        json!({"id":SERVER_ID,"archived":"no"}),
+    );
+    assert!(invalid["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+}
+
+#[test]
+fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses
+        .push_back((200, json!({"organizations":[{"name":"team"}]})));
+    call(&mut c, &mut h, "organizations", json!({}));
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":"team"}),
+    );
+    h.responses.push_back((
+        200,
+        json!({"threads":[{"id":SERVER_ID,"title":"Release plan","status":"idle","archive_status":"active"}],"next_cursor":null}),
+    ));
+    call(&mut c, &mut h, "threads", json!({}));
+    let hall = "11111111-1111-1111-1111-111111111111";
+    h.responses.push_back((
+        200,
+        json!({"halls":[{"id":hall,"kind":"hall","name":"releases","members":[],"unread":0}],"directs":[]}),
+    ));
+    call(&mut c, &mut h, "halls", json!({}));
+
+    // Offline and without requests: the palette reads only what is stored.
+    h.offline = true;
+    let before = h.actions.len();
+    let found = call(&mut c, &mut h, "palette", json!({"query":"release"}));
+    assert_eq!(h.actions.len(), before);
+    let urls: Vec<&str> = found["data"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        urls,
+        [format!("/threads/{SERVER_ID}"), format!("/halls/{hall}")]
+    );
+    // Navigating to a result opens it like any link.
+    call(&mut c, &mut h, "navigate", json!({"url":urls[1]}));
+    let view = call(&mut c, &mut h, "snapshot", json!({}));
+    assert_eq!(view["view"]["navigation"]["hall_id"], hall);
+
+    // Another account's halls are not offered.
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":id,"name":null}),
+    );
+    let personal = call(&mut c, &mut h, "palette", json!({"query":"#rel"}));
+    assert_eq!(personal["data"]["items"], json!([]));
+}
+#[test]
+fn a_refreshed_first_page_keeps_the_pages_loaded_after_it() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let thread =
+        |id: &str, status: &str| json!({"id":id,"status":status,"archive_status":"active"});
+    let ids = |page: &Value| -> Vec<String> {
+        page["data"]["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[thread("a","idle"), thread("b","idle")],"next_cursor":"after-b"}),
+        ),
+        (
+            200,
+            json!({"threads":[thread("c","idle"), thread("d","idle")],"next_cursor":"after-d"}),
+        ),
+        // `d` started working, so it moved to the top and pushed `b` off the first page.
+        (
+            200,
+            json!({"threads":[thread("d","running"), thread("a","idle")],"next_cursor":"after-a"}),
+        ),
+    ]);
+    call(&mut c, &mut h, "threads", json!({}));
+    call(&mut c, &mut h, "threads", json!({"cursor":"after-b"}));
+    let refreshed = call(&mut c, &mut h, "threads", json!({}));
+    assert_eq!(ids(&refreshed), ["d", "a", "b", "c"]);
+    assert_eq!(refreshed["data"]["threads"][0]["section"], "in_progress");
+    // Paging continues after the last thread loaded, not after the new first page.
+    assert_eq!(refreshed["data"]["next_cursor"], "after-d");
+    assert_eq!(
+        call(&mut c, &mut h, "cached_threads", json!({}))["data"]["next_cursor"],
+        "after-d"
+    );
+
+    // A first page that is the whole inbox replaces it: `b` and `c` are gone.
+    h.responses.push_back((
+        200,
+        json!({"threads":[thread("d","idle"), thread("a","idle")],"next_cursor":null}),
+    ));
+    let whole = call(&mut c, &mut h, "threads", json!({}));
+    assert_eq!(ids(&whole), ["d", "a"]);
+    assert_eq!(whole["data"]["next_cursor"], Value::Null);
 }

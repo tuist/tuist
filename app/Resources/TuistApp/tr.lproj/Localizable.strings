@@ -2,7 +2,7 @@
 "%@ simulator" = "%@ simülatörü";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Access token or refresh token missing from response" = "Yanıttan erişim veya yenileme belirteci eksik";
+"Access token or refresh token missing from response" = "Yanıttan erişim belirteci veya yenileme belirteci eksik";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "All" = "Tümü";
@@ -14,10 +14,10 @@
 "Android Device" = "Android Cihazı";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
-"Android Emulator" = "Android Öykünücüsü";
+"Android Emulator" = "Android Emülatörü";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Android Emulators" = "Android Öykünücüleri";
+"Android Emulators" = "Android Emülatörleri";
 
 /* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
 "App" = "Uygulama";
@@ -29,7 +29,7 @@
 "Apple Sign In failed" = "Apple ile Giriş Başarısız Oldu";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "Şurada bulunan uygulamalar";
+"Apps in" = "Uygulamalar";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Are you sure you want to delete this preview? This action cannot be undone." = "Bu önizlemeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.";
@@ -71,10 +71,10 @@
 "Could not find app bundle in the downloaded archive" = "İndirilen arşivde uygulama paketi bulunamadı";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@ için uygulama yüklenemedi, çünkü geçerli herhangi bir uygulama derlemesi içermiyor.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@ için uygulama yüklenemedi, çünkü geçerli herhangi bir uygulama yapısı içermiyor.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@ için uygulama yüklenemedi. %@ platformu %@ ve uygulama yalnızca şu platformları içeriyor: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@ için uygulama yüklenemedi. %@'ın platformu %@ ve uygulama yalnızca şu platformları içeriyor: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "Oluşturulma tarihi";
@@ -110,7 +110,7 @@
 "Email" = "E-posta";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Kimlik bilgileri, sorgu veya parça içermeyen geçerli bir HTTPS sunucu URL’si girin.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Kimlik bilgileri, sorgu veya fragment içermeyen geçerli bir HTTPS sunucu URL'si girin.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "Hata";
@@ -146,7 +146,7 @@
 "Launch" = "Çalıştır";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Launching preview" = "Önizleme başlatılıyor";
+"Launching preview" = "Ön izleme başlatılıyor";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Log out" = "Oturumu kapat";
@@ -155,19 +155,19 @@
 "Logged out" = "Oturum kapatıldı";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "Yetkilendirmeden Apple kimlik bilgileri eksik";
+"Missing Apple credentials from authorization" = "Yetkilendirmede Apple kimlik bilgileri eksik";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"No Previews" = "Önizleme Yok";
+"No Previews" = "Ön İzleme Yok";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No Tuist projects found" = "Tuist projesi bulunamadı";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "Önizleme bulunamadı";
+"No previews found" = "Ön izleme bulunamadı";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "Filtrelerinizle eşleşen ön izleme yok";
+"No previews match your filters" = "Filtrelerinizle eşleşen önizleme yok";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "Tamam";
@@ -179,10 +179,10 @@
 "Pin" = "Sabitle";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews" = "Ön İzlemeler";
+"Previews" = "Önizlemeler";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews: %lld" = "Ön İzlemeler: %lld";
+"Previews: %lld" = "Önizlemeler: %lld";
 
 /* TuistProfile/ProfileView.swift */
 "Privacy Policy" = "Gizlilik Politikası";
@@ -191,10 +191,10 @@
 "Profile" = "Profil";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "Önizlemelerinizi yenilemek için aşağı çekin.";
+"Pull down to refresh your previews." = "Önizlemeleri yenilemek için aşağı çekin.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "Projelerinizi yenilemek için aşağı çekin.";
+"Pull down to refresh your projects." = "Projeleri yenilemek için aşağı çekin.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "Tuist'ten Çık";
@@ -203,7 +203,7 @@
 "Ready" = "Hazır";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Release notes" = "Sürüm Notları";
+"Release notes" = "Sürüm notları";
 
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "Çalıştır";
@@ -212,7 +212,7 @@
 "Search" = "Ara";
 
 /* TuistOnboarding/SelfHostedServerAlert.swift */
-"Self-hosted" = "Kendi Sunucunuzda Barındırılan";
+"Self-hosted" = "Kendi sunucunuzda barındırılan";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "Self-hosted server" = "Kendi sunucunuzda barındırılan";
@@ -221,13 +221,13 @@
 "Share logs" = "Günlükleri paylaş";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
-"Sign in" = "Oturum aç";
+"Sign in" = "Giriş yap";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "Projelerinize erişmek ve\nekibinizle iş birliği yapmak için oturum açın";
+"Sign in to access your projects and\ncollaborate with your team" = "Projelerine erişmek ve\nekibinle iş birliği yapmak için giriş yap";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "Önizlemeleri çalıştırmak için oturum aç";
+"Sign in to run previews" = "Önizlemeleri çalıştırmak için giriş yap";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Apple" = "Apple ile giriş yap";
@@ -254,13 +254,13 @@
 "Terms of Service" = "Hizmet Şartları";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The app preview %@ was not found." = "%@ uygulama önizlemesi bulunamadı.";
+"The app preview %@ was not found." = "%@ uygulama ön izlemesi bulunamadı.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The latest preview for %@ was not found. Has any preview been published?" = "%@ için en son önizleme bulunamadı. Hiç önizleme yayınlandı mı?";
+"The latest preview for %@ was not found. Has any preview been published?" = "%@ için en son ön izleme bulunamadı. Herhangi bir ön izleme yayınlandı mı?";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The preview %@ does not have a package name set." = "%@ önizlemesinin paket adı ayarlanmamış.";
+"The preview %@ does not have a package name set." = "%@ ön izlemesinin paket adı ayarlanmamış.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "The preview deeplink %@ is invalid." = "%@ derin bağlantısı geçersiz.";
@@ -269,7 +269,7 @@
 "The server returned a preview page that did not advance. Update your server or try again." = "Sunucu, ilerleme kaydetmeyen bir önizleme sayfası döndürdü. Sunucunuzu güncelleyin veya tekrar deneyin.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Bu sunucu, önizlemeleri kanala göre filtrelemeyi desteklemiyor. Kendi barındırdığınız Tuist sunucusunu güncelleyin veya Tüm kanalları seçin.";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Bu sunucu, önizlemeleri izlere göre filtrelemeyi desteklemiyor. Kendi barındırdığınız Tuist sunucusunu güncelleyin veya Tüm izleri seçin.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Bu sunucu, önizlemelerde arama yapmayı desteklemiyor. Kendi barındırdığınız Tuist sunucusunu güncelleyin veya aramayı temizleyin.";
@@ -278,13 +278,13 @@
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Bu sunucu, Tuist uygulamasından oturum açmayı desteklemiyor. Yöneticinizden sunucuyu güncellemesini isteyin.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "Önizlemeyi çalıştırmak için bir simülatör seçili olmalıdır.";
+"To run a preview, you must have a simulator selected." = "Önizleme çalıştırmak için bir simülatör seçili olmalıdır.";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Token exchange failed with status code: %lld" = "Jeton değişimi şu durum koduyla başarısız oldu: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Track" = "Kanal";
+"Track" = "İz";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Tracks" = "Kanallar";
@@ -296,19 +296,19 @@
 "Tuist will delete the saved %@ credentials." = "Tuist, kaydedilen %@ kimlik bilgilerini silecek.";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
-"Unknown" = "Bilinmeyen";
+"Unknown" = "Bilinmiyor";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Unpin" = "Sabitlemeyi Kaldır";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "Bir kanal seçmek için kendi barındırdığınız Tuist sunucusunu güncelleyin.";
+"Update your self-hosted Tuist server to select a track." = "Kanal seçmek için kendi barındırdığınız Tuist sunucusunu güncelleyin.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "Tuist sunucunuzun kök adresini kullanın";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Welcome to Tuist" = "Tuist'e Hoş Geldiniz";
+"Welcome to Tuist" = "Tuist’e Hoş Geldiniz";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "veya";
@@ -321,14 +321,14 @@
 "Design preview · Sample builds" = "Tasarım önizlemesi · Örnek derlemeler";
 "Design preview · Sample data" = "Tasarım önizlemesi · Örnek veriler";
 "Done" = "Bitti";
-"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@ davet etmek, mevcut tüm mesajları, araç sonuçlarını ve gelecekteki yanıtları paylaşır. Bu önizleme hiçbir davetiye veya bildirim göndermez.";
-"Latest builds" = "En son yapılar";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@ davet etmek, mevcut tüm mesajları, araç sonuçlarını ve gelecekteki yanıtları paylaşır. Bu önizleme herhangi bir davetiye veya bildirim göndermez.";
+"Latest builds" = "En son derlemeler";
 "Layout preview" = "Düzen önizlemesi";
-"No account is signed in. These screens use sample data." = "Hiçbir hesap oturum açmadı. Bu ekranlar örnek veriler kullanır.";
-"Previous builds" = "Önceki yapılar";
+"No account is signed in. These screens use sample data." = "Oturum açmış hesap yok. Bu ekranlar örnek veriler kullanır.";
+"Previous builds" = "Önceki derlemeler";
 "Search projects" = "Projeleri ara";
 "Select project" = "Proje seç";
-"Sign out of Tuist?" = "Tuist'ten çıkış yap?";
+"Sign out of Tuist?" = "Tuist'ten çıkış yapılsın mı?";
 "Switch account" = "Hesap değiştir";
 "Tool actions" = "Araç eylemleri";
 "Organization" = "Organizasyon";
@@ -338,7 +338,7 @@
 "Unable to open link" = "Bağlantı açılamıyor";
 "This link belongs to a different Tuist server. Sign in to that server and open the link again." = "Bu bağlantı farklı bir Tuist sunucusuna ait. O sunucuda oturum açın ve bağlantıyı tekrar açın.";
 "This link belongs to a different organization. Switch organizations and open the link again." = "Bu bağlantı farklı bir organizasyona ait. Organizasyonları değiştirin ve bağlantıyı tekrar açın.";
-"This navigation link is invalid or unsupported." = "Bu gezinti bağlantısı geçersiz veya desteklenmiyor.";
+"This navigation link is invalid or unsupported." = "Bu gezinme bağlantısı geçersiz veya desteklenmiyor.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Open on web" = "Web'de aç";
@@ -349,3 +349,6 @@
 "Open screens will be closed." = "Açık ekranlar kapatılacak.";
 "View profile" = "Profili görüntüle";
 "Your saved profiles could not be updated. Please try again." = "Kaydedilen profilleriniz güncellenemedi. Lütfen tekrar deneyin.";
+
+"This Mac" = "Bu Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "Bu önizlemenin hiçbir macOS derlemesi bu Mac'in işlemcisinde çalışamaz.";

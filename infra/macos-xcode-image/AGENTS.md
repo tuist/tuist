@@ -251,7 +251,10 @@ automatically roll customer runners to Xcode 26.5. To promote:
    `xcodeOverrides` entry in each of the three managed env values
    files. The catalog entry is what renders the RunnerPool and what
    the Runner Profiles dropdown offers; `default: true` marks the
-   version `runs-on: tuist-macos` resolves to. Land this after the
+   version `runs-on: tuist-macos` resolves to for new accounts. Moving
+   `default: true` also means updating the `tuist` account's `macos`
+   profile, which moves our own CI ("Runner profiles" in
+   `.github/AGENTS.md`). Land this after the
    `runner-image@` release that publishes the new profile: a catalog
    entry deployed before it renders a pool whose image does not exist.
 4. Bump the inline `XCODE_VERSION` on

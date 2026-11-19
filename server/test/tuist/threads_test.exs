@@ -11,12 +11,14 @@ defmodule Tuist.ThreadsTest do
   alias Tuist.Agents.Workers.PurgeDeletedSessionsWorker
   alias Tuist.FeatureFlags
   alias Tuist.Push.Workers.ThreadFinishedWorker
+  alias Tuist.Sandboxes.Sandbox
   alias Tuist.Threads
   alias Tuist.Threads.Approval
   alias Tuist.Threads.Message
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
   alias Tuist.Threads.Shipping
+  alias Tuist.Threads.SnoozeWorker
   alias Tuist.Threads.Thread
   alias Tuist.Threads.ToolCall
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -71,6 +73,85 @@ defmodule Tuist.ThreadsTest do
     assert {:error, :invalid_arguments} = Threads.get(user, account, "not-a-uuid")
     assert {:ok, %{revision: revision}} = Threads.snapshot(user, account, :inbox)
     assert revision > 0
+  end
+
+  test "attachments persist, serialize privately and participate in replay identity", %{user: user, account: account} do
+    file = %{"name" => "notes.txt", "mime_type" => "text/plain", "data_base64" => Base.encode64("private notes")}
+    attrs = Map.put(request(""), "attachments", [file])
+    assert {:ok, thread} = Threads.create(user, account, attrs)
+    assert thread.title == "notes.txt"
+    assert [%{attachments: [^file], body: ""}] = thread.messages
+    assert %{messages: [%{attachments: [^file], content: ""}]} = Threads.serialize(thread)
+    assert {:ok, %{id: id}} = Threads.create(user, account, attrs)
+    assert id == thread.id
+
+    assert {:error, :request_conflict} =
+             Threads.create(user, account, %{attrs | "attachments" => [], "content" => "text"})
+
+    changed = %{file | "data_base64" => Base.encode64("different")}
+    assert {:error, :request_conflict} = Threads.create(user, account, %{attrs | "attachments" => [changed]})
+
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+    followup = Map.put(request(nil), "attachments", [file])
+    assert {:ok, sent} = Threads.message(user, account, thread.id, followup)
+    assert List.last(sent.messages).attachments == [file]
+    assert {:ok, _} = Threads.message(user, account, thread.id, followup)
+
+    assert {:error, :request_conflict} =
+             Threads.message(user, account, thread.id, %{followup | "attachments" => [changed]})
+
+    stranger = AccountsFixtures.user_fixture()
+    assert {:error, :forbidden} = Threads.get(stranger, account, thread.id)
+  end
+
+  test "explicit empty attachments preserve text-only replay", %{user: user, account: account} do
+    attrs = request()
+    assert {:ok, thread} = Threads.create(user, account, attrs)
+    assert {:ok, %{id: id}} = Threads.create(user, account, Map.put(attrs, "attachments", []))
+    assert id == thread.id
+    assert {:error, :invalid_arguments} = Threads.create(user, account, request(""))
+  end
+
+  test "workspace readiness belongs to the live run's running sandbox, after checkout", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    run = Repo.one!(from r in Run, where: r.thread_id == ^thread.id)
+    Repo.update!(Ecto.Changeset.change(run, status: "running", attempt: 3))
+    residency = "threads:#{run.id}:3"
+    sandbox = Repo.insert!(%Sandbox{account_id: account.id, state: :running, residency_work_id: residency})
+    thread = Repo.update!(Ecto.Changeset.change(thread, sandbox_id: sandbox.id))
+
+    ready = fn ->
+      {:ok, current} = Threads.get(user, account, thread.id)
+      Threads.serialize(current).workspace_ready_id
+    end
+
+    assert ready.() == residency
+
+    for state <- [:creating, :resuming, :paused, :error, :archived] do
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: state))
+      assert ready.() == nil
+    end
+
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: :running, residency_work_id: "threads:#{run.id}:2"))
+    assert ready.() == nil
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), state: :running, residency_work_id: residency))
+    assert ready.() == residency
+
+    Repo.update!(Ecto.Changeset.change(thread, repository: "tuist/tuist", workspace_ready: false))
+    assert ready.() == nil
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(thread), workspace_ready: true))
+    assert ready.() == residency
+
+    for status <- ["queued", "succeeded", "failed"] do
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(run), status: status))
+      assert ready.() == nil
+    end
+
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(run), status: "running"))
+    assert ready.() == residency
+    Repo.update!(Ecto.Changeset.change(Repo.reload!(sandbox), residency_work_id: nil))
+    assert ready.() == nil
   end
 
   test "deleting a thread deletes its agent session and its stored conversation", %{user: user, account: account} do
@@ -175,6 +256,7 @@ defmodule Tuist.ThreadsTest do
 
     # Archiving and shipping stay the owner's.
     assert {:error, :forbidden} = Threads.archive(ben, account, thread.id, "archived")
+    assert {:error, :forbidden} = Threads.snooze(ben, account, thread.id, nil)
     assert {:error, :forbidden} = Threads.ship_preview(ben, account, thread.id)
   end
 
@@ -427,6 +509,68 @@ defmodule Tuist.ThreadsTest do
     assert second.progress == %{"steps" => [%{"title" => "Answer", "status" => "in_progress"}]}
   end
 
+  test "a Bash call shows the build progress its command reported while it runs", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    assert :ok = Threads.begin_tool_call(run, "call_1", "Bash", %{"command" => "once build"}, @tools)
+    assert :ok = Threads.begin_tool_call(run, "call_2", "Bash", %{"command" => "once test"}, @tools)
+
+    snapshot = %{
+      "v" => 1,
+      "command" => "build",
+      "state" => "running",
+      "target" => "//app\e[31m\u202E",
+      "planned" => 40,
+      "done" => 12,
+      "cached" => 9,
+      "failed" => "many",
+      "running" => ["//lib:a", 7],
+      "tests" => %{"passed" => 0, "failed" => 0, "skipped" => 0},
+      "elapsed_ms" => 1200,
+      "secret" => "dropped"
+    }
+
+    revision = Repo.reload!(thread).revision
+    assert :ok = Threads.record_build_progress(run, "call_2", snapshot)
+    # Unchanged progress, apart from the clock, writes nothing, and counts
+    # that only moved on wait a few seconds.
+    assert :ok = Threads.record_build_progress(run, "call_2", Map.put(snapshot, "elapsed_ms", 2400))
+    assert :ok = Threads.record_build_progress(run, "call_2", Map.put(snapshot, "done", 13))
+    assert Repo.reload!(thread).revision == revision + 1
+
+    # Not Once's snapshot shape: ignored.
+    assert :ok = Threads.record_build_progress(run, "call_1", %{"v" => 2, "command" => "build"})
+
+    messages = Threads.serialize(Threads.history(Repo.reload!(thread))).messages
+    assert [%{content: "Working…"} = first, second] = Enum.filter(messages, &(&1.role == "tool"))
+    refute Map.has_key?(first, :build)
+    assert second.content == "Building //app[31m with Struo · 12 of 40 targets (9 cached)"
+
+    assert second.build == %{
+             "command" => "build",
+             "state" => "running",
+             "target" => "//app[31m",
+             "planned" => 40,
+             "done" => 12,
+             "cached" => 9,
+             "failed" => 0,
+             "running" => ["//lib:a"],
+             "tests" => %{"passed" => 0, "failed" => 0, "skipped" => 0}
+           }
+
+    # The call's result replaces the summary; its last progress stays as evidence.
+    assert :ok = Threads.complete_tool_call(run, "call_2", "Bash", %{"command" => "once test"}, {:ok, "built"})
+    assert :ok = Threads.record_build_progress(run, "call_2", Map.put(snapshot, "done", 40))
+    messages = Threads.serialize(Threads.history(Repo.reload!(thread))).messages
+    assert %{content: "built", build: %{"done" => 12}} = messages |> Enum.filter(&(&1.role == "tool")) |> List.last()
+
+    # A new outcome shows at once.
+    assert :ok = Threads.record_build_progress(run, "call_1", snapshot)
+    revision = Repo.reload!(thread).revision
+    assert :ok = Threads.record_build_progress(run, "call_1", Map.merge(snapshot, %{"state" => "failed", "done" => 13}))
+    assert Repo.reload!(thread).revision == revision + 1
+  end
+
   # A host whose lease lapsed still receives the thread's wakes until it is
   # drained; it must not start the work the new host starts.
   test "a host whose lease lapsed cannot claim the thread's next run", %{user: user, account: account} do
@@ -579,6 +723,59 @@ defmodule Tuist.ThreadsTest do
     assert Repo.aggregate(Run, :count) == 1
   end
 
+  test "snoozing until needed lasts until the run stops", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    assert {:ok, %{snoozed_until_needed: true}} = Threads.snooze(user, account, thread.id, %{"until_needed" => true})
+    assert Threads.serialize(Repo.reload!(thread)).snoozed_until_needed
+
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+
+    refute Repo.reload!(thread).snoozed_until_needed
+    # Nothing is left to wait for once the thread waits for its owner.
+    assert {:error, :not_working} = Threads.snooze(user, account, thread.id, %{"until_needed" => true})
+  end
+
+  test "a timed snooze ends at its time unless it was changed, and a message ends it early", %{
+    user: user,
+    account: account
+  } do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = claim(Repo.one!(Run).id)
+    {:ok, _} = Threads.finish(run, {:ok, "Done"})
+    first = DateTime.utc_now() |> DateTime.add(2, :hour) |> DateTime.truncate(:second)
+    later = DateTime.add(first, 1, :hour)
+
+    assert {:ok, %{snoozed_until: ^first}} =
+             Threads.snooze(user, account, thread.id, %{"until" => DateTime.to_iso8601(first)})
+
+    assert_enqueued(worker: SnoozeWorker, args: %{"thread_id" => thread.id}, scheduled_at: first)
+
+    assert {:ok, %{snoozed_until: ^later}} =
+             Threads.snooze(user, account, thread.id, %{"until" => DateTime.to_iso8601(later)})
+
+    # The first snooze's job finds a different snooze and leaves it.
+    assert :ok = perform_job(SnoozeWorker, %{"thread_id" => thread.id, "until" => DateTime.to_iso8601(first)})
+    assert Repo.reload!(thread).snoozed_until == later
+    assert :ok = perform_job(SnoozeWorker, %{"thread_id" => thread.id, "until" => DateTime.to_iso8601(later)})
+    assert Repo.reload!(thread).snoozed_until == nil
+
+    {:ok, _} = Threads.snooze(user, account, thread.id, %{"until" => DateTime.to_iso8601(later)})
+    assert {:ok, %{snoozed_until: nil}} = Threads.message(user, account, thread.id, request("I'm back"))
+  end
+
+  test "snoozes only until a time in the next 30 days", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    past = DateTime.utc_now() |> DateTime.add(-60) |> DateTime.to_iso8601()
+    far = DateTime.utc_now() |> DateTime.add(31, :day) |> DateTime.to_iso8601()
+
+    for snooze <- [%{"until" => past}, %{"until" => far}, %{"until" => "tomorrow"}, %{"until_needed" => "yes"}, "later"] do
+      assert {:error, :invalid_arguments} = Threads.snooze(user, account, thread.id, snooze)
+    end
+
+    assert {:error, :forbidden} = Threads.snooze(AccountsFixtures.user_fixture(), account, thread.id, nil)
+  end
+
   test "history paging is bounded, chronological and disjoint", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
 
@@ -593,6 +790,37 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, older} = Threads.get(user, account, thread.id, before: page.next_before)
     assert Enum.map(older.messages, & &1.position) == [1 | Enum.to_list(10..19)]
     refute older.has_more
+  end
+
+  test "history pages bound inline attachments without losing messages", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+
+    file = %{
+      "name" => "big.bin",
+      "mime_type" => "application/octet-stream",
+      "data_base64" => Base.encode64(:binary.copy("a", 1_048_576))
+    }
+
+    for position <- 10..12 do
+      Repo.insert!(%Message{
+        thread_id: thread.id,
+        position: position,
+        kind: "human",
+        body: "files",
+        attachments: List.duplicate(file, 4)
+      })
+    end
+
+    {:ok, latest} = Threads.get(user, account, thread.id)
+    assert Enum.map(latest.messages, & &1.position) == [12]
+    assert latest.has_more
+    assert byte_size(JSON.encode!(Threads.serialize(latest))) < 6 * 1024 * 1024
+    {:ok, middle} = Threads.get(user, account, thread.id, before: latest.next_before)
+    assert Enum.map(middle.messages, & &1.position) == [11]
+    {:ok, oldest} = Threads.get(user, account, thread.id, before: middle.next_before)
+    assert Enum.map(oldest.messages, & &1.position) == [1, 10]
+    refute oldest.has_more
+    assert Enum.flat_map([oldest, middle, latest], &Enum.map(&1.messages, fn m -> m.position end)) == [1, 10, 11, 12]
   end
 
   test "Ship authorizes one exact persisted review, never arbitrary client fields", %{user: user, account: account} do

@@ -57,20 +57,20 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked kubectl"
           cache: "false"
-      - uses: fluxcd/flux2/action@v2.9.5
+      - uses: fluxcd/flux2/action@dd233c4fadef306a62b7893204f8e3817fecc2b2 # v2.9.5
         with:
           # The action ref pins the action's code; its `version` input defaults
           # to the LATEST Flux release. Pin it explicitly so the CLI matches the
           # controllers committed in infra/flux/mgmt/flux-system/.
           version: 2.9.5
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load flux-diff kubeconfig from 1Password
         id: kubeconfig
         # Tolerate the mgmt-side not being bootstrapped yet: if the flux-diff
@@ -162,7 +162,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: Upsert PR comment
         if: steps.kubeconfig.outputs.configured == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const body = process.env.DIFF_BODY;

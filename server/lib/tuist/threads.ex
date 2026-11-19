@@ -18,6 +18,7 @@ defmodule Tuist.Threads do
   alias Tuist.Sandboxes
   alias Tuist.Threads.Agent
   alias Tuist.Threads.Approval
+  alias Tuist.Threads.Attachments
   alias Tuist.Threads.Checkout
   alias Tuist.Threads.Message
   alias Tuist.Threads.Participant
@@ -27,12 +28,16 @@ defmodule Tuist.Threads do
   alias Tuist.Threads.Runner
   alias Tuist.Threads.Runners
   alias Tuist.Threads.Shipping
+  alias Tuist.Threads.SnoozeWorker
   alias Tuist.Threads.Thread
   alias Tuist.Threads.ToolCall
   alias Tuist.Threads.Worker
   alias Tuist.Threads.Workspace
 
   @active ["queued", "running"]
+  # Agent statuses of a thread whose run hasn't stopped yet.
+  @working ["queued", "running", "compacting", "shipping"]
+  @snooze_max_days 30
   # How long an inference run may take across every host it is handed to.
   @run_max_hours 3
 
@@ -179,16 +184,19 @@ defmodule Tuist.Threads do
 
     with :ok <- authorize(user, account),
          {:ok, request_id} <- uuid(attrs["request_id"]),
-         {:ok, body} <- content(attrs["content"]),
+         {:ok, attachments} <- Attachments.validate(attrs["attachments"]),
+         {:ok, body} <- content(attrs["content"], attachments),
          {:ok, repository, branch} <- repository(account, user, attrs),
          {:ok, runner} <- runner(user, account, request_id, repository, attrs),
          runner_id = runner && runner.id,
          # Without a runner the fingerprint keeps its earlier shape, so retries across a deploy still match.
          hash =
-           fingerprint(
-             if runner_id,
+           creation_fingerprint(
+             if(runner_id,
                do: {body, repository, branch, provider, model, runner_id},
                else: {body, repository, branch, provider, model}
+             ),
+             attachments
            ),
          :ok <- creation_model(user, account, request_id, hash, provider, model) do
       fn ->
@@ -212,7 +220,7 @@ defmodule Tuist.Threads do
                   request_id: request_id,
                   request_hash: hash,
                   goal: body,
-                  title: String.slice(body, 0, 80),
+                  title: String.slice(if(String.trim(body) == "", do: hd(attachments)["name"], else: body), 0, 80),
                   provider: provider,
                   model: model,
                   repository: repository,
@@ -224,7 +232,15 @@ defmodule Tuist.Threads do
                 log: false
               )
 
-            message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
+            message =
+              append!(thread, %{
+                kind: "human",
+                body: body,
+                attachments: attachments,
+                request_id: request_id,
+                author_id: user.id
+              })
+
             loop_in!(thread, user, account, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
@@ -256,7 +272,8 @@ defmodule Tuist.Threads do
   def message(user, account, id, attrs) do
     with {:ok, thread} <- get(user, account, id),
          {:ok, request_id} <- uuid(attrs["request_id"]),
-         {:ok, body} <- content(attrs["content"]),
+         {:ok, attachments} <- Attachments.validate(attrs["attachments"]),
+         {:ok, body} <- content(attrs["content"], attachments),
          %User{} = owner <- owner(user, thread),
          {:ok, _opts} <- Provider.client_opts(owner, thread) do
       fn ->
@@ -264,7 +281,7 @@ defmodule Tuist.Threads do
         if access(user, account, thread) != :ok, do: Repo.rollback(:forbidden)
 
         case Repo.get_by(Message, thread_id: thread.id, request_id: request_id) do
-          %Message{body: ^body} ->
+          %Message{body: ^body, attachments: ^attachments} ->
             history(thread)
 
           %Message{} ->
@@ -272,7 +289,16 @@ defmodule Tuist.Threads do
 
           nil ->
             require_idle!(thread)
-            message = append!(thread, %{kind: "human", body: body, request_id: request_id, author_id: user.id})
+
+            message =
+              append!(thread, %{
+                kind: "human",
+                body: body,
+                attachments: attachments,
+                request_id: request_id,
+                author_id: user.id
+              })
+
             loop_in!(thread, user, account, body)
             enqueue!(thread, message.id)
             history(Repo.reload!(thread))
@@ -319,6 +345,66 @@ defmodule Tuist.Threads do
   end
 
   defp cancel_archived_runs!(_thread, :active), do: :ok
+
+  @doc """
+  Snoozes thread `id`, which hides it from its owner's inbox until it matters
+  again. `snooze` is `%{"until_needed" => true}`, until the thread's run stops
+  (only a working thread can wait for that, and the owner hears from it as
+  usual); `%{"until" => iso8601}`, until that time, at most #{@snooze_max_days}
+  days ahead, when `Tuist.Threads.SnoozeWorker` wakes it and reminds the owner,
+  who meanwhile hears nothing from it; or `nil` to wake it now. Sending the
+  thread a message also wakes it.
+  """
+  def snooze(user, account, id, snooze) do
+    with {:ok, attrs} <- snooze_attrs(snooze),
+         {:ok, thread} <- owned(user, account, id) do
+      transact(fn ->
+        thread = lock_thread(thread.id)
+        require_access!(user, account, thread)
+
+        if attrs.snoozed_until_needed and thread.agent_status not in @working,
+          do: Repo.rollback(:not_working)
+
+        thread = update_thread!(thread, attrs)
+        if attrs.snoozed_until, do: SnoozeWorker.schedule!(thread)
+        history(thread)
+      end)
+    end
+  end
+
+  defp snooze_attrs(nil), do: {:ok, %{snoozed_until: nil, snoozed_until_needed: false}}
+  defp snooze_attrs(%{"until_needed" => true}), do: {:ok, %{snoozed_until: nil, snoozed_until_needed: true}}
+
+  defp snooze_attrs(%{"until" => until}) when is_binary(until) do
+    with {:ok, until, _offset} <- DateTime.from_iso8601(until),
+         until = DateTime.truncate(until, :second),
+         seconds = DateTime.diff(until, DateTime.utc_now()),
+         true <- seconds > 0 and seconds <= @snooze_max_days * 86_400 do
+      {:ok, %{snoozed_until: until, snoozed_until_needed: false}}
+    else
+      _ -> {:error, :invalid_arguments}
+    end
+  end
+
+  defp snooze_attrs(_), do: {:error, :invalid_arguments}
+
+  @doc """
+  Ends thread `thread_id`'s snooze if it is still the one that lasts `until`
+  (the owner may have woken or snoozed it again since), and reminds its owner.
+  """
+  def wake_snoozed(thread_id, %DateTime{} = until) do
+    transact(fn ->
+      case Repo.one(from t in Thread, where: t.id == ^thread_id, lock: "FOR UPDATE") do
+        %Thread{snoozed_until: ^until, status: :active} = thread ->
+          thread = update_thread!(thread, %{snoozed_until: nil})
+          if worker_access?(thread), do: Push.notify_thread_finished(thread, "snooze_ended")
+          :woken
+
+        _ ->
+          :ok
+      end
+    end)
+  end
 
   def snapshot(user, account, :inbox) do
     with :ok <- authorize_reader(user, account) do
@@ -756,6 +842,119 @@ defmodule Tuist.Threads do
     end)
   end
 
+  @doc """
+  Shows the build or test progress a Once run in a Bash call's command
+  reported (`Tuist.Sandboxes.Commands.read/3`) on that call's running tool
+  message: its `progress` holds the snapshot and its body says it in words,
+  for clients that don't render it. `invocation_id` is the model's id for the
+  call. The snapshot comes from the guest, so only known fields of the
+  expected shapes are kept, bounded. A snapshot that only moved the counts
+  on writes at most every few seconds, and one that changed nothing writes
+  nothing.
+  """
+  def record_build_progress(run, invocation_id, snapshot) when is_binary(invocation_id) and is_map(snapshot) do
+    # The command's watcher reads it every few hundred milliseconds while
+    # output flows, so a snapshot that is not due is dropped before any lock.
+    with {:ok, progress} <- build_progress(snapshot),
+         message_id when not is_nil(message_id) <-
+           Repo.one(
+             from(c in ToolCall,
+               where: c.run_id == ^run.id and c.invocation_id == ^invocation_id and c.status == "executing",
+               select: c.message_id,
+               limit: 1
+             )
+           ),
+         %Message{tool_state: "running"} = message <- Repo.get(Message, message_id),
+         true <- progress_due?(message, progress) do
+      # A run that lost the thread meanwhile records nothing.
+      _ =
+        with_attempt(run, fn thread, _ ->
+          with %Message{tool_state: "running"} = message <- Repo.get(Message, message_id),
+               true <- progress_due?(message, progress) do
+            Repo.update!(Changeset.change(message, progress: progress, body: build_body(progress)), log: false)
+            update_thread!(thread, %{})
+          end
+        end)
+
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  def record_build_progress(_run, _invocation_id, _snapshot), do: :ok
+
+  # Every write bumps the thread, so clients refetch and the Live Activity
+  # reschedules its push. A new run, plan or outcome shows at once; counts
+  # that only moved on show at most every few seconds.
+  @build_progress_interval_seconds 5
+
+  defp progress_due?(%Message{progress: current}, progress) when current == progress, do: false
+
+  defp progress_due?(%Message{progress: current, updated_at: updated_at}, progress) do
+    milestone = ["command", "state", "target", "planned"]
+
+    not is_map(current) or Map.take(current, milestone) != Map.take(progress, milestone) or
+      DateTime.diff(DateTime.utc_now(), updated_at) >= @build_progress_interval_seconds
+  end
+
+  defp build_progress(%{"v" => 1, "command" => command, "state" => state} = snapshot)
+       when command in ["build", "test"] and state in ["running", "succeeded", "failed"] do
+    tests = if is_map(snapshot["tests"]), do: snapshot["tests"], else: %{}
+
+    {:ok,
+     %{
+       "command" => command,
+       "state" => state,
+       "target" => bounded_text(snapshot["target"]),
+       "planned" => progress_count(snapshot["planned"]),
+       "done" => progress_count(snapshot["done"]),
+       "cached" => progress_count(snapshot["cached"]),
+       "failed" => progress_count(snapshot["failed"]),
+       "running" =>
+         if(is_list(snapshot["running"]),
+           do: snapshot["running"] |> Enum.filter(&is_binary/1) |> Enum.take(5) |> Enum.map(&bounded_text/1),
+           else: []
+         ),
+       "tests" => %{
+         "passed" => progress_count(tests["passed"]),
+         "failed" => progress_count(tests["failed"]),
+         "skipped" => progress_count(tests["skipped"])
+       }
+     }}
+  end
+
+  defp build_progress(_snapshot), do: :error
+
+  defp progress_count(value) when is_integer(value) and value >= 0, do: min(value, 1_000_000_000)
+  defp progress_count(_value), do: 0
+
+  # Control and invisible format characters, such as bidi overrides, could
+  # make a guest-written label read as something else.
+  defp bounded_text(value) when is_binary(value),
+    do: value |> String.replace(~r/[\p{Cc}\p{Cf}]/u, "") |> String.slice(0, 200)
+
+  defp bounded_text(_value), do: ""
+
+  defp build_body(%{"command" => command, "target" => target} = progress) do
+    verb = if command == "test", do: "Testing", else: "Building"
+    subject = if target == "", do: verb, else: "#{verb} #{target}"
+
+    targets =
+      if progress["planned"] > 0,
+        do: "#{progress["done"]} of #{progress["planned"]} targets (#{progress["cached"]} cached)",
+        else: "#{progress["done"]} targets"
+
+    tests = progress["tests"]
+
+    cases =
+      if tests["passed"] + tests["failed"] + tests["skipped"] > 0,
+        do: " · #{tests["passed"]} passed, #{tests["failed"]} failed, #{tests["skipped"]} skipped",
+        else: ""
+
+    "#{subject} with Struo · #{targets}#{cases}"
+  end
+
   def call_external_tool(run, invocation_id, name, args, dispatch) do
     # Condukt may admit a parallel batch. Contention must fail before reserving
     # an effect, not masquerade as an interrupted command that may have run.
@@ -811,7 +1010,7 @@ defmodule Tuist.Threads do
   def begin_tool_call(run, call_id, name, args, tools) do
     key = fingerprint({:session_call, call_id, name, args})
 
-    case with_attempt(run, fn thread, _ -> reserve_tool!(run, thread, key, name, {:session, tools}) end) do
+    case with_attempt(run, fn thread, _ -> reserve_tool!(run, thread, key, name, {:session, tools, call_id}) end) do
       {:ok, {:dispatch, _call}} ->
         :ok
 
@@ -892,13 +1091,28 @@ defmodule Tuist.Threads do
     executing =
       case scope do
         :thread -> executing
-        {:session, tools} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
+        {:session, tools, _call_id} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
       end
 
     if Repo.exists?(executing), do: Repo.rollback(:tool_outcome_unknown)
 
     message = append!(thread, %{kind: "tool", body: "Working…", tool_name: name, tool_state: "running"})
-    call = Repo.insert!(%ToolCall{run_id: run.id, message_id: message.id, fingerprint: key, name: name})
+
+    invocation_id =
+      case scope do
+        {:session, _tools, call_id} -> call_id
+        _ -> nil
+      end
+
+    call =
+      Repo.insert!(%ToolCall{
+        run_id: run.id,
+        message_id: message.id,
+        fingerprint: key,
+        name: name,
+        invocation_id: invocation_id
+      })
+
     {:dispatch, call}
   end
 
@@ -1124,11 +1338,14 @@ defmodule Tuist.Threads do
       model: thread.model,
       repository: thread.repository || "",
       runner_id: thread.runner_id,
+      workspace_ready_id: thread.workspace_ready_id,
       branch: thread.branch || "",
       profile: "linux",
       status: thread.agent_status,
       visibility: "private",
       archive_status: to_string(thread.status),
+      snoozed_until: thread.snoozed_until && DateTime.to_iso8601(thread.snoozed_until),
+      snoozed_until_needed: thread.snoozed_until_needed,
       revision: thread.revision,
       has_more: thread.has_more,
       next_before: thread.next_before,
@@ -1142,8 +1359,29 @@ defmodule Tuist.Threads do
   def history(thread, before \\ nil) do
     query = from m in Message, where: m.thread_id == ^thread.id
     query = if before, do: from(m in query, where: m.position < ^before), else: query
-    rows = Repo.all(from m in query, order_by: [desc: m.position], limit: 51)
-    messages = rows |> Enum.take(50) |> Enum.reverse()
+    # Choose a contiguous suffix without loading up to 50 attachment payloads
+    # into the server. A single maximum-size prompt fits the 6 MiB budget.
+    rows =
+      Repo.all(
+        from m in query,
+          order_by: [desc: m.position],
+          limit: 51,
+          select: %{id: m.id, attachment_bytes: fragment("octet_length(?::text)", m.attachments)}
+      )
+
+    {page, _bytes} =
+      rows
+      |> Enum.take(50)
+      |> Enum.reduce_while({[], 0}, fn row, {page, bytes} ->
+        if bytes + row.attachment_bytes <= 6 * 1024 * 1024 do
+          {:cont, {[row.id | page], bytes + row.attachment_bytes}}
+        else
+          {:halt, {page, bytes}}
+        end
+      end)
+
+    messages = Repo.all(from m in query, where: m.id in ^page, order_by: [asc: m.position])
+    has_more = length(rows) > length(messages)
 
     participant_ids =
       Repo.all(
@@ -1162,12 +1400,31 @@ defmodule Tuist.Threads do
     %{
       thread
       | messages: messages,
-        has_more: length(rows) > 50,
-        next_before: if(length(rows) > 50, do: hd(messages).position),
+        workspace_ready_id: workspace_ready_id(thread),
+        has_more: has_more,
+        next_before: if(has_more, do: hd(messages).position),
         participant_ids: participant_ids,
         people: people
     }
   end
+
+  # Only the detail read needs this projection. A bound sandbox may still be
+  # booting or checking out, and a previous run's residency must not signal
+  # readiness for the next attempt. Nothing new is persisted.
+  defp workspace_ready_id(%{status: :active, runner_id: nil, sandbox_id: id} = thread) when not is_nil(id) do
+    if is_nil(thread.repository) or thread.workspace_ready do
+      Repo.one(
+        from s in Sandboxes.Sandbox,
+          join: r in Run,
+          on: r.thread_id == ^thread.id and r.status == "running",
+          where: s.id == ^id and s.account_id == ^thread.account_id and s.state == :running,
+          where: s.residency_work_id == fragment("'threads:' || ?::text || ':' || ?::text", r.id, r.attempt),
+          select: s.residency_work_id
+      )
+    end
+  end
+
+  defp workspace_ready_id(_thread), do: nil
 
   defp serialize_message(%Message{kind: "card"} = message, people) do
     message
@@ -1185,6 +1442,15 @@ defmodule Tuist.Threads do
     |> Map.put(:progress, message.progress)
   end
 
+  # A Bash call's build or test progress, when a Once run in its command
+  # reported some (`record_build_progress/3`).
+  defp serialize_message(%Message{kind: "tool", progress: %{} = progress} = message, people) do
+    message
+    |> Map.put(:progress, nil)
+    |> serialize_message(people)
+    |> Map.put(:build, progress)
+  end
+
   defp serialize_message(message, people) do
     %{
       id: message.id,
@@ -1196,6 +1462,7 @@ defmodule Tuist.Threads do
           _ -> "system"
         end,
       content: message.body || "",
+      attachments: message.attachments,
       position: message.position,
       toolName: message.tool_name,
       toolStatus: message.tool_state,
@@ -1347,6 +1614,12 @@ defmodule Tuist.Threads do
   end
 
   defp update_thread!(thread, attrs) do
+    # A run that stops is what a thread snoozed until it's needed waits for.
+    attrs =
+      if Map.get(attrs, :agent_status, "running") in @working,
+        do: attrs,
+        else: Map.put(attrs, :snoozed_until_needed, false)
+
     thread =
       Repo.update!(Changeset.change(thread, Map.merge(attrs, %{revision: thread.revision + 1, updated_at: now()})),
         log: false
@@ -1401,7 +1674,8 @@ defmodule Tuist.Threads do
     # before a host claims it (`keep_alive/1`).
     Repo.insert!(%Run{thread_id: thread.id, message_id: message_id, heartbeat_at: now()})
     Lease.want(thread.id, "thread")
-    update_thread!(Repo.reload!(thread), %{agent_status: "queued"})
+    # Writing to a snoozed thread means its owner is back for it.
+    update_thread!(Repo.reload!(thread), %{agent_status: "queued", snoozed_until: nil, snoozed_until_needed: false})
   end
 
   defp wake({:ok, %Thread{id: id}} = result) do
@@ -1445,13 +1719,19 @@ defmodule Tuist.Threads do
     end
   end
 
-  defp content(value) when is_binary(value) do
-    if String.valid?(value) and String.trim(value) != "" and byte_size(value) <= 16_000,
+  # Preserve text-only fingerprints from before attachments were supported.
+  defp creation_fingerprint(value, []), do: fingerprint(value)
+  defp creation_fingerprint(value, attachments), do: fingerprint({value, attachments})
+
+  defp content(nil, [_ | _]), do: {:ok, ""}
+
+  defp content(value, attachments) when is_binary(value) do
+    if String.valid?(value) and (String.trim(value) != "" or attachments != []) and byte_size(value) <= 16_000,
       do: {:ok, value},
       else: {:error, :invalid_arguments}
   end
 
-  defp content(_), do: {:error, :invalid_arguments}
+  defp content(_, _), do: {:error, :invalid_arguments}
   defp before_position(nil), do: {:ok, nil}
   defp before_position(value) when is_integer(value) and value > 0, do: {:ok, value}
 

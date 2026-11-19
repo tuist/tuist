@@ -74,6 +74,34 @@ through Helm, without a separate human kubectl elevation.
 
 Server CI's Format job runs `scripts/server-clickhouse.test.sh` against the real local/CI launcher with stubbed ClickHouse/HTTP commands and child-process-only file limits. Cover low soft limits, already-raised limits, restricted hard ceilings, unsupported raises and the already-running fast path. The launcher raises ClickHouse's soft limit to its available hard limit before spawning it; do not replace this safeguard with seed retries or reduce seed coverage to hide file-descriptor exhaustion.
 
+## Deploy sources, credentials and action pins
+
+Production deploys (`server-deployment.yml` with `environment: production`, and
+every `tuist-ops-deployment.yml` run) start with
+`scripts/production-source-guard.sh`: the run must come from main,
+`commit_sha` must be a full SHA that main contains, and every pre-built
+`sha-<hex>` image override must name a commit on main. A run from main can name
+any commit or any image a branch build pushed, so checking `github.ref` alone is
+not enough. Pass new `sha-`-tagged override inputs to the guard too. Helm CI
+runs its test, `bash .github/scripts/production-source-guard.test.sh`.
+
+The guard does not close the path on its own. Image tags are mutable, and
+overrides in other forms (Kura runtime semvers, macOS runner, CAPI and xcresult
+processor tags, digests) cannot be traced to a commit and are not checked. The
+guard also lives in the workflow it protects. The `server-k8s-production`
+environment's main-only branch policy and required reviewers remain the
+control; those settings are not in the repository.
+
+The repository-level `OP_SERVICE_ACCOUNT_TOKEN` reads the `tuist` vault (Cloudflare,
+the Automation GitHub App key, signing keys). Set it only in the env of the
+steps that call `op`, never at job or workflow level, and never in a job that
+builds pull request or branch code, including team members' pull requests.
+
+Deploy and release workflows and the composite actions under `actions/` use
+third-party actions by full commit SHA with the exact version in a trailing
+comment (`@<sha> # v4.4.0`). Renovate pins new references in those files and
+bumps SHA and comment together. `tuist/*` actions stay on major tags.
+
 ## Server production deployment
 
 `workflows/server-production-deployment.yml` decides whether a push deploys by
@@ -111,70 +139,6 @@ Run Chrome-bearing steps under `dbus-run-session` so Linux startup has an isolat
 session bus instead of spending the capture budget on desktop-service discovery.
 Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
 profiles in the disposable validation directory, outside uploaded artifacts.
-
-## Atlas native
-
-`workflows/atlas-mobile.yml` builds Android, iOS, macOS and the Rust CLI through Once
-using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
-and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
-when authentication succeeds, except for Android and iOS device builds, which use local caching
-only so signed releases do not consume shared outputs written by PRs. Main builds publish the tested artifacts to the
-private Tuist project's `nightly` preview track after distinct build, test and
-language-specific lint jobs pass; pull requests never publish. The single
-`atlas-mobile.yml` pipeline's automatic path filters include only `atlas-native/**`
-and all jobs skip draft pull requests. Rust auth dependencies are resolved during
-Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
-The composite materializes locked third-party sources before graph validation;
-core test jobs run both navigation and authentication suites.
-Native iOS UI suites and isolated fixture apps remain local opt-in tools; CI does
-not run them or gate preview publication on them. Rust, CLI and iOS unit tests
-remain in the separate test jobs. Fixtures make no live account-management
-requests and never enter production source globs.
-Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
-iOS device bundles. The protected main-branch publication job re-signs a device
-bundle using the existing Tuist distribution certificate and Atlas-specific
-ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
-simulator app in separate steps without the 1Password token. Android distribution
-is re-signed with a stable key only when the protected environment configures
-`ATLAS_ANDROID_KEYSTORE_REF`, its password reference, alias, and the same
-`ATLAS_ANDROID_APP_LINK_SHA256` allowlist used by the server. Without a key reference,
-Android nightly publication is skipped rather than distributing ephemeral debug
-identities; debug CI artifacts remain. Android and simulator publication precede
-iOS device signing so a profile capability update cannot block them. iOS signing
-requires an Associated Domains-enabled profile and requests only the hosted app
-link domain. Its provisioning guard accepts Apple's scalar wildcard authorization
-as well as domain arrays, without copying a wildcard into the app signature. Credential-free Android signing, associated-domain and APNs capability,
-keychain-lifecycle and launcher-packaging tests also gate publication through
-`test-distribution`, which runs on macOS because the iOS capability guards require
-PlistBuddy and plutil. That job also checks Live Activity extension embedding,
-separate profile/device/certificate authorization and inside-out signing without
-credentials. The device signing copy requires its own Live Activity ad-hoc profile;
-ordinary simulator/device builds never provision one. Android builds verify locked Firebase dependencies,
-explicitly merged SDK manifests, and
-library R IDs against the final APK. Portable importer integrity/resource tests
-run without provider credentials; device signing requires a Push-enabled profile.
-PR/fork builds never receive distribution secrets. These are not
-store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
-host-labeled archive that preserves its executable permission, not a Tuist preview.
-The Tuist project must be connected to `tuist/tuist` for GitHub OIDC access.
-The publication job installs its own Java runtime and Android build-tools, even
-though it only consumes prebuilt APKs: Tuist needs `aapt2` for metadata inspection.
-SDK setup from Android build jobs does not carry across to the macOS publisher.
-Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION` with a fresh Unix timestamp
-so cached binaries do not collide with existing previews. This overrides upload
-metadata without mutating or re-signing the bundle; device packaging already
-stamps its delivery copy before distribution signing.
-
-`atlas-macos-release.yml` distributes the separate native desktop app through
-Sparkle after trusted main build/test/lint/packaging gates. macOS release builds
-avoid PR-writable shared caches. Only the protected `atlas-macos-releases`
-environment receives distribution credentials. Signing requires a Push-enabled
-Developer ID profile for the desktop App ID, derives its macOS APNs entitlement,
-and notarizes/staples before creating the final signed update. Publish the
-immutable `atlas-macos@<epoch>` payload before replacing the separate
-`atlas-appcast` feed. Credential-free profile/signing/appcast fixtures gate this
-path; they do not establish Apple provisioning, live APNs or update-installation
-acceptance. See `atlas-native/macos/distribution/AGENTS.md` for operator setup.
 
 ## Community notifications
 
@@ -266,10 +230,32 @@ Git configuration, so checkout's local authentication does not reach their nativ
 SwiftPM fetches. Keep the credential in the job environment, outside cached paths;
 never persist it or extend its host scope beyond github.com.
 
+## Runner profiles
+
+macOS jobs in every `tuist` repository run on `runs-on: tuist-macos`, the
+`tuist` account's protected `macos` profile. That profile, not the
+workflows, chooses the Xcode, and it follows the catalog default
+(`default: true` in `runnersFleet.xcodeVersions`,
+`infra/helm/tuist/values-managed-common.yaml`), so our CI shares the
+pool new accounts warm. When you move the default:
+
+- Set the profile's Xcode with the Tuist MCP
+  `update_runner_profile` (`account_handle: tuist`,
+  `profile_name: macos`). This moves every repository's jobs at once,
+  with no workflow change.
+- Set `.xcode-version` to the same Xcode in the same change. Cache keys
+  hash it, so a stale value reuses caches built with the old Xcode.
+
+Only a job that needs a specific Xcode names a versioned profile:
+CLI releases on `tuist-macos-26-0-1`, matching
+`.xcode-version-releases`, and the backward-compatibility acceptance job
+on `tuist-macos-26-6`, which needs an Xcode 26. Do not add others for
+jobs that only need a recent Xcode.
+
 ## CLI dependency volumes
 
 macOS jobs in `cli.yml`, `app.yml`, `tuist-project-tests.yml` and `tuist-project-coverage-backfill.yml` use the standard
-`tuist-macos-27-0` profile and install dependencies through `tuist/install`.
+`tuist-macos` profile and install dependencies through `tuist/install`.
 Custom volumes do not require the larger M4 shape. If host cache capacity is
 unavailable, each attachment falls back independently to an empty job-local directory; always
 run dependency installation and do not require a hit in ordinary jobs. Forks use
@@ -428,10 +414,12 @@ their target does; see `server/docs/coverage-test-selection.md`), and
 `coverage-complete` runs `tuist coverage complete` once all three finished,
 whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
-and the CLI session logs when it fails, then the unit, app and acceptance tests run in full
-(`--no-selective-testing`), so every measured merge is a complete baseline for
-coverage-based test selection, and `coverage-complete`
-follows when unit and app passed and the acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
+and the CLI session logs when it fails, then the unit, app and acceptance tests run
+selectively, like a pull request, and `coverage-complete`
+follows when unit and app passed and the acceptance run has finished. A nightly
+scheduled run tests main's head in full (`--no-selective-testing`) off the macOS
+peak, so coverage-based test selection always has a checkpoint at most a day old;
+keep at least one full run a day, because selection reads checkpoints only from full runs. The unit, app and acceptance tests record per-target evidence,
 which the CLI reads from Xcode's raw profiles: the server carries
 targets selective testing skipped only from runs that recorded evidence under
 the same hash: main's full runs
@@ -444,7 +432,9 @@ those tests still carry one by one from the latest run whose executed files
 match, and so do tests skipped by identifier (`--skip-test-targets`,
 `-skip-testing`). Acceptance and Swift Testing tests have no per-test evidence,
 so in those cases they stay gaps (`not_linked`).
-Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
+Quarantined tests are outside the figure either way. On main a run in progress
+finishes and only the newest push waits behind it, so pushes in between are never
+run and their changes land in the next run's diff; a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
 commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1

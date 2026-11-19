@@ -1,6 +1,7 @@
 //! Threads: conversations that run on the server. Each frontend lists them,
 //! starts them and replies through these operations; the person never picks a
 //! repository, machine or model.
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use tuist_oauth::{Pkce, endpoint};
 use url::Url;
@@ -11,6 +12,8 @@ use crate::client::{NOT_FOUND, Result, segment, successful, text};
 /// minute, rather than leaving every tool call to time out.
 const RUNNER_OFFLINE: &str =
     "That runner is offline. Open Luft on that machine and check its runner is connected";
+
+const NOT_WORKING: &str = "This thread already finished, so there's nothing to wait for";
 
 // The server answers 404 when threads are off for the user (the `code` flag)
 // or it predates them.
@@ -37,8 +40,8 @@ impl Threads {
         Self::default()
     }
 
-    /// Runs `threads`, `start_thread`, `thread` or `send_message` (see the
-    /// crate README) in the account `handle` on `server`: the person's own
+    /// Runs `threads`, `start_thread`, `thread`, `send_message`,
+    /// `snooze_thread` or `archive_thread` (see the crate README) in the account `handle` on `server`: the person's own
     /// account or a selected organization. The server lists only the threads
     /// the user owns there, and requires admin rights and the organization's
     /// `luft` flag on an organization.
@@ -110,6 +113,7 @@ impl Threads {
                 let mut body = json!({
                     "request_id": self.request_id(args, server, handle, runner.unwrap_or(""), content)?,
                     "content": content,
+                    "attachments": attachments(args)?,
                     "provider": model["provider"],
                     "model": model["id"],
                 });
@@ -145,6 +149,7 @@ impl Threads {
                 let body = json!({
                     "request_id": self.request_id(args, server, handle, id, content)?,
                     "content": content,
+                    "attachments": attachments(args)?,
                 });
                 let mut thread = request(
                     transport,
@@ -153,6 +158,42 @@ impl Threads {
                     Some(body),
                 )?;
                 self.pending = None;
+                present(&mut thread);
+                Ok(thread)
+            }
+            "snooze_thread" => {
+                let id = thread_id(args)?;
+                let snooze = match args.get("snooze") {
+                    None | Some(Value::Null) => Value::Null,
+                    Some(Value::String(until)) if until == "until_needed" => {
+                        json!({"until_needed": true})
+                    }
+                    Some(Value::String(until))
+                        if parse_time(until).is_some_and(|until| until > now()) =>
+                    {
+                        json!({"until": until})
+                    }
+                    Some(_) => return Err("Invalid snooze"),
+                };
+                let mut thread =
+                    match transport.send("PATCH", url(id), Some(json!({"snooze": snooze})))? {
+                        // Only a working thread can wait until it's needed.
+                        (409, _) if snooze["until_needed"] == true => return Err(NOT_WORKING),
+                        response => successful(response)?,
+                    };
+                present(&mut thread);
+                Ok(thread)
+            }
+            "archive_thread" => {
+                let id = thread_id(args)?;
+                // `archived: false` restores it.
+                let status = match args.get("archived") {
+                    None | Some(Value::Bool(true)) => "archived",
+                    Some(Value::Bool(false)) => "active",
+                    Some(_) => return Err("Invalid archived"),
+                };
+                let mut thread =
+                    request(transport, "PATCH", url(id), Some(json!({"status": status})))?;
                 present(&mut thread);
                 Ok(thread)
             }
@@ -202,7 +243,13 @@ impl Threads {
             }
             return Ok(id.to_string());
         }
-        Ok(self.memory_request_id(server, handle, thread, content))
+        let files = attachments(args)?;
+        let identity = if files.is_empty() {
+            content.to_string()
+        } else {
+            serde_json::to_string(&json!([content, files])).map_err(|_| "Invalid attachments")?
+        };
+        Ok(self.memory_request_id(server, handle, thread, &identity))
     }
 
     fn memory_request_id(
@@ -250,6 +297,7 @@ fn present(thread: &mut Value) {
     thread["state"] = json!(state);
     thread["section"] = json!(section);
     thread["working"] = json!(working && !archived);
+    present_snooze(thread, now());
     let mut activity = Value::Null;
     if let Some(messages) = thread["messages"].as_array_mut() {
         // The plan the run that's answering now shows: one after the person's
@@ -260,6 +308,8 @@ fn present(thread: &mut Value) {
             .filter(|&i| working && !archived && messages[i]["role"] != "user");
         for (index, message) in messages.iter_mut().enumerate() {
             present_card(message);
+            present_tool_result(message);
+            present_build(message, working && !archived);
             let plan = present_progress(message, current == Some(index));
             if current == Some(index) {
                 activity = plan;
@@ -267,6 +317,215 @@ fn present(thread: &mut Value) {
         }
     }
     thread["activity"] = activity;
+}
+
+/// Whether the person snoozed the thread, which keeps it out of their way
+/// until it matters again: `snooze` is `{until, until_needed}`, and the
+/// thread's `section` is `snoozed`, while the server's `snoozed_until` is
+/// still ahead or, with `snoozed_until_needed`, the thread still works.
+/// Otherwise `snooze` is null. The core presents threads again when it reads
+/// them from the store, so a snooze that ended offline ends on screen too.
+pub(crate) fn present_snooze(thread: &mut Value, now: i64) {
+    let until = thread["snoozed_until"].as_str().and_then(parse_time);
+    let snoozed = thread["section"] != "archived"
+        && (until.is_some_and(|until| until > now)
+            || (thread["snoozed_until_needed"] == true
+                && matches!(thread["state"].as_str(), Some("queued" | "running"))));
+    if snoozed {
+        thread["snooze"] = json!({
+            "until": until.map(|_| thread["snoozed_until"].clone()),
+            "until_needed": until.is_none(),
+        });
+        thread["section"] = json!("snoozed");
+    } else if thread.get("snooze").is_some() {
+        thread["snooze"] = Value::Null;
+        if thread["section"] == "snoozed" {
+            thread["section"] = json!(if thread["working"] == true {
+                "in_progress"
+            } else {
+                "recent"
+            });
+        }
+    }
+}
+
+/// Reconciles time-sensitive presentation after a thread came from the store.
+/// Cached readiness is history, never evidence that the VM is ready now.
+pub(crate) fn present_stored(view: &mut Value, now: i64) {
+    match view.get_mut("threads").and_then(Value::as_array_mut) {
+        Some(threads) => threads.iter_mut().for_each(|t| present_snooze(t, now)),
+        None => {
+            present_snooze(view, now);
+            if view["freshness"]["state"] != "live" || view["working"] != true {
+                view["workspace_ready_id"] = Value::Null;
+            }
+        }
+    }
+}
+
+/// When the person can snooze a thread until, from `now` (Unix seconds) at
+/// a local time `offset_seconds` from UTC: `until_needed` while the thread
+/// is `working`, in 1, 2 and 4 hours, this evening (18:00, before 17:00),
+/// tomorrow and next Monday (09:00). Each option has its `id`, which the
+/// edge labels, and the `until` time `snooze_thread` takes (null for
+/// `until_needed`). A custom time is any later time the edge picks.
+pub fn snooze_options(now: i64, offset_seconds: i64, working: bool) -> Value {
+    const HOUR: i64 = 3600;
+    const DAY: i64 = 24 * HOUR;
+    let local = now + offset_seconds;
+    let midnight = local.div_euclid(DAY) * DAY - offset_seconds;
+    // 1970-01-01 was a Thursday, the fourth day of a week from Monday.
+    let weekday = (local.div_euclid(DAY) + 3).rem_euclid(7);
+    // On a Sunday, next Monday is tomorrow: the one after.
+    let monday = if weekday == 6 { 8 } else { 7 - weekday };
+    let mut options = Vec::new();
+    if working {
+        options.push(json!({"id": "until_needed", "until": null}));
+    }
+    for (id, hours) in [("in_1_hour", 1), ("in_2_hours", 2), ("in_4_hours", 4)] {
+        options.push(json!({"id": id, "until": format_time(now + hours * HOUR)}));
+    }
+    if local - (midnight + offset_seconds) < 17 * HOUR {
+        options.push(json!({"id": "this_evening", "until": format_time(midnight + 18 * HOUR)}));
+    }
+    options.push(json!({"id": "tomorrow", "until": format_time(midnight + DAY + 9 * HOUR)}));
+    options
+        .push(json!({"id": "next_week", "until": format_time(midnight + monday * DAY + 9 * HOUR)}));
+    json!({"options": options})
+}
+
+fn now() -> i64 {
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
+/// Unix seconds from a UTC RFC 3339 time such as `2026-11-18T18:00:00Z`, the
+/// form the server writes, with optional fractional seconds.
+fn parse_time(value: &str) -> Option<i64> {
+    let value = value.strip_suffix('Z')?;
+    let (date, time) = value.split_once('T')?;
+    let time = time.split('.').next()?;
+    let number = |s: &str, len: usize| {
+        (s.len() == len && s.bytes().all(|b| b.is_ascii_digit())).then(|| s.parse::<i64>().ok())?
+    };
+    let mut date = date.split('-');
+    let (y, m, d) = (
+        number(date.next()?, 4)?,
+        number(date.next()?, 2)?,
+        number(date.next()?, 2)?,
+    );
+    let mut time = time.split(':');
+    let (h, min, sec) = (
+        number(time.next()?, 2)?,
+        number(time.next()?, 2)?,
+        number(time.next()?, 2)?,
+    );
+    if date.next().is_some()
+        || time.next().is_some()
+        || !(1..=12).contains(&m)
+        || !(1..=31).contains(&d)
+        || h > 23
+        || min > 59
+        || sec > 60
+    {
+        return None;
+    }
+    Some(days_from_civil(y, m, d) * 86_400 + h * 3600 + min * 60 + sec)
+}
+
+fn format_time(seconds: i64) -> String {
+    let (days, time) = (seconds.div_euclid(86_400), seconds.rem_euclid(86_400));
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
+        time / 3600,
+        time % 3600 / 60,
+        time % 60
+    )
+}
+
+/// Howard Hinnant's days_from_civil.
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+/// Presentation is derived, never substituted for the original evidence.
+fn present_tool_result(message: &mut Value) {
+    if message["role"] != "tool" {
+        return;
+    }
+    let raw = message["content"].as_str().unwrap_or_default();
+    let formatted = serde_json::from_str::<Value>(raw)
+        .ok()
+        .and_then(|value| serde_json::to_string_pretty(&value).ok())
+        .unwrap_or_else(|| raw.to_string());
+    let readable = readable_tool_result(raw, 0);
+    let preview: String = readable.chars().take(1200).collect();
+    let decoded = serde_json::from_str::<Value>(&readable).unwrap_or(Value::Null);
+    let cases = decoded["test_cases"]
+        .as_array()
+        .filter(|cases| !cases.is_empty() && cases.iter().all(|case| case["name"].is_string()))
+        .map(|cases| {
+            cases
+                .iter()
+                .map(|case| {
+                    json!({
+                        "name": case["name"], "module": case["module_name"].as_str(),
+                        "suite": case["suite_name"].as_str(), "flaky": case["is_flaky"].as_bool(),
+                        "state": case["state"].as_str(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+    message["toolResult"] = json!({
+        "text": readable,
+        "preview": preview,
+        "raw": formatted,
+        "testCases": cases,
+    });
+}
+
+fn readable_tool_result(text: &str, depth: usize) -> String {
+    if depth == 4 {
+        return text.to_string();
+    }
+    let Ok(value) = serde_json::from_str::<Value>(text) else {
+        return text.to_string();
+    };
+    if let Some(inner) = value.as_str() {
+        return readable_tool_result(inner, depth + 1);
+    }
+    // Only unwrap all-text MCP envelopes. Mixed image/resource results must
+    // remain visible rather than silently losing their non-text evidence.
+    if let Some(blocks) = value["content"].as_array().filter(|blocks| {
+        !blocks.is_empty()
+            && blocks
+                .iter()
+                .all(|block| block["type"] == "text" && block["text"].is_string())
+    }) {
+        return blocks
+            .iter()
+            .map(|block| readable_tool_result(block["text"].as_str().unwrap(), depth + 1))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+    }
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| text.to_string())
 }
 
 /// A message's `progress` is the plan the agent shares with `update_progress`:
@@ -313,6 +572,54 @@ fn present_progress(message: &mut Value, active: bool) -> Value {
     }
 }
 
+/// A tool message's `build` is the progress a Struo build or test in its
+/// command reported: `command` (`build` or `test`), `state` (`running`,
+/// `succeeded` or `failed`), `target`, target counts (`planned`, `done`,
+/// `cached`, `failed`), `running` target ids and `tests` case counts. The core
+/// clamps `done` to `planned` once a plan is known, nulls `tests` until a case
+/// ran, and adds `fraction`, the share of planned targets done (null until a
+/// plan is known), `failing`, whether a target or test case failed, and
+/// `active`, whether the build still runs in a working thread, so edges
+/// animate only live builds. A build this core can't show is dropped, and the
+/// edge shows the message's `content`, the same progress in words.
+fn present_build(message: &mut Value, working: bool) {
+    let Some(build) = message.get_mut("build") else {
+        return;
+    };
+    let count = |key: &str| build[key].as_u64();
+    let known = matches!(build["command"].as_str(), Some("build" | "test"))
+        && matches!(
+            build["state"].as_str(),
+            Some("running" | "succeeded" | "failed")
+        )
+        && ["planned", "done", "cached", "failed"]
+            .iter()
+            .all(|key| count(key).is_some());
+    if !known {
+        message.as_object_mut().map(|m| m.remove("build"));
+        return;
+    }
+    let (planned, done) = (count("planned").unwrap_or(0), count("done").unwrap_or(0));
+    let failed_targets = count("failed").unwrap_or(0);
+    let case = |key: &str| build["tests"][key].as_u64().unwrap_or(0);
+    let (passed, failed_cases, skipped) = (case("passed"), case("failed"), case("skipped"));
+    let running = build["state"] == "running" && message["toolStatus"] == "running";
+    let build = &mut message["build"];
+    if planned > 0 {
+        build["done"] = json!(done.min(planned));
+        build["fraction"] = json!((done.min(planned) as f64) / (planned as f64));
+    } else {
+        build["fraction"] = Value::Null;
+    }
+    build["tests"] = if passed + failed_cases + skipped > 0 {
+        json!({"passed": passed, "failed": failed_cases, "skipped": skipped})
+    } else {
+        Value::Null
+    };
+    build["failing"] = json!(failed_targets > 0 || failed_cases > 0);
+    build["active"] = json!(working && running);
+}
+
 /// A message's `ui` is a card the model wrote: NSH JavaScript `source` shown
 /// in a frame of its `size` class. The core turns the class into the frame's
 /// `height` in points, so every edge lays the card out at the same size
@@ -347,11 +654,52 @@ fn thread_id(args: &Value) -> Result<&str> {
 }
 
 fn message_content(args: &Value) -> Result<&str> {
-    let content = text(args, "content")?;
+    let files = attachments(args)?;
+    let content = args
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if content.trim().is_empty() && files.is_empty() {
+        return Err("Message is empty");
+    }
     if content.len() > 16_000 {
         return Err("Message is too long");
     }
     Ok(content)
+}
+
+/// Bounded inline files travel with the idempotent message, never as a separate
+/// upload that could be orphaned or silently dropped by an offline retry.
+fn attachments(args: &Value) -> Result<Vec<Value>> {
+    let Some(files) = args.get("attachments") else {
+        return Ok(vec![]);
+    };
+    let files = files.as_array().ok_or("Invalid attachments")?;
+    if files.len() > 4 {
+        return Err("Attach up to four files");
+    }
+    for file in files {
+        let name = text(file, "name")?;
+        let mime = text(file, "mime_type")?;
+        let encoded = text(file, "data_base64")?;
+        if name.len() > 255
+            || name.contains(['/', '\\'])
+            || name.chars().any(char::is_control)
+            || mime.len() > 127
+            || !mime.contains('/')
+            || mime.chars().any(char::is_whitespace)
+            || encoded.len() > 1_398_104
+        {
+            return Err("Invalid attachment");
+        }
+        let data = STANDARD
+            .decode(encoded)
+            .map_err(|_| "Invalid attachment data")?;
+        if data.is_empty() || data.len() > 1024 * 1024 {
+            return Err("Files must be between 1 byte and 1 MiB");
+        }
+    }
+    Ok(files.clone())
 }
 
 /// A random version 4 UUID, which the server requires for idempotency keys.

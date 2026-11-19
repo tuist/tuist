@@ -86,6 +86,8 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `C
 > **One socket for every project**
 >
 > `tuist setup cache` installs a single cache proxy per machine, so every project uses the same `COMPILATION_CACHE_REMOTE_SERVICE_PATH`. The `tuist-instance` plugin option is what identifies the project.
+>
+> Xcode passes `OTHER_SWIFT_FLAGS` only to the Swift compiler, not to the cache lookups its build system makes itself. Those lookups learn the project from the Swift compiler's options in the same build. `tuist build`, `tuist test` and `tuist xcodebuild` also pass the project to them directly. A project with no Swift code that is built another way, such as plain `xcodebuild` or the Xcode app, can add the project after the socket path: `COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock?tuist-instance=your-org/your-project`. Otherwise, the first build on a machine whose cache proxy hasn't seen the project yet, such as a CI machine reset between jobs, can recompile some files that are already cached.
 
 > [!IMPORTANT]
 > **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what shares C and Objective-C**

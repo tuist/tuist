@@ -61,4 +61,44 @@ struct CardPreview: View {
         return try! JSONDecoder().decode(AppMessage.self, from: data)
     }
 }
+
+/// Simulator-only evidence fixture: `-LuftToolPreview`.
+struct ToolPreview: View {
+    private let cases: [AppToolResult.TestCase] = [
+        .init(name: "shard_with_remote_test_products()", module: "TuistServerAcceptanceTests", suite: "ShardAcceptanceTests", flaky: true, state: "muted"),
+        .init(name: "test_run_tests_with_specified_arch()", module: "TuistKitTests", suite: "TestServiceTests", flaky: true, state: "muted"),
+        .init(name: "cancelledReadsRetainCapacityUntilBackendCleanupFinishes()", module: "TuistCargoCommandTests", suite: "CargoRemoteCacheTests", flaky: true, state: "muted"),
+        .init(name: "givesUpOnADrainThatOutlastsTheRetryWindow()", module: "TuistCacheEEClientTests", suite: "REAPICacheClientTests", flaky: false, state: "active"),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(verbatim: "Can you give me the most flaky tests of tuist/tuist?")
+                        .padding().frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
+                    ToolCallRow(tool: tool)
+                    ToolCallRow(tool: AppMessage(id: "plain", role: "tool", content: "Build succeeded.\n" + String(repeating: "Checked target successfully.\n", count: 20), toolName: "Bash", toolStatus: "complete"))
+                    ToolCallRow(tool: AppMessage(id: "running", role: "tool", content: "", toolName: "tuist_list_build_runs", toolStatus: "running"))
+                }.padding()
+            }
+            .background(Noora.backgroundPrimary)
+            .navigationTitle(Text(verbatim: "Test results"))
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var tool: AppMessage {
+        let payload: [String: Any] = ["test_cases": cases.map {
+            ["name": $0.name, "module_name": $0.module!, "suite_name": $0.suite!, "is_flaky": $0.flaky!, "state": $0.state!] as [String: Any]
+        }]
+        let text = String(data: try! JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]), encoding: .utf8)!
+        let envelope: [String: Any] = ["content": [["type": "text", "text": text]]]
+        let raw = String(data: try! JSONSerialization.data(withJSONObject: envelope), encoding: .utf8)!
+        let formatted = String(data: try! JSONSerialization.data(withJSONObject: envelope, options: [.prettyPrinted, .sortedKeys]), encoding: .utf8)!
+        return AppMessage(id: "tests", role: "tool", content: raw, toolName: "tuist_list_test_cases", toolStatus: "complete",
+                          toolResult: AppToolResult(text: text, preview: String(text.prefix(1200)), raw: formatted, testCases: cases))
+    }
+}
 #endif

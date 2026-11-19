@@ -10,9 +10,9 @@
 > [!NOTE]
 > 自動生成されたスキームには、`tuist inspect build` ポストアクションが自動的に含まれます。
 >
-> 生成されたスキームでビルドインサイトをトラックしたくない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
+> 生成されたスキームでビルドインサイトを追跡しない場合は、[buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) を使用して無効にしてください。
 
-カスタムスキームを含む生成プロジェクトを使用している場合は、ポストアクションを自分で追加する必要があります。[Mise](https://mise.jdx.dev/) の場合：
+カスタムスキームを含む生成プロジェクトを使用している場合は、ポストアクションを自分で追加する必要があります。[Mise](https://mise.jdx.dev/) の場合:
 
 ```swift
 let project = Project(
@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-Miseを使用していない場合は、Xcodeのポストアクションがシェルの `PATH` を継承しないため、スキームの環境で `tuist` が利用可能であることを確認する必要があります。[Homebrew](https://brew.sh/) インストールの場合：
+Miseを使用していない場合は、Xcodeのポストアクションがシェルの `PATH` を継承しないため、スキームの環境で `tuist` が利用可能であることを確認する必要があります。[Homebrew](https://brew.sh/) インストールの場合:
 
 ```swift
 buildAction: .buildAction(

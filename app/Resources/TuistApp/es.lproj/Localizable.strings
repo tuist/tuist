@@ -1,5 +1,5 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"%@ simulator" = "Simulador %@";
+"%@ simulator" = "Simulador de %@";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "Falta el token de acceso o el token de actualización en la respuesta";
@@ -8,7 +8,7 @@
 "All" = "Todo";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All tracks" = "Todos los canales";
+"All tracks" = "Todas las vías";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
 "Android Device" = "Dispositivo Android";
@@ -26,7 +26,7 @@
 "App version" = "Versión de la app";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Apple Sign In failed" = "El inicio de sesión con Apple ha fallado";
+"Apple Sign In failed" = "Error al iniciar sesión con Apple";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Apps in" = "Apps en";
@@ -68,16 +68,16 @@
 "Could not find APK file in the downloaded archive" = "No se ha encontrado el archivo APK en el archivo descargado";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "No se ha encontrado el paquete de la app en el archivo descargado";
+"Could not find app bundle in the downloaded archive" = "No se ha encontrado el paquete de la aplicación en el archivo descargado";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "No se ha podido instalar la app para %@ porque no incluye ninguna compilación válida.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "No se ha podido instalar la aplicación para %@ porque no incluye ninguna compilación válida.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "No se ha podido instalar la app para %@. La plataforma de %@ es %@ y la app solo incluye las siguientes plataformas: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "No se ha podido instalar la aplicación para %@. La plataforma de %@ es %@ y la aplicación solo incluye las siguientes plataformas: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Created at" = "Creado el";
+"Created at" = "Fecha de creación";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created by" = "Creado por";
@@ -122,7 +122,7 @@
 "Get help" = "Obtener ayuda";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "Instala las últimas previews con un solo clic.";
+"Install latest previews with one click." = "Instala las últimas previsualizaciones con un solo clic.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "Error de instalación";
@@ -134,7 +134,7 @@
 "Installed %@@%@" = "%@@%@ instalado";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "Instalando preview";
+"Installing preview" = "Instalando previsualización";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid callback URL received" = "Se recibió una URL de devolución de llamada no válida";
@@ -146,7 +146,7 @@
 "Launch" = "Ejecutar";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Launching preview" = "Ejecutando vista previa";
+"Launching preview" = "Iniciando vista previa";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Log out" = "Cerrar sesión";
@@ -155,16 +155,16 @@
 "Logged out" = "Sesión cerrada";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "Faltan credenciales de Apple para la autorización";
+"Missing Apple credentials from authorization" = "Faltan credenciales de Apple en la autorización";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "Sin vistas previas";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No Tuist projects found" = "No se encontraron proyectos de Tuist";
+"No Tuist projects found" = "No se han encontrado proyectos de Tuist";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "No se encontraron vistas previas";
+"No previews found" = "No se han encontrado vistas previas";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No previews match your filters" = "Ninguna vista previa coincide con tus filtros";
@@ -191,7 +191,7 @@
 "Profile" = "Perfil";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "Desliza hacia abajo para actualizar tus previsualizaciones.";
+"Pull down to refresh your previews." = "Desliza hacia abajo para actualizar tus vistas previas.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Pull down to refresh your projects." = "Desliza hacia abajo para actualizar tus proyectos.";
@@ -227,7 +227,7 @@
 "Sign in to access your projects and\ncollaborate with your team" = "Inicia sesión para acceder a tus proyectos y\ncolaborar con tu equipo";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "Inicia sesión para ejecutar vistas previas";
+"Sign in to run previews" = "Inicia sesión para ejecutar previews";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Apple" = "Iniciar sesión con Apple";
@@ -254,10 +254,10 @@
 "Terms of Service" = "Términos de servicio";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The app preview %@ was not found." = "No se encontró la vista previa de la app %@.";
+"The app preview %@ was not found." = "No se ha encontrado la vista previa de la app %@.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The latest preview for %@ was not found. Has any preview been published?" = "No se encontró la última vista previa para %@. ¿Se ha publicado alguna vista previa?";
+"The latest preview for %@ was not found. Has any preview been published?" = "No se ha encontrado la última vista previa de %@. ¿Se ha publicado alguna vista previa?";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "The preview %@ does not have a package name set." = "La vista previa %@ no tiene un nombre de paquete configurado.";
@@ -275,13 +275,13 @@
 "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Este servidor no admite buscar vistas previas. Actualiza tu servidor Tuist autoalojado o borra la búsqueda.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Este servidor no admite iniciar sesión desde la app Tuist. Pide a tu administrador que lo actualice.";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Este servidor no admite iniciar sesión desde la app de Tuist. Pide a tu administrador que lo actualice.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "To run a preview, you must have a simulator selected." = "Para ejecutar una vista previa, debes tener seleccionado un simulador.";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Token exchange failed with status code: %lld" = "El intercambio de token falló con el código de estado: %lld";
+"Token exchange failed with status code: %lld" = "El intercambio de tokens falló con el código de estado: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Track" = "Canal";
@@ -320,11 +320,11 @@
 "Design preview · Sample accounts" = "Vista previa de diseño · Cuentas de ejemplo";
 "Design preview · Sample builds" = "Vista previa de diseño · Compilaciones de ejemplo";
 "Design preview · Sample data" = "Vista previa de diseño · Datos de ejemplo";
-"Done" = "Listo";
+"Done" = "Hecho";
 "Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "Invitar a %@ comparte todos los mensajes existentes, resultados de herramientas y respuestas futuras. Esta vista previa no envía invitaciones ni notificaciones.";
 "Latest builds" = "Últimas compilaciones";
 "Layout preview" = "Vista previa del diseño";
-"No account is signed in. These screens use sample data." = "No hay ninguna cuenta iniciada. Estas pantallas utilizan datos de ejemplo.";
+"No account is signed in. These screens use sample data." = "No hay ninguna cuenta iniciada. Estas pantallas usan datos de ejemplo.";
 "Previous builds" = "Compilaciones anteriores";
 "Search projects" = "Buscar proyectos";
 "Select project" = "Seleccionar proyecto";
@@ -349,3 +349,6 @@
 "Open screens will be closed." = "Se cerrarán las pantallas abiertas.";
 "View profile" = "Ver perfil";
 "Your saved profiles could not be updated. Please try again." = "No se han podido actualizar tus perfiles guardados. Inténtalo de nuevo.";
+
+"This Mac" = "Este Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "Ninguna de las compilaciones para macOS de esta vista previa puede ejecutarse en el procesador de este Mac.";

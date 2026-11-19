@@ -7,7 +7,7 @@ fn server() -> Url {
 
 #[test]
 fn shares_the_mobile_route_contract() {
-    // Keep this compile input local so Once fingerprints and materializes it.
+    // Keep this compile input local so Struo fingerprints and materializes it.
     // mise run test checks parity with the canonical mobile fixture first.
     let fixtures: serde_json::Value = serde_json::from_str(include_str!("routes.json")).unwrap();
     for fixture in fixtures["previews"].as_array().unwrap() {

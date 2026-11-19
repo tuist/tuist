@@ -3,6 +3,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use Mimic
 
   alias Plug.CSRFProtection.InvalidCSRFTokenError
+  alias Tuist.Accounts
   alias Tuist.AppStore
   alias Tuist.Atlas.Email
   alias Tuist.GitHub.Releases
@@ -12,6 +13,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Stats
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.MarketingMarkdown
@@ -771,6 +773,28 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       refute Floki.text(html) =~ "Early access"
       refute Floki.text(html) =~ "not billed yet"
       refute Floki.text(compute) =~ "require access"
+    end
+
+    test "sends the Pro plan's signed-in upgrade button to the billing page of the user's organization", %{conn: conn} do
+      cta_hrefs = fn document, label ->
+        document
+        |> Floki.find("#marketing-pricing a")
+        |> Enum.filter(&(&1 |> Floki.text() |> String.trim() == label))
+        |> Floki.attribute("href")
+        |> Enum.uniq()
+      end
+
+      signed_out = conn |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+      assert cta_hrefs.(signed_out, "Upgrade on the go") == ["/users/register"]
+
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      user = Accounts.update_last_visited_project(user, project.id)
+
+      signed_in = conn |> log_in_user(user) |> get("/pricing") |> html_response(200) |> Floki.parse_document!()
+
+      assert cta_hrefs.(signed_in, "Upgrade now") == ["/#{organization.account.name}/billing"]
     end
 
     test "shows usage-based pricing", %{conn: conn} do

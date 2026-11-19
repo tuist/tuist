@@ -151,6 +151,27 @@ defmodule Tuist.Runners.ConcurrencySizingTest do
     assert {:ok, :unchanged} = ConcurrencySizing.grow(account, :macos, :daily, now)
   end
 
+  test "weekly doubling counts from the latest operator grant, not a lower limit before it", %{
+    account: account,
+    now: now
+  } do
+    # A lower baseline, then an operator raise past the plan's defaults that
+    # leaves an upgrade with no `plan` row to record.
+    configure_macos(account, 16, 48, now)
+    {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 32, runner_macos_memory_gb_limit: 96})
+
+    Repo.update_all(
+      from(h in ConcurrencyHistory,
+        where: h.account_id == ^account.id and h.platform == :macos and h.vcpus == 32 and h.source == "manual"
+      ),
+      set: [recorded_at: DateTime.add(now, -2, :day)]
+    )
+
+    for days_ago <- [1, 2], _ <- 1..5, do: session(account, now, days_ago, :macos, 8, 24)
+
+    assert {:ok, %{vcpus: 48, memory_gb: 144}} = ConcurrencySizing.grow(account, :macos, :daily, now)
+  end
+
   test "manual edits get a cooldown and rejected sizing spends no fleet budget", %{account: account, now: now} do
     fill_macos(account)
     queue(account, now)

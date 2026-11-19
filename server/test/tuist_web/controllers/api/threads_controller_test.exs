@@ -31,6 +31,20 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
+  test "attachment-only requests round-trip through authenticated no-store history", %{token: token, path: path} do
+    stub(Provider, :validate_model, fn _, "chatgpt", "selected-model" -> :ok end)
+    file = %{"name" => "notes.txt", "mime_type" => "text/plain", "data_base64" => Base.encode64("private file")}
+    attrs = %{request_id: Ecto.UUID.generate(), provider: "chatgpt", model: "selected-model", attachments: [file]}
+
+    conn = build_conn() |> put_req_header("authorization", "Bearer #{token}") |> post(path, attrs)
+    assert %{"id" => id, "messages" => [%{"content" => "", "attachments" => [^file]}]} = json_response(conn, 200)
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+    fetched = request(token, path <> "/" <> id)
+    assert %{"messages" => [%{"attachments" => [^file]}]} = json_response(fetched, 200)
+    assert get_resp_header(fetched, "cache-control") == ["no-store"]
+    assert (path <> "/" <> id) |> then(&get(build_conn(), &1)) |> json_response(401)
+  end
+
   test "legacy clients can list, read and archive the same private thread", %{user: user, token: token, path: path} do
     thread =
       Repo.insert!(%Thread{

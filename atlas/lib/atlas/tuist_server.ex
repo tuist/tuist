@@ -155,6 +155,11 @@ defmodule Atlas.TuistServer do
     request(:put, "/api/internal/atlas/accounts/#{account_id}/runner-billing", [json: attrs, retry: false], opts)
   end
 
+  @doc "Start or cancel an account's runner trial with the runner billing revision, idempotent change ID and trusted actor metadata."
+  def update_runner_trial(account_id, attrs, opts \\ []) when is_integer(account_id) and is_map(attrs) do
+    request(:put, "/api/internal/atlas/accounts/#{account_id}/runner-trial", [json: attrs, retry: false], opts)
+  end
+
   defp clickhouse_limit(opts) do
     case Keyword.get(opts, :limit) do
       limit when is_integer(limit) and limit > 0 -> limit

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a9892e8ede659c2031302268f04a060b4cc83f861049927e65a915089d53358b",
+  "hash": "b5cded9cd28be53e933da393b63d1e4647364a5e448db15269f9804685770703",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "25bfcb0677bf465a70adbf778da18a04092d9b5c06fa99ba5b7bc35864166693"
                 },
                 "# url = \"https://your-tuist-server.example.com\"": {
-                  "content_hash": "b87718b7123b465a2c9056cb4e0334e847362751d316a55da766cf71a13be018"
+                  "content_hash": "3cc63de4f26e9560f1068c646d1a58d0d2c04e6f232cd3561812d41282d08626"
                 },
                 "## Build insights": {
                   "content_hash": "78ca47f335964cbb95e68809f8e0a0ac0b53e91776063a6e7de3f52ba4d54c79"
@@ -23,7 +23,7 @@
                   "content_hash": "34bb5a6bf4ab513cf69286c1da7718089d84e8a374a83026b037a1b990269705"
                 },
                 "## Connect the project": {
-                  "content_hash": "04d3009612c05a3323443e53f9ef44896b63369681ec5b72166aade13dacccc8"
+                  "content_hash": "43138cc43bfbe19171c6c522dd8cf450857444832250f46682c202e2fc3e2bca"
                 },
                 "## Keep typing Cargo": {
                   "content_hash": "05a1d9756b6b7cdc85709a4252b582bf2edbdd613529c6f6585dafac9605e8d3"
@@ -32,7 +32,10 @@
                   "content_hash": "facdfcffcc5fe53752b6aea04d661c0840644dec4f467400f7c1d9216b8de81b"
                 },
                 "## Test insights": {
-                  "content_hash": "c5084ca9b8972d7219841f5e36e89fdf30707e90cbe62d9d39e74b0ba162cd7d"
+                  "content_hash": "e1b0c1c91afce2cedf86127c58aa8de05419835d5c9848a8e63408c9929b5828"
+                },
+                "## Trademarks {#trademarks}": {
+                  "content_hash": "b921f631f82f583dbc4777794da80e74810c7015cdf3c9831eb4941ed3f8414e"
                 },
                 "Preamble": {
                   "content_hash": "18f8942d210e75767417fe19ecd5a37a609b43f2311f9ddbd046c35746dda3f8"
@@ -41,11 +44,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "cfc4943759c7715d4331504cf9040e27e92413c70b49b237ac9b03b02a1fdf60",
+          "hash": "c770c9b734cb7ad044cc991c603d48d1432ef196042eceee7088c9b43b292c6c",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started/rust-project.md",
           "metadata": {
-            "content_hash": "ad268d690719f8e3672d8bba437e40b36e24896080393f69bd2f4cd19a11a87f"
+            "content_hash": "7e61e3b09ac4c6e9958be0d0bc4f19ca0e44320cdd5b12bbfbf5c7e10bfecd3e"
           }
         },
         {
@@ -106,7 +109,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -125,7 +128,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -154,11 +157,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -247,21 +250,21 @@
             }
           ],
           "details": {},
-          "hash": "72f68920036cef722b169b39d482a97e3ab85a036fe0d7b2213c8098d0096b57",
+          "hash": "54b2dfce730030519e9da29cefa5dfa0401f865ceefa4deee4ee39c874f34751",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "a9892e8ede659c2031302268f04a060b4cc83f861049927e65a915089d53358b",
+      "hash": "b5cded9cd28be53e933da393b63d1e4647364a5e448db15269f9804685770703",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started/rust-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "1ef55456f815286c0041cbeb0a51bd07faeceeb6cdca8ef59c7b9688b5b07e87",
+  "output_hash": "a7c2b70f1db0e49dcf51307ad10fc5de91eea697465746fee5d4927b68061e38",
   "output_path": "server/priv/docs/zh_Hans/guides/get-started/rust-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -283,8 +286,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
   "source_path": "server/priv/docs/en/guides/get-started/rust-project.md",
-  "translated_at": "2026-11-06T21:34:21.141974Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-19T00:14:51.352023Z",
+  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
 }

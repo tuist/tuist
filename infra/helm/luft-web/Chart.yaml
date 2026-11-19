@@ -1,0 +1,6 @@
+apiVersion: v2
+name: luft-web
+description: Standalone Helm chart for the Luft web edge, a static single-page app served at luft.work.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

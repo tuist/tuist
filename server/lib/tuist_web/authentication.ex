@@ -224,24 +224,33 @@ defmodule TuistWeb.Authentication do
   if you are not using LiveView.
   """
   def log_in_user(conn, user, params \\ %{}) do
-    # An enrolled factor always means a challenge: a verified session is only
-    # issued by UserMFA.complete_challenge/2 and bound by log_in_user_session/3.
-    if UserMFA.enabled?(user) do
-      challenge = UserMFA.create_challenge(user, params)
+    # An enrolled factor means a challenge unless this browser already passed
+    # one for the same user, such as a passkey session that an organization's
+    # SSO sends through its provider. Verified sessions are only issued by
+    # UserMFA under the user lock and bound by log_in_user_session/3.
+    {current_token, conn} = ensure_user_token(conn)
 
-      conn
-      |> configure_session(renew: true)
-      |> BrowserSession.clear_authentication()
-      |> delete_remember_me_cookie()
-      |> put_session(:pending_mfa, challenge)
-      |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
-      |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
-      |> redirect(to: ~p"/users/mfa")
-      |> halt()
+    with true <- UserMFA.enabled?(user),
+         %UserToken{} = session <- UserMFA.continue_verified_session(user, current_token, params) do
+      log_in_user_session(conn, session, params)
     else
-      token = Accounts.generate_user_session_token(user, params)
-      complete_user_login(conn, user, token, params)
+      false -> complete_user_login(conn, user, Accounts.generate_user_session_token(user, params), params)
+      nil -> challenge_mfa(conn, user, params)
     end
+  end
+
+  defp challenge_mfa(conn, user, params) do
+    challenge = UserMFA.create_challenge(user, params)
+
+    conn
+    |> configure_session(renew: true)
+    |> BrowserSession.clear_authentication()
+    |> delete_remember_me_cookie()
+    |> put_session(:pending_mfa, challenge)
+    |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
+    |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
+    |> redirect(to: ~p"/users/mfa")
+    |> halt()
   end
 
   # MFA issues the credential atomically with proof consumption. Binding its
@@ -302,6 +311,23 @@ defmodule TuistWeb.Authentication do
 
   defp maybe_write_remember_me_cookie(conn, _token, _params) do
     delete_remember_me_cookie(conn)
+  end
+
+  @doc """
+  Binds this browser to a replacement session token, such as one issued when
+  an MFA factor changes.
+
+  The browser stays signed in across restarts only if its previous login did.
+  The remember-me cookie is the record of that choice: it outlives the
+  browser-session `_tuist_key` cookie, which mobile Safari often discards.
+  """
+  def replace_session_token(conn, token, auth_method) do
+    remember? = conn |> fetch_cookies() |> Map.fetch!(:req_cookies) |> Map.has_key?(@remember_me_cookie)
+    conn = BrowserSession.put_authentication(conn, token, auth_method, remember?)
+
+    if remember?,
+      do: put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options),
+      else: delete_remember_me_cookie(conn)
   end
 
   @doc """
@@ -926,17 +952,32 @@ defmodule TuistWeb.Authentication do
   defp maybe_store_return_to(conn), do: conn
 
   def signed_in_path(user) do
-    project =
-      if is_nil(user.last_visited_project_id) do
-        user |> Projects.get_all_project_accounts() |> List.first()
-      else
-        Projects.get_project_account_by_project_id(user.last_visited_project_id)
+    case signed_in_project(user) do
+      nil -> "/#{user.account.name}/projects"
+      project -> "/#{project.handle}"
+    end
+  end
+
+  @doc """
+  The billing page of the account `signed_in_path/1` lands the user in, so a
+  user who works in an organization upgrades that organization rather than
+  their personal account.
+  """
+  def signed_in_billing_path(user) do
+    account =
+      case signed_in_project(user) do
+        nil -> user.account
+        project -> project.account
       end
 
-    if project do
-      "/#{project.handle}"
+    "/#{account.name}/billing"
+  end
+
+  defp signed_in_project(user) do
+    if is_nil(user.last_visited_project_id) do
+      user |> Projects.get_all_project_accounts() |> List.first()
     else
-      "/#{user.account.name}/projects"
+      Projects.get_project_account_by_project_id(user.last_visited_project_id)
     end
   end
 end

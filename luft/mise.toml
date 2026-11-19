@@ -1,7 +1,11 @@
 [tools]
-"github:tuist/once" = "0.81.1"
+"github:tuist/struo" = "1.0.0"
 rust = "1.98.1"
 jq = "1.8.1"
+# The web edge: Node runs Vite, and the wasm-bindgen CLI must match the
+# wasm-bindgen crate in Cargo.lock.
+node = "24.11.0"
+"cargo:wasm-bindgen-cli" = "0.2.130"
 yq = "4.52.5"
 kotlin = "2.4.10"
 # Signed device and macOS preview publication only; CI installs them only in those jobs.
@@ -14,7 +18,7 @@ tuist = "4.219.0-canary.12"
 postinstall = "true"
 
 [tasks."prepare:native"]
-description = "Derive locked portable Rust dependencies for Once"
+description = "Derive locked portable Rust dependencies for Struo"
 run = "python3 prepare-native.py"
 
 [tasks."prepare:android"]
@@ -24,32 +28,32 @@ run = "python3 android/dependencies.py prepare"
 [tasks.build]
 depends = ["prepare:native"]
 description = "Build the desktop app for the host"
-run = "once build LuftDesktop"
+run = "struo build LuftDesktop"
 
 [tasks.run]
 depends = ["prepare:native"]
 description = "Build and launch the desktop app"
-run = "once run cargo_tuist_desktop_bin_Luft"
+run = "struo run cargo_tuist_desktop_bin_Luft"
 
 [tasks.test]
 depends = ["prepare:native"]
 description = "Test the desktop crates and shared mobile route contract"
-run = ["git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json", "python3 crates/core/noora_tokens.py --check", "once test --all"]
+run = ["git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json", "python3 crates/core/noora_tokens.py --check", "struo test --all"]
 
 [tasks.check]
 depends = ["prepare:native"]
 description = "Validate the graph and check formatting and Clippy warnings"
-run = ["once query validate-workspace", "cargo fmt --all -- --check", "cargo clippy --locked --workspace --all-targets -- -D warnings"]
+run = ["struo query validate-workspace", "cargo fmt --all -- --check", "cargo clippy --locked --workspace --all-targets -- -D warnings"]
 
 [tasks."build:ios"]
 depends = ["prepare:native"]
 description = "Build the Luft iOS simulator app"
-run = "once build LuftIOS"
+run = "struo build LuftIOS"
 
 [tasks."build:ios-device"]
 depends = ["prepare:native"]
 description = "Build the ad-hoc signed iOS device app; bundle:ios-device signs an installable copy"
-run = "once build LuftIOSDevice"
+run = "struo build LuftIOSDevice"
 
 # No build dependency: signing secrets must never be present while code builds or tools install.
 [tasks."bundle:ios-device"]
@@ -59,22 +63,22 @@ run = "bash ios/distribution/bundle.sh"
 [tasks."build:macos"]
 depends = ["prepare:native"]
 description = "Build the Luft macOS app"
-run = "once build LuftMacOS"
+run = "struo build LuftMacOS"
 
 [tasks."build:android"]
 depends = ["prepare:native", "prepare:android"]
 description = "Build the Luft Android debug APK"
-run = ["once build LuftAndroid", "python3 android/dependencies.py verify \"$ANDROID_HOME/build-tools/35.0.0/aapt2\" .once/out/LuftBrowser/R.txt .once/out/LuftAndroid/LuftAndroid.apk"]
+run = ["struo build LuftAndroid", "python3 android/dependencies.py verify \"$ANDROID_HOME/build-tools/35.0.0/aapt2\" .struo/out/LuftBrowser/R.txt .struo/out/LuftAndroid/LuftAndroid.apk"]
 
 [tasks."test:core"]
 depends = ["prepare:native"]
 description = "Test the shared native frontend contract without GPUI"
-run = "once test LuftCoreTests"
+run = "struo test LuftCoreTests"
 
 [tasks."preview:ios"]
 depends = ["prepare:native"]
 description = "Publish an internal iOS simulator preview to tuist/luft"
-run = "once artifact publish LuftIOS --track internal"
+run = "struo artifact publish LuftIOS --track internal"
 
 [tasks."preview:ios-device"]
 description = "Publish the signed iOS device IPA to tuist/luft's internal track"
@@ -93,4 +97,14 @@ run = 'if [ "${CI:-}" = true ]; then tuist auth login; fi; tuist share "delivery
 [tasks."preview:android"]
 depends = ["build:android"]
 description = "Publish an internal Android debug preview to tuist/luft"
-run = "once artifact publish LuftAndroid --track internal"
+run = "struo artifact publish LuftAndroid --track internal"
+
+[tasks."build:web"]
+depends = ["prepare:native"]
+description = "Build the web edge's static site (core wasm, bindings and Vite bundle) into .struo/out/LuftWeb/dist"
+run = "struo build LuftWeb"
+
+[tasks."dev:web"]
+depends = ["prepare:native"]
+description = "Serve the web edge with Vite's dev server against Struo's core bindings; rerun after core changes"
+run = ["struo build LuftCoreBindings", "npm --prefix web ci --no-audit --no-fund", "npm --prefix web run dev"]

@@ -108,7 +108,7 @@ msgstr "플랫폼"
 #: lib/tuist_web/live/previews_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "프리뷰"
+msgstr "Previews"
 
 #: lib/tuist_web/live/preview_live.html.heex:240
 #: lib/tuist_web/live/preview_live.html.heex:286
@@ -134,7 +134,7 @@ msgstr "실행"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "앱 프리뷰를 공유하려면 다음 명령어를 실행하세요."
+msgstr "앱 미리보기를 공유하려면 다음 명령어를 실행하세요."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
@@ -145,12 +145,12 @@ msgstr "QR 코드 스캔"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "이 버전의 앱을 설치하려면 iOS 기기에서 이 QR 코드를 스캔하세요"
+msgstr "iOS 기기에서 이 QR 코드를 스캔하여 앱 버전을 설치하세요"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "앱 미리보기를 한 번의 클릭으로 공유하세요"
+msgstr "앱 미리보기를 한 번의 클릭으로 공유하기"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -170,7 +170,7 @@ msgstr "이 미리보기는 기기에 설치할 수 없습니다"
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "브라우저에서 직접 미리보기를 실행하려면 Tuist macOS 앱을 다운로드하여 설치하세요"
+msgstr "브라우저에서 직접 미리보기를 실행하려면 Tuist macOS 앱을 다운로드하고 설치하세요"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "패키지 이름"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "이 버전의 앱을 다운로드하여 설치하려면 Android 기기에서 이 QR 코드를 스캔하세요"
+msgstr "Android 기기에서 이 QR 코드를 스캔하여 이 버전의 앱을 다운로드하고 설치하세요"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
@@ -237,7 +237,7 @@ msgstr "CLI"
 #: lib/tuist_web/live/preview_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Command-line preview"
-msgstr "명령줄 미리보기"
+msgstr "커맨드라인 미리보기"
 
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format

@@ -37,7 +37,7 @@ jobs:
       EXPECTED_UID: ${{ inputs.expected_uid }}
       KUBECONFIG: ${{ github.workspace }}/.kube/sandbox-ownership-config
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -47,7 +47,7 @@ jobs:
           cache: "false"
       - name: Validate metadata-only repair safety guards
         run: node --test .github/scripts/staging-sandbox-ownership.test.mjs
-      - uses: 1password/install-cli-action@v4
+      - uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
       - name: Load staging deployment identity in CI only
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

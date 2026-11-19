@@ -5,11 +5,17 @@ against the Cloudflare API. It exists so zone-level Cloudflare
 configuration lives in git and reaches production through a reviewed
 PR, not through the Cloudflare dashboard.
 
-**Scope today: `CloudflareRateLimit`, `CloudflareCustomRule`, and
-`CloudflareBotManagement`.** Additional custom resources, such as
-cache rules, other zone settings, and Artificial Intelligence Crawl
+**Scope today: `CloudflareRateLimit`, `CloudflareCustomRule`,
+`CloudflareCacheRule`, and `CloudflareBotManagement`.** Additional
+custom resources, such as other zone settings, and Artificial Intelligence Crawl
 Control, should remain separate kinds rather than overloading any
 existing shape.
+
+`CloudflareCacheRule` manages one Cache Rule (`set_cache_settings` in
+the `http_request_cache_settings` phase) with the same adopt/create,
+read_only and retain semantics as the other rule kinds. It models only
+cache eligibility and edge/browser TTLs; adopting a rule replaces its
+action parameters, so adopt only rules that set nothing else.
 
 `CloudflareBotManagement` is settings-shaped rather than
 ruleset-shaped: a singleton per zone (identity is `spec.zoneId`, no
@@ -38,7 +44,7 @@ update the same rule across reconciles with no client-side state.
 
 ## Safe-first-deploy design
 
-Both custom resource definitions are designed so the first deployment
+The rule custom resource definitions are designed so the first deployment
 against a live zone is provably zero-risk:
 
 - **`spec.mode` defaults to `read_only`.** In read_only the operator
@@ -111,9 +117,10 @@ them to `active`.
 
 The Cloudflare [application programming interface](https://developers.cloudflare.com/fundamentals/api/)
 token lives in a Kubernetes Secret referenced by the chart. The token
-needs `Zone:Read`, `Zone WAF:Edit`, and `Zone Settings:Edit` (the last
-covers the `bot_management` endpoint the `CloudflareBotManagement`
-reconciler PUTs to), where WAF means
+needs `Zone:Read`, `Zone WAF:Edit`, `Cache Rules:Edit` (for
+`CloudflareCacheRule`), and `Zone Settings:Edit` (the last covers the
+`bot_management` endpoint the `CloudflareBotManagement` reconciler PUTs
+to), where WAF means
 [Web Application Firewall](https://www.cloudflare.com/learning/ddos/glossary/web-application-firewall-waf/),
 scoped to the account and zone under management.
 

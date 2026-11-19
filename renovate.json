@@ -86,6 +86,28 @@
   ],
   "packageRules": [
     {
+      "description": "Deploy and release workflows, and the composite actions they run, reference third-party actions by commit SHA with the exact version in a trailing comment (`@<sha> # v4.4.0`), so a moved or hijacked tag can't change what runs next to deploy and signing credentials. pinDigests pins any new tag reference added to these files; the github-actions manager reads the comment and bumps SHA and comment together. tuist/* actions are released from this organization and stay on their major tags, and container: and services: images keep their tags (matchDepTypes). Other secret-holding workflows that don't match these names (app.yml, guild.yml, handbook.yml, …) were pinned by hand and are kept current by the same manager, but new references in them aren't pinned automatically.",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "matchPackageNames": ["!tuist/**"],
+      "matchFileNames": [
+        ".github/workflows/*deploy*.yml",
+        ".github/workflows/*release*.yml",
+        ".github/workflows/*publish*.yml",
+        ".github/workflows/*promote*.yml",
+        ".github/workflows/*-rc.yml",
+        ".github/workflows/*apply*.yml",
+        ".github/actions/**"
+      ],
+      "pinDigests": true
+    },
+    {
+      "description": "SHA-pinned actions need a PR for every patch release that a floating major tag used to pick up silently. Batch those minor and patch bumps into one weekly PR to bound review load; major bumps stay separate because they can change inputs.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "GitHub Actions"
+    },
+    {
       "description": "Digest updates for git deps in server/mix.exs. Renovate only ever proposes the default-branch head, but the ref-pinned deps there are deliberately NOT on it: ex_aws_s3 (tuist fork branch fix/presigned-url-config-defaults, makes presigned URLs honour the virtual_host/bucket_as_host config production sets), emcp (branch fix/streamable-http-inline-response-on-post, keeps JSON-RPC responses inline on the POST instead of the SSE stream), cachex (TBK145/cachex@patch-1, the Elixir 1.19 record/0 type rename from whitfin/cachex#433), and boruta (a 3.0 pre-release snapshot; moving it means running its bundled migrations and a nebulex 2->3 major). Every digest PR here would silently revert a patch or start a migration, and Renovate cannot regenerate mix.lock anyway, so the rule matches by datasource rather than by name: a new ref-pinned git dep is covered without editing this list. Tag-pinned git deps (e.g. heroicons) are version updates, not digests, and stay tracked. Those bumps are done by hand.",
       "matchManagers": ["mix"],
       "matchDatasources": ["git-tags", "github-tags"],

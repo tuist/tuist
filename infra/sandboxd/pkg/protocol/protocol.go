@@ -109,6 +109,9 @@ type DiskReport struct {
 	TemplatesBytes uint64 `json:"templates_bytes"`
 	SnapshotsBytes uint64 `json:"snapshots_bytes"`
 	BudgetBytes    uint64 `json:"budget_bytes"`
+	// Jails is SandboxesBytes per sandbox ID; it travels as each
+	// sandbox's SandboxInfo.DiskBytes.
+	Jails map[string]uint64 `json:"-"`
 }
 
 // TemplateInfo advertises a template. Ready means the kernel and rootfs are
@@ -148,7 +151,12 @@ type SandboxInfo struct {
 	ColdBoot bool `json:"cold_boot,omitempty"`
 	// CPUMs is a running VM's CPU time since its process started, for the
 	// server to tell an active guest from an idle one.
-	CPUMs      int64     `json:"cpu_ms,omitempty"`
+	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// DiskBytes is what the sandbox's jail holds on the node that no
+	// template or other sandbox shares, measured with the disk report, so
+	// the server can reserve a paused sandbox's use instead of its ceiling.
+	// Omitted until the first measurement after the sandbox appears.
+	DiskBytes  uint64    `json:"disk_bytes,omitempty"`
 	Generation int       `json:"generation"`
 	CreatedAt  time.Time `json:"created_at"`
 	Error      string    `json:"error,omitempty"`
@@ -276,6 +284,12 @@ type CreateArgs struct {
 	// FromArchive downloads the sandbox's archived disks and kernel from
 	// object storage instead. The sandbox cold boots on them.
 	FromArchive *ArchiveSource `json:"from_archive,omitempty"`
+	// CacheImage names an ext4 image in the daemon's cache image directory.
+	// A private writable clone of it is attached as the guest's third drive
+	// (/dev/vdc) and discarded with the sandbox; disk snapshots and archives
+	// never include it. Only cold-boot creates (FromDiskSnapshot) take it,
+	// because Firecracker cannot add a drive to a restored memory snapshot.
+	CacheImage string `json:"cache_image,omitempty"`
 }
 
 type SandboxArgs struct {

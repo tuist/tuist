@@ -45,6 +45,10 @@ Agents get the project's Tuist data without setup. The Tuist CLI is at
 `/usr/local/bin/tuist`, pinned by `TUIST_VERSION`/`TUIST_SHA256` to a release
 that signs in with the sandbox's workload identity.
 `.github/workflows/update-tuist-cli.yml` bumps both with `mise.toml`'s pin.
+Struo is at `/usr/local/bin/struo`, pinned by `STRUO_VERSION`/`STRUO_SHA256`, with
+`libasound2t64`, which its binary links. Thread agents build and test with it
+first (`Tuist.Threads.Agent`), and it reports progress to the file every
+sandbox command names in `STRUO_PROGRESS` (`Tuist.Sandboxes.Commands`).
 `agent-home/skills/` becomes `~/.claude/skills/`, which both Amp and Claude
 Code read. The image deliberately ships no MCP configuration: a preinstalled
 server adds its tools to every session, fails for accounts that did not connect
@@ -100,7 +104,8 @@ Build args: `KERNEL_URL` (Firecracker CI 6.1.155 by default), `KERNEL_SHA256`
 `VERSION` (stamped into `sbx-agent`'s `agent_version`), `AMP_VERSION` (pinned
 Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
 `TUIST_SHA256` (the release's `tuist-linux-x86_64.tar.gz` and its line in
-`SHASUMS256.txt`).
+`SHASUMS256.txt`), `STRUO_VERSION` and `STRUO_SHA256` (the release's
+`struo-<version>-x86_64-unknown-linux-gnu.tar.gz` and its `.sha256`).
 
 ## Template init container
 

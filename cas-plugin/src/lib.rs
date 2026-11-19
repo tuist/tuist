@@ -278,12 +278,39 @@ pub fn default_proxy_socket() -> String {
 
 /// The value of a plugin option the build system passed to `set_option`
 /// (e.g. `tuist-instance`), or `None` when absent or empty.
+///
+/// A `tuist-*` option that was not passed on its own is read from the query of
+/// `remote-service-path` (`<socket>?tuist-instance=<account/project>`), the one
+/// option the handles the build system opens itself get (swift-build's
+/// `CASOptions.pluginOptions`). It is an opt-in for builds where nothing else
+/// names their project to those handles (see `DECLARED_INSTANCES`): a project
+/// with no Swift built outside the CLI. Xcode never opens the path itself: this
+/// plugin consumes the option.
 fn option_value(state: &OptionsState, name: &str) -> Option<String> {
-    state
-        .options
-        .iter()
-        .find(|(option_name, _)| option_name.to_string_lossy() == name)
-        .map(|(_, value)| value.to_string_lossy().into_owned())
+    let passed = |name: &str| {
+        state
+            .options
+            .iter()
+            .find(|(option_name, _)| option_name.to_string_lossy() == name)
+            .map(|(_, value)| value.to_string_lossy().into_owned())
+            .filter(|value| !value.is_empty())
+    };
+    passed(name).or_else(|| {
+        if !name.starts_with("tuist-") {
+            return None;
+        }
+        remote_service_path_option(&passed("remote-service-path")?, name)
+    })
+}
+
+/// The value of `name` in the query of a `remote-service-path`.
+fn remote_service_path_option(path: &str, name: &str) -> Option<String> {
+    let (_, query) = path.split_once('?')?;
+    query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(key, _)| *key == name)
+        .map(|(_, value)| value.to_string())
         .filter(|value| !value.is_empty())
 }
 
@@ -349,6 +376,48 @@ fn local_lookups_stay_local(remote_service_path: bool, in_build_service: bool) -
     remote_service_path || in_build_service
 }
 
+/// The project each store was declared for by a handle in this process, which a
+/// handle opened on the same store without a project of its own uses.
+///
+/// The handles the build system opens itself, which run every cache key query
+/// (Swift and Clang), get `remote-service-path` and no other option (swift-build's
+/// `CASOptions.pluginOptions`), while the `tuist-*` flags in `OTHER_SWIFT_FLAGS`
+/// reach compiler processes only. But the build service also opens a handle from
+/// those flags for the Swift driver, which plans modules there. Without this, every
+/// key query declared no instance, and on a store the proxy had not registered (a
+/// CI host reset between jobs) answered a miss without asking the remote until a
+/// compiler declared the instance. A build with no Swift has no such handle.
+///
+/// A store two different projects declare in one process (Xcode's shared build
+/// service with the default DerivedData) is left with no project to inherit, so
+/// the proxy's registry decides, as before.
+static DECLARED_INSTANCES: OnceLock<DeclaredInstances> = OnceLock::new();
+
+type DeclaredInstances = Mutex<std::collections::HashMap<std::path::PathBuf, Option<String>>>;
+
+fn declared_instances() -> &'static DeclaredInstances {
+    DECLARED_INSTANCES.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+fn declare_instance(store: &std::path::Path, instance: &str) {
+    let mut declared = declared_instances().lock().unwrap_or_else(|poison| poison.into_inner());
+    declared
+        .entry(store.to_path_buf())
+        .and_modify(|current| {
+            if current.as_deref() != Some(instance) {
+                *current = None;
+            }
+        })
+        .or_insert_with(|| Some(instance.to_string()));
+}
+
+fn inherited_instance(store: &std::path::Path) -> Option<String> {
+    let declared = declared_instances().lock().unwrap_or_else(|poison| poison.into_inner());
+    declared.get(store).cloned().flatten()
+}
+
+static LOGGED_INHERITANCE: AtomicBool = AtomicBool::new(false);
+
 /// How long a put waits for its upload before leaving it to the proxy.
 const UPLOAD_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -361,9 +430,13 @@ struct CasState {
     // not listening degrades per op rather than up front.
     proxy: ProxyClient,
     // The account/project this build's cache belongs to, declared to the proxy
-    // so it routes to the right instance. Empty for an Xcode ⌘B build (no CLI
-    // env); the proxy then falls back to its primed cas_path mapping.
+    // so it routes to the right instance. Empty when neither the plugin options
+    // nor the environment name one; `instance()` then inherits the project another
+    // handle declared for the same store, else the proxy falls back to its
+    // cas_path registry.
     proxy_instance: String,
+    // The canonical store path, the key of `DECLARED_INSTANCES`.
+    store_key: Option<std::path::PathBuf>,
     // Upload policy from `xcodeCache(upload:)`. When false, read hits still work
     // but no value graphs are published (the read path is unchanged). Carried by
     // the `tuist-upload` plugin option (so it reaches every frontend, including a
@@ -634,7 +707,8 @@ pub unsafe extern "C" fn llcas_cas_create(
     // `tuist generate`, so it reaches every compiler frontend including an Xcode
     // ⌘B build that carries no CLI environment); fall back to the CLI env, then
     // empty (the proxy resolves the instance from its registry).
-    let proxy_instance = option_value(state, "tuist-instance").unwrap_or_else(|| {
+    let declared_instance = option_value(state, "tuist-instance");
+    let proxy_instance = declared_instance.clone().unwrap_or_else(|| {
         match (
             std::env::var("TUIST_CAS_ACCOUNT"),
             std::env::var("TUIST_CAS_PROJECT"),
@@ -649,11 +723,18 @@ pub unsafe extern "C" fn llcas_cas_create(
         .and_then(|p| p.to_str().ok())
         .map(std::path::PathBuf::from);
     let upload_in_background = resolve_upload_in_background(cas_dir.as_deref());
+    let store_key = cas_dir
+        .as_deref()
+        .map(|dir| std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf()));
+    if let (Some(store), Some(instance)) = (&store_key, &declared_instance) {
+        declare_instance(store, instance);
+    }
     let state_ptr = Box::into_raw(Box::new(CasState {
         up,
         cas: upstream_cas,
         proxy,
         proxy_instance,
+        store_key,
         upload: resolve_upload(state),
         upload_in_background,
         local_lookups_stay_local: local_lookups_stay_local(
@@ -678,6 +759,23 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_local_put_ms: AtomicU64::new(0),
     }));
     state_ptr as llcas_cas_t
+}
+
+impl CasState {
+    /// The project this handle's requests declare: its own, or else the one
+    /// another handle in this process declared for the same store.
+    fn instance(&self) -> String {
+        if !self.proxy_instance.is_empty() {
+            return self.proxy_instance.clone();
+        }
+        let Some(inherited) = self.store_key.as_deref().and_then(inherited_instance) else {
+            return String::new();
+        };
+        if !LOGGED_INHERITANCE.swap(true, Ordering::Relaxed) {
+            log_line(&format!("inherited instance {inherited:?} for {:?}", self.store_key));
+        }
+        inherited
+    }
 }
 
 fn spool_dir(state: &CasState) -> Option<std::path::PathBuf> {
@@ -1114,7 +1212,7 @@ unsafe fn load_object_impl(
             .as_ref()
             .map(|dir| dir.to_string_lossy().into_owned())
             .unwrap_or_default();
-        match state.proxy.fetch_object(&cas_path, &state.proxy_instance, digest) {
+        match state.proxy.fetch_object(&cas_path, &state.instance(), digest) {
             Ok(true) => {
                 if !upstream_error.is_null() {
                     (state.up.llcas_string_dispose)(upstream_error);
@@ -1282,7 +1380,7 @@ unsafe fn actioncache_get_impl(
         .as_ref()
         .map(|dir| dir.to_string_lossy().into_owned())
         .unwrap_or_default();
-    match client.resolve(&cas_path, &state.proxy_instance, key) {
+    match client.resolve(&cas_path, &state.instance(), key) {
         Ok(Resolution::Hit(value_digest)) => {
             proxy_failure::proxy_answered();
             let value_digest_t =
@@ -1304,7 +1402,7 @@ unsafe fn actioncache_get_impl(
             // replay. The proxy withholds the root until every child is ready.
             if globally && !value_graph_is_available(state, value_id) {
                 if let Err(message) =
-                    client.prepare_action(&cas_path, &state.proxy_instance, &value_digest)
+                    client.prepare_action(&cas_path, &state.instance(), &value_digest)
                 {
                     log_line(&format!("proxy graph preparation failed: {message}"));
                     if report_proxy_failure(state, globally, &message, error) {
@@ -1583,13 +1681,13 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
             if !state.upload_in_background
                 && state
                     .proxy
-                    .publish_and_wait(&cas_path, &state.proxy_instance, &record_path, UPLOAD_WAIT_BUDGET)
+                    .publish_and_wait(&cas_path, &state.instance(), &record_path, UPLOAD_WAIT_BUDGET)
                     .is_ok()
             {
                 return;
             }
             // Failure is fine: the record survives for the proxy sweep.
-            let _ = state.proxy.publish(&cas_path, &state.proxy_instance, &record_path);
+            let _ = state.proxy.publish(&cas_path, &state.instance(), &record_path);
         }
         return;
     }
@@ -1694,6 +1792,68 @@ mod tests {
             !local_lookups_stay_local(false, false),
             "a compiler frontend without the option still reads through"
         );
+    }
+
+    /// The build system's own handles get `remote-service-path` and no other
+    /// option, so a project can name itself to them in its query.
+    #[test]
+    fn a_tuist_option_not_passed_on_its_own_is_read_from_the_remote_service_path() {
+        let options = |pairs: &[(&str, &str)]| OptionsState {
+            ondisk_path: None,
+            client_version: None,
+            options: pairs
+                .iter()
+                .map(|(name, value)| (CString::new(*name).unwrap(), CString::new(*value).unwrap()))
+                .collect(),
+        };
+        let build_system = options(&[(
+            "remote-service-path",
+            "/Users/me/.local/state/tuist/cas-proxy.sock?tuist-instance=acme/app&tuist-upload=false",
+        )]);
+        assert_eq!(
+            option_value(&build_system, "tuist-instance").as_deref(),
+            Some("acme/app")
+        );
+        assert!(!resolve_upload(&build_system));
+        assert_eq!(option_value(&build_system, "tuist-other"), None);
+
+        let frontend = options(&[
+            ("tuist-instance", "acme/declared"),
+            ("remote-service-path", "/s.sock?tuist-instance=acme/app"),
+        ]);
+        assert_eq!(
+            option_value(&frontend, "tuist-instance").as_deref(),
+            Some("acme/declared"),
+            "an option passed on its own wins"
+        );
+
+        let older_project = options(&[("remote-service-path", "/s.sock")]);
+        assert_eq!(option_value(&older_project, "tuist-instance"), None);
+        assert_eq!(
+            option_value(
+                &options(&[("remote-service-path", "/s.sock?tuist-instance=")]),
+                "tuist-instance"
+            ),
+            None,
+            "an empty value is no value"
+        );
+    }
+
+    #[test]
+    fn a_store_inherits_the_project_one_handle_declared_unless_two_disagree() {
+        let store = std::path::Path::new("/tmp/inherit-test/one/CompilationCache.noindex/plugin");
+        let other = std::path::Path::new("/tmp/inherit-test/two/CompilationCache.noindex/plugin");
+        assert_eq!(inherited_instance(store), None, "nothing declared yet");
+
+        declare_instance(store, "acme/alpha");
+        declare_instance(store, "acme/alpha");
+        assert_eq!(inherited_instance(store).as_deref(), Some("acme/alpha"));
+        assert_eq!(inherited_instance(other), None, "another store inherits nothing");
+
+        declare_instance(store, "acme/beta");
+        assert_eq!(inherited_instance(store), None, "two projects on one store: no guess");
+        declare_instance(store, "acme/alpha");
+        assert_eq!(inherited_instance(store), None, "a conflict stays a conflict");
     }
 
     // tests/client_errors.rs drives the load paths through Apple's plugin. Its

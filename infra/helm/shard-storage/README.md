@@ -77,7 +77,11 @@ carries `tuist.dev/region` and Kura capacity admission counts its reservation;
 installing Garage there consumes existing capacity, so check region and node
 headroom first. Canary and production run on dedicated `shard-storage` hosts
 outside every Kura region and leave `region` empty. Do not reduce the PVC or
-change its storage class to work around a full node.
+change its storage class to work around a full node. The quota is set only at
+provisioning; to hand space to another store on the host, lower the project's
+hard limit on the host and set `storage.reservation` to the new limit so the
+pod's `ephemeral-storage` request follows it. Production does this for the
+RustFS pilot (see `../shard-storage-rustfs/README.md`).
 
 Garage uses path-style S3 on a ClusterIP at port 3900. Singleton RPC binds to
 loopback. Replicated stores allow RPC on 3901 only between their own pods and

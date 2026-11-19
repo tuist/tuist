@@ -16,6 +16,7 @@ defmodule Tuist.Shards.StorageRoutingTest do
 
   setup do
     project = ProjectsFixtures.project_fixture(build_system: :mix)
+    stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> false end)
     key = {:okp, :Ed25519} |> JOSE.JWK.generate_key() |> JOSE.JWK.to_pem()
     key = if is_tuple(key), do: elem(key, 1), else: key
     stub(Environment, :cache_grant_private_key, fn -> key end)
@@ -149,6 +150,57 @@ defmodule Tuist.Shards.StorageRoutingTest do
 
     assert :ok = Shards.complete_upload(ctx.project, ctx.account, "routed", "routed", [{1, "etag"}], nil, ctx.opts)
     assert {:ok, "default"} = Shards.start_upload(xcode, ctx.account, "routed")
+  end
+
+  test "public Xcode split artifacts use the persisted target for uploads and reads", ctx do
+    project = ProjectsFixtures.project_fixture(build_system: :xcode, account_id: ctx.account.id)
+    stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> true end)
+
+    stub(Environment, :shard_storage_targets, fn ->
+      %{
+        "public-v1" => %{
+          "access" => "public",
+          "enabled" => true,
+          "endpoint" => "https://shards.example.com",
+          "region" => "us-east-1",
+          "bucket" => "shards",
+          "access_key_id" => "key",
+          "secret_access_key" => "secret"
+        }
+      }
+    end)
+
+    stub(Storage, :available?, fn _ -> true end)
+    params = %{modules: ["AppTests"], shard_total: 1}
+    %{plan: old_cli} = Shards.create_shard_plan(project, Map.put(params, :reference, "public-old-cli"))
+    assert {:ok, %{storage_target: ""}} = Shards.get_shard_plan(old_cli.id)
+
+    %{plan: plan} =
+      Shards.create_shard_plan(project, Map.put(params, :reference, "public-split"), public_storage: true)
+
+    assert {:ok, %{storage_target: "public-v1"}} = Shards.get_shard_plan(plan.id)
+    stub(FeatureFlags, :public_shard_storage_enabled?, fn _ -> false end)
+    shared = Shards.artifact_object_key(ctx.account, project, plan.id, "shared")
+    module = Shards.artifact_object_key(ctx.account, project, plan.id, "module:AppTests")
+    expect(Storage, :multipart_start, fn ^shared, %S3Target{id: "public-v1"} -> {:ok, "upload"} end)
+    expect(Storage, :multipart_generate_url, fn ^shared, "upload", 1, %S3Target{id: "public-v1"} -> "put-url" end)
+
+    expect(Storage, :multipart_complete_upload, fn ^shared, "upload", [{1, "etag"}], %S3Target{id: "public-v1"} -> :ok end)
+
+    assert {:ok, "upload"} = Shards.start_upload(project, ctx.account, plan.reference, "shared")
+    assert {:ok, "put-url"} = Shards.generate_upload_url_for_plan(project, ctx.account, plan.id, "upload", 1, "shared")
+    assert :ok = Shards.complete_upload_for_plan(project, ctx.account, plan.id, "upload", [{1, "etag"}], "shared")
+    expect(Storage, :object_exists?, fn ^shared, %S3Target{id: "public-v1"} -> true end)
+    expect(Storage, :generate_download_url, fn ^shared, %S3Target{id: "public-v1"} -> "shared-url" end)
+    expect(Storage, :generate_download_url, fn ^module, %S3Target{id: "public-v1"} -> "module-url" end)
+
+    assert {:ok, %{download_url: nil, download_urls: ["shared-url", "module-url"]}} =
+             Shards.get_shard_for_plan_id(project, ctx.account, plan.id, 0)
+
+    stub(Storage, :object_exists?, fn ^shared, %S3Target{id: "public-v1"} -> false end)
+    bundle = Shards.bundle_object_key(ctx.account, project, plan.id)
+    expect(Storage, :generate_download_url, fn ^bundle, %S3Target{id: "public-v1"} -> "legacy-url" end)
+    assert {:ok, %{download_url: "legacy-url"}} = Shards.get_shard(project, ctx.account, plan.reference, 0)
   end
 
   test "foreign and missing plan IDs cannot start, sign or complete an upload", ctx do

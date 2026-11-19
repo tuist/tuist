@@ -83,7 +83,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
     }
 
     public let buildSystem: String
-    /// The pull request head, or the checked-out commit outside pull requests.
+    /// The commit the run reports (`gitInfo`): the checked-out commit.
     public let headSHA: String
     /// The commit the diff ran against, such as GitHub's synthetic merge commit, when it isn't the head.
     public let commitSHA: String?

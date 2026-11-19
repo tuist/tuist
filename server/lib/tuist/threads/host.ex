@@ -44,6 +44,7 @@ defmodule Tuist.Threads.Host do
   alias Tuist.Repo
   alias Tuist.Threads
   alias Tuist.Threads.Agent
+  alias Tuist.Threads.Attachments
   alias Tuist.Threads.Cards
   alias Tuist.Threads.Clients
   alias Tuist.Threads.MCP
@@ -330,18 +331,24 @@ defmodule Tuist.Threads.Host do
             system_prompt: system_prompt(thread, context),
             tools: tools(run, context) ++ mcp_tools ++ client_tools(run, thread, author),
             hooks: [{ToolLog, run: run, tools: @logged_tools}],
+            compactor: Attachments,
+            background_compaction: false,
             load_project_instructions: false,
             max_tokens: 8192
           ] ++ sandbox(thread, context, deadline)
 
-      with {:ok, pid} <- start_session(opts) do
+      messages = Threads.history(thread).messages
+
+      with {:ok, files} <- Attachments.materialize(messages, opts[:sandbox]),
+           {:ok, pid} <- start_session(opts) do
         Process.link(pid)
         send(host, {:session, pid})
 
         try do
           # Under the message's request id: a run the previous host was
           # interrupted in resumes from its journal, with its stored prompt.
-          Condukt.run(pid, prompt(pid, run, thread),
+          Condukt.run(pid, prompt(pid, run, thread) <> files,
+            images: Attachments.images([Repo.get!(Message, run.message_id)]),
             max_turns: 12,
             request_id: run.message_id,
             timeout: left(deadline, @finish_ms)
@@ -411,7 +418,8 @@ defmodule Tuist.Threads.Host do
          account_id: thread.account_id,
          residency: context.residency,
          cwd: cwd,
-         commands_end_by: System.os_time(:millisecond) + left(deadline, @finish_ms + @answer_ms)}
+         commands_end_by: System.os_time(:millisecond) + left(deadline, @finish_ms + @answer_ms),
+         run: %{id: context.run_id, thread_id: thread.id, attempt: context.attempt}}
     ]
   end
 

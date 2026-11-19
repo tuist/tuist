@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "135b1722f423c63a4fd9faf742cb6b464049b7ac487dda159ffc3180566381a9",
+  "hash": "11d6f20931a3051cc488c18c595270eecf591243141c3d2ece9cfc653c48c418",
   "hash_tree": {
     "root": {
       "children": [
@@ -109,7 +109,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -128,7 +128,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -157,11 +157,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -256,21 +256,21 @@
             }
           ],
           "details": {},
-          "hash": "1c7c46cb832ab89a5d88e6e37bc07eef9857ee365753f46533da3a27e3603974",
+          "hash": "116de7fd0a753c161fcada953724c93f760d8120ab7aa5259a55139d3920b1f8",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "135b1722f423c63a4fd9faf742cb6b464049b7ac487dda159ffc3180566381a9",
+      "hash": "11d6f20931a3051cc488c18c595270eecf591243141c3d2ece9cfc653c48c418",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-gradle-plugin.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b53103b16d8dab4cc96ab014b117747dc79498faa6394c1adde5a2cdf00eb4ae",
+  "output_hash": "6fae5ca3c939d36ed3adf51a98d7443a08c084aa6e75c08b66d849de0c985b4f",
   "output_path": "server/priv/docs/ko/guides/install-gradle-plugin.md",
   "protection_state": "recorded",
   "provider": "",
@@ -292,8 +292,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
   "source_path": "server/priv/docs/en/guides/install-gradle-plugin.md",
-  "translated_at": "2026-11-06T21:35:32.382107Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-19T00:15:53.570069Z",
+  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
 }

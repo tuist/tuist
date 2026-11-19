@@ -36,7 +36,7 @@ defmodule Tuist.MCP.Components.Tools.OnceRunTools do
       "properties" => %{
         "account_handle" => %{"type" => "string", "description" => "The account handle (organization or user)."},
         "project_handle" => %{"type" => "string", "description" => "The project handle."},
-        "run_id" => %{"type" => "string", "description" => "The Once run ID."}
+        "run_id" => %{"type" => "string", "description" => "The Struo run ID."}
       },
       "required" => ["account_handle", "project_handle", "run_id"]
     }
@@ -109,7 +109,7 @@ defmodule Tuist.MCP.Components.Tools.ListOnceRuns do
   @moduledoc false
   use Tuist.MCP.Tool,
     name: "list_once_runs",
-    title: "List Once Runs",
+    title: "List Struo Runs",
     read_only_hint: true,
     authorize: [action: :read, category: :build],
     schema: Tuist.MCP.Components.Tools.OnceRunTools.input(:list),
@@ -121,7 +121,7 @@ defmodule Tuist.MCP.Components.Tools.ListOnceRuns do
   @impl EMCP.Tool
   def description,
     do:
-      "List Once build, test and generic runs for a project, newest first. Runs that have not finalized have status in_progress."
+      "List Struo build, test and generic runs for a project, newest first. Runs that have not finalized have status in_progress."
 
   def execute(_conn, args, project) do
     {:ok,
@@ -136,7 +136,7 @@ defmodule Tuist.MCP.Components.Tools.GetOnceRun do
   @moduledoc false
   use Tuist.MCP.Tool,
     name: "get_once_run",
-    title: "Get Once Run",
+    title: "Get Struo Run",
     read_only_hint: true,
     authorize: [action: :read, category: :build],
     schema: Tuist.MCP.Components.Tools.OnceRunTools.input(:get),
@@ -147,12 +147,12 @@ defmodule Tuist.MCP.Components.Tools.GetOnceRun do
   @impl EMCP.Tool
   def description,
     do:
-      "Get a Once run with its action totals, cache summary and, for test runs, test totals. Run IDs are unique within a project."
+      "Get a Struo run with its action totals, cache summary and, for test runs, test totals. Run IDs are unique within a project."
 
   def execute(_conn, %{"run_id" => run_id}, project) do
     case Query.get_run(project.id, run_id) do
       {:ok, run} -> {:ok, run}
-      {:error, :not_found} -> {:error, "Once run not found: #{run_id}"}
+      {:error, :not_found} -> {:error, "Struo run not found: #{run_id}"}
     end
   end
 end

@@ -6,6 +6,7 @@ defmodule Condukt.Sandbox.VirtualTest do
   use ExUnit.Case, async: false
 
   alias Condukt.Sandbox
+  alias Condukt.Tools.{Glob, Grep, Ls}
 
   @moduletag :virtual_sandbox
 
@@ -138,7 +139,7 @@ defmodule Condukt.Sandbox.VirtualTest do
     end
 
     test "Glob matches slashless patterns at any depth", %{context: context} do
-      assert {:ok, "lib/deep.ex\ntop.ex"} = Condukt.Tools.Glob.call(%{"pattern" => "*.ex", "path" => "/w"}, context)
+      assert {:ok, "lib/deep.ex\ntop.ex"} = Glob.call(%{"pattern" => "*.ex", "path" => "/w"}, context)
 
       # The glob leaves the session's own shell options and variables as they were.
       assert {:ok, %{output: "1 []\n"}} =
@@ -147,7 +148,7 @@ defmodule Condukt.Sandbox.VirtualTest do
 
     test "Grep shows context for matches under a search path", %{context: context} do
       assert {:ok, result} =
-               Condukt.Tools.Grep.call(
+               Grep.call(
                  %{"pattern" => "needle", "path" => "/w", "glob" => "*.ex", "context" => 1},
                  context
                )
@@ -157,7 +158,7 @@ defmodule Condukt.Sandbox.VirtualTest do
     end
 
     test "Ls lists through the shell", %{context: context} do
-      assert {:ok, ".hidden\nlib/\ntop.ex"} = Condukt.Tools.Ls.call(%{"path" => "/w"}, context)
+      assert {:ok, ".hidden\nlib/\ntop.ex"} = Ls.call(%{"path" => "/w"}, context)
     end
   end
 end

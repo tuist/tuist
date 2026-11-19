@@ -118,6 +118,134 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert %{git_commit_sha: "m"} = History.head_commit(project, "main")
     end
 
+    test "keep a pull request's merge checkout off its branch, which keeps the pull request's head", %{
+      project: project,
+      account: account
+    } do
+      # main: a → d. The pull request's head p is off d, and m is the merge
+      # commit CI checks out for it (refs/pull/1/merge): base tip first, p second.
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d", ["a"], 1),
+          CoverageFixtures.commit("p", ["d"], 2),
+          CoverageFixtures.commit("m", ["d", "p"], 3)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      # The client names the merge commit it reports as the branch's head,
+      # beside the base branch's.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "m"}, %{branch: "main", sha: "d"}], "main")
+      run(project, account, Map.merge(pull_request, %{git_commit_sha: "m", scheme: "UITests"}), [1, 0, 0, 0])
+
+      # Another job of the pull request reported its head.
+      GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: "p"}, %{branch: "main", sha: "d"}], "main")
+      run(project, account, Map.merge(pull_request, %{git_commit_sha: "p", scheme: "UnitTests"}), [1, 1, 1, 0])
+
+      assert CoverageFixtures.branch_head(repository, "feature") == "p"
+      assert Enum.map(branch_commits(project, "feature"), & &1.git_commit_sha) == ["p"]
+      assert %{git_commit_sha: "p", coverage: 75.0} = History.head_commit(project, "feature")
+
+      # The merge commit is the pull request's.
+      assert {pull, _position} = GitHistory.position(repository, "m")
+      assert GitHistory.get_ref(pull).name == "pull/1"
+
+      # Runs are read by the branch they were labelled with, the merge
+      # checkout's included.
+      runs = Commits.run_cursor_page(project.id, {:branch, "feature"}, page_size: 10)
+      assert runs.runs |> Enum.map(& &1.git_commit_sha) |> Enum.sort() == ["m", "p"]
+    end
+
+    test "show each push's merge checkout at the pull request commit it merged", %{project: project, account: account} do
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d", ["a"], 1),
+          CoverageFixtures.commit("p1", ["d"], 2),
+          CoverageFixtures.commit("p2", ["p1"], 3),
+          CoverageFixtures.commit("m1", ["d", "p1"], 4),
+          CoverageFixtures.commit("m2", ["d", "p2"], 5),
+          CoverageFixtures.commit("x", ["d", "p2"], 6)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      for {merge, ran_at, counts} <- [
+            {"m1", ~N[2026-09-01 10:00:00], [1, 0, 0, 0]},
+            {"m2", ~N[2026-09-01 11:00:00], [1, 1, 0, 0]}
+          ] do
+        GitHistory.record_branch_heads(
+          repository,
+          [%{branch: "feature", sha: merge}, %{branch: "main", sha: "d"}],
+          "main"
+        )
+
+        run(project, account, Map.merge(pull_request, %{git_commit_sha: merge, ran_at: ran_at}), counts)
+      end
+
+      # A merge of p2 into main measured on main is main's, not the branch's.
+      run(project, account, %{git_commit_sha: "x", ran_at: ~N[2026-09-01 12:00:00]}, [1, 1, 1, 1])
+
+      assert CoverageFixtures.branch_head(repository, "feature") == "p2"
+      page = History.commit_cursor_page(project, "feature", page_size: 100)
+      assert page.ordered_by == :graph
+
+      assert Enum.map(page.commits, &{&1.git_commit_sha, &1.measured, &1.coverage}) == [
+               {"m2", true, 50.0},
+               {"m1", true, 25.0}
+             ]
+
+      # The Commits tab filters by status, measured by default, which a
+      # commit gets from the merge checkout it stands with.
+      filtered = fn status ->
+        Enum.map(
+          History.commit_cursor_page(project, "feature", page_size: 100, status: status).commits,
+          & &1.git_commit_sha
+        )
+      end
+
+      Commits.signal_complete(project, "m2")
+      assert filtered.("measured") == ["m2", "m1"]
+      assert filtered.("complete") == ["m2"]
+      assert filtered.("not-measured") == []
+
+      assert %{git_commit_sha: "m2", coverage: 50.0} = History.head_commit(project, "feature")
+    end
+
+    test "list every push of a pull request whose depth-1 checkouts ran its merge commits", %{
+      project: project,
+      account: account
+    } do
+      # Each push's merge checkout lists only its merge commit: the pull
+      # request's heads p1 and p2 are parent edges, not commits the graph has.
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d1", ["a"], 1),
+          CoverageFixtures.commit("d2", ["d1"], 2),
+          CoverageFixtures.commit("m1", ["d1", "p1"], 3),
+          CoverageFixtures.commit("m2", ["d2", "p2"], 4)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      for {merge, base, ran_at} <- [{"m1", "d1", ~N[2026-09-01 10:00:00]}, {"m2", "d2", ~N[2026-09-01 11:00:00]}] do
+        GitHistory.record_branch_heads(
+          repository,
+          [%{branch: "feature", sha: merge}, %{branch: "main", sha: base}],
+          "main"
+        )
+
+        run(project, account, Map.merge(pull_request, %{git_commit_sha: merge, ran_at: ran_at}), [1, 1, 0, 0])
+      end
+
+      page = History.commit_cursor_page(project, "feature", page_size: 100)
+      assert page.ordered_by == :time
+      assert Enum.map(page.commits, & &1.git_commit_sha) == ["m2", "m1"]
+      assert %{git_commit_sha: "m2"} = History.head_commit(project, "feature")
+    end
+
     test "cut a branch at its merge base with the default branch", %{project: project, account: account} do
       # main: a → b → c; feature: two commits off b, and a branch already
       # merged into main.

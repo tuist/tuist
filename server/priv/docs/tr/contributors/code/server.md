@@ -2,7 +2,7 @@
 {
   "title": "Sunucu",
   "titleTemplate": ":title · Kod · Katkıda Bulunanlar · Tuist",
-  "description": "Tuist Sunucusu'na katkıda bulunun."
+  "description": "Tuist Sunucusuna katkıda bulunun."
 }
 ---
 # Sunucu {#server}
@@ -15,7 +15,7 @@ Sunucu; kimlik doğrulama, hesaplar ve projeler, önbellek depolama, analizler, 
 
 ## Nasıl katkıda bulunulur {#how-to-contribute}
 
-Sunucuya yapılan katkılar için KLA’nın imzalanması gerekir (`server/CLA.md`).
+Sunucuya katkıda bulunmak için CLA’yı imzalamanız gerekir (`server/CLA.md`).
 
 ### Yerel kurulum {#set-up-locally}
 
@@ -34,14 +34,14 @@ mise run install
 mise run dev
 ```
 
-Tarayıcınızda `http://localhost:8080` adresini açın. Geliştirme ortamında, giriş sayfasında sizi önceden oluşturulmuş hesapla (`tuistrocks@tuist.dev` / `tuistrocks`) oturan **Test kullanıcısı olarak giriş yap** düğmesi bulunur.
+Tarayıcınızda `http://localhost:8080` adresini açın. Geliştirme sırasında giriş sayfasında, önceden hazırlanmış hesapla (`tuistrocks@tuist.dev` / `tuistrocks`) oturum açmanızı sağlayan bir **Test kullanıcısı olarak giriş yap** düğmesi bulunur.
 
 > [!NOTE]
-> Birinci taraf geliştiriciler, fnox aracılığıyla 1Password’ten geliştirme gizli anahtarlarını yükler — `mise run dev`, sunucuyu `fnox exec` içinde çalıştırır (bkz. `server/fnox.toml`). Harici katkıda bulunanların 1Password erişimine ihtiyacı yoktur; sunucu bunun olmadan yerel olarak çalışır. OAuth, Stripe ve diğer üçüncü taraf entegrasyonlar devre dışı bırakılır, ancak temel işlevsellik çalışır.
+> Birinci taraf geliştiriciler, fnox aracılığıyla 1Password’ten geliştirme gizli anahtarlarını yükler — `mise run dev`, sunucuyu `fnox exec` içine alır (bkz. `server/fnox.toml`). Harici katkıda bulunanların 1Password erişimine ihtiyacı yoktur; sunucu bunun olmadan yerel olarak çalışır. OAuth, Stripe ve diğer üçüncü taraf entegrasyonlar devre dışı bırakılır, ancak temel işlevsellik çalışır.
 
 ### Yerel Helm testi {#local-helm-testing}
 
-[kind](https://kind.sigs.k8s.io/) ve dahil edilen mise görevlerini kullanarak tam yığını makinenizde ayağa kaldırabilirsiniz. Bu işlem Docker görüntülerini yerel olarak derler, bir kind kümesi oluşturur, grafiği yükler ve tüm hizmetlerin bağlantı noktalarını otomatik olarak yönlendirir:
+[kind](https://kind.sigs.k8s.io/) ve dahil edilen mise görevlerini kullanarak tam yığını makinenizde çalıştırabilirsiniz. Bu işlem Docker imajlarını yerel olarak derler, bir kind kümesi oluşturur, chart'ı yükler ve tüm hizmetlerin port yönlendirmesini otomatik olarak gerçekleştirir:
 
 ```bash
 # Deploy everything (builds images from source)

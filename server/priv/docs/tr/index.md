@@ -1,13 +1,13 @@
 ---
 {
   "title": "Tuist nedir?",
-  "description": "Tuist, mühendislik ekipleri ve kodlama ajanları için bir derleme platformudur. Xcode, Gradle, Bazel, Elixir ve Rust üzerinde derleme ve test iş akışlarını destekler; Once desteği canary aşamasındadır. Özellikler araç zincirine göre değişir ve Rust derleme önbelleğe alma deneyseldir."
+  "description": "Tuist, mühendislik ekipleri ve kodlama ajanları için bir derleme platformudur. Xcode, Gradle, Bazel, Elixir ve Rust arasında derleme ve test iş akışlarını destekler; Once desteği canary aşamasındadır. Özellikler araç zincirine göre değişir ve Rust derleme önbelleğe alma deneysel bir özelliktir."
 }
 ---
 
-# Takımlar ve kodlama ajanları için bir derleme platformu
+# Ekipler ve kodlama ajanları için bir derleme platformu
 
-**Tuist, mühendislik ekipleri ve onların kodlama ajanları için bir derleme platformudur.** Xcode, Gradle, Bazel, Elixir ve Rust üzerindeki derleme ve test iş akışlarını destekler; Once desteği canary aşamasındadır. Mevcut kullandığınız derleme sistemlerinin yerine geçmek yerine onlarla uyumlu çalışır. Kullanılabilir özellikler araç zincirinize bağlıdır: Rust projeleri, doctest'ler, kararsız test tespiti ve deneysel derleme önbellekleme dahil olmak üzere Cargo derleme ve test içgörülerine erişir. Once; paylaşılan önbellekleme, derleme ve test içgörüleri, parçalama (sharding) ve desteklenen uygulama önizlemeleri için yerel olarak bağlanır.
+**Tuist, mühendislik ekipleri ve onların kodlama ajanları için bir derleme platformudur.** Xcode, Gradle, Bazel, Elixir ve Rust üzerinde derleme ve test iş akışlarını destekler; Once desteği canary aşamasındadır. Mevcut derleme sistemlerinizi değiştirmek yerine onlarla birlikte çalışır. Kullanılabilir özellikler araç zincirinize bağlıdır: Rust projeleri, doctest'ler, kararsız test tespiti ve deneysel derleme önbellekleme dahil olmak üzere Cargo derleme ve test içgörülerine erişir. Once, paylaşımlı önbellekleme, derleme ve test içgörileri, parçalama ve desteklenen uygulama önizlemeleri için yerel olarak bağlanır.
 
 Derleme sisteminiz için <.localized_link href="/guides/get-started">Başlangıç yollarından</.localized_link> birini izleyin. Once, Tuist CLI olmadan doğrudan bağlanır; diğer yollar hangi Tuist araçlarının kurulacağını açıklar.
 
@@ -16,12 +16,12 @@ Derleme sisteminiz için <.localized_link href="/guides/get-started">Başlangı�
 <.home_cards>
   <.home_card
     title="Önbellek"
-    details="Derleme çıktılarınızı ekibiniz ve CI arasında paylaşın. Xcode'un derleme önbelleği, Tuist'in modül önbelleği, Gradle'ın derleme önbelleği, Bazel'ın uzak önbelleği, Elixir'in bağımlılık önbelleği, Rust'ın deneysel derleme önbelleği ve Once'ın paylaşılan eylem önbelleği ile çalışır."
+    details="Derleme çıktılarınızı ekibiniz ve CI arasında paylaşın. Xcode'un derleme önbelleği, Tuist'in modül önbelleği, Gradle'ın derleme önbelleği, Bazel'ın uzak önbelleği, Elixir'in bağımlılık önbelleği, Rust'ın deneysel derleme önbelleği ve Once'in paylaşımlı eylem önbelleği ile çalışır."
     supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/cache"
 />
   <.home_card
-    title="Derleme ve test içgörüleri"
+    title="Derleme ve test içgörileri"
     details="Xcode, Gradle, Bazel, Elixir, Rust ve Once projelerinde derleme ve test sürelerini, hataları, kararsızlığı ve gerilemeleri takip edin."
     supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/build-insights"

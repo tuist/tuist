@@ -29,7 +29,7 @@
 "Apple Sign In failed" = "Apple 登录失败";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "中的应用";
+"Apps in" = "应用位于";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Are you sure you want to delete this preview? This action cannot be undone." = "确定要删除此预览吗？此操作无法撤销。";
@@ -68,7 +68,7 @@
 "Could not find APK file in the downloaded archive" = "在下载的归档文件中未找到 APK 文件";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "在下载的归档文件中未找到应用包";
+"Could not find app bundle in the downloaded archive" = "在下载的归档文件中未找到 App 包";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "Couldn't install the app for %@ as it doesn't include any valid app builds." = "无法为 %@ 安装应用，因为它不包含任何有效的应用构建。";
@@ -95,7 +95,7 @@
 "Delete account" = "删除账户";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "删除预览版";
+"Delete preview" = "删除预览";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "详情";
@@ -110,7 +110,7 @@
 "Email" = "电子邮件";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "请输入有效的 HTTPS 服务器 URL，不得包含凭据、查询参数或片段。";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "请输入有效的 HTTPS 服务器 URL，不要包含凭据、查询参数或片段。";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "错误";
@@ -146,7 +146,7 @@
 "Launch" = "启动";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Launching preview" = "正在启动预览版";
+"Launching preview" = "正在启动预览";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Log out" = "退出登录";
@@ -158,16 +158,16 @@
 "Missing Apple credentials from authorization" = "授权中缺少 Apple 凭据";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"No Previews" = "无预览版";
+"No Previews" = "无预览";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No Tuist projects found" = "未找到 Tuist 项目";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "未找到预览版";
+"No previews found" = "未找到预览";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "没有符合筛选条件的预览版";
+"No previews match your filters" = "没有预览符合您的筛选条件";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "确定";
@@ -179,10 +179,10 @@
 "Pin" = "置顶";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews" = "预览版";
+"Previews" = "预览";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews: %lld" = "预览版：%lld";
+"Previews: %lld" = "预览：%lld";
 
 /* TuistProfile/ProfileView.swift */
 "Privacy Policy" = "隐私政策";
@@ -224,7 +224,7 @@
 "Sign in" = "登录";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "登录以访问你的项目并与团队协作";
+"Sign in to access your projects and\ncollaborate with your team" = "登录以访问您的项目并\n与团队协作";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "登录以运行预览版";
@@ -269,16 +269,16 @@
 "The server returned a preview page that did not advance. Update your server or try again." = "服务器返回的预览页面未更新。请更新你的服务器或重试。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此服务器不支持按轨道筛选预览。请更新你的自托管 Tuist 服务器，或选择“所有”轨道。";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此服务器不支持按轨道筛选预览。请更新你自托管的 Tuist 服务器，或选择“所有”轨道。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此服务器不支持搜索预览。请更新你的自托管 Tuist 服务器，或清除搜索内容。";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此服务器不支持搜索预览。请更新你自托管的 Tuist 服务器，或清除搜索内容。";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此服务器不支持从 Tuist 应用登录。请联系管理员进行更新。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "要运行预览，你必须选择一个模拟器。";
+"To run a preview, you must have a simulator selected." = "要运行预览，必须选择一个模拟器。";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Token exchange failed with status code: %lld" = "令牌交换失败，状态码：%lld";
@@ -290,7 +290,7 @@
 "Tracks" = "轨道";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "请尝试其他搜索内容或选择另一个轨道。";
+"Try a different search or select another track." = "尝试其他搜索或选择另一个轨道。";
 
 /* TuistProfile/AISubscriptionsSection.swift */
 "Tuist will delete the saved %@ credentials." = "Tuist 将删除已保存的 %@ 凭据。";
@@ -299,7 +299,7 @@
 "Unknown" = "未知";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
-"Unpin" = "取消置顶";
+"Unpin" = "取消固定";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Update your self-hosted Tuist server to select a track." = "更新自托管 Tuist 服务器以选择轨道。";
@@ -321,14 +321,14 @@
 "Design preview · Sample builds" = "设计预览 · 示例构建";
 "Design preview · Sample data" = "设计预览 · 示例数据";
 "Done" = "完成";
-"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "邀请 %@ 会共享所有现有消息、工具结果和后续回复。此预览不会发送任何邀请或通知。";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "邀请 %@ 将共享所有现有消息、工具结果和后续回复。此预览不会发送任何邀请或通知。";
 "Latest builds" = "最新构建";
 "Layout preview" = "布局预览";
-"No account is signed in. These screens use sample data." = "未登录任何账户。这些屏幕使用示例数据。";
+"No account is signed in. These screens use sample data." = "未登录任何账户。这些屏幕使用的是示例数据。";
 "Previous builds" = "历史构建";
 "Search projects" = "搜索项目";
 "Select project" = "选择项目";
-"Sign out of Tuist?" = "退出 Tuist 登录？";
+"Sign out of Tuist?" = "退出 Tuist？";
 "Switch account" = "切换账户";
 "Tool actions" = "工具操作";
 "Organization" = "组织";
@@ -345,7 +345,10 @@
 "Profiles" = "配置文件";
 "Add profile" = "添加配置文件";
 "Switch profile" = "切换配置文件";
-"Switch profile?" = "是否切换配置文件？";
-"Open screens will be closed." = "当前打开的页面将关闭。";
+"Switch profile?" = "切换配置文件？";
+"Open screens will be closed." = "已打开的屏幕将关闭。";
 "View profile" = "查看配置文件";
-"Your saved profiles could not be updated. Please try again." = "无法更新已保存的配置文件，请重试。";
+"Your saved profiles could not be updated. Please try again." = "无法更新你保存的配置文件。请重试。";
+
+"This Mac" = "这台 Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "此预览版的 macOS 构建无法在此 Mac 的处理器上运行。";

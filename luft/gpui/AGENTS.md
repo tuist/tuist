@@ -1,12 +1,12 @@
 # Luft desktop frontend
 
 Rust and [gpui](https://crates.io/crates/gpui) desktop app for Linux and Windows,
-built with Once. It also compiles on macOS so changes can be tried locally; the
+built with Struo. It also compiles on macOS so changes can be tried locally; the
 Swift app in `../../app/` remains the shipping macOS client. This is an independent
-Once workspace: Cargo owns the dependency graph and `once.toml` seeds it with a
+Struo workspace: Cargo owns the dependency graph and `struo.toml` seeds it with a
 `cargo_workspace` target alongside the new native frontend targets. Builds report to the Tuist project
 `tuist/luft` for caching and insights;
-sign in once per machine with `once auth login --provider tuist`.
+sign in once per machine with `struo auth login --provider tuist`.
 
 The app signs in with the browser and shows a Threads/Halls/DMs/Profile shell laid
 out like Zed's workspace; Threads lists, starts and continues server-side conversations
@@ -16,7 +16,7 @@ Halls and DMs use its `Halls` operations (`gpui/src/workspace/halls.rs`).
 ## Crates
 
 Keep the workspace horizontal: small crates with explicit dependencies, so
-Once compiles, tests, and caches each one independently and an edit rebuilds
+Struo compiles, tests, and caches each one independently and an edit rebuilds
 only its dependants. Only `gpui` depends on gpui; never pull UI or gpui types
 into the library crates.
 
@@ -128,7 +128,7 @@ Record native VoiceOver/Narrator/NVDA/Orca acceptance separately in the README.
 
 ## Brand assets
 
-- Brand assets live in `gpui/resources/` relative to the Once workspace. `img()` treats a path that parses as
+- Brand assets live in `gpui/resources/` relative to the Struo workspace. `img()` treats a path that parses as
   a URI (a bare `name.png` is a valid host) as a network URL, so keep embedded
   image paths inside a directory.
 - `resources/icon.png` is the app icon, the 256px flat export that
@@ -142,24 +142,24 @@ Record native VoiceOver/Narrator/NVDA/Orca acceptance separately in the README.
 
 ## Commands
 
-Run from the parent `luft/` Once workspace, with the root mise config excluded as documented in its README:
+Run from the parent `luft/` Struo workspace, with the root mise config excluded as documented in its README:
 
-The GPUI source layout in `once.toml` requires Once's `build_script_sources`
+The GPUI source layout in `struo.toml` requires Struo's `build_script_sources`
 support; optimized Windows builds also require its build-script debug-assertions
 fix, and Windows staged builds need its Cargo workspace path comparison fix,
 its non-verbatim command path fix, and `SystemRoot` in Rust test environments.
-All are available in Once 0.77.5 and later; the workspace pins 0.81.1. Use the published binary
+All were available in Once 0.77.5; the workspace pins Struo 1.0.0. Use the published binary
 installed by mise. Do not replace this dependency with patched Cargo sources.
 
 ```sh
 mise install
-ONCE_CACHE_PROVIDER=local mise run build
-ONCE_CACHE_PROVIDER=local mise run run
-ONCE_CACHE_PROVIDER=local mise run test
-ONCE_CACHE_PROVIDER=local mise run check
+STRUO_CACHE_PROVIDER=local mise run build
+STRUO_CACHE_PROVIDER=local mise run run
+STRUO_CACHE_PROVIDER=local mise run test
+STRUO_CACHE_PROVIDER=local mise run check
 ```
 
-`once query targets --kind rust_binary` lists the generated binary target that
+`struo query targets --kind rust_binary` lists the generated binary target that
 `mise run run` launches. Linux builds need the X11/Wayland, xkbcommon, Vulkan,
 fontconfig, and freetype development packages that Zed's `script/linux` installs.
 Windows builds need the MSVC toolchain and Windows SDK. macOS builds use
@@ -168,9 +168,9 @@ gpui's `runtime_shaders` feature so the Metal toolchain is not required.
 ## Constraints
 
 - Development builds keep the updater public key and package-kind files empty.
-  Release staging stamps them before Once builds; keep them declared source
+  Release staging stamps them before Struo builds; keep them declared source
   inputs. Never embed a private key or use PR-writable caches for signed releases.
 - Keep the Cargo package standalone (its own `[workspace]`), so the monorepo's
   other Cargo projects are never resolved here.
-- Do not switch to building with plain Cargo to work around Once failures; fix
-  the Once graph instead.
+- Do not switch to building with plain Cargo to work around Struo failures; fix
+  the Struo graph instead.

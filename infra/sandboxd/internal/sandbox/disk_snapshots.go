@@ -34,6 +34,7 @@ var (
 	ErrDisksNotSynced          = errors.New("disks were not synced by the last pause")
 	ErrArchiveNeedsWarmRestore = errors.New("archive of an unsynced pause restores only on a node that loads its memory")
 	ErrDiskSnapshotMismatch    = errors.New("disk snapshot does not match the requested sandbox")
+	ErrCacheImage              = errors.New("invalid cache image")
 )
 
 type diskSnapshotMeta struct {
@@ -332,8 +333,31 @@ func (m *Manager) createFromDiskSnapshot(ctx context.Context, sb *Sandbox, args 
 	sb.mu.Lock()
 	sb.meta.Tag = snap.Tag
 	sb.mu.Unlock()
+	if args.CacheImage != "" {
+		if err := m.attachCacheImage(args.CacheImage, sb.root, uid); err != nil {
+			return res, err
+		}
+	}
 
 	return m.coldCreate(ctx, sb, log.With("snapshot", args.FromDiskSnapshot, "slot", slot))
+}
+
+// attachCacheImage gives the jail a private writable clone of a cache image.
+// The source must be a regular file, not a symlink out of the directory.
+func (m *Manager) attachCacheImage(name, root string, uid int) error {
+	src := filepath.Join(m.cfg.CacheImageDir, name)
+	info, err := os.Lstat(src)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCacheImage, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: %s is not a regular file", ErrCacheImage, name)
+	}
+	dst := filepath.Join(root, firecracker.CachePath)
+	if err := m.cloneFile(src, dst); err != nil {
+		return err
+	}
+	return vm.Chown(dst, uid, uid)
 }
 
 // coldCreate boots a new sandbox whose jail already holds its kernel and

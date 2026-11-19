@@ -1,7 +1,7 @@
 ---
 {
   "title": "Swift 套件",
-  "titleTemplate": ":title · Swift · Package Registries · 功能 · Guides · Tuist",
+  "titleTemplate": ":title · Swift · Package Registries · 功能 · 指南 · Tuist",
   "description": "了解如何在 Swift 套件中使用 Tuist Registry。"
 }
 ---
@@ -13,6 +13,6 @@
 swift package --replace-scm-with-registry resolve
 ```
 
-如果你想確保每次解析依賴項時都使用註冊表，就需要更新 `Package.swift` 檔案中的 `dependencies`，改用註冊表識別碼而非 URL。
+如果你想確保每次解析依賴項時都使用註冊表，需要更新 `dependencies` 中的 `Package.swift` 檔案，以使用註冊表識別碼取代 URL。
 
 <!-- @snippet: ./_registry-identifier -->

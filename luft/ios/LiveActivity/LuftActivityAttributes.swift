@@ -38,13 +38,15 @@ struct LuftActivityAttributes: ActivityAttributes {
         }
 
         struct Progress: Codable, Hashable {
-            /// `timer`, counted on the device from `started_at`, or `steps`.
+            /// `timer`, counted on the device from `started_at`, or `steps`. A
+            /// build's timer also carries `done` of `total` planned targets.
             var kind: String
             var startedAt: TimeInterval?
             var done: Int?
+            var total: Int?
 
             enum CodingKeys: String, CodingKey {
-                case kind, done
+                case kind, done, total
                 case startedAt = "started_at"
             }
         }
@@ -62,6 +64,13 @@ struct LuftActivityAttributes: ActivityAttributes {
             /// Tints of the thread's recent phases, oldest first.
             var trail: [String]
             var link: String?
+            /// Opens Luft's snooze choices for the thread; only while it works.
+            var snoozeLink: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, headline, detail, phase, symbol, tint, progress, trail, link
+                case snoozeLink = "snooze_link"
+            }
 
             var finished: Bool { ["needs_you", "done", "failed"].contains(phase) }
 
@@ -76,6 +85,7 @@ struct LuftActivityAttributes: ActivityAttributes {
                 progress = try? values.decodeIfPresent(Progress.self, forKey: .progress)
                 trail = (try? values.decodeIfPresent([String].self, forKey: .trail)) ?? []
                 link = try values.decodeIfPresent(String.self, forKey: .link)
+                snoozeLink = try? values.decodeIfPresent(String.self, forKey: .snoozeLink)
             }
         }
 
@@ -130,7 +140,16 @@ struct LuftActivityAttributes: ActivityAttributes {
     /// A thread's link, accepted only as a Luft navigation link; the app's
     /// router still checks it belongs to a saved profile's server.
     func url(for thread: ContentState.Thread) -> URL? {
-        guard let link = thread.link, let url = URL(string: link),
+        appURL(thread.link)
+    }
+
+    /// Where the thread's Snooze leads, checked the same way.
+    func snoozeURL(for thread: ContentState.Thread) -> URL? {
+        appURL(thread.snoozeLink)
+    }
+
+    private func appURL(_ link: String?) -> URL? {
+        guard let link, let url = URL(string: link),
               url.scheme == "luft", url.host == "app" else { return nil }
         return url
     }

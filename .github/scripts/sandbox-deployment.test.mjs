@@ -282,7 +282,7 @@ function assertPublisher(name) {
   assert.equal(publisher.jobs.build.permissions.packages, 'write');
   assert.equal(publisher.jobs.build.needs, 'test');
   assert.equal(publisher.on.workflow_call.outputs.image_tag.value, '${{ jobs.build.outputs.image_tag }}');
-  const build = publisher.jobs.build.steps.find((s) => s.uses === 'docker/build-push-action@v6');
+  const build = publisher.jobs.build.steps.find((s) => s.uses?.startsWith('docker/build-push-action@'));
   assert.equal(build.if, "steps.existing.outputs.exists != 'true'");
   assert.equal(build.with.tags, '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image_tag }}');
   for (const step of publisher.jobs.test.steps) {

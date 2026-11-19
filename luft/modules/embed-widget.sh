@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Embeds the Live Activity extension in the host app before Once signs it.
+# Embeds the Live Activity extension in the host app before Struo signs it.
 # Adapted from atlas-native/modules/embed-widget.sh.
 set -euo pipefail
 

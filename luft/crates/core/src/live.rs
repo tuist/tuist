@@ -1,6 +1,7 @@
 //! Live threads: the Phoenix channel a frontend keeps open on the thread it
-//! shows (`/threads/socket`, topic `threads:{account}:{thread}`). The server
-//! pushes `snapshot` when the thread changes, and the agent calls the tools
+//! shows (`/threads/socket`, topic `threads:{account}:{thread}`), or on the
+//! inbox (`threads:{account}:inbox`). The server pushes `snapshot` when the
+//! thread, or any of the inbox's threads, changes, and the agent calls the tools
 //! the app offers when it joins (`client_tools`), which run here and on the
 //! edge. Edges own the WebSocket; the core writes and reads its frames and
 //! decides when to heartbeat, when to give up on a socket and how long to
@@ -18,6 +19,13 @@ const HEARTBEAT_REF: &str = "heartbeat";
 const HEARTBEAT_MS: u64 = 30_000;
 const FIRST_RETRY_MS: u64 = 1_000;
 const MAX_RETRY_MS: u64 = 30_000;
+/// The inbox hears every thread's change, several a second while agents
+/// work, and each refresh reloads the whole list, so it refreshes at most
+/// this often. A thread's own socket refreshes as it changes.
+const INBOX_REFRESH_MS: u64 = 2_000;
+
+/// The `id` that follows the account's whole inbox rather than one thread.
+pub const INBOX: &str = "inbox";
 
 /// The tools Luft offers the thread's agent. They change only this device.
 pub fn client_tools() -> Value {
@@ -54,10 +62,11 @@ impl Live {
         delay
     }
 
-    /// How to open socket `handle` on the thread `id` in `account`: its URL,
-    /// the subprotocols that carry the bearer `access` (never a URL
-    /// parameter), the join frame to send first, and how often to call
-    /// `tick`.
+    /// How to open socket `handle` on the thread `id` (or [`INBOX`]) in
+    /// `account`: its URL, the subprotocols that carry the bearer `access`
+    /// (never a URL parameter), the join frame to send first, how often to
+    /// call `tick`, and the least time between two refreshes (`refresh_ms`):
+    /// the edge folds the refreshes asked for meanwhile into one.
     pub fn connect(
         &mut self,
         handle: &str,
@@ -79,6 +88,7 @@ impl Live {
             "protocols": ["phoenix", format!("base64url.bearer.phx.{}", base64(access.as_bytes()))],
             "join": frame(Some(JOIN_REF), Some(JOIN_REF), &topic(account, id), "phx_join", json!({"tools": client_tools()})),
             "tick_ms": HEARTBEAT_MS,
+            "refresh_ms": if id == INBOX { INBOX_REFRESH_MS } else { 0 },
         }))
     }
 
@@ -386,6 +396,27 @@ mod tests {
             assert!(reply[4]["error"].is_string());
             assert_eq!(reply[4]["id"], "call-1");
         }
+    }
+
+    #[test]
+    fn the_inbox_joins_its_own_topic_and_refreshes_at_most_every_two_seconds() {
+        let server = Url::parse("https://example.com/tuist/").unwrap();
+        let mut live = Live::default();
+        let thread = live.connect("t", &server, "ana", THREAD, "token").unwrap();
+        assert_eq!(thread["refresh_ms"], 0);
+        let inbox = live.connect("i", &server, "ana", INBOX, "token").unwrap();
+        assert_eq!(inbox["refresh_ms"], 2000);
+        let join: Value = serde_json::from_str(inbox["join"].as_str().unwrap()).unwrap();
+        // The topic the server's inbox channel pushes on.
+        assert_eq!(join[2], "threads:ana:inbox");
+        let snapshot = json!([null, null, "threads:ana:inbox", "snapshot", {"revision": 7}]);
+        let out = live
+            .receive("i", "ana", INBOX, &snapshot.to_string())
+            .unwrap();
+        assert_eq!(
+            (&out["refresh"], &out["reconnect"]),
+            (&json!(true), &json!(false))
+        );
     }
 
     #[test]

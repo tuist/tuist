@@ -1,129 +1,129 @@
 ---
 {
-  "title": "乜嘢係 build cache？解構本地同遠端 build cache",
+  "title": "乜嘢係建構快取？解釋本地同遠端建構快取",
   "titleTemplate": ":title · Tuist",
-  "description": "Build cache 會重用之前 build 嘅輸出。了解 Xcode、Gradle 同 Bazel 點樣運作本地同遠端 build cache、Xcode cache 係乜，以及幾時用 caching 先至划算。"
+  "description": "建構快取會重用之前建構嘅輸出。解釋 Xcode、Gradle 同 Bazel 入面本地同遠端建構快取點樣運作、Xcode 快取係乜，以及幾時用快取先至划算。"
 }
 ---
-# 甚麼是構建快取？ {#what-is-a-build-cache}
+# 咩係 build cache？{#what-is-a-build-cache}
 
-構建快取會將各個構建步驟的輸出（例如編譯後的物件檔、模組、程式庫或測試結果）儲存起來，並以根據所有產生這些輸出的因素計算得出的金鑰作為索引：原始碼檔案、編譯器旗標、依賴項、環境變數及工具鏈版本。當後續構建需要某個步驟，而其輸入所產生的金鑰與之前相同時，構建系統便會直接採用已儲存的輸出，而非再次執行該步驟。**本機構建快取**存放在單一機器上，可加速該機器日後的構建。**遠端構建快取**則是一個共享伺服器，供多部機器讀寫，讓 CI 工作、團隊成員或編碼代理程式能夠重用他人已構建好的輸出。
+Build cache 會將個別 build step 嘅輸出（例如編譯好嘅 object file、module、library 或測試結果）儲存落去，並以一個根據所有產生呢啲輸出所需輸入計算得出嘅 key 來索引：包括原始碼檔案、編譯器旗標、依賴項、環境變數同工具鏈版本。當後續 build 需要某個 step，而其輸入產生相同 key 時，build system 會直接使用已儲存嘅輸出，而唔係重新執行該 step。**Local build cache** 存放於單一機器上，並加速該機器後續嘅 build。**Remote build cache** 係一個共享伺服器，多部機器可以讀取同寫入，令到 CI job、團隊成員或 coding agent 能夠重用其他人已經 build 好嘅輸出。
 
-## 構建快取、增量構建與 CI 目錄快取 {#build-cache-incremental-build-and-ci-cache}
+## Build cache、incremental build 同 CI cache {#build-cache-incremental-build-and-ci-cache}
 
-有三種概念常被統稱為「快取」，但它们的運作方式各不相同：
+有三個概念經常被稱為「cache」，但佢哋嘅行為各不相同：
 
-- **增量構建**會重用已存在於你自身構建目錄中的輸出，並僅重新構建自上次構建以來發生變更的部分。它們通常依賴檔案時間戳記或隨構建產物保存的依賴圖。切換分支、移動檢出目錄，或在全新機器上開始作業，都會導致這些狀態遺失。
-- **構建快取**會根據輸入的內容來查找輸出，而非依據同一目錄中最後構建的內容。這使得輸出能夠在不同分支、檢出目錄及機器之間重用，只要輸入相符即可。
-- **CI 目錄快取**（例如 GitHub Actions 上的 `actions/cache`）會在作業結束時儲存一個目錄，並在下一個作業開始時將其還原，使用的金鑰由你自行選擇（例如鎖定檔案的雜湊值）。這屬於檔案傳輸，並非構建快取：構建系統仍會決定需要重新構建哪些部分，而還原的目錄可能部分或完全過時。
+- **Incremental builds** 會重用你自身 build 目錄中已經存在嘅輸出，並只重新 build 自上次於該目錄 build 以來發生變化嘅部分。佢哋通常依賴檔案時間戳記或與 build 產物一同保存嘅依賴圖。切換 branch、移動 checkout 或從全新機器開始都會導致失去呢種狀態。
+- **Build cache** 係根據輸入內容來查找輸出，而唔係根據同一目錄中最後 build 咗乜嘢。只要輸入匹配，這使得輸出能夠跨 branch、checkout 同機器重用。
+- **CI directory caching**（例如 GitHub Actions 上嘅 `actions/cache`）會在 job 結束時保存一個目錄，並在下一個 job 開始時使用你所選擇嘅 key（例如 lockfile hash）將其恢復。這係檔案傳輸，而唔係 build cache：build system 仍然決定要重新 build 乜嘢，而恢復嘅目錄可能部分或全部過時。
 
-依賴項快取（例如已下載的套件，或 Gradle 或 Swift 套件快取）則屬另一類情況：它們節省的是網路擷取時間，而非編譯時間。
+Dependency cache（例如下載嘅 package 或 Gradle 或 Swift package cache）則完全不同：佢哋保存嘅係網絡獲取過程，而唔係編譯過程。
 
-## 構建快取的運作原理 {#how-a-build-cache-works}
+## Build cache 點樣運作 {#how-a-build-cache-works}
 
-支援快取的構建系統會將構建過程拆分為多個步驟（Bazel 稱之為 actions，Gradle 稱之為 tasks），並對每個步驟執行相同的操作：
+支援 cache 嘅 build system 會將 build 拆分為多個 step（Bazel 稱之為 actions，Gradle 稱之為 tasks），並對每個 step 執行相同操作：
 
-1. **計算快取金鑰。** 構建系統會對所有可能影響輸出的輸入進行雜湊處理：輸入檔案的內容、命令列或任務設定、相關環境變數，以及工具鏈。
-2. **查找金鑰。** 系統會先檢查本機快取，若已設定，也會檢查遠端快取。
-3. **命中或未命中。** 若命中，系統會下載或複製已儲存的輸出，並跳過該步驟。若未命中，系統會執行該步驟，並在允許的情況下，將輸出以上述金鑰上傳。
+1. **計算 cache key。** Build system 會對所有可能影響輸出嘅輸入進行哈希處理：包括輸入檔案內容、命令行或 task 配置、相關環境變數同工具鏈。
+2. **查找 key。** 它會先檢查 local cache，如果已配置，則檢查 remote cache。
+3. **Hit 或 miss。** 如果 hit，它會下載或複製已儲存嘅輸出並跳過該 step。如果 miss，它會執行該 step，並在允許情況下將輸出以上述 key 上傳。
 
-大多數快取會將輸出儲存在**內容定址儲存空間**（CAS）中，其中每個資料區塊都以其自身內容的雜湊值作為儲存索引，另外還有一個獨立的索引，將快取金鑰對應至其所產生的輸出。相同的檔案只會儲存一次，用戶端可以驗證其下載的內容。
+大多數 cache 將輸出儲存於 **content-addressable storage**（CAS）中，其中每個 blob 都以其自身內容嘅哈希值儲存，另外還有一個從 cache key 到其所產生輸出嘅獨立索引。相同檔案只儲存一次，客戶端可以驗證其下載內容。
 
-此模型有一項嚴格要求：金鑰必須包含所有會改變輸出的輸入。如果某個步驟讀取了構建系統未知的輸入（例如未宣告的檔案、環境變數、當前時間或機器上安裝的工具），快取可能會返回與當前輸入不符的輸出。構建系統將僅依賴已宣告輸入的步驟稱為**密封式**步驟。相反的問題更為常見且危險性較低：若金鑰包含了無關資訊（例如絕對路徑或時間戳記），則在每部機器上產生的金鑰都會不同，導致快取永遠無法命中。
+該模型有一個嚴格要求：key 必須包含所有會改變輸出嘅輸入。如果一個 step 讀取咗 build system 不知情嘅輸入（例如未聲明嘅檔案、環境變數、當前時間或機器上安裝嘅工具），cache 可能會返回與當前輸入不匹配嘅輸出。Build system 將僅依賴已聲明輸入嘅 step 稱為 **hermetic**。相反嘅問題更為常見且危險性較低：如果 key 包含無關緊要嘅內容（例如絕對路徑或時間戳記），則會在每部機器上產生不同嘅 key，導致 cache 永遠無法 hit。
 
-## 各構建系統的快取運作方式 {#how-it-works-per-build-system}
+## 各 build system 中 build cache 嘅運作方式 {#how-it-works-per-build-system}
 
-### Gradle 構建快取 {#gradle}
+### Gradle build cache {#gradle}
 
-[Gradle 構建快取](https://docs.gradle.org/current/userguide/build_cache.html)會儲存可快取任務的輸出（例如 Java 和 Kotlin 編譯及測試執行），並以任務類型、實作方式、輸入屬性及標準化後的輸入檔案作為金鑰。此功能預設為關閉。你可以在 `gradle.properties` 中使用 `org.gradle.caching=true` 啟用，或在單次構建中使用 `--build-cache` 啟用。
+[Gradle build cache](https://docs.gradle.org/current/userguide/build_cache.html) 儲存可 cache task 嘅輸出（例如 Java 和 Kotlin 編譯同測試執行），並以 task 類型、實現、輸入屬性同規範化輸入檔案作為 key。預設情況下係關閉嘅。你可以透過在 `gradle.properties` 中設置 `org.gradle.caching=true` 或使用 `--build-cache` 進行單次 build 來啟用它。
 
-- **本機。** 內建的本機快取是位於 Gradle 使用者主目錄中的一個目錄（預設為 `~/.gradle`）。一旦啟用構建快取，此功能便會生效，且 Gradle 會定期移除近期未使用的項目。
-- **遠端。** 遠端快取在 `settings.gradle(.kts)` 中設定，例如使用 `HttpBuildCache`。當本機未命中時，Gradle 會從遠端快取下載輸出，並在本機儲存以供下次使用。遠端快取預設不接受上傳；常見的設定是讓 CI 負責推送（在 CI 中運行時設定 `isPush = true`），而開發者機器僅限讀取。
+- **Local。** 內置嘅 local cache 係 Gradle 用戶主目錄中嘅一個目錄（預設為 `~/.gradle`）。一旦啟用 build cache，它就會生效，並且 Gradle 會定期移除近期未使用嘅條目。
+- **Remote。** Remote cache 喺 `settings.gradle(.kts)` 中配置，例如使用 `HttpBuildCache`。當 local miss 時，Gradle 會從 remote cache 下載輸出並本地儲存以備下次使用。預設情況下，remote cache 不接受上傳；常見嘅設置係讓 CI 進行推送（在 CI 中運行時設置 `isPush = true`），而開發者機器只能讀取。
 
-Gradle 會將從快取還原的任務標示為 `FROM-CACHE`，這與 `UP-TO-DATE` 不同：up-to-date 表示 Gradle 的增量構建發現任務的輸出已就緒，無須查詢快取。設定快取則是第三項獨立功能，它快取的是設定階段的結果，而非任務輸出。
+Gradle 將從 cache 恢復嘅 task 報告為 `FROM-CACHE`，這與 `UP-TO-DATE` 不同：up-to-date 表示 Gradle 嘅 incremental build 發現 task 嘅輸出已經就位，無需查詢 cache。Configuration cache 係第三個獨立功能，它 cache 咗 configuration 階段嘅結果，而唔係 task 輸出。
 
-### Bazel 遠端快取 {#bazel}
+### Bazel remote cache {#bazel}
 
-Bazel 會快取每個 action。其 action 快取將 action 的金鑰（由其命令列、環境及輸入檔案的摘要組成）對應至 action 的輸出，而輸出本身則儲存在內容定址儲存空間中。
+Bazel 會 cache 每個 action。其 action cache 將 action 嘅 key（由其命令行、環境同輸入檔案嘅摘要組成）映射到 action 嘅輸出，而輸出本身則存放在 content-addressable store 中。
 
-- **本機。** Bazel 會在其輸出基礎目錄中保留 action 快取及構建輸出，從而讓你在單一工作區中獲得快速的增量構建。`--disk_cache=<path>` 會新增一個磁碟快取，供同一部機器上的不同工作區及分支共享。
-- **遠端。**`--remote_cache=grpcs://…`（或 `https://…`）會將 Bazel 指向一個實作了 [Remote Execution API](https://github.com/bazelbuild/remote-apis) 或純 HTTP 快取的遠端快取。`--remote_upload_local_results=false` 會將機器設為唯讀模式，許多團隊藉此防止開發者機器寫入共享快取。`--remote_download_minimal` 或 `--remote_download_toplevel`（「build without the bytes」）可避免下載本機構建永遠不需要的中間輸出。
+- **Local。** Bazel 將其 action cache 同 build 輸出保存在其 output base 中，這使得你可以在單一 workspace 中獲得快速嘅 incremental build。`--disk_cache=<path>` 添加咗一個 disk cache，可以在同一部機器上跨 workspace 同 branch 共享。
+- **Remote。** `--remote_cache=grpcs://…`（或 `https://…`）將 Bazel 指向一個實現咗 [Remote Execution API](https://github.com/bazelbuild/remote-apis) 或普通 HTTP cache 嘅 remote cache。`--remote_upload_local_results=false` 使機器變成只讀模式，這是許多團隊防止開發者機器寫入共享 cache 嘅方法。`--remote_download_minimal` 或 `--remote_download_toplevel`（「build without the bytes」）避免下載本地 build 永遠不需要嘅中間輸出。
 
-Bazel 也會快取測試結果：若測試的輸入未發生變更，則會回報為 `(cached) PASSED` 而無需實際運行。遠端快取不同於遠端執行，後者的 action 也會在遠端機器上運行；快取僅儲存結果。
+Bazel 亦會 cache 測試結果：輸入未發生變化嘅測試會被報告為 `(cached) PASSED` 而無需運行。Remote cache 唔同於 remote execution（後者係 action 亦會在遠程機器上運行）；cache 只儲存結果。
 
-### Xcode 快取是甚麼？ {#xcode}
+### Xcode cache 係乜嘢？{#xcode}
 
-Xcode 使用了多種容易混淆的快取及目錄。影響構建時間的主要包括：
+Xcode 使用多個容易混淆嘅 cache 同目錄。影響 build 時間嘅包括：
 
-- **DerivedData**（`~/Library/Developer/Xcode/DerivedData/<Project>-<hash>/`）儲存每個項目的構建產物、中間檔案、索引、日誌及已解析的 Swift 套件。這是增量構建所重用的狀態。刪除它是安全的，但該項目的下一次構建將會是完整重建，且索引與套件解析會再次執行。
-- **Clang 模組快取**（`~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/`）儲存用於匯入 C 和 Objective-C 模組及 SDK 框架的預編譯 Clang 模組（`.pcm` 檔案），並在不同項目之間共享。若啟用明確構建模組，Xcode 會將模組作為常規構建任務進行構建，並將其與每個項目的中間檔案一起保存。刪除它是安全的；模組會按需重新構建。
-- **編譯快取**（Xcode 26 及更高版本，預設位於 DerivedData 內的 `CompilationCache.noindex`，可透過 `COMPILATION_CACHE_CAS_PATH` 設定）在 `COMPILATION_CACHE_ENABLE_CACHING = YES` 時，儲存 Swift、C 和 Objective-C 的內容定址編譯輸出。刪除它是安全的；原本可以重放的編譯會再次執行。
-- **Swift Package Manager 快取**（`~/Library/Caches/org.swift.swiftpm/`）儲存下載的套件儲存庫及清單，並在不同項目之間共享。刪除它是安全的；套件會再次抓取。
+- **DerivedData**（`~/Library/Developer/Xcode/DerivedData/<Project>-<hash>/`）儲存每個 project 嘅 build products、中間檔案、index、logs 同已解析嘅 Swift packages。呢個係 incremental builds 重用嘅狀態。刪除佢係安全嘅，但該 project 嘅下一次 build 會變成完整 rebuild，indexing 同 package resolution 亦會重新運行。
+- **The Clang module cache**（`~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/`）儲存預編譯嘅 Clang modules（`.pcm` 檔案），用於匯入嘅 C 同 Objective-C modules 同 SDK frameworks，並喺不同 project 之間共享。當啟用 explicitly built modules 時，Xcode 會將 modules 作為常規 build tasks 進行構建，並將其與每個 project 嘅中間檔案一起保存。刪除佢係安全嘅；modules 會按需重建。
+- **The compilation cache**（Xcode 26 及更高版本，預設情況下位於 DerivedData 內嘅 `CompilationCache.noindex`，可透過 `COMPILATION_CACHE_CAS_PATH` 配置）喺 `COMPILATION_CACHE_ENABLE_CACHING = YES` 時，儲存 Swift、C 同 Objective-C 嘅 content-addressed 編譯輸出。刪除佢係安全嘅；原本可以重放嘅編譯會重新運行。
+- **The Swift Package Manager cache**（`~/Library/Caches/org.swift.swiftpm/`）儲存下載嘅 package repositories 同 manifests，並喺不同 project 之間共享。刪除佢係安全嘅；packages 會重新獲取。
 
-`~/Library/Developer` 下的其他大型目錄並非構建快取，但在清理磁碟空間時經常出現：`Xcode/Archives` 儲存歸檔的應用程式構建及其除錯符號（保留你可能需要用來符號化崩潰報告的符號），`Xcode/iOS DeviceSupport` 儲存已連接裝置作業系統版本的符號，而 `CoreSimulator/Devices` 則儲存模擬器及其資料（`xcrun simctl delete unavailable` 會移除已不再安裝的執行環境對應的模擬器）。
+`~/Library/Developer` 底下嘅其他大型目錄唔係 build caches，但喺清理磁碟空間時經常出現：`Xcode/Archives` 儲存歸檔嘅 app builds 同其 debug symbols（保留你可能需要用嚟 symbolicate crashes 嘅檔案），`Xcode/iOS DeviceSupport` 儲存已連接設備 OS 版本嘅 symbols，而 `CoreSimulator/Devices` 儲存 simulators 同其數據（`xcrun simctl delete unavailable` 會移除已不再安裝嘅 runtimes 對應嘅 simulators）。
 
-DerivedData 是 Xcode 的增量構建狀態，而非內容定址快取：它與項目在磁碟上的位置及檔案時間戳記綁定。從不同路徑的 CI 快取還原 DerivedData，或在全新檢出後因所有檔案的修改時間變更，通常仍會導致完整重建。
+DerivedData 係 Xcode 嘅 incremental build 狀態，而唔係 content-addressed cache：佢與 project 喺磁碟上嘅位置同檔案時間戳綁定。從 CI cache 恢復 DerivedData 到不同路徑，或者喺 fresh checkout 後（因為每個檔案嘅修改時間都改變咗），通常都會導致完整 rebuild。
 
-Xcode 26 引入的 **編譯快取**，正是本頁所指 Xcode 的構建快取。它根據輸入內容儲存編譯結果，並在命中時重放結果，因此輸出能在切換分支或清理構建產物後依然保留。它快取的是編譯，而非每個構建步驟：連結、資源處理及腳本階段仍會執行。預設情況下，儲存空間僅限於單一機器並位於 DerivedData 內，因此刪除整個 DerivedData 會將其清除；僅刪除項目的構建產物則會保留它。Xcode 亦可透過外掛程式將編譯快取連接至遠端快取服務（`COMPILATION_CACHE_ENABLE_PLUGIN` 及 `COMPILATION_CACHE_REMOTE_SERVICE_PATH`），從而將其轉變為共享遠端快取。
+**compilation cache** 喺 Xcode 26 中引入，就本頁而言，佢就係 Xcode 嘅 build cache。佢根據輸入內容儲存編譯結果，並在命中時重放，因此輸出可以喺 branch 切換同清理 build products 後依然保留。佢只 cache 編譯，而唔係每個 build 步驟：linking、resource processing 同 script phases 仍然會運行。預設情況下，儲存庫位於單一機器本地並存放喺 DerivedData 內，因此刪除整個 DerivedData 會將其丟棄；只刪除 project 嘅 build products 則會保留佢。Xcode 亦可透過 plugin（`COMPILATION_CACHE_ENABLE_PLUGIN` 同 `COMPILATION_CACHE_REMOTE_SERVICE_PATH`）將 compilation cache 連接到 remote cache service，從而將其變為共享嘅 remote cache。
 
-在編譯快取出現之前，Xcode 項目主要透過 **二進制快取** 整個模組來跨機器重用工作：將依賴項構建為預建框架或 XCFrameworks，並連結這些檔案而非編譯原始碼。這是在模組層級而非編譯層級運作，並改變了項目的構建方式。
+喺 compilation cache 出現之前，Xcode projects 主要透過 **binary caching** 整個 modules 嚟跨機器重用工作：將 dependencies 構建為預製 frameworks 或 XCFrameworks 並鏈接佢哋，而唔係編譯源碼。呢種方式作用於 module 粒度而唔係編譯粒度，並且會改變 project 嘅構建方式。
 
-## 延遲、blob 大小及 blob 數量 {#latency-blob-size-and-blob-count}
+## 延遲、blob 大小同 blob 數量 {#latency-blob-size-and-blob-count}
 
-遠端快取命中並非免費。獲取輸出需要為每個必須等待前一個請求完成的請求支付固定延遲，加上傳輸其位元組所需的時間：
+Remote cache hit 並唔係免費嘅。獲取輸出需要為每個必須等待前一個請求完成嘅請求付出固定延遲，加上傳輸其字節所需嘅時間：
 
 **time ≈ R × L + S / B**
 
-其中 *R* 是無法重疊的往返次數，*L* 是往返快取的延遲，*S* 是傳輸的位元組數，而 *B* 是頻寬。哪一項佔主導地位，取決於構建系統如何將工作切割成 blob：
+其中 *R* 係無法重疊嘅往返次數，*L* 係往返 cache 嘅延遲，*S* 係傳輸嘅字節數，而 *B* 係頻寬。邊個項佔主導地位取決於 build system 如何將工作切割成 blobs：
 
-- **少量大型 blob 受頻寬限制。** 儲存粗粒度輸出（例如 Gradle 任務的打包輸出或二進制模組快取中的預建框架）的快取，發出的請求較少，但每個請求傳輸數 MB。一組 200 MB 的輸出在 100 Mbit/s 下約需 16 秒，在 1 Gbit/s 下則不到 2 秒，而幾毫秒的額外延遲幾乎無關緊要。
-- **大量小型 blob 受延遲限制。** 細粒度快取（例如 Bazel 的每 action 快取和 Xcode 的編譯快取）會發出數千個請求以獲取幾 KB 的 blob，其中許多請求僅用於查詢金鑰是否存在。若有 2,000 次查找，同時進行 8 次，延遲為 40 ms，則構建僅在往返上就需等待約 10 秒，無論 blob 多麼小。若延遲為 2 ms，同樣的查找則需約半秒。增加頻寬在此無助；使用更近的快取才有幫助。
-- **未命中也會產生往返成本。** 每次未命中的查找都會增加延遲，卻無法節省任何工作。命中率低的遠端快取可能使構建比完全沒有遠端快取更慢。
-- **數量會加倍影響兩者。** blob 的數量隨項目結構增長：由許多小型模組或目標組成的圖譜，會產生比少數大型模組更多、更小的輸出。拆分項目可提升平行處理能力及失效效率，但會使構建對快取延遲更為敏感。
+- **少量大 blobs 受頻寬限制。** 儲存粗粒度輸出嘅 caches（例如 Gradle task 嘅打包輸出或 binary module cache 中嘅預製 framework）發出嘅請求較少，但每個請求傳輸兆字節級別嘅數據。一組 200 MB 嘅輸出喺 100 Mbit/s 下大約需要 16 秒，喺 1 Gbit/s 下則少於 2 秒，而幾毫秒嘅額外延遲幾乎無關緊要。
+- **大量小 blobs 受延遲限制。** 細粒度 caches（例如 Bazel 嘅 per-action cache 同 Xcode 嘅 compilation cache）會發出數千個請求來獲取幾千字節嘅 blobs，其中許多請求只係為了查詢 key 是否存在。如果有 2,000 次查找，同時進行 8 次，延遲為 40 ms，那麼無論 blobs 有多小，build 僅喺往返上就要等待大約 10 秒。如果延遲為 2 ms，同樣嘅查找大約只需半秒。增加頻寬對此無幫助；更接近嘅 cache 才有用。
+- **Misses 亦會產生往返成本。** 每次 miss 嘅查找都會增加延遲而唔節省任何工作。一個距離遠且命中率低嘅 cache 可能會令 build 比完全沒有 remote cache 更慢。
+- **數量會放大兩者影響。** Blob 嘅數量隨 project 結構增長：由許多小 modules 或 targets 組成嘅圖會產生更多、更小嘅輸出，相比少數大輸出而言。拆分 project 可以改善並行性同失效處理，但亦會令 build 對 cache 延遲更敏感。
 
-只有當獲取輸出比重新計算更快時，命中才值得，而這種比較會隨距離變化。本地耗時 50 ms 的編譯，從同一網路的快取獲取是良好的命中，但從另一大陸的快取獲取則是糟糕的命中。這就是為何遠端快取的調整槓桿主要在於延遲和請求數量，而非原始頻寬：
+只有當獲取輸出快過重新計算時，hit 先至值得，而呢個比較會隨距離變化。一個本地需時 50 ms 嘅編譯，對於同一網絡上嘅 cache 來講係良好嘅 hit，但對於另一個大陸上嘅 cache 來講則係糟糕嘅 hit。這就是為什麼 remote caches 嘅調節槓桿主要關於延遲同請求數量，而唔係原始頻寬：
 
-- **將快取放置在靠近構建運行的位置**，與 CI 運行器處於同一區域或網路，並盡可能靠近開發者。
-- **重疊請求。** Bazel 的 Remote Execution API 會批量處理存在性檢查（`FindMissingBlobs`）及小型讀取，而 `--remote_max_connections` 則限制併發數。Xcode 的 `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` 會在構建的其餘部分同時執行編譯快取查找，而非佔用其執行通道。HTTP/2 可在單一連接上多工處理許多請求。
-- **減少下載量。** Bazel 的 `--remote_download_minimal` 會跳過中間輸出，而本地快取層（例如 Bazel 的 `--disk_cache` 或 Gradle 的本機構建快取）可在無需網路請求的情況下服務重複命中。
-- **壓縮大型 blob。** 當快取支援時，Bazel 的 `--remote_cache_compression` 會使用 zstd，這有助於受頻寬限制的傳輸，但對受延遲限制的傳輸幫助不大。
+- **將 cache 放置在靠近 build 運行嘅地方**，與 CI runners 處於同一區域或網絡，並盡可能靠近開發者。
+- **重疊請求。** Bazel 嘅 Remote Execution API 批量處理存在性檢查（`FindMissingBlobs`）同小型讀取，而 `--remote_max_connections` 限制併發。Xcode 嘅 `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` 會喺 build 其餘部分運行時同時進行 compilation cache 查找，而唔係佔用其執行通道。HTTP/2 透過單一連接多路複用多個請求。
+- **減少下載量。** Bazel 嘅 `--remote_download_minimal` 跳過中間輸出，而本地 cache 層（例如 Bazel 嘅 `--disk_cache` 或 Gradle 嘅 local build cache）可以在無需網絡請求嘅情況下服務重複 hit。
+- **壓縮大 blobs。** 當 cache 支持時，Bazel 嘅 `--remote_cache_compression` 會使用 zstd，這有助於受頻寬限制嘅傳輸，但對受延遲限制嘅傳輸幫助不大。
 
 ## 常見陷阱 {#common-pitfalls}
 
-- **未宣告的輸入。** 某個步驟讀取了不屬於其鍵值的檔案、環境變數或工具。快取隨後可能傳回由不同輸入構建的輸出。在 Gradle 中，請宣告自訂任務的所有輸入；在 Bazel 中，請保持動作封閉，並考慮使用 `--incompatible_strict_action_env`，以免主機 `PATH` 洩漏進來。
-- **機器專屬的鍵值。** 嵌入輸入或輸出中的絕對路徑、使用者名稱及構建時間戳記，會導致不同機器間的鍵值不同，使遠端快取永遠無法命中。Gradle 的路徑敏感性、Bazel 的相對執行路徑，以及 Xcode 中的 Clang 和 Swift 前綴映射設定，皆旨在消除這些差異。
-- **靠近圖譜根節點的易變輸入。** 將構建編號、提交雜湊或日期印入所有模組依賴的模組中，會在每次構建時使該模組之上的所有內容失效。請盡可能延後注入易變值，理想情況下僅注入至發布構建。
-- **工具鏈不相符。** 不同的編譯器、JDK 或 Xcode 版本會產生不同的鍵值。這是正確行為，但混合版本的機器群組實際上會分割快取。
-- **受污染或不可信的寫入。** 擁有未提交變更或非封閉設定的開發者機器，可能會上傳讓其他人重複使用的輸出。許多團隊僅允許受信任分支上的 CI 寫入遠端快取，並將其他所有機器設為唯讀。不可信拉取請求的構建不應寫入受信任構建所讀取的快取。
-- **忽略傳輸成本。** 耗時 50 毫秒執行的步驟，從遠端快取獲取可能需要更長時間。請參閱[延遲、blob 大小與 blob 數量](#latency-blob-size-and-blob-count)。
-- **隱藏的測試執行。** 當測試具有確定性時，快取測試結果是正確的，但這也意味著曾通過一次的不穩定測試會持續顯示通過而無需執行。請參閱<.localized_link href="/references/concepts/flaky-test">什麼是不穩定測試？</.localized_link>。
+- **未聲明嘅輸入。** 某個步驟讀取咗唔屬於其 key 一部分嘅文件、環境變數或工具。Cache 隨後可能會返回由不同輸入構建嘅輸出。喺 Gradle 中，請聲明自定義任務嘅所有輸入；喺 Bazel 中，請保持動作嘅封閉性（hermetic），並考慮使用 `--incompatible_strict_action_env` 以防止主機 `PATH` 洩漏。
+- **機器專屬嘅 Key。** 嵌入喺輸入或輸出中嘅絕對路徑、用戶名同 build 時間戳會令 key 喺不同機器之間產生差異，導致 remote cache 永遠無法命中。Gradle 嘅路徑敏感性、Bazel 嘅相對執行路徑，以及 Xcode 中 Clang 同 Swift 嘅前綴映射設置，都係為咗消除呢啲差異而存在。
+- **靠近圖根節點嘅易變輸入。** 將 build 編號、commit hash 或日期印入一個被所有其他模組依賴嘅模組中，會導致每次 build 時其上層嘅所有內容失效。請盡可能遲啲注入易變值，理想情況下只注入到 release build 中。
+- **工具鏈不匹配。** 不同嘅編譯器、JDK 或 Xcode 版本會產生不同嘅 key。雖然呢個係正確行為，但混合版本嘅集群實際上會分割 cache。
+- **受污染或不可信嘅寫入。** 帶有未提交更改或非封閉設置嘅開發者機器可能會上傳輸出，而被其他人重複使用。許多團隊只允許受信分支上嘅 CI 寫入 remote cache，並將其他所有機器設為只讀。不可信 pull request 嘅 build 不應寫入受信 build 所讀取嘅 cache。
+- **忽略傳輸成本。** 一個運行需時 50 毫秒嘅步驟，從遠程 cache 獲取可能需要更長時間。請參閱 [延遲、Blob 大小同 Blob 數量](#latency-blob-size-and-blob-count)。
+- **隱藏嘅測試運行。** 當測試係確定性時，緩存測試結果係正確嘅，但這亦意味著一個曾經通過嘅不穩定測試會喺唔運行嘅情況下持續顯示通過。請參閱 <.localized_link href="/references/concepts/flaky-test">什麼係不穩定測試？</.localized_link>。
 
-## 如何衡量構建快取 {#how-to-measure-a-build-cache}
+## 如何衡量 build cache {#how-to-measure-a-build-cache}
 
-快取的價值在於端到端節省的時間，而非僅看命中率：
+Cache 嘅價值在於佢端到端節省咗幾多，而唔係單單睇命中率：
 
-- **按工作量加權的命中率。** 統計每個步驟的命中與未命中次數，但需根據每個步驟的執行時間進行加權。在低成本步驟上達到 95% 的命中率，其節省效果可能低於在最慢編譯上達到 50% 的命中率。
-- **冷啟動、暖啟動及典型構建。** 比較空快取時的構建、完全暖快取時的構建，以及人們實際運行的構建（例如小幅變更後拉取請求上的 CI）。最後一項才是關鍵數字。
-- **花在快取本身的時間。** 測量請求數量、延遲、位元組數，以及下載和上傳所花費的時間。如果大部分時間都在等待許多小型請求，則較近的快取比增加頻寬更有幫助；如果是在移動少數大型 blob，則頻寬和壓縮更為重要。
-- **未命中的原因。** 比較兩台機器上相同步驟的快取鍵值。Gradle 可使用 `-Dorg.gradle.caching.debug=true` 列印每個鍵值背後的輸入，Bazel 可寫入執行日誌（`--execution_log_compact_file`）以便在兩次構建間進行差異比較，而當 `COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES` 時，Xcode 會在構建日誌中報告編譯快取的命中與未命中情況。
+- **按工作量加權嘅命中率。** 統計每個步驟嘅 hit 同 miss，但要根據每個步驟嘅運行時間進行加權。喺低成本步驟上達到 95% 嘅命中率，可能比喺最慢嘅編譯上達到 50% 嘅命中率節省更少時間。
+- **Cold、Warm 同典型 Build。** 比較空 cache 嘅 build、完全 warm cache 嘅 build，同人哋實際運行嘅 build（例如小改動後 pull request 上嘅 CI）。最後一個數字先至最重要。
+- **花費喺 cache 本身嘅時間。** 測量請求數量、延遲、字節數，以及下載同上傳所花費嘅時間。如果大部分時間都係喺等待許多小請求，那麼更近嘅 cache 比更大頻寬更有幫助；如果係傳輸少數大 blob，則頻寬同壓縮更為重要。
+- **Miss 發生嘅原因。** 比較兩台機器上同一步驟嘅 cache key。Gradle 可以透過 `-Dorg.gradle.caching.debug=true` 打印每個 key 背後嘅輸入，Bazel 可以寫入執行日誌（`--execution_log_compact_file`）供你比較兩次 build 之間嘅差異，而當 `COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES` 時，Xcode 會喺 build 日誌中報告 compilation cache 嘅 hit 同 miss。
 
-## 何時不值得使用 {#when-it-isnt-worth-it}
+## 何時唔值得使用 {#when-it-isnt-worth-it}
 
-構建快取會增加基礎設施、安全邊界及新一類的錯誤。它並非總是合適的工具：
+Build cache 會增加基礎設施、安全邊界同一類新嘅 bug。佢並唔總係正確嘅工具：
 
-- **小型或快速構建。** 如果乾淨構建只需一分鐘，遠端快取節省的效果有限，且網路往返可能使其更慢。
-- **設計上就會未命中的構建。** 如果大多數構建都會變更靠近圖譜根節點的輸入，在修正此問題之前，快取無法提供幫助。請先修正失效機制；快取僅能跳過輸入相符的工作。
-- **持久化的構建機器。** 在同一分支的不同作業間保留構建目錄的 CI 機器，已能獲得增量構建的好處。當機器是暫存的、存在許多分支，或開發者與 CI 應重複使用彼此的工作時，共享快取才有幫助。
-- **尚無法修正的非封閉構建。** 偶爾傳回錯誤輸出的快取，所消耗的信任成本高於其節省的時間。請先確保您快取的步驟可重現，或讓有問題的步驟不被快取（例如使用 Bazel 的 `no-remote-cache` 標籤）。
-- **緩慢或遙遠的網路。** 如果快取距離構建運行位置遙遠，請在向所有人推廣前先測量傳輸時間。
+- **小型或快速 Build。** 如果 clean build 只需一分鐘，remote cache 節省嘅時間好少，而網絡往返甚至可能令其更慢。
+- **設計上就會 Miss 嘅 Build。** 如果大多數 build 都會改變靠近圖根節點嘅輸入，喺修復之前 cache 無法提供幫助。先修復失效問題；cache 只會跳過輸入匹配嘅工作。
+- **持久化嘅 Build 機器。** 喺同一分支嘅作業之間保留 build 目錄嘅 CI 機器已經獲得增量 build。當機器係短暫存在、有許多分支，或者開發者同 CI 應該重用彼此工作時，共享 cache 先至有帮助。
+- **暫時無法修復嘅非封閉 Build。** 偶爾返回錯誤輸出嘅 cache 所消耗嘅信任成本超過佢節省嘅時間。請先確保你緩存嘅步驟可復現，或者讓有問題嘅步驟不緩存（例如使用 Bazel 嘅 `no-remote-cache` 標籤）。
+- **緩慢或遙遠嘅網絡。** 如果 cache 距離 build 運行位置好遠，請喺向所有人推廣之前測量傳輸時間。
 
-## 使用 Tuist 進行構建快取 {#build-caching-with-tuist}
+## 使用 Tuist 進行 Build 緩存 {#build-caching-with-tuist}
 
-[Tuist](https://tuist.dev) 提供一個遠端快取，可插入每個構建系統自身的快取機制，使開發者機器、CI 及編碼代理能夠重複使用彼此的輸出，並記錄命中、未命中及傳輸時間，以便您衡量效果：
+[Tuist](https://tuist.dev) 提供一個 remote cache，插入每個 build 系統自身嘅緩存機制中，令開發者機器、CI 同編碼代理可以重用彼此嘅輸出，並記錄 hit、miss 同傳輸時間，以便你衡量效果：
 
-- <.localized_link href="/guides/features/cache/xcode-cache">Xcode 快取</.localized_link>將 Xcode 的編譯快取連接至共享遠端快取，適用於 Xcode 26 或更高版本的任何 Xcode 項目。
-- <.localized_link href="/guides/features/cache/module-cache">模組快取</.localized_link>在由 Tuist 生成的項目中，以預構建二進制檔取代整個模組。
-- <.localized_link href="/guides/features/cache/gradle-cache">Gradle 快取</.localized_link>與<.localized_link href="/guides/features/cache/bazel-cache">Bazel 快取</.localized_link>分別作為 Gradle 遠端構建快取及 Bazel 的 Remote Execution API 快取。
-- <.localized_link href="/guides/features/cache">快取</.localized_link>列出所有支援的構建系統，包括 Elixir 和 Once。
-- [緩慢構建](https://tuist.dev/solutions/slow-builds)是一份實用指南，幫助您在選擇快取前找出值得移除的工作。
-- [構建系統的物理學](https://tuist.dev/blog/2026/08/25/the-physics-of-build-systems)與[Kura](https://tuist.dev/blog/2026/09/14/kura)透過 Tuist 快取的測量數據，解釋模組快取、Xcode 編譯快取、Bazel 及 Gradle 之間在產物大小與請求量上的差異。
+- <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> 將 Xcode 嘅 compilation cache 連接到共享 remote cache，適用於 Xcode 26 或更高版本上嘅任何 Xcode project。
+- <.localized_link href="/guides/features/cache/module-cache">Module cache</.localized_link> 喺由 Tuist 生成嘅 project 中，用預構建二进制文件替換整個 modules。
+- <.localized_link href="/guides/features/cache/gradle-cache">Gradle cache</.localized_link> 同 <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache</.localized_link> 分別作為 Gradle remote build cache 同 Bazel 嘅 Remote Execution API cache。
+- <.localized_link href="/guides/features/cache">Cache</.localized_link> 列出所有支持嘅 build 系統，包括 Elixir 同 Once。
+- [Slow builds](https://tuist.dev/solutions/slow-builds) 係一份實用指南，幫助你喺選擇 cache 之前找出值得移除嘅工作。
+- [The physics of build systems](https://tuist.dev/blog/2026/08/25/the-physics-of-build-systems) 同 [Kura](https://tuist.dev/blog/2026/09/14/kura) 透過 Tuist cache 嘅測量數據，解釋 module cache、Xcode compilation cache、Bazel 同 Gradle 之間 artifact 大小同請求量嘅差異。

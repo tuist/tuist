@@ -2,15 +2,15 @@
 {
   "title": "Depuración",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Aprende a depurar problemas con Tuist mediante registros y grabaciones de red."
+  "description": "Aprende a depurar problemas con Tuist usando registros y grabaciones de red."
 }
 ---
 # Depuración {#debugging}
 
-Tuist ofrece varias herramientas para ayudarte a diagnosticar problemas cuando los comandos no se comportan como esperabas.
+Tuist ofrece varias herramientas para ayudarte a diagnosticar problemas cuando los comandos no se comportan como se espera.
 
 > [!WARNING]
-> Los datos de sesión pueden contener información sensible, como rutas de archivos, nombres de proyectos y cuerpos de solicitudes/respuestas. Aunque las cabeceras sensibles (como Authorization) se ocultan, ten cuidado al compartir los datos de sesión con otras personas.
+> Los datos de sesión pueden contener información confidencial, como rutas de archivos, nombres de proyectos y cuerpos de solicitudes/respuestas. Aunque las cabeceras sensibles (como Authorization) se ocultan, ten cuidado al compartir los datos de sesión con otras personas.
 
 
 ## Datos de sesión {#session-data}
@@ -28,25 +28,25 @@ Cada directorio de sesión contiene:
 El archivo HAR registra todas las solicitudes y respuestas HTTP realizadas durante la sesión, lo cual es útil para depurar problemas de comunicación con el servidor. Puedes abrir archivos HAR con varias herramientas:
 
 - **[Proxyman](https://proxyman.io/)**: una aplicación nativa de macOS para ver y analizar el tráfico HTTP. Importa el archivo HAR mediante Archivo > Importar.
-- **Herramientas para desarrolladores del navegador**: Chrome, Firefox y Safari admiten la importación de archivos HAR en su pestaña Red.
-- **[HAR Viewer](http://www.softwareishard.com/har/viewer/)**: un visor de archivos HAR basado en la web.
+- **Herramientas de desarrollo del navegador**: Chrome, Firefox y Safari permiten importar archivos HAR en su pestaña Red.
+- **[HAR Viewer](http://www.softwareishard.com/har/viewer/)**: un visor web de archivos HAR.
 
 > [!TIP]
 > Obtén más información sobre la organización de directorios de Tuist y cómo configurar directorios personalizados en la <.localized_link href="/cli/directories">documentación de Directorios</.localized_link>.
 
 
 > [!TIP]
-> **Salida sin procesar de xcodebuild**
+> **Salida sin formato de xcodebuild**
 >
 > Los comandos que ejecutan `xcodebuild` formatean su salida con xcbeautify. Pasa `--verbose` para ver la salida sin formato. Consulta <.localized_link href="/guides/integrations/continuous-integration#xcodebuild-output-formatting">formato de salida de xcodebuild</.localized_link>.
 
-De forma predeterminada, la CLI muestra la ruta de la sesión cuando la ejecución finaliza de manera inesperada. Si no lo hace, puedes encontrar los datos de sesión en la ruta mencionada anteriormente (es decir, el directorio de sesión más reciente).
+De forma predeterminada, la CLI muestra la ruta de la sesión cuando la ejecución termina de manera inesperada. Si no lo hace, puedes encontrar los datos de sesión en la ruta mencionada anteriormente (es decir, el directorio de sesión más reciente).
 
 Los directorios de sesión con más de 5 días se eliminan automáticamente. Tuist también mantiene como máximo 50 directorios de sesión inactivos de forma predeterminada, mientras preserva las sesiones propiedad de procesos de Tuist que se están ejecutando actualmente. En entornos de CI que ejecutan muchos comandos de Tuist con el mismo directorio de estado, puedes aumentar el límite de sesiones inactivas con `TUIST_SESSION_MAX_SESSIONS`, por ejemplo `TUIST_SESSION_MAX_SESSIONS=200`. Los valores no válidos, cero y los valores negativos se ignoran y Tuist vuelve al valor predeterminado de 50.
 
 ### Integración continua {#diagnose-issues-using-logs-ci}
 
-En CI, donde los entornos son desechables, es posible que quieras configurar tu pipeline de CI para exportar los datos de sesión de Tuist. La exportación de artefactos es una capacidad común en los servicios de CI y la configuración depende del servicio que uses. Por ejemplo, en GitHub Actions, puedes usar la acción `actions/upload-artifact` para subir los datos de sesión como un artefacto:
+En CI, donde los entornos son efímeros, es posible que quieras configurar tu pipeline de CI para exportar los datos de sesión de Tuist. La exportación de artefactos es una capacidad común en los servicios de CI y la configuración depende del servicio que uses. Por ejemplo, en GitHub Actions, puedes usar la acción `actions/upload-artifact` para subir los datos de sesión como un artefacto:
 
 ```yaml
 name: Node CI
@@ -87,7 +87,7 @@ En CI, Tuist escribe este registro en `~/.local/state/tuist/cas.log` sin necesid
 
 ## Ajuste de tiempos de espera y reintentos de red {#tuning-network-timeouts}
 
-Todo el tráfico [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) de Tuist, incluidas las llamadas al servidor, el registro, las previsualizaciones y las transferencias de artefactos de caché, pasa por una `URLSession` compartida con valores predeterminados razonables. En rutas de red lentas o congestionadas (por ejemplo, una configuración autoalojada que accede al almacenamiento de objetos a través de un proxy corporativo), una solicitud individual puede agotarse y alcanzar el tiempo de espera del recurso antes de completarse. En particular, para las descargas de caché, alcanzar el tiempo de espera hace que Tuist vuelva a compilar el módulo desde el código fuente, lo cual es mucho más costoso que esperar un poco más por el binario en caché. Puedes ajustar la configuración subyacente mediante variables de entorno; los valores predeterminados se aplican cuando no están definidas o tienen un valor no válido:
+Todo el tráfico [Protocolo de transferencia de hipertexto (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) de Tuist, incluidas las llamadas al servidor, el registro, las previsualizaciones y las transferencias de artefactos de caché, pasa por una `URLSession` compartida con valores predeterminados razonables. En rutas de red lentas o congestionadas (por ejemplo, una configuración autoalojada que accede al almacenamiento de objetos a través de un proxy corporativo), una solicitud individual puede agotarse y alcanzar el tiempo de espera del recurso antes de completarse. En particular, para las descargas de caché, alcanzar el tiempo de espera hace que Tuist vuelva a compilar el módulo desde el código fuente, lo cual es mucho más costoso que esperar un poco más por el binario almacenado en caché. Puedes ajustar la configuración subyacente mediante variables de entorno; los valores predeterminados se aplican cuando no están definidas o tienen un valor no válido:
 
 ```bash
 # Maximum time (in seconds) a single resource transfer can take before it's cancelled
@@ -107,13 +107,13 @@ export TUIST_HTTP_MAXIMUM_RETRY_COUNT=1
 export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
 ```
 
-El tiempo de espera del recurso es un límite de tiempo real para toda la transferencia, no un protector contra bloqueos, por lo que debe ser lo suficientemente grande para el artefacto más grande que transfieras. Las transferencias de archivos completos, como los productos de prueba que descarga un fragmento, tienen por defecto 10 minutos en lugar de 90 segundos, y una transferencia bloqueada sigue fallando después de `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` sin nuevos datos. Esas transferencias leen `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` solo para aumentar su límite, nunca para reducirlo por debajo de 10 minutos, de modo que un valor elegido para que las solicitudes de caché fallen rápido tampoco cancela la descarga de los productos de prueba de un fragmento. Aumentar `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` permite que una descarga lenta pero recuperable termine en lugar de agotar el tiempo de espera. Para las descargas de caché, eso significa obtener un acierto de caché en lugar de volver a compilar desde el código fuente, así que ajústalo deliberadamente: el mismo valor que mantiene viva una descarga lenta de caché también retrasa la vuelta a la compilación desde el código fuente. Reducir `TUIST_HTTP_MAXIMUM_RETRY_COUNT` puede evitar que un tiempo de espera más largo multiplique la peor espera posible entre varios intentos. Los retrasos de reintento se duplican tras cada fallo, incluyen hasta un retraso base de aleatoriedad y nunca superan los 30 segundos.
+El tiempo de espera del recurso es un límite de tiempo real para toda la transferencia, no un protector contra bloqueos, por lo que debe ser lo suficientemente grande para el artefacto más grande que transfieras. Las transferencias de archivos completos, como los productos de prueba que descarga un fragmento, tienen por defecto 10 minutos en lugar de 90 segundos, y una transferencia bloqueada sigue fallando después de `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` si no hay nuevos datos. Esas transferencias leen `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` solo para aumentar su límite, nunca para reducirlo por debajo de 10 minutos, de modo que un valor elegido para que las solicitudes de caché fallen rápido tampoco cancela la descarga de los productos de prueba de un fragmento. Aumentar `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` permite que una descarga lenta pero recuperable termine en lugar de agotar el tiempo de espera. Para las descargas de caché, eso significa obtener un acierto de caché en lugar de volver a compilar desde el código fuente, así que ajústalo deliberadamente: el mismo valor que mantiene viva una descarga lenta de caché también retrasa la vuelta a la compilación desde el código fuente. Reducir `TUIST_HTTP_MAXIMUM_RETRY_COUNT` puede evitar que un tiempo de espera más largo multiplique la peor espera posible entre varios intentos. Los retrasos de reintento se duplican tras cada fallo, incluyen hasta un retraso base de aleatoriedad y nunca superan los 30 segundos.
 
 ## Confianza en un certificado CA personalizado {#trusting-a-custom-ca-certificate}
 
-De forma predeterminada, Tuist valida los certificados TLS frente al almacén raíz del sistema operativo. Cuando ejecutas un servidor de Tuist o Kura autoalojado que utiliza una autoridad de certificación privada, Tuist también necesita confiar en esa CA. Instalar la raíz en el llavero del Sistema (y marcarla como confiable para SSL) es el enfoque estándar, pero a menudo no es práctico en hosts de CI sin interfaz gráfica donde no hay sesión GUI ni gestión de dispositivos móviles (MDM) para establecer el bit de confianza.
+De forma predeterminada, Tuist valida los certificados TLS frente al almacén raíz del sistema operativo. Cuando ejecutas un servidor de Tuist o Kura autoalojado que usa una autoridad de certificación privada, Tuist también debe confiar en esa CA. Instalar la raíz en el llavero del Sistema (y marcarla como de confianza para SSL) es el enfoque estándar, pero a menudo no es práctico en hosts de CI sin interfaz gráfica, donde no hay sesión de GUI ni gestión de dispositivos móviles (MDM) para establecer el bit de confianza.
 
-En esos casos, puedes indicar directamente a Tuist un paquete de certificados CA. El paquete puede ser PEM (uno o más bloques concatenados `-----BEGIN CERTIFICATE-----`) o un único archivo DER. El almacén raíz del sistema sigue siendo de confianza junto con él, por lo que los certificados públicos siguen validándose normalmente y la evaluación de certificados nunca se omite.
+En esos casos, puedes indicar directamente a Tuist un paquete de certificados CA. El paquete puede ser PEM (uno o más bloques `-----BEGIN CERTIFICATE-----` concatenados) o un único archivo DER. El almacén raíz del sistema sigue siendo de confianza junto con él, por lo que los certificados públicos siguen validándose con normalidad y la evaluación de certificados nunca se omite.
 
 ```bash
 # Path to a PEM/DER CA bundle to trust on top of the system root store (default: unset)

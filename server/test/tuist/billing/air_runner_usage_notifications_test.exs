@@ -67,19 +67,20 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     assert Enum.sort(Enum.map(Repo.all(AirUsageNotification), & &1.user_id)) == Enum.sort([owner.id, admin.id])
   end
 
-  test "active runner trials skip runner notifications without suppressing cache warnings" do
+  test "active runner trials skip runner and cache notifications, since the trial lifts both caps" do
     user = AccountsFixtures.user_fixture()
     Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 800_000})
     user.account |> change(runner_trial_started_at: DateTime.truncate(DateTime.utc_now(), :second)) |> Repo.update!()
     reject(RunnerBilling, :compute_units_by_platform, 3)
 
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
-    assert [%{metric: :cache_requests}] = Repo.all(AirUsageNotification)
+    assert Repo.all(AirUsageNotification) == []
   end
 
   test "ended runner trials are eligible again" do
     user = AccountsFixtures.user_fixture()
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 800_000})
 
     user.account
     |> change(runner_trial_started_at: DateTime.add(now, -1, :day), runner_trial_ended_at: now)
@@ -88,7 +89,9 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     stub(RunnerBilling, :compute_units_by_platform, fn _, _, _ -> [%{platform: :macos, total_units: 80 * 60_000}] end)
 
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
-    assert [%{metric: :runner_minutes}] = Repo.all(AirUsageNotification)
+
+    assert [:cache_requests, :runner_minutes] =
+             AirUsageNotification |> Repo.all() |> Enum.map(& &1.metric) |> Enum.sort()
   end
 
   test "paid accounts are excluded before querying runner usage" do

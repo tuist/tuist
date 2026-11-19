@@ -1,4 +1,4 @@
-# Tuist CLI configuration for publishing IPAs that Once cannot publish itself
-# (see `preview:ios-device`). Once reads its project from once.toml.
+# Tuist CLI configuration for publishing IPAs that Struo cannot publish itself
+# (see `preview:ios-device`). Struo reads its project from struo.toml.
 project = "tuist/luft"
 url = "https://tuist.dev"

@@ -640,6 +640,13 @@
           :if={@on_runner_trial}
           phx-click="cancel_runner_trial"
           variant="destructive"
+          data-confirm={
+            @on_air &&
+              dgettext(
+                "dashboard",
+                "This account has no paid plan. Cancelling its trial puts it back on Air's free runner allowance and cache caps, and its runner usage stays unbilled until it subscribes. Cancel the trial anyway?"
+              )
+          }
           label={dgettext("dashboard", "Cancel runner trial")}
         />
       </div>

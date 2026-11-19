@@ -210,7 +210,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Project.once_project?(@selected_project)}
-        label={dgettext("dashboard", "Once Cache")}
+        label={dgettext("dashboard", "Struo Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"}
         selected={
@@ -451,6 +451,18 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
           @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
+        }
+      />
+      <.sidebar_item
+        :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+        label={dgettext("dashboard", "Snapshots")}
+        icon="photo"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"
+          )
         }
       />
       <.sidebar_item
@@ -839,7 +851,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
             :for={breadcrumb_item <- breadcrumb.items}
-            id={"#{@id}-#{breadcrumb_item.value}"}
+            id={"#{@id}-#{index}-item-#{breadcrumb_item.value}"}
             value={breadcrumb_item.value}
             label={breadcrumb_item.label}
             selected={breadcrumb_item.selected}
@@ -852,7 +864,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <:footer :if={Map.get(breadcrumb, :footer_items)}>
             <.breadcrumb_item
               :for={breadcrumb_item <- breadcrumb.footer_items}
-              id={"#{@id}-#{breadcrumb_item.value}"}
+              id={"#{@id}-#{index}-footer-#{breadcrumb_item.value}"}
               value={breadcrumb_item.value}
               label={breadcrumb_item.label}
               selected={breadcrumb_item.selected}

@@ -86,7 +86,7 @@ cancellable and leaves the reserve intact. See
   **Fleet-capacity awareness.** Both Linux shape pools and macOS Xcode
   pools share a capacity budget across siblings, so their warm capacity
   competes. The reconciler runs the per-pool target through
-  `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
+  `internal/scaling/allocate.go`'s `AllocateCompute`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
   (1) real load (`occupied + queued`, plus one withheld contender),
   (2) baselines and learned warm spare, then (3) the speculative
@@ -222,6 +222,12 @@ cancellable and leaves the reserve intact. See
     Pods in the same namespace) are a second daemon per node: they are
     subtracted the same way, and their grants and revocations are published as
     `<node>.remote-execution`, the name they connect to the server with.
+    With `TUIST_REMOTE_EXECUTION_FLOOR_SLOTS` above 0 they are also a pool of
+    the compute allocator (`controllers/execution_allocation.go`): their held
+    slots are its load and come back into the budget, its fleet-wide floor
+    ranks first among warm stock, and each worker's share of the funded floor
+    goes out as `warm_bytes` in its grant. See
+    [remote execution](../sandbox-image/remote-execution.md), shared hosts.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled
@@ -254,7 +260,7 @@ cancellable and leaves the reserve intact. See
     all. It also cannot see CPU, which binds a guest whose memory-per-
     vCPU is richer than its host's. So the autoscaler additionally
     computes, per shape, the sum over Ready nodes of each node's OWN
-    `min(cpu, memory)` quotient, and `AllocateFleet` caps every pool
+    `min(cpu, memory)` quotient, and `AllocateCompute` caps every pool
     sharing that shape at it.
 
     This has to be a shared cap rather than `maxReplicas`, because a

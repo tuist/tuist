@@ -2,29 +2,29 @@
 {
   "title": "Oluşturulan Xcode projesi",
   "titleTemplate": ":title · Seçici test · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Seçici Test ile yalnızca son değişikliklerinizden etkilenen Xcode ve oluşturulan proje testlerini çalıştırın, böylece sürekli entegrasyon geri bildirimi saniyeler içinde sağlar."
+  "description": "Tuist Seçici Test ile yalnızca en son değişikliklerinizden etkilenen Xcode ve oluşturulan proje testlerini çalıştırın, böylece sürekli entegrasyon geri bildirimi saniyeler içinde sağlar."
 }
 ---
 # Oluşturulan Xcode projesi {#generated-xcode-project}
 
-Bir proje büyüdükçe, her push işleminden sonra tüm testleri çalıştırmak ölçeklenemez hale gelir. Tuist'in seçici testi, Tuist'in <.localized_link href="/guides/features/projects/hashing">hashing algoritmasına</.localized_link> dayanarak yalnızca son başarılı test çalıştırmasından bu yana hedefleri değişen testleri çalıştırır.
+Proje büyüdükçe, her push işleminde tüm testleri çalıştırmak ölçeklenebilirliğini yitirir. Tuist’in seçici testi, Tuist’in <.localized_link href="/guides/features/projects/hashing">hashing algoritmasına</.localized_link> dayanarak yalnızca son başarılı test çalıştırmasından bu yana hedefleri değişen testleri çalıştırır.
 
-Testleri <.localized_link href="/guides/features/projects">oluşturulan projenizle</.localized_link> seçici olarak çalıştırmak için `tuist test` komutunu kullanın. Komut, projenizi <.localized_link href="/guides/features/cache/module-cache">modül önbelleği</.localized_link> için yaptığı gibi <.localized_link href="/guides/features/projects/hashing">hash'ler</.localized_link> ve başarı durumunda, gelecekteki çalıştırmalarda nelerin değiştiğini belirlemek için hash değerlerini kalıcı hale getirir. Gelecekteki çalıştırmalarda `tuist test`, testleri filtrelemek ve yalnızca son başarılı test çalıştırmasından bu yana değişenleri çalıştırmak için hash değerlerini şeffaf bir şekilde kullanır.
+<.localized_link href="/guides/features/projects">Oluşturulan projenizle</.localized_link> testleri seçici olarak çalıştırmak için `tuist test` komutunu kullanın. Komut, projenizi <.localized_link href="/guides/features/cache/module-cache">modül önbelleği</.localized_link> için yaptığı gibi <.localized_link href="/guides/features/projects/hashing">hash’ler</.localized_link> ve başarı durumunda, gelecekteki çalıştırmalarda nelerin değiştiğini belirlemek üzere hash değerlerini kalıcı hale getirir. Gelecekteki çalıştırmalarda `tuist test`, testleri daraltmak ve yalnızca son başarılı test çalıştırmasından bu yana değişenleri çalıştırmak için hash değerlerini şeffaf bir şekilde kullanır.
 
-`tuist test`, test paketinizi çalıştırırken derleme süresini iyileştirmek amacıyla yerel veya uzak depolamanızdaki ikili dosyaları mümkün olduğunca kullanmak üzere <.localized_link href="/guides/features/cache/module-cache">modül önbelleği</.localized_link> ile doğrudan entegre olur. Seçici testin modül önbellekleme ile birleşimi, CI ortamınızda testlerin çalışması için gereken süreyi önemli ölçüde azaltabilir.
+`tuist test`, test paketinizi çalıştırırken derleme süresini iyileştirmek amacıyla yerel veya uzak depolamanızdaki ikili dosyaları mümkün olduğunca kullanmak için <.localized_link href="/guides/features/cache/module-cache">modül önbelleği</.localized_link> ile doğrudan entegre olur. Seçici testin modül önbellekleme ile birleşimi, CI ortamınızda testlerin çalışma süresini önemli ölçüde azaltabilir.
 
-Testleriniz yalnızca simülatör hedeflerini içeriyorsa, `tuist test` öğesinin önbelleğe alınmış ikili dosyaların yalnızca simülatör dilimlerini kullanmasını ve indirmesini sağlamak için `--destination simulator` parametresini iletin. Bkz. <.localized_link href="/guides/features/cache/module-cache#destination-selection">hedef seçimi</.localized_link>. Seçici test hash değerleri her `--destination` değeri için aynıdır.
+Testleriniz yalnızca simülatör hedeflerini çalıştırıyorsa, `tuist test` yalnızca önbelleğe alınmış ikili dosyaların simülatör dilimlerini kullanıp indirmesi için `--destination simulator` parametresini iletin. Bkz. <.localized_link href="/guides/features/cache/module-cache#destination-selection">hedef seçimi</.localized_link>. Seçici test hash değerleri her `--destination` değeri için aynıdır.
 
 ## Derleme ve test işlerini ayırma {#separate-build-and-test-jobs}
 
-Seçici test, ayrı derleme ve test işlerini destekler. Derleme işinde `tuist test --build-only` komutunu çalıştırarak Tuist'in, derlemenin ürettiği ürünlerin yanında bir `selective-testing-graph.json` dosyasını kalıcı hale getirmesini sağlayın. Bu graf, seçici testin ihtiyaç duyduğu hash değerlerini taşır; böylece test işi, hangi hedeflerin çalıştırılacağını belirlemek için projeyi yeniden oluşturmak veya Swift Package bağımlılıklarını çözmek zorunda kalmaz.
+Seçici test, ayrı derleme ve test işlerini destekler. Derleme işinde `tuist test --build-only` çalıştırın ki Tuist, derlemenin ürettiği ürünlerin yanında bir `selective-testing-graph.json` dosyasını kalıcı hale getirebilsin. Bu graf, seçici testin ihtiyaç duyduğu hash değerlerini taşır; böylece test işi, hangi hedeflerin çalıştırılacağını belirlemek için projeyi yeniden oluşturmak veya Swift Package bağımlılıklarını çözmek zorunda kalmaz.
 
-Tuist, `--build-only` sırasında grafiği iki yere yazar:
+Tuist, `--build-only` sırasında grafi iki yere yazar:
 
 - `-testProductsPath` parametresini ilettiğinizde `.xctestproducts` paketi içinde.
-- Türetilmiş verilerin `Build/Products/` dizini altındaki her `.xctestrun` dosyasının yanında.
+- Türetilmiş verilerin `Build/Products/` dizini altındaki her bir `.xctestrun` dosyasının yanında.
 
-Her iki çıktıdan birini derlenen ürünlerin yanında önbelleğe alın ve test işinde `--without-building` parametresine aynı yolu iletin. Her iki yöntem de çalışır:
+Her iki çıktıdan birini derlenen ürünlerin yanında önbelleğe alın ve test işinde `--without-building` parametresine aynı yolu iletin. Her iki form da çalışır:
 
 ```sh
 # Build job — writes an .xctestproducts bundle with the graph inside it.
@@ -58,25 +58,25 @@ tuist test MyScheme \
   -xctestrun artifacts/derived-data/Build/Products/MyScheme_iphonesimulator.xctestrun
 ```
 
-Tuist bu grafiği girişin yanında bulamadığında (örneğin, derleme işi `tuist test --build-only` yerine düz `xcodebuild build-for-testing` kullandığında), etkilenen hedefleri yine hesaplayabilmek için projeyi yeniden oluşturmaya geri döner. Bu geri dönüş mekanizması, Swift Package bağımlılıklarının test işinde çözülmesini gerektirir; bu nedenle önce `tuist install` komutunu çalıştırın veya işler arasında `Tuist/.build` önbelleğe alın.
+Tuist bu grafi girdinin yanında bulamadığında (örneğin, derleme işi `tuist test --build-only` yerine düz `xcodebuild build-for-testing` kullandığında), etkilenen hedefleri yine de hesaplayabilmek için projeyi yeniden oluşturmaya geri döner. Bu geri dönüş mekanizması, test işinde Swift Package bağımlılıklarının çözülmesini gerektirir; bu nedenle önce `tuist install` çalıştırın veya işler arasında `Tuist/.build` önbelleğe alın.
 
-Graf, derleme zamanındaki kaynak ağacını yansıtır. Test işini, derleme işiyle aynı commit üzerinde çalıştırın — eğer ikisi arasında kaynak sapması olursa, hash değerleri artık kaynakla eşleşmez ve seçici test, daha yeni kaynağa karşı aslında başarısız olacak testleri atlayabilir.
+Graf, derleme zamanındaki kaynak ağacını yansıtır. Test işini, derleme işiyle aynı commit’e karşı çalıştırın — eğer ikisi arasında kaynak farklılaşırsa, hash değerleri artık kaynakla eşleşmez ve seçici test, daha yeni kaynağa karşı aslında başarısız olacak testleri atlayabilir.
 
 ### Hangi bayrağı kullanmalıyım? {#which-flag-should-i-use}
 
-`.xctestrun` ve `.xctestproducts`, iki farklı Xcode çıktı formatıdır ve taşınabilirlik ile işlem hattı kolaylığı arasında bir denge kurarlar:
+`.xctestrun` ve `.xctestproducts`, iki farklı Xcode çıktı formatıdır ve taşınabilirlik ile pipeline kolaylığı arasında bir denge kurarlar:
 
-- **`-testProductsPath` (`.xctestproducts`) — yeni işlem hatları için önerilir.** Kendi kendine yeten bir dizindir: derlenen `.xctest` ikili dosyaları ve bunların `.xctestrun` dosyaları, yolları paket köküne göreli hale getirilmiş olarak içinde bulunur; böylece nereye giderse gitsin geçerliliğini korur.
-- **`-xctestrun` (ham `.xctestrun`) — zaten türetilmiş veri etrafında kurulmuş bir işlem hattınız varsa bunu kullanın.** `xcodebuild build-for-testing`, varsayılan olarak `<derivedData>/Build/Products/` üstüne bir `.xctestrun` yazar ve onu o ağaçtaki başka yerlerde bulunan test paketlerine işaret eder. Başka bir işte yeniden kullanmak, `Build/Products/` içindeki yolların bozulmadan kalmasını gerektirir.
+- **`-testProductsPath` (`.xctestproducts`) — yeni pipeline’lar için önerilir.** Kendi kendine yeten bir dizindir: derlenen `.xctest` ikili dosyaları ve bunların `.xctestrun` dosyaları, yolları paket köküne göreli hale getirilmiş olarak içinde bulunur; böylece nereye taşınırsa taşınsın geçerliliğini korur.
+- **`-xctestrun` (ham `.xctestrun`) — türetilmiş veri etrafında zaten bir pipeline kurduysanız bunu kullanın.** `xcodebuild build-for-testing`, varsayılan olarak `<derivedData>/Build/Products/` üstüne bir `.xctestrun` yazar ve onu o ağaçtaki başka yerlerde bulunan test paketlerine işaret edecek şekilde konumlandırır. Başka bir işte yeniden kullanmak, `Build/Products/` içindeki yolların bozulmadan kalmasını gerektirir.
 
-Yeni başlıyorsanız `-testProductsPath` tercih edin. Tuist'i, türetilmiş verileri zaten önbelleğe alan mevcut bir işlem hattına entegre ediyorsanız, derleme işi `tuist test --build-only` üzerinden çalıştığı sürece `-xctestrun` aynı hızlı yolu izler.
+Yeni başlıyorsanız `-testProductsPath` tercih edin. Tuist’i türetilmiş veriyi zaten önbelleğe alan mevcut bir pipeline’a entegre ediyorsanız, derleme işi `tuist test --build-only` üzerinden çalıştığı sürece `-xctestrun` aynı hızlı yolu izler.
 
-Her iki giriş modu da `-workspace`/`-project`/`-scheme` ile karşılıklı olarak özel olduğundan, passthrough argümanları `-xctestrun` veya `-testProductsPath` içerdiğinde Tuist bu bayrakları atlar ve seçilen hedefleri `-only-testing` üzerinden iletir.
+Her iki giriş modu da `-workspace`/`-project`/`-scheme` ile karşılıklı olarak dışlayıcıdır; bu nedenle passthrough argümanları `-xctestrun` veya `-testProductsPath` içerdiğinde Tuist bu bayrakları atlar ve seçilen hedefleri `-only-testing` aracılığıyla iletir.
 
 > [!WARNING]
-> **Modül ve dosya düzeyinde granülerlik**
+> **Modül düzeyi ile dosya düzeyi granülerliği**
 >
-> Testler ve kaynaklar arasındaki kod içi bağımlılıkların tespit edilmesinin imkansızlığı nedeniyle, varsayılan seçici testin maksimum granülerliği hedef düzeyindedir. [Kapsam stratejisi](#coverage-based-test-selection) bunu tekil testlere kadar daraltır. Bu nedenle, seçici testin faydalarını en üst düzeye çıkarmak için hedeflerinizi küçük ve odaklı tutmanızı öneririz.
+> Testler ve kaynaklar arasındaki kod içi bağımlılıkları tespit etmenin imkansızlığı nedeniyle, varsayılan seçici testin maksimum granülerliği hedef düzeyindedir. [Kapsam stratejisi](#coverage-based-test-selection) bunu tekil testlere kadar daraltır. Bu nedenle, seçici testin faydalarını en üst düzeye çıkarmak için hedeflerinizi küçük ve odaklı tutmanızı öneririz.
 
 
 ## Kapsama dayalı test seçimi {#coverage-based-test-selection}
@@ -86,7 +86,7 @@ Her iki giriş modu da `-workspace`/`-project`/`-scheme` ile karşılıklı olar
 >
 > Kapsama dayalı test seçimi erken erişim aşamasındadır. Hesabınızda etkinleştirmek için bizimle iletişime geçin. Etkinleştirilene kadar strateji, varsayılan seçici test gibi davranır.
 
-Varsayılan olarak, seçici test hash değeri daha önce geçen tüm test hedeflerini atlar. `.coverage()` stratejisi daha ileri gider: kalan test hedeflerinde, daha önceki bir çalıştırmadaki kod kapsamının değişikliğinizin dokunduğu dosyaların hiçbirini içermemediği testleri de atlar. XCTest ve XCUITest testleriyle ve bunun için yapılandırılmış paketlerdeki [Swift Testing](#swift-testing) testleriyle çalışır. `Tuist.swift` içinde etkinleştirin:
+Varsayılan olarak seçici test, hash’i daha önce geçen tüm test hedeflerini atlar. `.coverage()` stratejisi daha ileri gider: kalan test hedeflerinde, daha önceki bir çalıştırmadaki kod kapsamının değişikliğinizin dokunduğu dosyalardan hiçbirini içermemediği testleri de atlar. XCTest ve XCUITest testleriyle ve buna uygun yapılandırılmış paketlerdeki [Swift Testing](#swift-testing) testleriyle çalışır. `Tuist.swift` içinde etkinleştirin:
 
 ```swift
 import ProjectDescription
@@ -103,22 +103,22 @@ let tuist = Tuist(
 
 Strateji şunları gerektirir:
 
-- **Kapsam yüklemeleri.** Tuist, testleri önceki çalıştırmaların yüklediği kapsama verilerine göre seçer; bu nedenle `tuist test`, `upload: false` ile ayarlanmış `.coverage()` içeren bir manifesti yükleyemez.
-- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.5.1 veya üzeri** [test hedefleriniz tarafından bağlantılı](#linking-testcoverageattribution). Her testin hangi dosyaları yürüttüğünü kaydeder ve Tuist'in seçmediği testleri atlar. Bu olmadan bir hedef, varsayılan durumda olduğu gibi yalnızca tamamen atlanır.
-- **Yeterince sık yapılan tam test çalıştırmaları.** `tuist test --no-selective-testing` ile yapılan bir çalıştırma her testi yürütür ve bir temel çizgi haline gelir. Seçici bir çalıştırma, aynı platformdaki commit geçmişindeki yakın tarihli bir çalıştırma ile karşılaştırma yapar ve böyle bir temel çizgi olmadan kapsam uygulamaz. Bunların nerede ve ne sıklıkla çalıştırılacağı, ekibinizin çalışma şekline bağlıdır; örneğin varsayılan dalınızın her commitinde, gecelik veya sürüm dallarında. Varsayılan dalı öneriyoruz: buradaki tam bir çalıştırma, bir değişiklik yayınlanmadan önce kapsamın göremediği şeyleri, örneğin bir testin bağımlı olduğu bir fixture veya hizmeti de yakalar.
+- **Kapsam yüklemeleri.** Tuist, testleri önceki çalıştırmaların yüklediği kapsama göre seçer; bu nedenle `tuist test`, `upload: false` ile ayarlanmış `.coverage()` içeren bir manifesti yükleyemez.
+- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.5.1 veya üzeri** [test hedefleriniz tarafından bağlanmış](#linking-testcoverageattribution). Her testin hangi dosyaları yürüttüğünü kaydeder ve Tuist’in seçmediği testleri atlar. Bu olmadan bir hedef yalnızca varsayılandaki gibi tamamen atlanır.
+- **Yeterince sık tam test çalıştırmaları.** `tuist test --no-selective-testing` ile yapılan bir çalıştırma her testi yürütür ve bir temel oluşturur. Seçici bir çalıştırma, aynı platformda commit geçmişindeki yakın bir temel ile karşılaştırma yapar ve temel olmadan kapsam uygulamaz. Bunları nerede ve ne sıklıkta çalıştıracağınız ekibinizin çalışma biçimine bağlıdır; örneğin varsayılan dalınızın her commit’inde, geceleyin veya sürüm dallarında. Varsayılan dalı öneriyoruz: oradaki tam bir çalıştırma, bir değişiklik yayınlanmadan önce kapsamın göremeyeceği şeyleri, örneğin bir testin bağımlı olduğu bir sabit veriyi veya hizmeti de yakalar.
 
-Strateji açıkken, `tuist test` hash değeri daha önce geçen hedefleri atlar, ardından Tuist'e kalan hedeflerden hangilerinin değişikliğinizden etkilenebileceğini sorar. Etkilenen testi olmayan hedefler derlenmez. Yeni testler, son seferde başarısız olan testler, değiştirilmiş bir test dosyasındaki testler ve kaydedilmiş kapsamı olmayan testler her zaman çalışır.
+Strateji açıkken `tuist test`, hash’i daha önce geçen hedefleri atlar ve ardından Tuist’e, kalan hedeflerden hangilerinin değişikliğinizden etkilenebileceğini sorar. Etkilenen testi olmayan hedefler derlenmez. Yeni testler, son seferde başarısız olan testler, değiştirilmiş bir test dosyasındaki testler ve kaydedilmiş kapsamı olmayan testler her zaman çalışır.
 
-Bazen kapsam uygulanmaz ve çıktı bunun nedenini açıklar: hash değeri geçmeyen hedeflerin tüm testleri, varsayılan seçici testte olduğu gibi çalıştırılır. Bu durum, aynı platformda yakın tarihli bir temel çizgi olmadığında, değişiklik 5.000'den fazla dosyaya dokunduğunda veya `Package.resolved`, `Project.swift` ya da bir `.xcconfig` gibi herhangi bir testi etkileyebilecek bir dosya değiştiğinde gerçekleşir. Her testi çalıştırmak için `--no-selective-testing` parametresini kullanın.
+Bazen kapsam uygulanmaz ve çıktı nedenini açıklar: hash’i geçmeyen hedeflerin tüm testleri, varsayılan seçici testteki gibi çalışır. Bu durum, aynı platformda yakın bir temel olmadığında, değişiklik 5.000’den fazla dosyaya dokunduğunda veya herhangi bir testi etkileyebilecek bir dosya değiştiğinde, örneğin `Package.resolved`, `Project.swift` veya bir `.xcconfig` gerçekleşir. Her testi çalıştırmak için `--no-selective-testing` parametresini geçirin.
 
 > [!NOTE]
 > **Test kapsamı**
 >
-> Xcode dahil olmak üzere tek bir çalıştırmanın raporunu okuyan kapsam araçları, tüm test paketinin çalıştığını varsayar; bu nedenle seçici bir çalıştırmanın raporu atladığı testleri dışarıda bırakır. Tuist'in <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">kod kapsamı</.localized_link> özelliği bunun yerine, her çalıştırmada kaydettiği <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#target-level-coverage">hedef düzeyi kapsamı</.localized_link> kullanarak atlanan test hedeflerinin kapsam verilerini önceki bir çalıştırmadan taşır.
+> Tek bir çalıştırmanın raporunu okuyan kapsam araçları, Xcode dahil olmak üzere, tüm test paketinin çalıştığını varsayar; bu nedenle seçici bir çalıştırmanın raporu atladığı testleri dışarıda bırakır. Tuist’in <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">kod kapsamı</.localized_link> bunun yerine, her çalıştırmada kaydettiği <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#target-level-coverage">hedef düzeyindeki kapsamı</.localized_link> kullanarak atlanan test hedeflerinin kapsamını önceki bir çalıştırmadan taşır.
 
-### TestCoverageAttribution bağlantısı {#linking-testcoverageattribution}
+### TestCoverageAttribution bağlama {#linking-testcoverageattribution}
 
-Paketi `Tuist/Package.swift` dosyasına ekleyin ve küçük sürümüne sabitleyin; çünkü 0.x küçük sürümleri kaydedilen verileri değiştirebilir:
+Paketi `Tuist/Package.swift` konumuna ekleyin ve küçük sürümüne sabitleyin, çünkü 0.x küçük sürümleri kaydettiklerini değiştirebilir:
 
 ```swift
 import PackageDescription
@@ -150,7 +150,7 @@ Ardından bunu test hedeflerinize ekleyin, ancak asla bir uygulama hedefine ekle
 )
 ```
 
-Tuist varsayılan olarak paketleri statik çerçeveler olarak bağlar. Yalnızca XCTest içeren bir hedef paketteki hiçbir şeyi referans almaz, bu nedenle bağlayıcı onu ve buna bağlı olarak kayıt ve atlama işlevlerini düşürür. Test hedefinin `OTHER_LDFLAGS` değerine `-ObjC` ekleyin veya paketi `Tuist/Package.swift` içinde dinamik olarak bağlayın:
+Tuist paketleri varsayılan olarak statik çerçeveler olarak bağlar. Yalnızca XCTest içeren bir hedef paketteki hiçbir şeye referans vermez, bu nedenle bağlayıcı onu ve buna bağlı olarak kaydetme ve atlama işlemlerini düşürür. Test hedefinin `OTHER_LDFLAGS` alanına `-ObjC` ekleyin veya paketi `Tuist/Package.swift` içinde dinamik olarak bağlayın:
 
 ```swift
 #if TUIST
@@ -164,7 +164,7 @@ Tuist varsayılan olarak paketleri statik çerçeveler olarak bağlar. Yalnızca
 
 ### Swift Testing {#swift-testing}
 
-Swift Testing'in bir kütüphanenin katılabileceği bir gözlem API'si yoktur, bu nedenle testlerinin paketinde TestCoverageAttribution'ın `.coverageAttribution` niteliğine sahip olması gerekir. Bu nitelik, kendisine sahip olan paketin içinde yer alan alt paketlere de uygulanır. Bu niteliğe sahip olmayan paketlerdeki testler test başına kapsam kaydetmez, bu nedenle hedefleri çalıştığında onlar da çalışır.
+Swift Testing’in bir kütüphanenin katılabileceği bir gözlem API’si yoktur, bu nedenle testlerinin paketinde TestCoverageAttribution’ın `.coverageAttribution` özelliğine ihtiyacı vardır. Özellik, kendisine sahip olan pakete iç içe geçmiş paketlere uygulanır. Bu özelliğe sahip olmayan paketlerdeki testler test başına kapsam kaydetmez, bu nedenle hedefleri çalıştığında onlar da çalışır.
 
 ```swift
 import TestCoverageAttribution
@@ -176,13 +176,13 @@ struct DiscountTests {
 }
 ```
 
-- **Testler örtüşmemelidir.** Swift Testing varsayılan olarak bir işlemin testlerini paralel olarak çalıştırır ve kapsam sayaçları aynı anda çalışan testleri ayırt edemez; bu nedenle bu testler kendi kapsamlarını kaydetmez ve her zaman çalışır. `.serialized` yalnızca bir paketin kendi testlerini sıralar, bu nedenle yalnızca hedef tek bir pakete sahip olduğunda yeterlidir. XCTest'in ekstra bir yapılandırmaya ihtiyacı yoktur: paralel testleme her test klonunu kendi işleminde çalıştırır.
-- **Paralelleştirmeyi test hedefi başına kapatın.** Xcode ayarı her test hedefine uygular, bu nedenle yalnızca test bazında seçim yapmak istediğiniz hedefler için kapatabilirsiniz ve şemanın diğer hedefleri paralel çalışmaya devam eder. Ayrı bir şemaya gerek yoktur. Bunu test edilebilir hedef üzerinde ayarlayın: `.testableTarget(target: "CheckoutTests", parallelization: .disabled)`. Bu ayar ayrıca o hedefin XCTest testlerini klonlar olmadan çalıştırır. Tuist'in oluşturduğu şemalar bunu projenin `testingOptions` ayarından alır; `.parallelizable` veya `.swiftTestingOnlyParallelizable` içermiyorlarsa kapalıdır. `tuist test` komutuna `-parallel-testing-enabled YES` veya `NO` parametresini iletmek, o çalıştırma için her hedefin ayarını geçersiz kılar.
-- **Atlama işlemi için Swift 6.3 (Xcode 26.4) veya üzeri gereklidir.** Nitelik, Tuist'in seçmediği testleri iptal eder ve bunları atlanmış olarak raporlar. Daha eski sürümlerde testler yine de kapsam kaydeder, ancak Tuist'in seçmediği testler yine de çalışır.
+- **Testler örtüşmemelidir.** Swift Testing varsayılan olarak bir işlemin testlerini paralel çalıştırır ve kapsam sayaçları aynı anda çalışan testleri ayırt edemez, bu nedenle bu testler kendi kapsamlarını kaydetmez ve her zaman çalışır. `.serialized` yalnızca bir paketin kendi testlerini sıralar, bu nedenle yalnızca hedef tek bir pakete sahip olduğunda yeterlidir. XCTest’in ekstra bir yapılandırmaya ihtiyacı yoktur: paralel testleme her test klonunu kendi işleminde çalıştırır.
+- **Paralelleştirmeyi test hedefi başına kapatın.** Xcode ayarı her test hedefine uygular, bu nedenle yalnızca test bazında seçilmesini istediğiniz hedefler için kapatabilirsiniz ve şemanın diğer hedefleri paralel çalışmaya devam eder. Ayrı bir şemaya gerek yoktur. Bunu test edilebilir hedef üzerinde ayarlayın, `.testableTarget(target: "CheckoutTests", parallelization: .disabled)`, bu ayrıca o hedefin XCTest testlerini klon olmadan çalıştırır. Tuist’in oluşturduğu şemalar bunu projenin `testingOptions` ayarından alır; `.parallelizable` veya `.swiftTestingOnlyParallelizable` içermiyorsa kapalıdır. `tuist test` komutuna `-parallel-testing-enabled YES` veya `NO` geçirmek, o çalıştırma için her hedefin ayarını geçersiz kılar.
+- **Atlama için Swift 6.3 (Xcode 26.4) veya üzeri gerekir.** Özellik, Tuist’in seçmediği testleri iptal eder ve bunları atlanmış olarak raporlar. Daha eski sürümlerde testler yine de kapsam kaydeder, ancak Tuist’in seçmediği testler yine de çalışır.
 
 ### Her zaman çalışan testler {#tests-that-always-run}
 
-Kapsam yalnızca bir testin yürüttüğü kodu görür. Gerçek girdileri fixture'lar, kaynaklar, ağ veya ortam olan bir test, kapsanan kodda herhangi bir değişiklik olmadan bozulabilir. Testi atlanamaz olarak işaretlerseniz, Tuist onu seçmese bile çalışır:
+Kapsam yalnızca bir testin yürüttüğü kodu görür. Gerçek girdileri sabit veriler, kaynaklar, ağ veya ortam olan bir test, kapsanan herhangi bir kod değişmeden bozulabilir. Onu atlanamaz olarak işaretlerseniz, Tuist onu seçmese bile çalışır:
 
 ```swift
 // Swift Testing: on a test or a suite.
@@ -198,9 +198,23 @@ final class NetworkTests: XCTestCase {
 }
 ```
 
-Bu yalnızca çalışan test hedeflerinde geçerlidir. Hash değeri daha önce geçen veya Tuist'in hiçbir testini seçmediği bir hedef tamamen atlanır ve hiç başlamaz, bu nedenle onun atlanamaz testleri de çalışmaz.
+Bu yalnızca çalışan test hedeflerinde geçerlidir. Hash’i zaten geçen veya Tuist’in hiçbir testini seçmediği bir hedef tamamen atlanır ve asla başlamaz, bu nedenle onun atlanamaz testleri de çalışmaz.
 
 Tüm seçenekler için [TestCoverageAttribution README](https://github.com/tuist/TestCoverageAttribution#unskippable-tests) dosyasına bakın.
+
+### Bir seçimi inceleme {#inspecting-a-selection}
+
+Test çalıştırmasının Seçici Test sekmesi, kapsamın neyi seçtiğini ve nedenini gösterir. Aynı verilere CLI üzerinden `--json` ile betikleme için ve ajanlar aracılığıyla <.localized_link href="/guides/features/agentic-coding/mcp">Model Context Protocol sunucusu</.localized_link> üzerinden erişilebilir:
+
+```sh
+tuist test list --selective-testing coverage           # the runs coverage-based selection decided
+tuist test show <test-run-id>                          # a run's strategy, baseline and test counts
+tuist test selective-testing list <test-run-id>        # each test selected or skipped, with its reason and the file that matched
+tuist test selective-testing changed-files <test-run-id>  # the files that changed since the baseline
+tuist test case run show <test-case-run-id>            # why a test ran
+```
+
+Kapsam uygulanmadığında, testler yine de kapsam tabanlı bir seçim olarak sayılır: nedenleri, kapsamın karar verememesinin sebebini belirtir, örneğin `tracked_file_changed`.
 
 
 ## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
@@ -211,11 +225,11 @@ Tüm seçenekler için [TestCoverageAttribution README](https://github.com/tuist
 > Otomatik çekme/birleştirme isteği yorumları almak için <.localized_link href="/guides/server/accounts-and-projects">Tuist projenizi</.localized_link> bir Git forge ile entegre edin: <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link>, <.localized_link href="/guides/integrations/gitforge/origin">Cursor Origin</.localized_link> veya <.localized_link href="/guides/integrations/gitforge/entire">Entire</.localized_link>.
 
 
-Tuist projeniz [GitHub](https://github.com) gibi Git platformunuzla bağlantılı hale geldiğinde ve `tuist test` öğesini CI iş akışınızın bir parçası olarak kullanmaya başladığınızda, Tuist pull/merge requestlerinize doğrudan bir yorum gönderir; bu yorumda hangi testlerin çalıştırıldığı ve hangilerinin atlandığı belirtilir: ![Tuist Önizleme bağlantısı içeren GitHub uygulaması yorumu](/images/guides/features/selective-testing/github-app-comment.png)
+Tuist projeniz [GitHub](https://github.com) gibi Git platformunuzla bağlantılı hale geldiğinde ve CI iş akışınızın bir parçası olarak `tuist test` kullanmaya başladığınızda, Tuist doğrudan çekme/birleştirme isteklerinize hangi testlerin çalıştırıldığını ve hangilerinin atlandığını içeren bir yorum gönderir: ![Tuist Önizleme bağlantısı içeren GitHub uygulaması yorumu](/images/guides/features/selective-testing/github-app-comment.png)
 
 
-## Panoda kaçırılanları inceleme {#investigating-misses-on-the-dashboard}
+## Panoda kaçakları inceleme {#investigating-misses-on-the-dashboard}
 
-Daha önce önbelleğe alınmış bir test hedefi kaçırılmış (miss) olarak göründüğünde, bir test çalıştırması sayfasındaki **Seçici Test** sekmesi, hash değerini üreten girdileri detaylı incelemenize olanak tanır. Bir satırı genişletmek bileşen bazlı alt hash değerlerini — kaynaklar, bağımlılıklar, ortam değişkenleri, proje ve hedef ayarları, Info.plist, yetkiler, başlık dosyaları vb. — ortaya çıkarır; böylece çalıştırmalar arasında sapma gösteren girdiyi tespit edebilirsiniz.
+Daha önce önbelleğe alınmış bir test hedefi kaçak olarak göründüğünde, bir test çalıştırması sayfasındaki **Seçici Test** sekmesi, hash’i oluşturan girdileri derinlemesine incelemenize olanak tanır. Bir satırı genişletmek, bileşen başına alt hash’leri — kaynaklar, bağımlılıklar, ortam değişkenleri, proje ve hedef ayarları, Info.plist, yetkiler, başlıklar vb. — ortaya çıkarır, böylece çalıştırmalar arasında sapma gösteren girdiyi tam olarak belirleyebilirsiniz.
 
-Seçici Test kartının üst kısmındaki **JSON Olarak Kopyala** düğmesini kullanarak her seçici test hedefini hash ve alt hash değerleriyle birlikte dışa aktarın. İki çalıştırma arasındaki JSON'u karşılaştırmak, test hedefinin hash değeri saptığında hangi girdinin değiştiğini doğrulamanın en hızlı yoludur.
+Seçici Test kartının üst kısmındaki **JSON olarak Kopyala** düğmesini kullanarak her seçici test hedefini hash’i ve alt hash’leriyle birlikte dışa aktarın. İki çalıştırma arasındaki JSON’u karşılaştırmak, test hedefinin hash’i saptığında hangi girdinin değiştiğini doğrulamanın en hızlı yoludur.

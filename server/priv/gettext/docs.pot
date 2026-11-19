@@ -472,18 +472,6 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/docs_live.ex:240
-#: lib/tuist_web/live/docs_live.ex:761
-#, elixir-autogen, elixir-format
-msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
-msgstr ""
-
-#: lib/tuist_web/live/docs_live.ex:371
-#: lib/tuist_web/live/docs_live.ex:784
-#, elixir-autogen, elixir-format
-msgid "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
-msgstr ""
-
 #: lib/tuist_web/live/docs_live.ex:456
 #: lib/tuist_web/live/docs_live.ex:812
 #, elixir-autogen, elixir-format
@@ -727,4 +715,16 @@ msgstr ""
 #: lib/tuist_web/docs/release_status.ex:217
 #, elixir-autogen, elixir-format
 msgid "View release calendar"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:240
+#: lib/tuist_web/live/docs_live.ex:761
+#, elixir-autogen, elixir-format
+msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Struo projects, providing the infrastructure that lets software integration and delivery keep pace."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:371
+#: lib/tuist_web/live/docs_live.ex:784
+#, elixir-autogen, elixir-format
+msgid "Share Xcode, Gradle, Bazel, Rust, and Struo build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
 msgstr ""

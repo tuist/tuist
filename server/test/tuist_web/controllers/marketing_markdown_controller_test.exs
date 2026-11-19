@@ -9,6 +9,14 @@ defmodule TuistWeb.MarketingMarkdownControllerTest do
 
   @endpoint TuistWeb.Endpoint
 
+  test "redirects old Once marketing URLs without changing representation or losing queries" do
+    for prefix <- ["", "/marketing-markdown"] do
+      conn = get(build_conn(), "#{prefix}/build-systems/once?source=shared&tab=setup")
+      assert redirected_to(conn, 301) == "#{prefix}/build-systems/struo?source=shared&tab=setup"
+      refute get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+    end
+  end
+
   test "every decision guide has a header-free Markdown URL" do
     for path <- MarketingMarkdown.paths() do
       conn = get(build_conn(), MarketingMarkdown.alternate_path(path))

@@ -325,7 +325,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
         |> json_response(:ok)
 
       assert %{"platform" => "linux", "vcpus" => 4, "memory_gb" => 8, "default" => false} in response["shapes"]
-      assert %{"xcode_version" => "26.5", "default" => true} in response["xcode_versions"]
+      assert %{"xcode_version" => "27.2", "default" => true} in response["xcode_versions"]
     end
 
     test "creates, resizes, and deletes a profile", %{conn: conn, user: user, account: account} do

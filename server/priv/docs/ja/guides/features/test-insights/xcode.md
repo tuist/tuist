@@ -5,20 +5,20 @@
   "description": "Tuist Test InsightsでXcodeのテスト分析を追跡し、低速なテストや不安定なテストを特定します。"
 }
 ---
-# Xcodeテストインサイト {#xcode-test-insights}
+# Xcode テストのインサイト {#xcode-test-insights}
 
-Tuist Test Insightsは、遅いテストの特定やCI実行の失敗原因を迅速に把握することで、テストスイートの健全性を監視するためのXcodeテスト分析機能を提供します。テストスイートが大きくなると、テストの徐々に遅くなる傾向や断続的な失敗といったトレンドを見極めることが難しくなります。Tuist Test Insightsは、高速で信頼性の高いテストスイートを維持するために必要な可視性を提供します。
+Tuist Test Insights は、遅いテストを特定したり CI 実行の失敗をすばやく把握することで、テストスイートの健全性を監視するための Xcode テスト分析を提供します。テストスイートが大きくなるにつれて、徐々に遅くなるテストや断続的な失敗といった傾向を見極めることが難しくなります。Tuist Test Insights は、高速で信頼性の高いテストスイートを維持するために必要な可視性をもたらします。
 
-Test Insightsを使用すると、以下のような質問に答えられます：
-- テストが遅くなっていないか？どのテストか？
-- 不安定で注意が必要なテストはどれか？
-- CI実行が失敗したのはなぜか？
+Test Insights を使うと、次のような質問に答えられます：
+- テストが遅くなっていませんか？どのテストですか？
+- 不安定な（flaky）テストはどれで、注意が必要ですか？
+- CI 実行が失敗したのはなぜですか？
 
 ## セットアップ {#setup}
 
-テストの追跡を開始するには、スキームのテスト後処理アクションに `tuist inspect test` コマンドを追加してください：
+テストの追跡を開始するには、`tuist inspect test` コマンドをスキームのテスト後処理アクションに追加してください：
 
-![テスト検査用の後処理アクション](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
+![テストを検査するための後処理アクション](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 [Mise](https://mise.jdx.dev/) を使用している場合、スクリプトで後処理アクション環境内で `tuist` を有効にする必要があります：
 ```sh
@@ -28,26 +28,26 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
 > [!TIP]
-> **Miseとプロジェクトパス**
+> **Mise とプロジェクトパス**
 >
-> 環境の `PATH` 環境変数はスキームの後処理アクションには継承されないため、Miseのインストール方法に応じて絶対パスを使用する必要があります。さらに、$SRCROOTが指すディレクトリからMiseを実行できるように、プロジェクト内のターゲットからビルド設定を継承することを忘れないでください。
+> 環境変数 `PATH` はスキームの後処理アクションには継承されないため、Mise の絶対パスを使用する必要があります。このパスは Mise のインストール方法によって異なります。また、$SRCROOT が指すディレクトリから Mise を実行できるよう、プロジェクト内のターゲットからビルド設定を継承することを忘れないでください。
 
-Tuistアカウントにログインしている限り、テスト実行が追跡されます。Tuistダッシュボードでテストインサイトにアクセスし、時間経過とともにどのように変化するかを確認できます：
+Tuist アカウントにログインしていれば、テスト実行が追跡されます。Tuist ダッシュボードでテストインサイトにアクセスし、時間経過とともにどのように変化するかを確認できます：
 
-![テストインサイト付きダッシュボード](/images/guides/features/build-insights/tests-dashboard.png)
+![テストインサイトを表示するダッシュボード](/images/guides/features/build-insights/tests-dashboard.png)
 
-全体的なトレンドだけでなく、CIでの失敗や遅いテストのデバッグ時など、個々のテストを深く掘り下げることもできます：
+全体の傾向だけでなく、CI での失敗や遅いテストのデバッグ時など、個々のテストを詳しく調べることもできます：
 
-![テスト詳細](/images/guides/features/build-insights/test-detail.png)
+![テストの詳細](/images/guides/features/build-insights/test-detail.png)
 
 ## 生成されたプロジェクト {#generated-projects}
 
 > [!NOTE]
 > 自動生成されたスキームには、`tuist inspect test` 後処理アクションが自動的に含まれます。
 >
-> 自動生成されたスキームでテストインサイトの追跡に興味がない場合は、[testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 生成オプションを使用して無効にしてください。
+> 自動生成されたスキームでテストインサイトの追跡が必要ない場合は、[testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) 生成オプションを使用して無効にしてください。
 
-カスタムスキームを持つ生成されたプロジェクトを使用している場合、テストインサイト用の後処理アクションを設定できます：
+カスタムスキームを使用した生成済みプロジェクトを利用している場合、テストインサイト用の後処理アクションを設定できます：
 
 ```swift
 let project = Project(
@@ -79,7 +79,7 @@ let project = Project(
 )
 ```
 
-Miseを使用していない場合、スクリプトは以下のように簡略化できます：
+Mise を使用していない場合、スクリプトは次のように簡略化できます：
 
 ```swift
 testAction: .testAction(
@@ -95,19 +95,19 @@ testAction: .testAction(
 
 ## 継続的インテグレーション {#continuous-integration}
 
-CIでテストインサイトを追跡するには、CIが <.localized_link href="/guides/server/authentication#continuous-integration">認証済み</.localized_link> であることを確認する必要があります。
+CI でテストインサイトを追跡するには、CI が <.localized_link href="/guides/server/authentication#continuous-integration">認証済み</.localized_link> であることを確認する必要があります。
 
-さらに、以下のいずれかを行う必要があります：
+さらに、次のいずれかが必要です：
 - `xcodebuild` アクションを呼び出す際に、<.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> コマンドを使用する。
-- `xcodebuild` 呼び出しに `-resultBundlePath` を追加する。
+- `xcodebuild` の呼び出しに `-resultBundlePath` を追加する。
 
 `xcodebuild` が `-resultBundlePath` なしでプロジェクトをテストする場合、必要な結果バンドルファイルが生成されません。`tuist inspect test` 後処理アクションは、テストを分析するためにこれらのファイルを必要とします。
 
-### Git履歴 {#git-history}
+### Git の履歴 {#git-history}
 
-CIでは、Tuistはチェックアウトのコミット履歴（コミットSHA、その親、コミット日時、および実行とそのプルリクエストのベースブランチが属していたブランチ）もアップロードします。ファイルの内容、コミットメッセージ、または作者はアップロードされません。これは、マージキューがテストしたコミットなど、どのコミットがデフォルトブランチに着陸したかをTuistに伝えます。Tuistはチェックアウトが既に持っている履歴を読み取り、チェックアウトにベースブランチがない場合は、リモートに対して最新のコミットを要求します（`git ls-remote`）。コードカバレッジ以外では、履歴を取得しません。コードカバレッジがある場合、ファイルの内容なしで浅いチェックアウトが深化され、プルリクエストが分岐した場所を見つけ、Tuistが既に持っているコミットに到達するため、コミットはそれが乗っている親なしでアップロードされることはありません。
+CI では、Tuist はチェックアウトのコミット履歴（コミット SHA、その親コミット、コミット日時、および実行とそのプルリクエストのベースブランチが属していたブランチ）もアップロードします。ファイルの内容、コミットメッセージ、著者はアップロードされません。これは、マージキューがテストしたコミットなど、どのコミットがデフォルトブランチに取り込まれたかを Tuist に伝えます。Tuist はチェックアウトがすでに持っている履歴を読み取り、チェックアウトにベースブランチがない場合は、リモートに対して最新のコミットを問い合わせます（`git ls-remote`）。コードカバレッジ以外では履歴を取得しません。コードカバレッジがある場合、ファイルの内容なしで浅いチェックアウトを深化させ、プルリクエストが分岐した場所を特定し、Tuist がすでに持っているコミットに到達できるようにします。これにより、親コミットのないコミットがアップロードされることはありません。
 
 | 変数 | 効果 |
 | --- | --- |
-| `TUIST_GIT_UPLOAD_ENABLED=false` | Git履歴を読み取ったりアップロードしたりしません。 |
-| `TUIST_GIT_UNSHALLOW_ENABLED=false` | リモートに連絡することなく、チェックアウトのみを読み取ります。 |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Git の履歴を読み取ったりアップロードしたりしません。 |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | リモートに接続せず、チェックアウトのみを読み取ります。 |

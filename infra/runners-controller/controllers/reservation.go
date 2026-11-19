@@ -33,7 +33,7 @@ import (
 //     large Pod is attempted, fails the CPU filter, and is set aside;
 //     the next 6 vCPU Pod is attempted and binds into the slot that just
 //     freed. Being queued longer earns a first attempt, not the seat.
-//   - The fleet allocator's cross-pool reclaim cannot help either. It
+//   - The compute allocator's cross-pool reclaim cannot help either. It
 //     reclaims speculative warm capacity, and the Pod winning the race
 //     here is backed by real queued work, which is the one tier that
 //     never yields.

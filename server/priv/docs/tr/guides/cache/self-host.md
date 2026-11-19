@@ -1,35 +1,35 @@
 ---
 {
-  "title": "Kendi Sunucunuzda Barındırma",
+  "title": "Kendi sunucunuzda barındırma",
   "titleTemplate": ":title | Önbellek | Kılavuzlar | Tuist",
-  "description": "Tuist önbellek düğümlerini kendi sunucunuzda nasıl barındıracağınızı ve Tuist tarafından barındırılan ağ ile nasıl çoğaltma yapacağınızı öğrenin."
+  "description": "Tuist önbellek düğümlerini kendi sunucunuzda nasıl barındıracağınızı ve Tuist tarafından barındırılan ağ ile nasıl çoğaltacağınızı öğrenin."
 }
 ---
 
-# Kendiniz Barındırılan Önbellek {#self-host-cache}
+# Önbelleği Kendi Sunucunuzda Barındırın {#self-host-cache}
 
-Tuist önbelleği, yapıtları birbirine çoğaltan bir **düğüm ağı** olarak çalışır. Önbelleğin geliştiricilerinizin ve CI sistemlerinizin yanında konumlanması için kendi önbellek düğümlerinizi altyapınızda çalıştırabilir; bu sayede, önbellekleme hızının azalmasına neden olacak ağ mesafesini kısaltmış olursunuz.
+Tuist'in önbelleği, yapıtları birbirine çoğaltan bir **düğüm ağı** olarak çalışır. Önbelleğin geliştiricilerinizin ve CI sistemlerinizin yanında durması için kendi altyapınızda önbellek düğümleri çalıştırabilir, böylece önbellekleme hızının azalmasına neden olacak ağ mesafesini kısaltabilirsiniz.
 
-Kendiniz barındırılan bir düğüm, yapıtları yerel diske depolayan tek bir kapsayıcıdır (`ghcr.io/tuist/kura`) ve bir eş ağa katıldığında, dahili eş bağlantı noktası üzerinden ağın geri kalanıyla iletişim kurar. Tuist, **kontrol düzlemi** olarak hareket eder: trafiği kimlik doğrular, yönetilen önbellek kapasitesini sağlar ve kullanımı ölçer. Düğümlerinize asla doğrudan erişmez.
+Kendi sunucunuzda barındırılan bir düğüm, yapıtları yerel diskte depolayan tek bir kapsayıcıdır (`ghcr.io/tuist/kura`) ve bir eş ağa katıldığında, dahili eş bağlantı noktası üzerinden ağın geri kalanıyla iletişim kurar. Tuist, **kontrol düzlemi** olarak hareket eder: trafiği kimlik doğrular, yönetilen önbellek kapasitesini sağlar ve kullanımı ölçer. Düğümlerinize asla doğrudan erişmez.
 
 > [!NOTE]
-> Önbellek düğümlerini kendiniz barındırmak için bir **Enterprise planı** gerekir.
+> Önbellek düğümlerini kendi sunucunuzda barındırmak için bir **Enterprise planı** gerekir.
 >
-> Düğümler, ya barındırılan Tuist sunucusuna (`https://tuist.dev`) ya da kendiniz barındırdığınız bir Tuist sunucusuna bağlanır. Tuist sunucusunu kendiniz barındırmak ayrı bir sunucu lisansı gerektirir. <.localized_link href="/guides/server/self-host/server">Sunucu kendiniz barındırma kılavuzuna</.localized_link> bakın.
+> Düğümler, barındırılan Tuist sunucusuna (`https://tuist.dev`) veya kendi sunucunuzda barındırılan bir Tuist sunucusuna bağlanır. Tuist sunucusunun kendisini kendi sunucunuzda barındırmak ayrı bir sunucu lisansı gerektirir. Bkz. <.localized_link href="/guides/server/self-host/server">sunucu kendi sunucunuzda barındırma kılavuzu</.localized_link>.
 
 ## İki topoloji {#topologies}
 
-Kendiniz barındırılan düğümleri çalıştırmanın iki yolu vardır ve hangisini kullanacağınız tamamen hesabınızın aynı zamanda bir **Tuist tarafından yönetilen** önbellek bölgesi çalıştırıp çalıştırmadığına bağlıdır.
+Kendi sunucunuzda barındırılan düğümleri çalıştırmanın iki yolu vardır ve hangisini kullanacağınız tamamen hesabınızın ayrıca bir **Tuist tarafından yönetilen** önbellek bölgesi çalıştırıp çalıştırmadığına bağlıdır.
 
 ### Köprülenmiş: Tuist tarafından barındırılan ağ + sizin düğümleriniz {#topology-bridged}
 
-Hesabınız en az bir Tuist tarafından yönetilen önbellek bölgesi çalıştırır ve kendiniz barındırdığınız düğümler **bu ağa katılır**. Düğümlerinize yapılan yazma işlemleri sürekli olarak yönetilen ağa yayılır ve bir düğüm katıldığında, yönetilen ağın mevcut önbelleğinden ısınır. Bu durum, düşük gecikmeli bir önbelleği çalışanlarınızın (yazma işlemlerinin çoğunu bunlar yapar) yanına yerleştirirken, yazma işlemleri paylaşılan önbelleğe beslenir. Bir düğüm katıldıktan **sonra** yönetilen ağın başka yerlerinde yazılan yeni yapıtların henüz sürekli olarak o düğüme geri yayılmadığını unutmayın; bu planlanan bir geliştirmedir.
+Hesabınız en az bir Tuist tarafından yönetilen önbellek bölgesi çalıştırır ve kendi sunucunuzda barındırılan düğümleriniz **bu ağa katılır**. Düğümlerinize yönelik yazma işlemleri sürekli olarak yönetilen ağa yayılır ve bir düğüm katıldığında yönetilen ağın mevcut önbelleğinden ısınır. Bu, düşük gecikmeli bir önbelleği çalışanlarınızın (yazma işlemlerinin çoğunu yapanların) yanına koyarken, onların yazmaları paylaşılan önbelleği besler. Yönetilen ağda başka yerlerde yazılan yeni yapıtların, bir düğüm katıldıktan **sonra** henüz sürekli olarak ona geri yayılmadığını unutmayın; bu planlanan bir geliştirmedir.
 
-Paylaşılan, her zaman açık yönetilen önbellekten vazgeçmeden şirket içi bir önbelleğin hızını istediğinizde bu doğru seçimdir.
+Paylaşılan, her zaman açık yönetilen önbellekten vazgeçmeden yerel bir önbelleğin hızını istediğinizde bu doğru seçimdir.
 
 ### Bağımsız: yalnızca sizin düğümleriniz {#topology-standalone}
 
-Hesabınız **hiçbir** yönetilen önbellek bölgesi çalıştırmaz. Düğümleriniz altyapınızda kendi izole ağınızı oluşturur. Tuist yine de düğümlerinizin var olduğunu bilir (böylece kullanım ölçülür), ancak böyle bir ağ olmadığı için **Tuist tarafından yönetilen hiçbir ağla veri alışverişi yapılmaz**. Eş üyeliği ve çoğaltma tamamen kendi düğümleriniz içinde gerçekleşir.
+Hesabınız **hiçbir** yönetilen önbellek bölgesi çalıştırmaz. Düğümleriniz altyapınızda kendi izole ağınızı oluşturur. Tuist yine de düğümlerinizin var olduğunu bilir (böylece kullanım ölçülür), ancak **Tuist tarafından yönetilen herhangi bir ağla veri alışverişi yapılmaz**, çünkü böyle bir ağ yoktur. Eş üyeliği ve çoğaltma tamamen kendi düğümleriniz içinde gerçekleşir.
 
 ```mermaid
 graph LR
@@ -43,60 +43,60 @@ graph LR
   end
 ```
 
-Yapılandırmadaki temel fark, **köprülenmiş** topolojinin, düğümün önyüklemede anahtar çiftini oluşturduğu ve Tuist'in ağ sertifikasını verdiği **kayıt** işlemini kullanmasıdır; oysa **bağımsız** topolojide Tuist tarafından verilen bir ağ sertifikası yoktur. Tek bir bağımsız düğüm, eş TLS'si devre dışı bırakılmış şekilde çalışabilir; çok düğümlü bağımsız bir ağ ise sizin sağladığınız eş TLS malzemesini kullanır.
+Yapılandırmadaki temel fark, **köprülenmiş** topolojinin, düğümün başlangıçta anahtar çiftini oluşturduğu ve Tuist'in ağ sertifikasını verdiği **kayıt** işlemini kullanmasıdır; oysa **bağımsız** topolojide Tuist tarafından verilen bir ağ sertifikası yoktur. Tek bir bağımsız düğüm, eş TLS'si devre dışı bırakılmış olarak çalışabilir; çok düğümlü bağımsız bir ağ, sizin sağladığınız eş TLS malzemesini kullanır.
 
 ## CLI uç noktasını yapılandırın {#cli-endpoint}
 
-Tuist’in yönetilen önbelleği `https://<account>.cache.tuist.dev` kullanır. Kendiniz barındırdığınız bir Tuist sunucusuyla, CLI önbellek URL’sini sunucunun `TUIST_CACHE_ENDPOINTS` ayarından alır. Bunu ana önbellek sunucunuzun veya yük dengeleyicinizin URL’sine ayarlayın. Birden fazla URL içeriyorsa ilk olanı kullanılır.
+Tuist'in yönetilen önbelleği `https://<account>.cache.tuist.dev` kullanır. Kendi sunucunuzda barındırılan bir Tuist sunucusuyla, CLI önbellek URL'sini sunucunun `TUIST_CACHE_ENDPOINTS` ayarından alır. Bunu ana önbellek sunucunuzun veya yük dengeleyicinizin URL'sine ayarlayın. Birden fazla URL içeriyorsa ilk olanı kullanılır.
 
-Özel/özel önbellek düğümlerini **barındırılan Tuist sunucusuna** bağlarken, geliştirici kabuklarında ve CI’da açık bir uç nokta yapılandırın:
+Özel/özel önbellek düğümlerini **barındırılan Tuist sunucusuna** bağlarken, geliştirici kabuklarında ve CI'da açık bir uç nokta yapılandırın:
 
 ```sh
 export TUIST_CACHE_ENDPOINT=https://cache.example.com
 ```
 
-Bu geçersiz kılma, her iki sunucu türünde de önceliklidir ve kendiniz barındırdığınız bir Tuist sunucusu için isteğe bağlıdır. Xcode önbellek arka plan programı için, LaunchAgent’in güncellenmiş ortamı alması amacıyla bunu ayarladıktan sonra `tuist setup cache` komutunu yeniden çalıştırın. Birden fazla düğüm için yük dengeleyicinizi veya DNS yönlendirme adınızı kullanın.
+Bu geçersiz kılma, her iki sunucu türünde de önceliklidir ve kendi sunucunuzda barındırılan bir Tuist sunucusu için isteğe bağlıdır. Xcode önbellek arka plan programı için, LaunchAgent'in güncellenmiş ortamı alması amacıyla ayarı yaptıktan sonra `tuist setup cache` komutunu yeniden çalıştırın. Birden fazla düğüm için yük dengeleyicinizi veya DNS yönlendirme adınızı kullanın.
 
-## Önkoşullar {#prerequisites}
+## Ön koşullar {#prerequisites}
 
 
 - Docker ve Docker Compose (veya herhangi bir kapsayıcı çalışma zamanı)
-- Çalışan bir Tuist sunucusu (barındırılan veya kendiniz barındırdığınız)
-- Önbellek için disk alanı. Köprülenmiş bir düğüm, ilk katılımda hesabın **tüm** ağını çeker, bu nedenle veri biriminizi buna göre boyutlandırın.
+- Çalışan bir Tuist sunucusu (barındırılan veya kendi sunucunuzda barındırılan)
+- Önbellek için disk. Köprülenmiş bir düğüm, ilk katılımda hesabın **tüm** ağını çeker, bu nedenle veri birimini buna göre boyutlandırın.
 
 ## Bir kontrol düzlemi istemcisi sağlayın {#control-plane-client}
 
-Bir düğüm, önbellek isteklerini kimlik doğrulamak (token introspection), panoya rapor vermek ve kullanım verilerini iletmek için bir kontrol düzlemi istemci kimlik bilgisi kullanır. Bu, istemcilerin kendi kendine barındırılan bir Tuist sunucusunda düğümlerinize nasıl yönlendirildiği **değildir** (bkz. [İstemciler düğümlerinize nasıl ulaşır](#routing)).
+Bir düğüm, önbellek isteklerini kimlik doğrulamak (token introspection), panoya raporlamak ve kullanımı iletmek için bir kontrol düzlemi istemci kimlik bilgisi kullanır. Bu, kendi sunucunuzda barındırılan bir Tuist sunucusunda istemcilerin düğümlerinize nasıl yönlendirildiği yöntemi **değildir** (bkz. [İstemciler düğümlerinize nasıl ulaşır](#routing)).
 
-Tamamen kendiniz barındırdığınız bir dağıtım için bir **UUID istemci kimliği** ve rastgele bir gizli dizi oluşturun, ardından aynı çifti Tuist sunucusunda ve her Kura düğümünde yapılandırın:
+Tamamen kendi sunucunuzda barındırılan bir dağıtım için bir **UUID istemci kimliği** ve rastgele bir gizli anahtar oluşturun, ardından aynı çifti Tuist sunucusunda ve her bir Kura düğümünde yapılandırın:
 
 ```bash
 KURA_CONTROL_PLANE_CLIENT_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
 ```
 
-Bu değerleri Tuist sunucu ortamında `KURA_CONTROL_PLANE_CLIENT_ID` ve `KURA_CONTROL_PLANE_CLIENT_SECRET` olarak ayarlayın, ardından aşağıdaki Kura yapılandırmasında aynı değerleri kullanın. Kayıt kalp atışları, hesabın kalıcı önbellek kimliği olan `KURA_TENANT_ID` bilgisini içerir, böylece sunucu hesap yeniden adlandırıldıktan sonra bile düğümü doğru hesaba ekleyebilir.
+Bu değerleri Tuist sunucu ortamında `KURA_CONTROL_PLANE_CLIENT_ID` ve `KURA_CONTROL_PLANE_CLIENT_SECRET` olarak ayarlayın, ardından aşağıdaki Kura yapılandırmasında aynı değerleri kullanın. Kayıt kalp atışları, hesabın kalıcı önbellek kimliği olan `KURA_TENANT_ID` öğesini içerir, böylece sunucu hesap yeniden adlandırıldıktan sonra bile düğümü doğru hesaba ekleyebilir.
 
 > [!WARNING]
-> İstemci kimliği, `kura_` ön eki olmadan bir UUID olmalıdır. UUID olmayan kimlikler, her iki hizmette de kimlik bilgileri eşleşse bile token introspeksiyonunun HTTP `400` hatasıyla başarısız olmasına neden olur.
+> İstemci kimliği, `kura_` ön eki olmadan bir UUID olmalıdır. UUID olmayan kimlikler, her iki hizmette de kimlik bilgileri eşleşse bile token introspection'ın HTTP `400` hatasıyla başarısız olmasına neden olur.
 
-Barındırılan `tuist.dev` sunucusuna bağlanıyorsanız veya UI’dan döndürülebilen hesap başına bir kimlik bilgisi istiyorsanız, hesabın **Önbellek** sayfasını açın, **Kimlik bilgisi oluştur** seçeneğini belirleyin ve `client_id` ile tek seferlik `secret` bilgisini kopyalayın. Barındırılan sunucuda, kendiniz barındırılan düğüm kimlik bilgisi oluşturmak için Enterprise planı gerekir.
+Barındırılan `tuist.dev` sunucusuna bağlanıyorsanız veya UI'dan döndürülebilen hesap başına bir kimlik bilgisi istiyorsanız, hesabın **Önbellek** sayfasını açın, **Kimlik bilgisi oluştur** seçeneğini belirleyin ve `client_id` ile tek seferlik `secret` değerini kopyalayın. Barındırılan sunucuda, kendi sunucunuzda barındırılan düğüm kimlik bilgisi oluşturmak için bir Enterprise planı gerekir.
 
 ## Kalıcı kiracıyı seçin {#permanent-tenant}
 
-`KURA_TENANT_ID`, kalıcı depolama ve eş kimliğidir ve başlangıçta hesabın orijinal kullanıcı adından türetilir. Hiçbir zaman yeniden adlandırılmamış bir hesap için geçerli kullanıcı adıyla eşleşir. **Hesap yeniden adlandırıldıktan sonra orijinal değerini koruyun**; bu, yedek düğümler eklerken veya aynı ağa başka bir düğüm eklerken de geçerlidir. Örneğin, `original` adını `renamed` olarak değiştirmek, her düğümde `KURA_TENANT_ID=original` bırakır. Bunu değiştirmek farklı bir nesne-anahtarı ad alanı seçer; hesabı yeniden adlandırmak depolanan yapıtları veya eş kimliğini taşımaz.
+`KURA_TENANT_ID`, başlangıçta hesabın orijinal kullanıcı adından türetilen kalıcı bir depolama ve eş kimliğidir. Hiçbir zaman yeniden adlandırılmamış bir hesap için mevcut kullanıcı adıyla eşleşir. **Hesap yeniden adlandırıldıktan sonra orijinal değerini koruyun**; bu, aynı ağa yedek düğümler veya başka bir düğüm eklerken de geçerlidir. Örneğin, `original` öğesini `renamed` olarak yeniden adlandırmak, her düğümde `KURA_TENANT_ID=original` bırakır. Bunu değiştirmek farklı bir nesne anahtarı ad alanı seçer; hesabı yeniden adlandırmak depolanan yapıtları veya eş kimliğini taşımaz.
 
-Aşağıdaki örneklerdeki `<permanent-kura-tenant>` ifadesini bu değerle değiştirin. Mevcut doğru yapılandırılmış bir düğümden kiracıyı yeniden kullanın veya kayıt işlemi tarafından döndürülen `tenant_id` değerini kullanın. Kendiniz barındırdığınız bir Tuist sunucusunun operatörü, hesabın `kura_tenant_id` veritabanı alanını inceleyebilir. Değeri yeniden adlandırılmış bir hesabın URL’sinden tahmin etmeyin.
+Aşağıdaki örneklerde `<permanent-kura-tenant>` yerine bu değeri kullanın. Mevcut doğru yapılandırılmış bir düğümden kiracıyı yeniden kullanın veya kayıt tarafından döndürülen `tenant_id` değerini kullanın. Kendi sunucunuzda barındırılan bir Tuist sunucusunun operatörü, hesabın `kura_tenant_id` veritabanı alanını inceleyebilir. Değeri yeniden adlandırılmış bir hesabın URL'sinden çıkarmayın.
 
-Geçerli bir dağıtım düzeyinde kontrol düzlemi kimlik bilgisiyle, düğüm kalıcı kiracısından farklı bir geçerli veya saklanmış kullanıcı adı sağlarsa kayıt ve eş keşfi **409 Çakışma** yanıtını `error: "tenant_mismatch"` ve `expected_tenant_id` ile döndürür. Düğümü kaydetmezler veya sessizce farklı bir depolama kimliğiyle değiştirmezler. Geçersiz kimlik bilgileri ve bilinmeyen kiracılar, bir kiracıyı ifşa etmeden yine de **401 Yetkisiz** yanıtını döndürür. Bir düğüm zaten farklı bir kiracıyla veri yazdıysa, bunu değiştirmeden önce yapılandırmasını ve depolama geçmişini gözden geçirin; hata yanıtı bir depolama taşıması gerçekleştirmez.
+Geçerli bir dağıtım düzeyinde kontrol düzlemi kimlik bilgisiyle, düğüm kalıcı kiracısından farklı bir mevcut veya saklanmış kullanıcı adı sağlarsa kayıt ve eş keşfi `error: "tenant_mismatch"` ve `expected_tenant_id` ile **409 Çakışma** döndürür. Düğümü kaydetmezler veya sessizce farklı bir depolama kimliği kullanmazlar. Geçersiz kimlik bilgileri ve bilinmeyen kiracılar, bir kiracıyı ifşa etmeden yine de **401 Yetkisiz** döndürür. Bir düğüm zaten farklı bir kiracıyla veri yazdıysa, bunu değiştirmeden önce yapılandırmasını ve depolama geçmişini gözden geçirin; hata yanıtı bir depolama taşıması gerçekleştirmez.
 
 ## İstemciler düğümlerinize nasıl ulaşır {#routing}
 
-Geliştirici makinelerinin ve CI’nın düğümlerinize ulaşabilmesi için önbellek URL’sini [yukarıda](#cli-endpoint) yapılandırın. Her düğümün adresini ve hazır durumunu panoda bildirmek için düğümde `KURA_REGISTRATION_URL` ve `KURA_ADVERTISED_HTTP_URL` ayarlarını yapın.
+Geliştirici makinelerinin ve CI'nın düğümlerinize ulaşabilmesi için önbellek URL'sini [yukarıda](#cli-endpoint) belirtildiği gibi yapılandırın. Her düğümün adresini ve hazır durumunu panoda bildirmek için düğümde `KURA_REGISTRATION_URL` ve `KURA_ADVERTISED_HTTP_URL` ayarlayın.
 
 ## Köprülenmiş kurulum {#bridged-setup}
 
-Düğüm önyüklemede kayıt olur: yerel olarak bir anahtar çifti oluşturur (özel anahtar altyapınızdan asla ayrılmaz), bir sertifika imzalama isteği gönderir ve imzalı sertifikasını, hesap CA’sını ve yönetilen ağın ağ geçidi adresini alır. **Herhangi bir TLS materyali sağlamazsınız**. Kayıt işlemi bunu monte edilen birime yazar.
+Düğüm önyükleme sırasında kayıt olur: yerel olarak bir anahtar çifti oluşturur (özel anahtar altyapınızdan asla çıkmaz), bir sertifika imzalama isteği gönderir ve imzalı sertifikasını, hesap CA'sını ve yönetilen ağın ağ geçidi adresini alır. **Herhangi bir TLS malzemesi sağlamazsınız**. Kayıt, bunları monte edilen birime yazar.
 
 ```yaml
 # docker-compose.yml
@@ -148,11 +148,11 @@ volumes:
   kura-data: {}
 ```
 
-Sizin sağladıklarınız: kontrol düzlemi istemcisi, ağınız üzerindeki iki adres (`KURA_NODE_URL`, `KURA_ADVERTISED_HTTP_URL`) ve iki boş yazılabilir birim. Diğer her şey (anahtar çifti, sertifika, hesap CA’sı ve yönetilen ağın adresi) önyüklemede otomatik olarak sağlanır.
+Sizin sağladıklarınız: kontrol düzlemi istemcisi, ağınız üzerindeki iki adres (`KURA_NODE_URL`, `KURA_ADVERTISED_HTTP_URL`) ve iki boş yazılabilir birim. Diğer her şey (anahtar çifti, sertifika, hesap CA'sı ve yönetilen ağın adresi) önyükleme sırasında otomatik olarak sağlanır.
 
 ## Bağımsız kurulum {#standalone-setup}
 
-Yönetilen bir bölge olmadığında Tuist tarafından verilen bir ağ CA’sı yoktur, bu nedenle kayıt uygulanmaz (kayıt uç noktası `503 ca_unavailable` döndürür). Düğüm, token kimlik doğrulaması, pano kayıt kalp atışları ve kullanım raporlaması için Tuist sunucunuzu kullanır.
+Yönetilen bir bölge olmadığından Tuist tarafından verilen bir ağ CA'sı yoktur, bu nedenle kayıt geçerli değildir (kayıt uç noktası `503 ca_unavailable` döndürür). Düğüm, token kimlik doğrulaması, pano kayıt kalp atışları ve kullanım raporlaması için Tuist sunucunuzu kullanır.
 
 ```yaml
 # docker-compose.yml for a single node connected to a self-hosted Tuist server
@@ -193,15 +193,15 @@ volumes:
   kura-data: {}
 ```
 
-Tek bir düğüm için eş TLS’yi ayarlamayın ve `KURA_PEERS` değerini boş bir dize olarak ayarlayın. `KURA_PEERS` ayarlanmadığında Kura, statik eş keşfini `KURA_NODE_URL` üzerinden başlatır ve periyodik olarak o URL’nin `/_internal/status` uç noktasını kontrol eder. Eş TLS devre dışıyken, düğüm özel bir ağ adı üzerinden erişilebilir olsa bile `KURA_NODE_URL` `http://` şemasını kullanmalıdır.
+Tek bir düğüm için eş TLS'yi ayarlanmamış bırakın ve `KURA_PEERS` değerini boş bir dize olarak ayarlayın. `KURA_PEERS` ayarlanmadığında, Kura statik eş keşfini `KURA_NODE_URL` üzerinden başlatır ve periyodik olarak o URL'nin `/_internal/status` uç noktasını kontrol eder. Eş TLS devre dışıyken, düğüm özel bir ağ adı üzerinden erişilebilir olsa bile `KURA_NODE_URL` `http://` şemasını kullanmalıdır.
 
-Bu örnekte `KURA_CONTROL_PLANE_URL` gerekli değildir çünkü yetkilendirme ve kullanım raporlayıcısı ikisi de Tuist temel URL’si olarak `KURA_AUTH_TUIST_URL` kullanır. `KURA_ADVERTISED_HTTP_URL`, düğümün panodaki istemciye yönelik adresini tanımlar. CLI’nın önbellek istekleri için bu adresi kullanması için Tuist sunucusunda `TUIST_CACHE_ENDPOINTS=https://kura.acme.internal` ayarını yapın.
+Bu örnekte `KURA_CONTROL_PLANE_URL` gerekli değildir çünkü yetkilendirme ve kullanım raporlayıcısı her ikisi de Tuist temel URL'si olarak `KURA_AUTH_TUIST_URL` kullanır. `KURA_ADVERTISED_HTTP_URL`, düğümün panodaki istemciye yönelik adresini tanımlar. CLI'nın önbellek istekleri için bu adresi kullanması için Tuist sunucusunda `TUIST_CACHE_ENDPOINTS=https://kura.acme.internal` ayarlayın.
 
 ### Helm ile Kubernetes {#standalone-helm}
 
-Kendiniz barındırdığınız Tuist sunucusu Kubernetes üzerinde çalışıyorsa, Kura’yı bağımsız Kura chart’ı ile yükleyin ve aynı kontrol düzlemi ayarlarını `extraEnv` üzerinden iletin. Tuist sunucu chart’ı bu Kura chart’ını alt chart olarak yüklemez.
+Kendi sunucunuzda barındırılan Tuist sunucunuz Kubernetes üzerinde çalışıyorsa, Kura'yı bağımsız Kura grafiğiyle yükleyin ve aynı kontrol düzlemi ayarlarını `extraEnv` aracılığıyla iletin. Tuist sunucu grafiği, bu Kura grafiğini bir alt grafik olarak yüklemez.
 
-Önce, Tuist sunucu chart’ını dağıtım düzeyindeki Kura kimlik bilgisiyle yapılandırın:
+İlk olarak, Tuist sunucu grafiğini dağıtım düzeyindeki Kura kimlik bilgisiyle yapılandırın:
 
 ```yaml
 # tuist-values.yaml
@@ -219,7 +219,7 @@ server:
           key: client-secret
 ```
 
-Ardından Kura’yı aynı ad alanında aynı Secret ile yükleyin:
+Ardından Kura'yı aynı ad alanında aynı Secret ile yükleyin:
 
 ```yaml
 # kura-values.yaml
@@ -274,11 +274,11 @@ helm upgrade --install kura oci://ghcr.io/tuist/charts/kura \
   -f kura-values.yaml
 ```
 
-Kura, Tuist sunucusundan farklı bir ad alanında çalışıyorsa, `kura-control-plane` Secret’ını her iki ad alanına da oluşturun veya senkronize edin.
+Kura, Tuist sunucusundan farklı bir ad alanında çalışıyorsa, `kura-control-plane` Secret'ını her iki ad alanına da oluşturun veya senkronize edin.
 
-Görüntüden gelen paketli Tuist hook’unu kullanırken `extension.enabled` ayarını boş bırakın; bu chart değeri, bir ConfigMap’ten özel bir hook bağlamak içindir. Chart sizin için `KURA_NODE_URL`, `KURA_PEERS`, headless hizmeti, kalıcılığı ve prob’ları oluşturur. `replicaCount: 1` ile oluşturulan eş URL’si pod’un kendi kararlı DNS adıdır, bu nedenle küme içinde erişilebilir kalır ve yukarıda açıklanan tek düğüm uyarısını üretmez. Birden fazla kopya için chart, StatefulSet DNS’inden eş listesini oluşturur; iç eş düzleminde mTLS istediğinizde `peerTls` seçeneğini etkinleştirin ve bir TLS Secret sağlayın.
+Görüntüden gelen paketli Tuist hook'unu kullanırken `extension.enabled` ayarlanmamış bırakın; bu grafik değeri, bir ConfigMap'ten özel bir hook bağlamak içindir. Grafik, `KURA_NODE_URL`, `KURA_PEERS`, headless hizmeti, kalıcılığı ve prob'ları sizin için oluşturur. `replicaCount: 1` ile, oluşturulan eş URL'si pod'un kendi kararlı DNS adıdır, bu nedenle küme içinde erişilebilir kalır ve yukarıda açıklanan tek düğüm uyarısını üretmez. Birden fazla çoğaltma için grafik, StatefulSet DNS'den eş listesini oluşturur; dahili eş düzleminde mTLS istediğinizde `peerTls` etkinleştirin ve bir TLS Secret sağlayın.
 
-Birden fazla bağımsız düğüm çalıştırmak için, `/tls` konumuna monte edilen **kendi eş TLS’nizi** ekleyin (düğümlerin birbirine güvenmesi için ortak bir CA paylaşan, düğüm başına bir CA artı bir leaf sertifika ve anahtar), `KURA_NODE_URL` değerini `https://...:<KURA_INTERNAL_PORT>` olarak değiştirin ve `KURA_PEERS` ekleyin:
+Birden fazla bağımsız düğüm çalıştırmak için, `/tls` konumuna monte edilmiş **kendi eş TLS'nizi** ekleyin (düğümlerin birbirine güvenmesi için paylaşılan bir CA artı düğüm başına bir yaprak sertifika ve anahtar), `KURA_NODE_URL` öğesini `https://...:<KURA_INTERNAL_PORT>` olarak değiştirin ve `KURA_PEERS` ekleyin:
 
 ```yaml
 environment:
@@ -298,11 +298,11 @@ volumes:
 | Kontrol düzlemi istemcisi (`client_id` / `secret`) | Evet | Evet |
 | `KURA_NODE_URL` | Evet | Evet |
 | `KURA_ADVERTISED_HTTP_URL` | Evet | Pano kaydı için; yönlendirme ayrıdır (aşağıya bakın) |
-| CLI’ya yönlendirme | Otomatik (kayıt) | Hazır kayıt kalp atışlarından otomatik |
+| CLI'ye yönlendirme | Otomatik (kayıt) | Hazır kayıt kalp atışlarından otomatik |
 | Veri + geçici birim | Evet | Evet |
 | `KURA_ENROLL_ON_BOOT` | Evet | Hayır (`ca_unavailable` döndürür) |
-| Eş TLS’si (`/tls` CA + leaf) | Hayır, kayıt bunu yazar | Yalnızca çok düğümlü bir ağ için |
-| `KURA_PEERS` (eş listesi) | Hayır, kayıt ağ geçidini tohumlar | Tek düğüm için boş; birden fazla düğüm için eş URL’leri |
+| Eş TLS (`/tls` CA + yaprak) | Hayır, kayıt bunu yazar | Sadece çok düğümlü bir ağ için |
+| `KURA_PEERS` (eş listesi) | Hayır, kayıt ağ geçidini tohumlar | Tek düğüm için boş; birden fazla düğüm için eş URL'leri |
 
 ## Gerekli yapılandırma {#required-config}
 
@@ -311,15 +311,15 @@ Bu değişkenler topolojiden bağımsız olarak her düğümü yapılandırır (
 | Değişken | Açıklama |
 |---|---|
 | `KURA_TENANT_ID` | Hesabınızın kalıcı Kura kiracısı. Hesabı yeniden adlandırdıktan sonra orijinal değerini koruyun; bkz. [Kalıcı kiracıyı seçin](#permanent-tenant). |
-| `KURA_NODE_URL` | Bu düğümün ağınız üzerindeki eş URL’si. |
-| `KURA_PEERS` | Statik eş keşif listesi. Tek bir bağımsız düğüm için boş bir dize olarak ayarlayın; çok düğümlü bir ağ için erişilebilir eş URL’lerini ayarlayın. |
+| `KURA_NODE_URL` | Bu düğümün ağınız üzerindeki eş URL'si. |
+| `KURA_PEERS` | Statik eş keşif listesi. Tek bir bağımsız düğüm için boş bir dize olarak ayarlayın; çok düğümlü bir ağ için erişilebilir eş URL'lerini ayarlayın. |
 | `KURA_REGION` | Serbest biçimli bir bölge etiketi (ör. `office`, `ci`). |
-| `KURA_PORT` / `KURA_INTERNAL_PORT` | Önbellek bağlantı noktası (HTTP önbellek API’si ve REAPI gRPC tek bir dinleyicide birlikte barındırılır) ve ağ eş bağlantı noktası (`4000` / `7443`). |
+| `KURA_PORT` / `KURA_INTERNAL_PORT` | Önbellek bağlantı noktası (HTTP önbellek API'si ve REAPI gRPC tek bir dinleyicide birlikte barındırılır) ve ağ eş bağlantı noktası (`4000` / `7443`). |
 | `KURA_DATA_DIR` / `KURA_TMP_DIR` | Disk üzerindeki yapıt depolama ve geçici dizin. |
-| `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Eş TLS dosyaları. Kayıt tarafından yazılır (köprülenmiş) veya sizin tarafınızdan sağlanır (çok düğümlü bağımsız). Tek düğüm için gerekli değildir; bunları atlayın ve bir `http://` `KURA_NODE_URL` kullanın. |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Eş TLS dosyaları. Kayıt tarafından yazılır (köprülenmiş) veya sizin tarafınızdan sağlanır (çok düğümlü bağımsız). Tek bir düğüm için gerekli değildir; bunları atlayın ve bir `http://` `KURA_NODE_URL` kullanın. |
 | `KURA_OTEL_SERVICE_NAME` / `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | Telemetri için hizmet adı ve ortam etiketi. |
 
-Köprülenmiş düğümler ayrıca `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL` ve kontrol düzlemi istemci kimlik bilgilerini ayarlar. `KURA_REGISTRATION_URL` ve `KURA_ADVERTISED_HTTP_URL`, düğümün **Önbellek** sayfasında görünmesini ve Kura etkin CLI istemcilerinin ona yönlendirilmesini sağlar (bkz. [İstemciler düğümlerinize nasıl ulaşır](#routing)).
+Köprülenmiş düğümler ayrıca `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL` ve kontrol düzlemi istemci kimlik bilgilerini ayarlar. `KURA_REGISTRATION_URL` ve `KURA_ADVERTISED_HTTP_URL`, bir düğümün **Önbellek** sayfasında görünmesini ve Kura destekli CLI istemcilerinin ona yönlendirilmesini sağlar (bkz. [İstemciler düğümlerinize nasıl ulaşır](#routing)).
 
 ## Depolama ve tahliye {#storage}
 
@@ -327,38 +327,38 @@ Bir düğüm, yapıtları isteğe bağlı bir değişkenle ayarlayabileceğiniz 
 
 | Değişken | Açıklama |
 |---|---|
-| `KURA_CAS_CAPACITY_BYTES` | Düğümün bayt cinsinden CAS depolama bütçesi. Pozitif bir tamsayı olmalıdır. Ayarlanmadığında, bütçe `KURA_DATA_DIR` barındıran dosya sisteminin boyutunun %50’sidir. |
+| `KURA_CAS_CAPACITY_BYTES` | Düğümün bayt cinsinden CAS depolama bütçesi. Pozitif bir tamsayı olmalıdır. Ayarlanmadığında, bütçe `KURA_DATA_DIR` içeren dosya sisteminin boyutunun %50'sidir. |
 
-Ayarlasanız da ayarlamasanız da, bütçe `KURA_DATA_DIR` barındıran dosya sisteminin %80’i ile sınırlıdır; böylece en eski segmenti tahliye etmeden önce yeni bir segment yazan döndürme işlemi diski dolduramaz. Bütçe, minimum 2,5 GiB olmak üzere tam 512 MiB segmentlere yuvarlanır. Düğüm, başlangıçta çözümlenen bütçeyi günlüğe kaydeder (`resolved CAS segment ring limits`).
+Ayarlasanız da ayarlamasanız da, bütçe `KURA_DATA_DIR` içeren dosya sisteminin %80'i ile sınırlıdır, böylece en eski segmenti tahliye etmeden önce yeni bir segment yazan rotasyon diski dolduramaz. Bütçe, minimum 2,5 GiB olmak üzere tam 512 MiB segmentlere yuvarlanır. Düğüm, başlangıçta çözümlenen bütçeyi günlüğe kaydeder (`resolved CAS segment ring limits`).
 
-Tahliye otomatiktir. Yapıtlar bir segment halkasında saklanır ve bütçeye ulaşıldığında en eski segment tahliye edilir. Eski segmentlerden okunan yapıtlar geçerli olanına yükseltilir, böylece sık kullanılan yapıtlar korunur ve tahliye davranışı en son kullanılanlara yakın olur.
+Tahliye otomatiktir. Yapıtlar bir segment halkasında saklanır ve bütçeye ulaşıldığında en eski segment tahliye edilir. Daha eski segmentlerden okunan yapıtlar geçerli olana yükseltilir, böylece sık kullanılan yapıtlar korunur ve tahliye en son kullanılanlara yakın davranır.
 
-`KURA_DATA_DIR` konumunu özel bir birime yerleştirin. Hem varsayılan bütçe hem de üst sınır, dosya sisteminin boş alanının değil toplam boyutunun yüzdesidir; bu nedenle aynı dosya sistemindeki diğer veriler, bütçenin varsaydığından daha az alan bırakabilir.
+`KURA_DATA_DIR` öğesini özel bir birime yerleştirin. Hem varsayılan bütçe hem de sınır, dosya sisteminin boş alanının değil toplam boyutunun yüzdesidir, bu nedenle aynı dosya sistemindeki diğer veriler bütçenin varsaydığından daha az alan bırakabilir.
 
 ## Önbellek isteklerinin kimlik doğrulaması {#cache-auth}
 
-Varsayılan olarak bir düğüm, ağınızda ona ulaşabilen herkese HTTP önbellek API’sini sunar. Yalnızca kuruluşunuzun kimliği doğrulanmış üyelerinin okuma ve yazma yapabilmesi için arayanların geçerli bir Tuist belirteci sunmasını zorunlu kılmak amacıyla düğümü Tuist sunucunuza işaretleyin. Yukarıdaki bağımsız kurulum bunu yapar.
+Varsayılan olarak bir düğüm, ağınızda ona ulaşabilen herkese HTTP önbellek API'sini sunar. Arayanların geçerli bir Tuist jetonu sunmasını gerektirmek, yani kuruluşunuzun yalnızca kimliği doğrulanmış üyelerinin okuma ve yazma yapmasını sağlamak için düğümü Tuist sunucunuza yönlendirin. Yukarıdaki bağımsız kurulum bunu yapar.
 
 | Değişken | Değer |
 |---|---|
 | `KURA_AUTH_ENABLED` | `1` |
-| `KURA_AUTH_TUIST_URL` | Tuist sunucu URL’niz |
+| `KURA_AUTH_TUIST_URL` | Tuist sunucu URL'niz |
 
-Yetkilendirme, belirteçleri incelemek için zaten ayarladığınız kontrol düzlemi istemcisini (`KURA_CONTROL_PLANE_CLIENT_ID` / `KURA_CONTROL_PLANE_CLIENT_SECRET`) yeniden kullanır, bu nedenle ek bir kimlik bilgisine gerek yoktur. Kendi kendine barındırılan bir düğüm **yalnızca inceleme** modunda çalışır: herhangi bir kiracı için belirteç basabilecek ve asla paylaşılmayan simetrik Guardian JWT doğrulayıcı gizli anahtarını asla tutmaz, bu nedenle her istek sunucunuza karşı yetkilendirilir. Ona ulaşamayan bir düğüm hizmet vermek yerine reddeder ve bunu değiştiren bir ayar yoktur. Tuist tarafından yönetilen düğümler aynı yetkilendirmeyi çalıştırır; tek fark, doğrulama anahtarını da tutmalarıdır, bu da çoğu isteği yalnızca belirteçten çözümlemelerini sağlar.
+Yetkilendirme, jetonları incelemek için zaten ayarladığınız kontrol düzlemi istemcisini (`KURA_CONTROL_PLANE_CLIENT_ID` / `KURA_CONTROL_PLANE_CLIENT_SECRET`) yeniden kullanır, bu nedenle ek bir kimlik bilgisine gerek yoktur. Kendi kendine barındırılan bir düğüm **yalnızca inceleme** modunda çalışır: herhangi bir kiracı için jeton basabilecek ve asla paylaşılmayan simetrik Guardian JWT doğrulayıcı gizli anahtarını asla tutmaz, bu nedenle her istek sunucunuza karşı yetkilendirilir. Ona ulaşamayan bir düğüm hizmet vermek yerine reddeder ve bunu değiştiren bir ayar yoktur. Tuist tarafından yönetilen düğümler aynı yetkilendirmeyi çalıştırır; tek fark, çoğu isteği yalnızca jetondan çözmesine olanak tanıyan doğrulama anahtarını da tutmalarıdır.
 
 ## Ağ {#networking}
 
 Bir düğüm, hangi entegrasyonları etkinleştirdiğinize bağlı olarak **giden** bağlantılar kurar:
 
-- belirteç incelemesi (`KURA_AUTH_TUIST_URL`), kayıt kalp atışları (`KURA_REGISTRATION_URL`), kullanım (`KURA_CONTROL_PLANE_URL` veya `KURA_AUTH_TUIST_URL`) ve köprülenmiş topolojide kayıt için Tuist sunucunuz ve
+- jeton incelemesi (`KURA_AUTH_TUIST_URL`), kayıt kalp atışları (`KURA_REGISTRATION_URL`), kullanım (`KURA_CONTROL_PLANE_URL` veya `KURA_AUTH_TUIST_URL`) ve köprülenmiş topolojide kayıt için Tuist sunucunuz ve
 - köprülenmiş topolojide, çoğaltma için yönetilen ağın eş ağ geçidi.
 
 Geliştiricileriniz ve CI, düğümün `KURA_ADVERTISED_HTTP_URL` adresine ulaşır (ve çok düğümlü bir ağ için düğümler eş bağlantı noktasında birbirine ulaşır). Bu adreslerin yalnızca **ağınız içinde** erişilebilir olması gerekir. Genel internete açık olmaları gerekmez.
 
 ## Nasıl davranır {#behavior}
 
-- **Köprülenmiş.** Başlangıçta düğüm kaydolur, yönetilen ağın tam önbelleğini çeker ve halkanın hizmet veren bir üyesine geçer. İlk çekme bir kez gerçekleşir ve önbelleğinizin boyutuna bağlı olarak WAN üzerinden biraz zaman alabilir. O andan itibaren, düğümdeki yazmalar sürekli olarak yönetilen ağa yayılır. Düğüm katıldıktan sonra yönetilen ağın başka yerlerinde yazılan yeni yapıtlar henüz sürekli olarak ona yayılmaz (planlanan bir geliştirme), bu nedenle katılım sırasındaki çekmeyi canlı bir yansıma yerine bir anlık görüntü olarak değerlendirin.
-- **Bağımsız.** Düğüm(ler) altyapınızda izole bir ağ olarak çalışır. Çoğaltma, varsa, yalnızca kendi düğümleriniz arasında gerçekleşir. Yapılandırıldığında Tuist’in rolü kontrol düzlemiyle sınırlıdır: pano görünürlüğü, önbellek uç noktası reklamı, kullanım ölçümü ve belirteç incelemesi. Asla düğümlerinizi sağlamaz, yükseltmez, eşleştirmez veya içlerine erişmez.
+- **Köprülenmiş.** Başlangıçta düğüm kaydolur, yönetilen ağın tam önbelleğini çeker ve halkanın hizmet veren bir üyesine geçer. İlk çekme bir kez gerçekleşir ve önbelleğinizin boyutuna göre WAN üzerinden biraz zaman alabilir. O andan itibaren, düğümdeki yazmalar sürekli olarak yönetilen ağa yayılır. Düğüm katıldıktan sonra yönetilen ağda başka yerlerde yazılan yeni yapıtlar henüz sürekli olarak ona yayılmaz (planlanan bir geliştirme), bu nedenle katılım zamanındaki çekmeyi canlı bir yansıma yerine bir anlık görüntü olarak değerlendirin.
+- **Bağımsız.** Düğüm(ler) altyapınızda izole bir ağ olarak çalışır. Çoğaltma, varsa, yalnızca kendi düğümleriniz arasında gerçekleşir. Yapılandırıldığında, Tuist'in rolü kontrol düzlemiyle sınırlıdır: pano görünürlüğü, önbellek uç noktası reklamı, kullanım ölçümü ve jeton incelemesi. Asla düğümlerinizi sağlamaz, yükseltmez, eşleşmez veya içlerine erişmez.
 
 ## Doğrulama {#verify}
 
@@ -369,7 +369,7 @@ curl --fail-with-body http://localhost:4000/up      # liveness + mesh membership
 
 Köprülenmiş bir düğüm, ağı çekerken `state: joining` durumunu ve yakaladıktan sonra `state: serving` durumunu bildirir. Kayıt kalp atışları başladığında düğümünüz ayrıca hesabın **Önbellek** sayfasındaki **Kayıtlı düğümler** altında görünür.
 
-Uzak önbelleğe almayı doğrulamak için önbelleğe alınmamış, önbelleklenebilir hedeflerle `tuist cache` komutunu çalıştırın ve Kura günlüklerinde başarılı yüklemeleri onaylayın. Sıfır çıkış durumu alone yapıtların depolandığını doğrulamaz.
+Uzak önbelleğe almayı doğrulamak için `tuist cache` komutunu önbelleğe alınmamış, önbelleklenebilir hedeflerle çalıştırın ve Kura günlüklerinde başarılı yüklemeleri onaylayın. Sıfır çıkış durumu tek başına yapıtların depolandığını doğrulamaz.
 
 ## Yükseltme {#upgrading}
 

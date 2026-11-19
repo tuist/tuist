@@ -561,7 +561,7 @@ defmodule TuistWeb.OnceRunsLive do
             chart_type_event="select_duration_chart_type"
             group_by_options={[
               %{value: "host", label: dgettext("dashboard_projects", "Host")},
-              %{value: "version", label: dgettext("dashboard_projects", "Once version")}
+              %{value: "version", label: dgettext("dashboard_projects", "Struo version")}
             ]}
             selected_group_by={@duration_scatter_group_by}
             group_by_query_param="build-duration-scatter-group-by"
@@ -1009,7 +1009,7 @@ defmodule TuistWeb.OnceRunsLive do
 
   defp insights_dimension_label("host"), do: dgettext("dashboard_projects", "Host")
   defp insights_dimension_label("environment"), do: dgettext("dashboard_projects", "Environment")
-  defp insights_dimension_label(_version), do: dgettext("dashboard_projects", "Once version")
+  defp insights_dimension_label(_version), do: dgettext("dashboard_projects", "Struo version")
 
   # The summary card shows only the latest handful, the way the Xcode Recent
   # Builds card takes 7 and sends the rest to its own listing page.

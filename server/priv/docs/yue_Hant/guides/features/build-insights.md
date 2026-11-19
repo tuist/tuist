@@ -1,8 +1,8 @@
 ---
 {
-  "title": "建構分析",
+  "title": "構建分析",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "透過 Tuist Build Insights，追蹤 Xcode、Gradle、Bazel、Elixir、Rust 及 Once 專案的建構效能。"
+  "description": "透過 Tuist Build Insights，追蹤 Xcode、Gradle、Bazel、Elixir、Rust 同 Once 項目嘅構建效能。"
 }
 ---
 # 構建洞察 {#build-insights}
@@ -12,7 +12,7 @@
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="在 Tuist 儀表板中追蹤 Xcode scheme 後置動作耗時、構建設置和構建元數據。"
+    details="在 Tuist 儀表板中追蹤 Xcode scheme 的後續動作耗時、構建設置和構建元數據。"
     link="/guides/features/build-insights/xcode"
 />
   <.home_card
@@ -22,12 +22,12 @@
 />
   <.home_card
     title="Gradle"
-    details="使用 Tuist Gradle 插件追蹤 Gradle 任務耗時和緩存有效性。"
+    details="使用 Tuist Gradle 插件追蹤 Gradle 任務耗時和快取效率。"
     link="/guides/features/build-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="通過構建事件協議追蹤 Bazel 命令持續時間、緩存總量和關鍵路徑診斷。"
+    details="透過 Build Event Protocol 追蹤 Bazel 命令持續時間、快取總量和關鍵路徑診斷。"
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
@@ -42,7 +42,7 @@
 />
   <.home_card
     title="Once"
-    details="實時跟蹤運行並檢查圖操作、持續時間、失敗和緩存決策。"
+    details="實時跟蹤運行並檢查圖表動作、持續時間、失敗和快取決策。"
     link="/guides/features/build-insights/once"
 />
 </.home_cards>

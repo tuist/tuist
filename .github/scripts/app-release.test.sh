@@ -75,7 +75,7 @@ def triggers(path):
 
 for path in ["luft/gpui/src/main.rs", "luft/crates/core/src/lib.rs",
              "luft/apple/Sources/AppWorkspace.swift", "luft/android/src/dev/tuist/guild/MainActivity.kt",
-             "luft/once.toml", "luft/mise.toml", "luft/README.md"]:
+             "luft/struo.toml", "luft/mise.toml", "luft/README.md"]:
     assert not triggers(path), f"Luft triggers shipping release: {path}"
     assert not releases(path), path
 
@@ -103,7 +103,7 @@ ok 'Luft CI retains its toolchain without loading the parent configuration'
 jq -e '
   . as $root |
   all(["release-app", "publish-app"][]; . as $job |
-    any($root.jobs[$job].steps[]; .uses == "actions/checkout@v4" and .with.ref == "${{ needs.check-releases.outputs.source-sha }}")) and
+    any($root.jobs[$job].steps[]; (.uses // "" | startswith("actions/checkout@")) and .with.ref == "${{ needs.check-releases.outputs.source-sha }}")) and
   any(.jobs["publish-app"].steps[]; .name == "Create App GitHub Release" and
     .with.target_commitish == "${{ needs.check-releases.outputs.source-sha }}" and
     .with.token == "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}")

@@ -26,7 +26,7 @@
 "App version" = "Versão do app";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Apple Sign In failed" = "Falha ao iniciar sessão com a Apple";
+"Apple Sign In failed" = "Falha no Login com a Apple";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Apps in" = "Apps em";
@@ -44,7 +44,7 @@
 "Branch" = "Branch";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Bundle identifier" = "Identificador do bundle";
+"Bundle identifier" = "Identificador do pacote";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "Cancelar";
@@ -68,7 +68,7 @@
 "Could not find APK file in the downloaded archive" = "Não foi possível encontrar o arquivo APK no arquivo baixado";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "Não foi possível encontrar o pacote do aplicativo no arquivo baixado";
+"Could not find app bundle in the downloaded archive" = "Não foi possível encontrar o pacote do app no arquivo baixado";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "Couldn't install the app for %@ as it doesn't include any valid app builds." = "Não foi possível instalar o app para %@, pois ele não inclui nenhum build de app válido.";
@@ -86,16 +86,16 @@
 "Delete" = "Excluir";
 
 /* TuistProfile/ProfileView.swift */
-"Delete Account" = "Excluir Conta";
+"Delete Account" = "Excluir conta";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete Preview" = "Excluir Preview";
+"Delete Preview" = "Excluir preview";
 
 /* TuistProfile/ProfileView.swift */
 "Delete account" = "Excluir conta";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "Eliminar pré-visualização";
+"Delete preview" = "Excluir pré-visualização";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "Detalhes";
@@ -104,13 +104,13 @@
 "Devices" = "Dispositivos";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Disconnected" = "Desligado";
+"Disconnected" = "Desconectado";
 
 /* TuistProfile/ProfileView.swift */
 "Email" = "E-mail";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Introduza um URL de servidor HTTPS válido sem credenciais, consulta ou fragmento.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Insira um URL HTTPS válido para o servidor, sem credenciais, consulta ou fragmento.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "Erro";
@@ -122,22 +122,22 @@
 "Get help" = "Obter ajuda";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "Instale as últimas previews com um clique.";
+"Install latest previews with one click." = "Instale as versões mais recentes com um clique.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "Falha na instalação";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installed %@" = "%@ instalado";
+"Installed %@" = "Instalado %@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installed %@@%@" = "%@@%@ instalado";
+"Installed %@@%@" = "Instalado %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "A instalar preview";
+"Installing preview" = "A instalar a versão prévia";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "URL de callback inválido recebido";
+"Invalid callback URL received" = "URL de callback inválida recebida";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid response format" = "Formato de resposta inválido";
@@ -146,7 +146,7 @@
 "Launch" = "Executar";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Launching preview" = "A executar pré-visualização";
+"Launching preview" = "A executar a pré-visualização";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Log out" = "Terminar sessão";
@@ -155,7 +155,7 @@
 "Logged out" = "Sessão terminada";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "Credenciais da Apple em falta na autorização";
+"Missing Apple credentials from authorization" = "Credenciais Apple em falta na autorização";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "Sem Pré-visualizações";
@@ -170,7 +170,7 @@
 "No previews match your filters" = "Nenhuma prévia corresponde aos seus filtros";
 
 /* TuistErrorHandling/ErrorHandling.swift */
-"Ok" = "OK";
+"Ok" = "Ok";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "Outros dispositivos";
@@ -218,25 +218,25 @@
 "Self-hosted server" = "Servidor auto-hospedado";
 
 /* TuistErrorHandling/ErrorHandling.swift */
-"Share logs" = "Partilhar registos";
+"Share logs" = "Compartilhar logs";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
-"Sign in" = "Iniciar sessão";
+"Sign in" = "Entrar";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "Inicie sessão para aceder aos seus projetos e\ncolaborar com a sua equipa";
+"Sign in to access your projects and\ncollaborate with your team" = "Entre para acessar seus projetos e\ncolaborar com sua equipe";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "Inicie sessão para executar previews";
+"Sign in to run previews" = "Entre para executar previews";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
-"Sign in with Apple" = "Iniciar sessão com a Apple";
+"Sign in with Apple" = "Entrar com a Apple";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
-"Sign in with GitHub" = "Iniciar sessão com o GitHub";
+"Sign in with GitHub" = "Entrar com o GitHub";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
-"Sign in with Google" = "Iniciar sessão com o Google";
+"Sign in with Google" = "Entrar com o Google";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Tuist" = "Entrar com Tuist";
@@ -269,13 +269,13 @@
 "The server returned a preview page that did not advance. Update your server or try again." = "O servidor retornou uma página de pré-visualização que não avançou. Atualize seu servidor ou tente novamente.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Este servidor não suporta filtrar pré-visualizações por faixa. Atualize seu servidor Tuist auto-hospedado ou selecione Todas as faixas.";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Este servidor não suporta filtrar pré-visualizações por canal. Atualize seu servidor Tuist auto-hospedado ou selecione Todos os canais.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Este servidor não suporta pesquisar pré-visualizações. Atualize seu servidor Tuist auto-hospedado ou limpe a pesquisa.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Este servidor não suporta login a partir do aplicativo Tuist. Peça ao seu administrador para atualizá-lo.";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Este servidor não suporta login pelo app Tuist. Peça ao seu administrador para atualizá-lo.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "To run a preview, you must have a simulator selected." = "Para executar uma pré-visualização, você deve ter um simulador selecionado.";
@@ -284,7 +284,7 @@
 "Token exchange failed with status code: %lld" = "A troca de token falhou com o código de status: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Track" = "Faixa";
+"Track" = "Canal";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Tracks" = "Canais";
@@ -318,18 +318,18 @@
 "Accounts" = "Contas";
 "Close" = "Fechar";
 "Design preview · Sample accounts" = "Pré-visualização de design · Contas de exemplo";
-"Design preview · Sample builds" = "Pré-visualização de design · Compilações de exemplo";
+"Design preview · Sample builds" = "Pré-visualização de design · Builds de exemplo";
 "Design preview · Sample data" = "Pré-visualização de design · Dados de exemplo";
 "Done" = "Concluído";
 "Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "Convidar %@ compartilha todas as mensagens existentes, resultados de ferramentas e respostas futuras. Esta prévia não envia convites ou notificações.";
-"Latest builds" = "Builds mais recentes";
+"Latest builds" = "Últimas compilações";
 "Layout preview" = "Prévia do layout";
 "No account is signed in. These screens use sample data." = "Nenhuma conta está conectada. Estas telas usam dados de exemplo.";
-"Previous builds" = "Builds anteriores";
+"Previous builds" = "Compilações anteriores";
 "Search projects" = "Pesquisar projetos";
 "Select project" = "Selecionar projeto";
 "Sign out of Tuist?" = "Sair do Tuist?";
-"Switch account" = "Alternar conta";
+"Switch account" = "Trocar de conta";
 "Tool actions" = "Ações da ferramenta";
 "Organization" = "Organização";
 
@@ -337,7 +337,7 @@
 "OK" = "OK";
 "Unable to open link" = "Não foi possível abrir o link";
 "This link belongs to a different Tuist server. Sign in to that server and open the link again." = "Este link pertence a um servidor Tuist diferente. Faça login nesse servidor e abra o link novamente.";
-"This link belongs to a different organization. Switch organizations and open the link again." = "Este link pertence a uma organização diferente. Alterne para essa organização e abra o link novamente.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "Este link pertence a uma organização diferente. Troque de organização e abra o link novamente.";
 "This navigation link is invalid or unsupported." = "Este link de navegação é inválido ou não suportado.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
@@ -349,3 +349,6 @@
 "Open screens will be closed." = "As telas abertas serão fechadas.";
 "View profile" = "Ver perfil";
 "Your saved profiles could not be updated. Please try again." = "Não foi possível atualizar seus perfis salvos. Tente novamente.";
+
+"This Mac" = "Este Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "Nenhuma das compilações macOS desta pré-visualização pode ser executada no processador deste Mac.";

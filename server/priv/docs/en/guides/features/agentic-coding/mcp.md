@@ -20,9 +20,10 @@ Most tools read Tuist data that the authenticated user can already see in the da
 - **Continuous-integration runners**: `create_runner_profile`, `update_runner_profile` (narrowing which jobs save cache volumes discards pending saves), `delete_runner_profile`, and `delete_runner_volume` (deletes the volume's saved contents).
 - **Sandboxes**: `create_sandbox`, `pause_sandbox`, `resume_sandbox`, `archive_sandbox`, and `delete_sandbox` (deletes its disks).
 - **Feedback**: `report_feedback` (sends a report about a tool or prompt to the Tuist team; only on tuist.dev).
+- **Organization AI**: `save_organization_ai_model`, `remove_organization_ai_model`, `set_organization_ai_default_model`, `save_organization_ai_task_route`, `remove_organization_ai_task_route`, and `remove_organization_ai_provider` (deletes the provider's key and models, and unlinks a linked Claude organization at Anthropic).
 - **Agent integrations**: `connect_amp_workspace` (gives the workspace's orbs CI access to the account), `disconnect_amp_workspace`, and `connect_claude_environment` (lets a Claude Managed Agents environment run sessions in Tuist sandboxes).
 
-`add_organization_member`, `cancel_organization_invitation`, `complete_project_logo_upload`, `disconnect_project_repository`, `update_test_case`, `update_notification_rule`, `delete_notification_rule`, `update_runner_profile`, `delete_runner_profile`, `delete_runner_volume`, `delete_sandbox`, and `disconnect_amp_workspace` advertise `destructiveHint: true` because they replace or remove existing state. `invite_organization_member`, `update_test_case`, `connect_claude_environment`, and `report_feedback` advertise `openWorldHint: true` because they send email, notify external webhook endpoints, call Anthropic, or send a report to the Tuist team.
+`add_organization_member`, `cancel_organization_invitation`, `complete_project_logo_upload`, `disconnect_project_repository`, `update_test_case`, `update_notification_rule`, `delete_notification_rule`, `update_runner_profile`, `delete_runner_profile`, `delete_runner_volume`, `delete_sandbox`, `disconnect_amp_workspace`, `remove_organization_ai_provider`, `remove_organization_ai_model`, and `remove_organization_ai_task_route` advertise `destructiveHint: true` because they replace or remove existing state. `invite_organization_member`, `update_test_case`, `connect_claude_environment`, `remove_organization_ai_provider`, and `report_feedback` advertise `openWorldHint: true` because they send email, notify external webhook endpoints, call Anthropic, or send a report to the Tuist team.
 
 Personal Claude and ChatGPT subscriptions are connected only in the dashboard's AI settings, so subscription tokens and sign-ins never pass through a Model Context Protocol client.
 The account setup tools require user authentication. They are not available to project tokens or ordinary account tokens. When a user authorizes a client in the browser or claims an `auth.md` registration, Tuist associates that credential with the user only on the Model Context Protocol endpoint, so the setup tools can complete the requested workflow.
@@ -55,7 +56,7 @@ The endpoint uses the `mcp` scope group. An anonymous pre-claim credential can d
 
 Tools resolve to the projects the authenticated user can already read. Xcode and Gradle build tools accept a build UUID or dashboard URL. The UUID must identify exactly one project; if it appears in multiple projects, the tool returns not found instead of selecting another project's report. Project-scoped dashboard and API reads remain available. Reported actor identifiers are unverified labels, not credentials or additional access rights.
 
-Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Once run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
+Build list and detail tools expose optional `tuist_version` metadata: the reporting Tuist CLI for Xcode and Cargo, the Tuist Gradle plugin for Gradle, and the `tuist_ex` library for Mix. Xcode also exposes `tuist_generation_version` from its linked project-generation event, which can differ from the uploading CLI. Missing observations are null, not inferred from the server or another report. Bazel uses its existing `bazel_version`; Struo run details expose `once_version`. These fields describe reported versions, not verified identity or wire-contract versions. REST build endpoints expose the same metadata. Existing integration and flaky-test skills do not depend on version fields and need no workflow changes.
 
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
@@ -302,7 +303,7 @@ Tools that take the identifier of a single record, such as `build_run_id`, `test
 |----|------|----------------|
 | `xcode_compilation_cache` | `get_xcode_build` | A processed clean build with Xcode 26 or later ran no cacheable compilation tasks. |
 | `gradle_build_cache` | `get_gradle_build` | A build executed cacheable tasks without Gradle's build cache computing a key for any of them, meaning the build cache was off. |
-| `flaky_test_quarantine` | `get_test_run` | A run had flaky tests and no enabled automation in the project mutes or skips them. Not suggested for Once projects. |
+| `flaky_test_quarantine` | `get_test_run` | A run had flaky tests and no enabled automation in the project mutes or skips them. Not suggested for Struo projects. |
 | `test_sharding` | `get_test_run` | An unsharded CI run took 10 minutes or more, in a build system Tuist can shard. The tip says how many tests selective testing already skipped, when it did. |
 | `tuist_runners` | `get_xcode_build`, `get_test_run` | A CI run used GitHub Actions, Bitrise, GitLab CI, or Buildkite machines and the account has never run a job on Tuist Runners. Only on tuist.dev. |
 | `pull_request_comments` | `get_xcode_build`, `get_test_run` | A GitHub Actions run belongs to a project that isn't connected to its GitHub repository. |
@@ -442,6 +443,20 @@ These tools connect Claude Managed Agents self-hosted environments, so their ses
 | `list_claude_environments` | List connected environments and the credential each uses, plus the issuer URL and subject prefix a federation rule should trust. | `account_handle` |
 | `connect_claude_environment` | Connect an environment with `api_key`, or with `organization_id`, `workspace_id`, `service_account_id` and `federation_rule_id`. Optional `platform`, `vcpus` and `memory_mb` set the sandbox shape. | `account_handle`, `environment_id`, `environment_key` |
 
+#### Organization AI
+
+These tools manage the models an organization's server-side AI tasks use, as Settings → AI does, and share its rules: organization administrators only, and only for organizations with AI settings. Each task, such as `pulse_grouping` or `pulse_explanation`, uses its task route when it has one and otherwise the default model; without either it sends no requests. Every tool returns the whole configuration, including each task's current model and whether it comes from its route, the default, or nothing. Adding or editing a provider takes an API key, so it happens in the dashboard or the REST API (`/api/accounts/{handle}/ai`), not through these tools.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_organization_ai_configuration` | Read providers (without keys), models, the default model, task routes and each task's current model. | `account_handle` |
+| `save_organization_ai_model` | Add a model (`name`, `provider_id`, `upstream_model_id`), or update one by `id`. | `account_handle` |
+| `remove_organization_ai_model` | Remove a model and its task routes. | `account_handle`, `model_id` |
+| `set_organization_ai_default_model` | Select the default model, or clear it with null. | `account_handle`, `model_id` |
+| `save_organization_ai_task_route` | Route a `task` to a configured `model_id`, or update a route by `id`. A task has at most one route. | `account_handle` |
+| `remove_organization_ai_task_route` | Remove a route, so the task uses the default model again. | `account_handle`, `route_id` |
+| `remove_organization_ai_provider` | Remove a provider with its key, models and their routes; unlinks a linked Claude organization. | `account_handle`, `provider_id` |
+
 #### Webhooks
 
 Webhook tools use the same administrator-only permission as the dashboard. Delivery attempts contain the request and response data recorded for the endpoint, but never the endpoint signing secret.
@@ -455,7 +470,7 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 
 #### Xcode builds
 
-Build-detail tools for Xcode, Gradle, Bazel, Mix and Cargo expose the existing `custom_metadata: {tags, values}` shape, including infrastructure observations when reported. Values remain strings and unfamiliar keys are preserved. For example, `tuist.cpu.available_processors` describes runtime-available logical processors, while `tuist.gradle.max_workers` is a Gradle worker limit and `tuist.jvm.max_heap_bytes` is a JVM heap limit, not host memory. These are untrusted client observations, not verified runner identities. Absent observations stay absent; imported logs and older clients may have no infrastructure metadata. Once metadata awaits a coordinated client/protocol update.
+Build-detail tools for Xcode, Gradle, Bazel, Mix and Cargo expose the existing `custom_metadata: {tags, values}` shape, including infrastructure observations when reported. Values remain strings and unfamiliar keys are preserved. For example, `tuist.cpu.available_processors` describes runtime-available logical processors, while `tuist.gradle.max_workers` is a Gradle worker limit and `tuist.jvm.max_heap_bytes` is a JVM heap limit, not host memory. These are untrusted client observations, not verified runner identities. Absent observations stay absent; imported logs and older clients may have no infrastructure metadata. Struo metadata awaits a coordinated client/protocol update.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
@@ -508,6 +523,13 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
+#### Remote execution
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `get_remote_execution_activity` | List the project's running Bazel invocations and its remote actions running and queued right now, with each action's invocation, mnemonic, target, action digest, machine size and when it entered that state. Actions the execution gateway runs on a VM it prepared in advance are not listed until they finish. | `account_handle`, `project_handle` |
+| `get_remote_execution_usage` | Get the project's remote executions and measured execution time over `[from, to)`, in total, per machine size, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366. | `account_handle`, `project_handle` |
+
 `list_bazel_invocations` filters are exact matches, and invocations that finish in the same second are ordered by invocation ID. To find the latest failing invocation on a branch, call it with `status: "failure"`, `git_branch` and `page_size: 1`. The REST endpoint `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations` accepts the same filters.
 
 Set `remote_execution: true` on `list_bazel_build_steps` to return only actions with safely associated server phase timings from indexed profiles. List and detail responses expose optional nullable `remote_queue_ms`, `remote_input_fetch_ms`, `remote_execution_ms` and `remote_output_upload_ms`. Values sum recorded phases, including retries within the action; absent or null values mean unavailable, not zero. They are profile observations, not billable usage or proof of fresh execution, since cached server results can carry execution metadata. Client uploads are excluded. Older or ambiguous profiles may return no matching actions even when remote work occurred. The step REST endpoint accepts the same `remote_execution=true` filter. The dashboard's Remote execution tab uses the same query and 90-day retention.
@@ -538,14 +560,16 @@ Set `include_cache_inspection: true` on `get_cargo_build` to retrieve validated 
 
 `build_id` is the build run ID (the invocation ID for Bazel) or the build's dashboard URL. The returned `trace_url` serves a [Chrome Trace Event](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU) JSON file. Anyone holding the link can download that build's trace without other credentials until `expires_at`, one hour after the call. Agents can download it with `curl`, hand it to you to open in Perfetto, or query it with Perfetto's `trace_processor`. The trace contains the recorded steps packed into lanes by parallelism, a track spanning the whole build, and CPU and memory counters when the build recorded machine metrics. It holds the same data as the step tools above, without logs. The dashboard offers the same file from each build's Timeline tab.
 
-#### Once runs
+#### Struo runs
+
+<a id="once-runs"></a>
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_once_runs` | List Once runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
+| `list_once_runs` | List Struo runs for a project, newest first. Filter by `kind` (`build`, `test`, or `generic`), `status`, `is_ci`, or `git_branch`. Runs that have not finished have status `in_progress`. | `account_handle`, `project_handle` |
 | `get_once_run` | Get a run with its action totals, cache summary, and, for test runs, test totals. | `account_handle`, `project_handle`, `run_id` |
 
-Cargo build, Mix build, and Once run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
+Cargo build, Mix build, and Struo run IDs are unique within a project. The same reads are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/cargo/builds`, `.../mix/builds`, and `.../once/runs`, each with a detail endpoint for one ID.
 
 #### Tasks, actions, modules and files
 
@@ -562,7 +586,7 @@ These project-scoped tools inspect persistent build identities across runs. Star
 | `bazel_actions` | Bazel actions | BEP-reported action executions |
 | `gradle_tasks` | Gradle tasks | Task executions |
 | `xcode_modules` | Xcode modules | Compilations and module cache events |
-| `once_actions` | Once actions | Executions |
+| `once_actions` | Struo actions | Executions |
 | `mix_files` | Mix compiled files | Compilations |
 | `mix_modules` | Mix compiled modules | Compilations |
 | `cargo_crates` | Cargo crates | Recorded rustc invocations |
@@ -575,7 +599,7 @@ Xcode module durations come from measured target compilations in build logs. Mod
 
 Bazel actions are identified by target label, mnemonic and configured primary output, keeping separate actions and configurations distinct without relying on input-dependent cache digests. History records BEP-reported executions, not cache lookups or trace-profile phases. Complete execution coverage requires `--build_event_publish_all_actions`; artifact delivery is best effort, so missing observations are not evidence that no work ran. Older Kura payloads without stable identity or execution start remain accepted but unindexed. Absent end-time measurements stay unavailable and genuine zero durations count.
 
-Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
+Mix module durations measure the containing file's compilation, not independently measured module work. Struo actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
 
 Cargo crates are grouped by exact recorded crate root, name and kind. Checkout-path changes can split histories, and build profiles, features and target triples are not distinguished. History measures rustc invocations, not per-file work or cache hits; absent jobs do not establish removals or a complete workspace inventory.
 

@@ -59,8 +59,9 @@ A submission waits up to five seconds for its result, so most actions need one
 gateway request. Longer actions continue with five-second `WaitExecution`-style
 long polls that return as soon as the state changes. Completed operations stay
 readable for one minute. Queued operations fail after 15 minutes. The queue is
-bounded to four times the account concurrency, at most 512 actions; a full queue
-returns `RESOURCE_EXHAUSTED`.
+bounded to sixteen times the account concurrency, at most 2048 actions, so
+several cold clients at `--jobs` of twice the concurrency fit at once; a full
+queue returns `RESOURCE_EXHAUSTED`.
 
 ### Leases
 
@@ -323,6 +324,17 @@ therefore always have capacity CI cannot take back, in one of two modes:
     hold, never below the floor.
   - Grown carve-outs shrink back toward what their VMs hold 15 seconds after
     the last growth.
+  - A fleet-wide floor (`sandboxes.remoteExecutionFloorSlots` in the tuist
+    chart, 0 to disable) makes the workers one pool of the runners-controller's
+    compute allocator, counted in slots, beside the runner pools. Its load is
+    the slots the workers already hold; its floor is funded in the warm tier
+    ahead of the runner pools' warm stock, and like any warm tier it yields to
+    queued CI jobs. The controller spreads the funded floor over the workers
+    (each keeps its chart floor, then one slot at a time to those holding the
+    most) and sends each its share as `warm_bytes` in its grant. The server
+    grows a carve-out to that share before any action arrives, and never
+    shrinks it below while the grant is fresh, so a stopped controller leaves
+    only `floorSlots`.
 
   The worker connects to the server as `<node>.remote-execution`, beside the
   node's agent daemon, which connects as the node itself. The runners

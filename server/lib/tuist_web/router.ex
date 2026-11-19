@@ -487,6 +487,11 @@ defmodule TuistWeb.Router do
     pipe_through [:marketing_markdown]
 
     redirect("/marketing-markdown/compute", "/marketing-markdown/runners", :permanent, preserve_query_string: true)
+    redirect("/build-systems/once", "/build-systems/struo", :permanent, preserve_query_string: true)
+
+    redirect("/marketing-markdown/build-systems/once", "/marketing-markdown/build-systems/struo", :permanent,
+      preserve_query_string: true
+    )
   end
 
   scope "/", TuistWeb do
@@ -836,7 +841,9 @@ defmodule TuistWeb.Router do
     delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
-    # The query carries the authorization code and state; keep them out of request logs.
+    get "/claude/start", ClaudeLinkedBillingController, :start
+    # The queries carry authorization codes and state; keep them out of request logs.
+    get "/claude/callback", ClaudeLinkedBillingController, :callback, log: false
     get "/mcp/callback", MCPServerOAuthController, :callback, log: false
   end
 
@@ -864,6 +871,7 @@ defmodule TuistWeb.Router do
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
+    get "/struo", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/tuist.json", WellKnownController, :tuist_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
@@ -876,6 +884,15 @@ defmodule TuistWeb.Router do
     get "/.well-known/openid-configuration", OIDCIssuerController, :openid_configuration, metadata: %{robots_txt: false}
 
     get "/jwks.json", OIDCIssuerController, :jwks, metadata: %{robots_txt: false}
+  end
+
+  scope "/oidc/claude-linked-billing", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/.well-known/openid-configuration", OIDCIssuerController, :claude_linked_billing_openid_configuration,
+      metadata: %{robots_txt: false}
+
+    get "/jwks.json", OIDCIssuerController, :claude_linked_billing_jwks, metadata: %{robots_txt: false}
   end
 
   scope "/.well-known", TuistWeb do
@@ -1047,6 +1064,21 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
+      # Provider bodies hold API keys, so their params are never logged.
+      scope "/ai" do
+        get "/", OrganizationAIController, :show
+        post "/providers", OrganizationAIController, :create_provider, log: false
+        patch "/providers/:id", OrganizationAIController, :update_provider, log: false
+        delete "/providers/:id", OrganizationAIController, :delete_provider
+        post "/models", OrganizationAIController, :create_model
+        patch "/models/:id", OrganizationAIController, :update_model
+        delete "/models/:id", OrganizationAIController, :delete_model
+        put "/default-model", OrganizationAIController, :set_default_model
+        post "/task-routes", OrganizationAIController, :create_task_route
+        patch "/task-routes/:id", OrganizationAIController, :update_task_route
+        delete "/task-routes/:id", OrganizationAIController, :delete_task_route
+      end
+
       scope "/webhooks" do
         get "/", WebhooksController, :index
         get "/:webhook_endpoint_id", WebhooksController, :show
@@ -1122,6 +1154,14 @@ defmodule TuistWeb.Router do
           get "/:bundle_id/artifacts", BundleArtifactsController, :show
           get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
+        end
+
+        get "/snapshots/baseline", SnapshotsController, :baseline
+
+        scope "/snapshots/builds" do
+          post "/", SnapshotsController, :create
+          get "/:build_id", SnapshotsController, :show
+          post "/:build_id/complete", SnapshotsController, :complete
         end
 
         scope "/runs" do
@@ -1307,6 +1347,11 @@ defmodule TuistWeb.Router do
           get "/actions", OnceActionsController, :index
           get "/actions/:action_id", OnceActionsController, :show
           get "/actions/:action_id/executions", OnceActionsController, :history
+        end
+
+        scope "/remote-execution" do
+          get "/activity", RemoteExecutionInsightsController, :activity
+          get "/usage", RemoteExecutionInsightsController, :usage
         end
 
         scope "/bazel" do
@@ -1537,6 +1582,7 @@ defmodule TuistWeb.Router do
 
     get "/atlas/accounts/:account_id/runner-billing", AtlasAccountsController, :runner_billing
     put "/atlas/accounts/:account_id/runner-billing", AtlasAccountsController, :activate_runner_prepaid_pool
+    put "/atlas/accounts/:account_id/runner-trial", AtlasAccountsController, :update_runner_trial
 
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
@@ -2046,6 +2092,7 @@ defmodule TuistWeb.Router do
       live "/tests/coverage", CoverageLive
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
+      live "/tests/coverage/pulls/:number", CoverageDetailLive, :pull_request
       live "/tests/coverage/files/*path", CoverageFileLive, :show
       live "/tests/test-selection", TestSelectionsLive
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
@@ -2055,6 +2102,12 @@ defmodule TuistWeb.Router do
       live "/tests/flaky-tests", FlakyTestsLive, metadata: @public_project_route_metadata
       live "/tests/quarantined-tests", QuarantinedTestsLive, metadata: @public_project_route_metadata
       live "/tests/shards", ShardsLive, metadata: @public_project_route_metadata
+      live "/snapshots", SnapshotsLive
+      live "/snapshots/commits/:git_commit_sha", SnapshotCommitLive
+      live "/snapshots/images/:set_name/*name", SnapshotHistoryLive
+      live "/snapshots/:build_id", SnapshotBuildLive
+
+      get "/snapshots/:build_id/images/:image_id/:variant", SnapshotImagesController, :show
       live "/module-cache", ModuleCacheLive, metadata: @public_project_route_metadata
       live "/module-cache/cache-runs", CacheRunsLive, metadata: @public_project_route_metadata
       live "/module-cache/generate-runs", GenerateRunsLive, metadata: @public_project_route_metadata

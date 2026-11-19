@@ -20,6 +20,15 @@ cluster and integration settings in every mode. Mode-specific variables
                   key: targets.json
                   optional: true
             {{- end }}
+            {{- with .Values.server.externalSecrets.shardStorage.publicSecret }}
+            # Published by the separate public (RustFS) store release.
+            - name: TUIST_PUBLIC_SHARD_STORAGE_TARGETS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: targets.json
+                  optional: true
+            {{- end }}
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0, so the
             # server leaves it unset; the agents Deployment sets it after this
             # shared list.
@@ -188,6 +197,10 @@ cluster and integration settings in every mode. Mode-specific variables
             # but share the processor deployment. Keep their untrusted parsing
             # off the web pods whenever that deployment is enabled.
             - name: TUIST_DELEGATE_PROCESS_BAZEL_TESTS
+              value: "1"
+            # Snapshot comparisons decode full-resolution images; keep their
+            # memory off the pods that serve requests.
+            - name: TUIST_DELEGATE_PROCESS_SNAPSHOTS
               value: "1"
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}

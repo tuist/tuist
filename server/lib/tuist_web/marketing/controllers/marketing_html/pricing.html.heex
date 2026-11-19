@@ -1,4 +1,5 @@
-<% signed_in? = not is_nil(TuistWeb.Authentication.current_user(assigns))
+<% current_user = TuistWeb.Authentication.current_user(assigns)
+signed_in? = not is_nil(current_user)
 
 plans = [
   %{
@@ -32,7 +33,12 @@ plans = [
         do: dgettext("marketing", "Upgrade now"),
         else: dgettext("marketing", "Upgrade on the go")
       ),
-    cta_href: ~p"/users/register",
+    # Registration redirects a signed-in user to their last project, not to where they can upgrade.
+    cta_href:
+      if(signed_in?,
+        do: TuistWeb.Authentication.signed_in_billing_path(current_user),
+        else: ~p"/users/register"
+      ),
     cta_variant: "primary",
     popular: true,
     traits: [

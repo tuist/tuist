@@ -40,11 +40,12 @@ const (
 	// memSocket is where the memory server listens for Firecracker, in the
 	// jail.
 	memSocket = "/mem.sock"
-	// Faults fetch the chunks a vCPU waits on; the fill fetches the rest
-	// with fewer streams, so the image is on the node well before the
-	// download URL expires.
+	// Faults fetch the chunks a vCPU waits on, and the fill the rest,
+	// taking a chunk a vCPU waits on first. A restored guest touches most
+	// of its memory before its agent answers, so the memory gets every
+	// stream until it is loaded and the disks' fill starts (lazydisks.go).
 	memoryFaultWorkers = 8
-	memoryFillWorkers  = 2
+	memoryFillWorkers  = 8
 )
 
 var (
@@ -538,7 +539,12 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 		defer memory.Close()
 		served <- server.Serve(serveCtx, memory, uffd.Options{
 			FaultWorkers: memoryFaultWorkers, FillWorkers: memoryFillWorkers,
-			OnLoaded: func(stats uffd.Stats) { m.memoryLoaded(sb, stats, time.Since(started)) },
+			OnLoaded: func(stats uffd.Stats) {
+				m.memoryLoaded(sb, stats, time.Since(started))
+				if disks != nil {
+					disks.startFill()
+				}
+			},
 		})
 	}()
 	sb.mu.Lock()
@@ -597,6 +603,9 @@ func (m *Manager) coldCreateAfterWarm(ctx context.Context, sb *Sandbox, log *slo
 	sb.memoryPending = false
 	disks := sb.lazy
 	sb.mu.Unlock()
+	if disks != nil {
+		disks.startFill()
+	}
 	res, err := m.coldCreate(ctx, sb, log)
 	if err != nil || disks == nil {
 		return res, err

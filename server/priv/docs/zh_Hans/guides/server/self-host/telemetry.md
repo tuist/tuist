@@ -1,13 +1,13 @@
 ---
 {
   "title": "遥测",
-  "titleTemplate": ":title | 自托管 | 服务器 | 指南 | Tuist",
+  "titleTemplate": ":title | 自托管 | Server | 指南 | Tuist",
   "description": "通过 Prometheus 指标、OpenTelemetry 追踪和日志转发监控你的 Tuist 服务器。"
 }
 ---
 # 遥测 {#telemetry}
 
-Tuist 提供三种互补的可观测性信号：**指标**（Prometheus）、**追踪**（OpenTelemetry）和 **日志**（兼容 Loki）。这三者均为可选，且可独立启用。
+Tuist 提供三种互补的可观测性信号：**指标**（Prometheus）、**追踪**（OpenTelemetry）和 **日志**（兼容 Loki）。这三者均为可选，且可以独立启用。
 
 ## 分布式追踪（OpenTelemetry）{#opentelemetry}
 
@@ -17,23 +17,23 @@ Tuist 支持使用 [OpenTelemetry](https://opentelemetry.io/) 进行分布式追
 
 设置以下环境变量以启用追踪导出：
 
-| 环境变量 | 描述 | 是否必需 | 默认值 | 示例 |
+| 环境变量 | 描述 | 必填 | 默认值 | 示例 |
 | --- | --- | --- | --- | --- |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry Collector 的 gRPC 端点（例如 Grafana Alloy、Jaeger 或任何兼容 OTLP 的收集器） | 否 | | `http://localhost:4317` |
 
-未设置此变量时，追踪功能处于禁用状态，不会产生额外开销。
+未设置此变量时，追踪功能将被禁用，且不会产生额外开销。
 
 ### 已插桩的库 {#opentelemetry-instrumented-libraries}
 
-启用追踪后，以下库会自动进行插桩：
+启用追踪后，以下库将自动被插桩：
 
-- **Bandit** — HTTP 服务器连接跨度
-- **Phoenix** — 请求生命周期跨度（控制器操作、LiveView）
-- **Ecto** — 带有查询元数据的数据库查询跨度
-- **Finch** — 出站 HTTP 客户端请求跨度
-- **Broadway** — 消息处理管道跨度
+- **Bandit** -- HTTP 服务器连接 span
+- **Phoenix** -- 请求生命周期 span（控制器动作、LiveView）
+- **Ecto** -- 带有查询元数据的数据库查询 span
+- **Finch** -- 出站 HTTP 客户端请求 span
+- **Broadway** -- 消息处理流水线 span
 
-### 使用 Grafana Alloy 的示例设置 {#opentelemetry-alloy-example}
+### 使用 Grafana Alloy 的示例配置 {#opentelemetry-alloy-example}
 
 如果你使用 [Grafana Alloy](https://grafana.com/docs/alloy/latest/) 作为收集器，请将其配置为接收 OTLP 追踪数据并将其转发到你的追踪后端（例如 Grafana Cloud Tempo）：
 
@@ -56,13 +56,13 @@ Tuist 可以将应用日志转发到兼容 [Loki](https://grafana.com/oss/loki/)
 
 ### 配置 {#log-forwarding-configuration}
 
-| 环境变量 | 描述 | 是否必需 | 默认值 | 示例 |
+| 环境变量 | 描述 | 必填 | 默认值 | 示例 |
 | --- | --- | --- | --- | --- |
 | `TUIST_LOKI_URL` | 兼容 Loki 的推送 API 端点的基础 URL | 否 | | `http://localhost:3100` |
 
-未设置此变量时，日志转发功能处于禁用状态。
+未设置此变量时，日志转发功能将被禁用。
 
-### 使用 Grafana Alloy 的示例设置 {#log-forwarding-alloy-example}
+### 使用 Grafana Alloy 的示例配置 {#log-forwarding-alloy-example}
 
 Grafana Alloy 可以使用其 [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/) 组件充当本地日志中继：
 
@@ -89,30 +89,30 @@ loki.write "your_backend" {
 
 然后设置 `TUIST_LOKI_URL=http://alloy:3100`。
 
-如果 Loki 实例公开了推送 API，你也可以将 `TUIST_LOKI_URL` 直接指向该实例。
+如果 Loki 实例暴露了推送 API，你也可以将 `TUIST_LOKI_URL` 直接指向该 Loki 实例。
 
 ## Prometheus 指标 {#prometheus-metrics}
 
-你可以使用 [Prometheus](https://prometheus.io/) 和 [Grafana](https://grafana.com/) 等可视化工具摄取 Tuist 服务器收集的指标，从而创建符合你需求的自定义仪表板。Prometheus 指标通过端口 9091 上的 `/metrics` 端点提供。Prometheus 的 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) 应设置为小于 10_000 秒（我们建议设置为 30 秒，以在可观测性与指标摄取成本之间取得平衡）。
+你可以使用 [Prometheus](https://prometheus.io/) 和诸如 [Grafana](https://grafana.com/) 的可视化工具来摄取 Tuist 服务器收集的指标，从而创建符合你需求的自定义仪表板。Prometheus 指标通过端口 9091 上的 `/metrics` 端点提供。Prometheus 的 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) 应设置为小于 10_000 秒（我们建议设置为 30 秒，以在可观测性与指标摄取成本之间取得平衡）。
 
 ## 真实用户监控 {#real-user-monitoring}
 
-Tuist 可以使用捆绑在所提供的 JavaScript 中的 [Grafana Faro](https://grafana.com/oss/faro/) Web SDK，报告来自营销网站、文档和仪表板的浏览器性能。它会捕获核心 Web 指标（包括最大内容绘制）、未捕获的错误和页面浏览量，并将这些数据发布到你运行的 [Faro 接收器](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/)——例如 Grafana Alloy 中的 `faro.receiver` 组件，该组件会将数据转发到 Loki 和 Tempo。
+Tuist 可以使用捆绑在服务 JavaScript 中的 [Grafana Faro](https://grafana.com/oss/faro/) Web SDK，从营销网站、文档和仪表板报告浏览器性能。它会捕获核心网页指标（包括最大内容绘制）、未捕获的错误和页面浏览量，并将这些数据发布到你运行的 [Faro 接收器](https://grafana.com/docs/alloy/latest/reference/components/faro/faro.receiver/)——例如 Grafana Alloy 中的 `faro.receiver` 组件，该组件会将数据转发到 Loki 和 Tempo。
 
 ### 配置 {#real-user-monitoring-configuration}
 
-| 环境变量 | 描述 | 是否必需 | 默认值 | 示例 |
+| 环境变量 | 描述 | 必填 | 默认值 | 示例 |
 | --- | --- | --- | --- | --- |
-| `TUIST_FARO_COLLECTOR_URL` | 浏览器向此 URL 发送 Faro 负载 | 否 | | `/-/faro` |
+| `TUIST_FARO_COLLECTOR_URL` | 浏览器向此 URL 发布 Faro 负载 | 否 | | `/-/faro` |
 
 > [!NOTE]
-> 仅当设置 `TUIST_FARO_COLLECTOR_URL` 时，才会启用真实用户监控。如果没有它，不会收集任何浏览器遥测数据，也不会加载任何第三方脚本。
+> 仅当设置 `TUIST_FARO_COLLECTOR_URL` 时，真实用户监控才会启用。如果没有它，将不会收集任何浏览器遥测数据，也不会加载任何第三方脚本。
 
-使用 `/-/faro` 等同源路径可以避免跨域请求，并保持浏览器的内容安全策略不变。通过你的入口网关将其指向你的 Faro 接收器。
+使用如同源路径 `/-/faro` 可以避免跨域请求，并保持浏览器的内容安全策略不变。通过你的入口网关将其指向你的 Faro 接收器。
 
 ### 收集的内容 {#real-user-monitoring-collected}
 
-- **Web 指标**：LCP、CLS、INP、FCP 和 TTFB，由浏览器自动捕获
+- **网页指标**：LCP、CLS、INP、FCP 和 TTFB，由浏览器自动捕获
 - **页面浏览量**：在加载时和 Phoenix LiveView 导航时记录
 - **视图**：每个负载都携带生成它的部分——`marketing`、`docs`、`dashboard` 或 `api-docs`
 - **错误**：未捕获的异常和未处理的 Promise 拒绝
@@ -120,12 +120,12 @@ Tuist 可以使用捆绑在所提供的 JavaScript 中的 [Grafana Faro](https:/
 ### 隐私考量 {#real-user-monitoring-privacy}
 
 - 不附加用户身份：负载中不包含用户 ID、电子邮件或账户信息
-- 会话不会在多次访问间持久化，因此不会向浏览器存储写入任何内容
-- 控制台捕获处于关闭状态，因此应用日志输出绝不会从浏览器发送出去
+- 会话不在访问之间持久化，因此不会向浏览器存储写入任何内容
+- 控制台捕获已关闭，因此应用日志输出永远不会从浏览器发送
 
 ## Elixir 指标 {#elixir-metrics}
 
-默认情况下，我们包含 Elixir 运行时、BEAM、Elixir 以及我们使用的部分库的指标。以下是你可以看到的一些指标：
+默认情况下，我们包含 Elixir 运行时、BEAM、Elixir 以及我们使用的一些库的指标。以下是你可以看到的一些指标：
 
 - [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -134,7 +134,7 @@ Tuist 可以使用捆绑在所提供的 JavaScript 中的 [Grafana Faro](https:/
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-我们建议查看这些页面，了解有哪些可用指标以及如何使用它们。
+我们建议查看这些页面，了解可用指标及其使用方法。
 
 ## 运行指标 {#runs-metrics}
 
@@ -148,8 +148,8 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `name` | 已运行的 `tuist` 命令的名称，例如 `build`、`test` 等。 |
-| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发人员的机器。 |
+| `name` | 运行的 `tuist` 命令的名称，例如 `build`、`test` 等。 |
+| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发者的机器。 |
 | `status` | `success` 时为 `0`，`failure` 时为 `1`。 |
 
 ### `tuist_runs_duration_milliseconds`（直方图）{#tuist_runs_duration_milliseconds-histogram}
@@ -160,9 +160,9 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `name` | 已运行的 `tuist` 命令的名称，例如 `build`、`test` 等。 |
-| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发人员的机器。 |
-| `status` | `success` 成功时为 `0`，`failure` 失败时为 `1`。 |
+| `name` | 运行的 `tuist` 命令的名称，例如 `build`、`test` 等。 |
+| `is_ci` | 一个布尔值，指示执行者是 CI 还是开发者的机器。 |
+| `status` | `success` 时为 `0`，`failure` 时为 `1`。 |
 
 ## 缓存指标 {#cache-metrics}
 
@@ -212,7 +212,7 @@ Tuist 运行的总次数。
 
 ## 存储指标 {#storage-metrics}
 
-一组与在远程存储（例如 S3）中存储构件相关的指标。
+一组与远程存储（例如 S3）中构件存储相关的指标。
 
 > [!TIP]
 > 这些指标有助于了解存储操作的性能并识别潜在瓶颈。
@@ -220,13 +220,13 @@ Tuist 运行的总次数。
 
 ### `tuist_storage_get_object_size_size_bytes`（直方图）{#tuist_storage_get_object_size_size_bytes-histogram}
 
-从远程存储获取的对象的大小（以字节为单位）。
+从远程存储获取的对象大小（字节）。
 
 #### 标签 {#tuist-storage-get-object-size-size-bytes-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 
 ### `tuist_storage_get_object_size_duration_miliseconds`（直方图）{#tuist_storage_get_object_size_duration_miliseconds-histogram}
@@ -237,7 +237,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 
 ### `tuist_storage_get_object_size_count`（计数器）{#tuist_storage_get_object_size_count-counter}
@@ -248,7 +248,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds`（直方图）{#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
@@ -258,7 +258,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `project_slug` | 其对象正在被删除的项目的项目 slug。 |
+| `project_slug` | 正在删除其对象的项目的 slug。 |
 
 
 ### `tuist_storage_delete_all_objects_count`（计数器）{#tuist_storage_delete_all_objects_count-counter}
@@ -269,28 +269,28 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `project_slug` | 其对象正在被删除的项目的项目 slug。 |
+| `project_slug` | 正在删除其对象的项目的 slug。 |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds`（直方图）{#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-开始向远程存储上传的持续时间（毫秒）。
+开始上传到远程存储的持续时间（毫秒）。
 
 #### 标签 {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 ### `tuist_storage_multipart_start_upload_duration_count`（计数器）{#tuist_storage_multipart_start_upload_duration_count-counter}
 
-开始向远程存储上传的次数。
+开始上传到远程存储的次数。
 
 #### 标签 {#tuist-storage-multipart-start-upload-duration-count-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds`（直方图）{#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
@@ -301,7 +301,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 ### `tuist_storage_get_object_as_string_count`（计数）{#tuist_storage_get_object_as_string_count-count}
 
@@ -311,7 +311,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 
 ### `tuist_storage_check_object_existence_duration_milliseconds`（直方图）{#tuist_storage_check_object_existence_duration_milliseconds-histogram}
@@ -322,7 +322,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 ### `tuist_storage_check_object_existence_count`（计数）{#tuist_storage_check_object_existence_count-count}
 
@@ -332,7 +332,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds`（直方图）{#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
@@ -342,7 +342,7 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 
 ### `tuist_storage_generate_download_presigned_url_count`（计数）{#tuist_storage_generate_download_presigned_url_count-count}
@@ -353,60 +353,60 @@ Tuist 运行的总次数。
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
+| `object_key` | 远程存储中对象的查找键。 |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds`（直方图）{#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-为远程存储中的对象生成分段上传预签名 URL 的持续时间（毫秒）。
+为远程存储中的对象生成分片上传预签名 URL 的持续时间（毫秒）。
 
 #### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
-| `part_number` | 正在上传的对象的分段编号。 |
-| `upload_id` | 分段上传的上传 ID。 |
+| `object_key` | 远程存储中对象的查找键。 |
+| `part_number` | 正在上传的对象的分片编号。 |
+| `upload_id` | 分片上传的上传 ID。 |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count`（计数）{#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-为远程存储中的对象生成分段上传预签名 URL 的次数。
+为远程存储中的对象生成分片上传预签名 URL 的次数。
 
 #### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
-| `part_number` | 正在上传的对象的分段编号。 |
-| `upload_id` | 分段上传的上传 ID。 |
+| `object_key` | 远程存储中对象的查找键。 |
+| `part_number` | 正在上传的对象的分片编号。 |
+| `upload_id` | 分片上传的上传 ID。 |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds`（直方图）{#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-完成向远程存储上传的持续时间（毫秒）。
+完成上传到远程存储的持续时间（毫秒）。
 
 #### 标签 {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
-| `upload_id` | 分段上传的上传 ID。 |
+| `object_key` | 远程存储中对象的查找键。 |
+| `upload_id` | 分片上传的上传 ID。 |
 
 
 ### `tuist_storage_multipart_complete_upload_count`（计数）{#tuist_storage_multipart_complete_upload_count-count}
 
-完成向远程存储上传的总次数。
+完成上传到远程存储的总次数。
 
 #### 标签 {#tuist-storage-multipart-complete-upload-count-tags}
 
 | 标签 | 描述 |
 |--- | ---- |
-| `object_key` | 对象在远程存储中的查找键。 |
-| `upload_id` | 分段上传的上传 ID。 |
+| `object_key` | 远程存储中对象的查找键。 |
+| `upload_id` | 分片上传的上传 ID。 |
 
 ---
 
-## 身份验证指标 {#authentication-metrics}
+## 认证指标 {#authentication-metrics}
 
-一组与身份验证相关的指标。
+一组与认证相关的指标。
 
 ### `tuist_authentication_token_refresh_error_total`（计数器）{#tuist_authentication_token_refresh_error_total-counter}
 
@@ -448,7 +448,7 @@ Tuist 运行的总次数。
 
 一组与数据库连接相关的指标。
 
-仓库连接池指标每 100 毫秒在内部采样一次，然后通过 `/metrics` 暴露给 Prometheus。下面的 `last_value` 指标显示抓取时最新的连接池状态。下方的压力指标是从这些 100 毫秒样本中得出的总和，这使得即使饱和窗口在下一次抓取之前已经恢复，也更容易发现短暂的饱和情况。
+仓库连接池指标每 100 毫秒在内部采样一次，然后通过 `/metrics` 暴露给 Prometheus。下方的 `last_value` 指标显示抓取时最新的连接池状态。后文的压力指标是基于这些 100 毫秒样本求和得出的，这使得即使饱和窗口在下一次抓取前已恢复，也更容易被察觉。
 
 ### `tuist_repo_pool_checkout_queue_length`（最新值）{#tuist_repo_pool_checkout_queue_length-last_value}
 
@@ -485,7 +485,7 @@ Tuist 运行的总次数。
 
 ### `tuist_repo_pool_checkout_queue_total_samples_sum`（总和）{#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
 
-执行的仓库连接池轮询总次数（每次轮询增加 1）。在计算忙碌率或饥饿率百分比时将其用作分母：`rate(busy_samples) / rate(total_samples)` 或 `rate(starved_samples) / rate(total_samples)`。
+执行的仓库连接池轮询总次数（每次轮询递增 1）。在计算繁忙率或饥饿率百分比时，将其作为分母：`rate(busy_samples) / rate(total_samples)` 或 `rate(starved_samples) / rate(total_samples)`。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
 
@@ -496,7 +496,7 @@ Tuist 运行的总次数。
 
 ### `tuist_repo_pool_checkout_queue_observed_sum`（总和）{#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
-在仓库连接池轮询中观察到的排队检出请求之和。这有助于检测仅凭最新的队列长度样本可能无法看到的短暂连接池争用突发情况。
+在仓库连接池轮询中观察到的排队检出请求之和。这有助于检测仅凭最新队列长度样本可能无法发现的短暂连接池争用爆发。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_observed_sum-tags}
 
@@ -518,7 +518,7 @@ Tuist 运行的总次数。
 
 ### `tuist_repo_pool_checkout_queue_starved_samples_sum`（总和）{#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
-检出请求排队且没有可用就绪连接的仓库连接池轮询次数。此处持续增加通常意味着连接池已饱和。
+仓库连接池轮询中检出请求排队且无可用就绪连接的次数。此处持续增加通常意味着连接池已饱和。
 
 #### 标签 {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 
@@ -551,14 +551,14 @@ Tuist 运行的总次数。
 
 ### `tuist_http_request_duration_nanoseconds_sum`（总和）{#tuist_http_request_duration_nanoseconds_sum-last_value}
 
-发出请求的持续时间总和（包括等待分配连接的时间）。
+发出请求的持续时间之和（包括等待分配连接的时间）。
 
 ### `tuist_http_request_duration_nanoseconds_bucket`（分布）{#tuist_http_request_duration_nanoseconds_bucket-distribution}
 发出请求的持续时间分布（包括等待分配连接的时间）。
 
 ### `tuist_http_queue_count`（计数器）{#tuist_http_queue_count-counter}
 
-从连接池中检索的请求数量。
+从连接池中检索到的请求数量。
 
 ### `tuist_http_queue_duration_nanoseconds_sum`（总和）{#tuist_http_queue_duration_nanoseconds_sum-sum}
 
@@ -602,7 +602,7 @@ Tuist 运行的总次数。
 
 ### `tuist_http_receive_count`（计数器）{#tuist_http_receive_count-counter}
 
-从已发送请求中收到的响应数量。
+已接收到的来自已发送请求的响应数量。
 
 ### `tuist_http_receive_duration_nanoseconds_sum`（总和）{#tuist_http_receive_duration_nanoseconds_sum-sum}
 

@@ -81,22 +81,24 @@ restarting; cached provider tokens are per node and expire within an hour.
 
 ## Native app links
 
+The native apps are no longer built in this repository. The association endpoints
+remain compatible with previously distributed clients; the setup below documents
+their existing identities, not a new app distribution pipeline.
+
 Only hosted `atlas.tuist.dev` should configure verified identities: the apps
 request that domain alone. Leave both identity lists unset on self-hosted and
 demo deployments; demo validation rejects them. Association files return 404
 until configured. Custom-scheme `/open` and header actions still work on HTTPS
 self-hosted servers without association setup.
 
-`AtlasWeb.NativeLinks.claimed_paths/0` defines the claimed pages; keep the native
-Android manifest synchronized. Exact pages and UUID-shaped records only, never
-entire hierarchies or `/commercial/finance`. See the native
-[link contract](../../atlas-native/README.md#object-navigation).
+`AtlasWeb.NativeLinks.claimed_paths/0` defines the claimed pages.
+Exact pages and UUID-shaped records only, never
+entire hierarchies or `/commercial/finance`.
 
 ### Apple
 
-1. Enable Associated Domains on App ID `U6LC622NKF.dev.tuist.atlas` and regenerate
-   the Atlas ad-hoc provisioning profile. Device signing refuses to publish
-   without it; Android and simulator publication remain independent.
+1. Existing Apple apps use Associated Domains on App ID
+   `U6LC622NKF.dev.tuist.atlas`.
 2. Set `ATLAS_APPLE_APP_IDS=U6LC622NKF.dev.tuist.atlas` in hosted values. Lists may
    contain comma-separated `TEAMID.bundle.id` identities; malformed values stop
    Atlas from booting.
@@ -114,23 +116,16 @@ entire hierarchies or `/commercial/finance`. See the native
 ### Android
 
 1. Provision a stable private distribution key once, never a CI debug key.
-   Configure protected `atlas-mobile-previews` variables
-   `ATLAS_ANDROID_KEYSTORE_REF`, `ATLAS_ANDROID_KEYSTORE_PASSWORD_REF`,
-   `ATLAS_ANDROID_KEY_ALIAS`, and `ATLAS_ANDROID_APP_LINK_SHA256` as described in
-   [Android distribution](../../atlas-native/android/distribution/AGENTS.md).
-   Without a key reference, nightly Android publication is skipped; debug CI
-   artifacts remain available.
+   Preserve the existing release-signing identity for previously distributed apps.
 2. Set the server's `ATLAS_ANDROID_APP_LINK_SHA256` to the same uppercase,
    colon-separated 32-byte SHA-256 certificate fingerprint. Comma-separated
-   multiple fingerprints are supported. Signing refuses an APK whose certificate
-   is not in the configured list. Keep CI and server values identical.
+   multiple fingerprints are supported. Keep server values aligned with the
+   certificates of previously distributed apps.
 3. A trusted fingerprint only authorizes links, not APK update compatibility.
    Changing keys requires a valid APK Signature Scheme v3 signing lineage
    (`apksigner rotate` and `apksigner sign --lineage`) or uninstall/reinstall,
-   losing encrypted credentials. The current signing script does not configure a
-   lineage; add and verify rotation support before publishing a rotated key.
-   Publish the new fingerprint before its first build; retain the old one while
-   old installations remain. Debug-to-distribution installs also need uninstall.
+   losing encrypted credentials. Retain the old fingerprint while old
+   installations remain. Debug-to-distribution installs also need uninstall.
 4. Check the deployed association and installed stable-key build:
 
    ```sh

@@ -5,19 +5,19 @@
   "description": "Tuist Server に貢献する。"
 }
 ---
-# Server {#server}
+# サーバー {#server}
 
 ソース: [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
 ## 用途 {#what-it-is-for}
 
-このサーバーは、認証、アカウントとプロジェクト、キャッシュストレージ、インサイト、プレビュー、レジストリ、およびインテグレーション（GitHub、Slack、SSO）など、Tuist のサーバーサイド機能を提供します。Postgres と ClickHouse を使用する Phoenix/Elixir アプリケーションです。
+このサーバーは、認証、アカウントとプロジェクト、キャッシュストレージ、インサイト、プレビュー、レジストリ、統合（GitHub、Slack、SSO）など、Tuistのサーバーサイド機能を提供します。PostgresとClickHouseを使用したPhoenix/Elixirアプリケーションです。
 
 ## 貢献方法 {#how-to-contribute}
 
 サーバーへの貢献には、CLA（`server/CLA.md`）への署名が必要です。
 
-### ローカルでのセットアップ {#set-up-locally}
+### ローカル環境のセットアップ {#set-up-locally}
 
 ```bash
 cd server
@@ -34,14 +34,14 @@ mise run install
 mise run dev
 ```
 
-ブラウザで `http://localhost:8080` を開いてください。開発環境では、ログインページに **テストユーザーとしてログイン** ボタンがあり、事前に用意されたアカウント（`tuistrocks@tuist.dev` / `tuistrocks`）でサインインできます。
+ブラウザで`http://localhost:8080`を開いてください。開発環境では、ログインページに**テストユーザーとしてログイン**ボタンがあり、事前に用意されたアカウント（`tuistrocks@tuist.dev` / `tuistrocks`）でサインインできます。
 
 > [!NOTE]
-> 社内開発者は fnox を介して 1Password から開発用シークレットを読み込みます。`mise run dev` はサーバーを `fnox exec` でラップします（`server/fnox.toml` を参照）。外部のコントリビューターは 1Password へのアクセス不要で、サーバーはそれなしでもローカルで動作します。OAuth、Stripe、その他のサードパーティ製インテグレーションは無効になりますが、コア機能は利用可能です。
+> 社内開発者はfnoxを介して1Passwordから開発用シークレットを読み込みます。`mise run dev`はサーバーを`fnox exec`でラップします（`server/fnox.toml`を参照）。外部の貢献者は1Passwordへのアクセスは不要です。サーバーはそれなしでもローカルで動作します。OAuth、Stripe、その他のサードパーティ統合は無効になりますが、コア機能は動作します。
 
-### ローカルでの Helm テスト {#local-helm-testing}
+### ローカルでのHelmテスト {#local-helm-testing}
 
-[kind](https://kind.sigs.k8s.io/) と付属の mise タスクを使用して、マシン上でフルスタックを起動できます。これにより、Docker イメージをローカルでビルドし、kind クラスターを作成し、チャートをインストールし、すべてのサービスを自動的にポートフォワードします。
+[kind](https://kind.sigs.k8s.io/)と含まれているmiseタスクを使用して、マシン上でフルスタックを起動できます。これにより、Dockerイメージをローカルでビルドし、kindクラスターを作成し、チャートをインストールし、すべてのサービスのポートフォワーディングを自動的に行います。
 
 ```bash
 # Deploy everything (builds images from source)
@@ -57,7 +57,7 @@ mise run helm:status
 mise run helm:down
 ```
 
-**前提条件:** `docker`、`kind`、`helm`、および `kubectl`。
+**前提条件:** `docker`、`kind`、`helm`、および`kubectl`。
 
 ### テストとフォーマット {#tests-and-formatting}
 

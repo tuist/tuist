@@ -30,13 +30,13 @@ jobs:
     timeout-minutes: 10
     if: github.repository == 'tuist/tuist'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
           install_args: "node@20.12.0 npm:wrangler@4.30.0"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Deploy to Cloudflare Pages
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

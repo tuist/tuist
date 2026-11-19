@@ -13,5 +13,4 @@ the widget shows `fallback` for versions past `supportedVersion`. Keep decoding 
 - Links open the app only through `luft://app/…`; `url(for:)` rejects anything else.
 - `LuftActivityAttributes.swift` is compiled into both the app and the extension; keep it
   free of WidgetKit and app-only code.
-- Validate on macOS with `mise run build:ios` and
-  `bash ../atlas-native/modules/check-widget.sh` against the built `LuftLiveActivity` executable.
+- Validate on macOS with `mise run build:ios`.

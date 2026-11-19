@@ -39,6 +39,10 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # release's SHASUMS256.txt.
 ARG TUIST_VERSION=4.219.0-canary.12
 ARG TUIST_SHA256=51476eeb54fba068a2e47dee79e033c0dbfc7d9fc02d5e6488ed49959637e56d
+# Struo, which thread agents build and test with first; SHA-256 of
+# struo-<version>-x86_64-unknown-linux-gnu.tar.gz from the release's .sha256.
+ARG STRUO_VERSION=1.0.0
+ARG STRUO_SHA256=e6677aa4e086ea3d1c0b70fc06341f4c978c06fd0b2d0aee586aff46be048a33
 ARG VERSION=dev
 
 FROM ubuntu:24.04 AS elixir-toolchain
@@ -217,6 +221,19 @@ RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
     && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
     && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
     && test "$(tuist version)" = "${TUIST_VERSION}"
+# Struo for builds and tests (`Tuist.Threads.Agent`). It reports a build's
+# progress to the file `STRUO_PROGRESS` names, which every sandbox command sets
+# (`Tuist.Sandboxes.Commands`). Its binary links libasound for `--sound`.
+ARG STRUO_VERSION
+ARG STRUO_SHA256
+RUN apt-get update && apt-get install -y --no-install-recommends libasound2t64 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL --retry 3 -o /tmp/struo.tar.gz \
+        "https://github.com/tuist/struo/releases/download/${STRUO_VERSION}/struo-${STRUO_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+    && echo "${STRUO_SHA256}  /tmp/struo.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/struo.tar.gz -C /usr/local/bin struo \
+    && chown root:root /usr/local/bin/struo && chmod 0755 /usr/local/bin/struo && rm /tmp/struo.tar.gz \
+    && test "$(struo --version)" = "struo ${STRUO_VERSION}"
 COPY agent-home/skills/ /home/user/.claude/skills/
 RUN chown -R user:user /home/user/.claude
 

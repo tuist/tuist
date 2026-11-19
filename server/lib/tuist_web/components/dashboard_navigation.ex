@@ -168,7 +168,7 @@ defmodule TuistWeb.DashboardNavigation do
         Project.gradle_project?(project) and not Enum.any?(resources, &(&1.key == :gradle_tasks))
       ),
       page(dgettext("dashboard", "Bazel Cache"), root <> "/bazel-cache", project.name, Project.bazel_project?(project)),
-      page(dgettext("dashboard", "Once Cache"), root <> "/once-cache", project.name, once?),
+      page(dgettext("dashboard", "Struo Cache"), root <> "/once-cache", project.name, once?),
       page(
         dgettext("dashboard", "Remote execution"),
         root <> "/remote-execution",

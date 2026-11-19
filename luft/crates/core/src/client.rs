@@ -77,6 +77,8 @@ pub struct MobileClient {
     store: Option<(String, Store)>,
     /// The newer preview `preview_update` last suggested installing, so edges prompt once per build.
     suggested_preview: Option<String>,
+    /// The last `halls` answer and the generation it belongs to, which `palette` searches.
+    palette_halls: Option<(u64, Value)>,
 }
 
 impl MobileClient {
@@ -230,20 +232,35 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
-            op @ ("threads" | "start_thread" | "thread" | "send_message") => {
-                self.threads_operation(op, args, host)
+            op @ ("threads" | "start_thread" | "thread" | "send_message" | "snooze_thread"
+            | "archive_thread") => {
+                let mut view = self.threads_operation(op, args, host)?;
+                crate::threads::present_stored(&mut view, now()?);
+                Ok(view)
             }
             // Answer from the store without the network, so screens render at once.
             op @ ("cached_threads" | "cached_thread") => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
                 let store = self.store(index, host)?;
-                if op == "cached_threads" {
-                    store.inbox(&account)
+                let mut view = if op == "cached_threads" {
+                    store.inbox(&account)?
                 } else {
-                    store.conversation(text(args, "id")?)
-                }
+                    store.conversation(text(args, "id")?)?
+                };
+                crate::threads::present_stored(&mut view, now()?);
+                Ok(view)
             }
+            "snooze_options" => Ok(crate::threads::snooze_options(
+                now()?,
+                args.get("offset_seconds")
+                    .and_then(Value::as_i64)
+                    .filter(|o| o.abs() <= 14 * 3600)
+                    .ok_or("Invalid offset")?,
+                args.get("working")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            )),
             "flush_outbox" => self.flush_outbox(host),
             // Pure; edges may also call `tuist_app_compose` to skip the client lock.
             "compose" => Ok(crate::compose::compose(args)),
@@ -253,7 +270,9 @@ impl MobileClient {
             "live_connect" => {
                 let index = self.active()?;
                 let id = text(args, "id")?;
-                if !is_uuid(id) {
+                // `inbox` follows the whole inbox: the server pushes when any
+                // of the person's threads in the account changes.
+                if id != crate::live::INBOX && !is_uuid(id) {
                     return Err("Invalid thread ID");
                 }
                 self.refresh(index, host)?;
@@ -305,7 +324,27 @@ impl MobileClient {
                 {
                     crate::presence::mark_online(data, &online);
                 }
+                if let ("halls", Ok(data)) = (op, &result) {
+                    self.palette_halls = Some((self.vault.generation, data.clone()));
+                }
                 result
+            }
+            // Local only, so edges can call it on every keystroke: the stored
+            // inbox and the halls `halls` last loaded for this generation.
+            "palette" => {
+                let index = self.active()?;
+                let account = self.account(index).to_string();
+                let threads = self.store(index, host)?.inbox(&account)?;
+                let halls = match &self.palette_halls {
+                    Some((generation, halls)) if *generation == self.vault.generation => halls,
+                    _ => &Value::Null,
+                };
+                Ok(crate::palette::palette(
+                    args.get("query").and_then(Value::as_str).unwrap_or(""),
+                    &args["labels"],
+                    &threads,
+                    halls,
+                ))
             }
             "presence" => {
                 let index = self.active()?;
@@ -476,6 +515,15 @@ impl MobileClient {
         } else {
             self.thread_call(index, &account, op, &args, host)
         };
+        // The text-only outbox cannot preserve file bytes. Retain the draft
+        // and its replay key in the caller rather than acknowledge a partial send.
+        if args["attachments"]
+            .as_array()
+            .is_some_and(|files| !files.is_empty())
+            && result == Err(OFFLINE)
+        {
+            return Err("Connect to the internet to send attachments");
+        }
         // The outbox replays a thread's text only, so a thread on a runner is
         // started online or not at all.
         if op == "start_thread"

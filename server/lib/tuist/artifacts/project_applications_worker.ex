@@ -52,9 +52,12 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
   defp application(project, publication, name, manifest) do
     interfaces = manifest["interfaces"]
 
+    install_interface =
+      interfaces["dev.struo.apple-install.v2"] || interfaces["dev.once.apple-install.v2"] ||
+        interfaces["dev.struo.android-install.v1"] || interfaces["dev.once.android-install.v1"]
+
     interface =
-      interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"] ||
-        interfaces["dev.tuist.executable.v1"]
+      install_interface || interfaces["dev.tuist.executable.v1"]
 
     if interface do
       with %{"spec" => %{"metadata_payload" => payload}} when is_binary(payload) <- interface,
@@ -71,11 +74,7 @@ defmodule Tuist.Artifacts.ProjectApplicationsWorker do
              id: id,
              payload: payload,
              binary_id: binary_id(attributes, payload),
-             icon:
-               icon_descriptor(
-                 manifest,
-                 interfaces["dev.once.apple-install.v2"] || interfaces["dev.once.android-install.v1"]
-               )
+             icon: icon_descriptor(manifest, install_interface)
            })}
         else
           {:ok, nil}

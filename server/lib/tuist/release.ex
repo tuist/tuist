@@ -31,6 +31,9 @@ defmodule Tuist.Release do
     bazel_test_invocations
     bazel_test_results
     bazel_test_summaries
+    snapshot_builds
+    snapshot_images
+    snapshot_commits
   )
   @processor_read_tables ~w(
     accounts
@@ -42,6 +45,7 @@ defmodule Tuist.Release do
     git_repositories
     git_refs
     git_commits
+    git_commit_parents
   )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
   @grafana_query_log_view "grafana_query_log"
@@ -345,6 +349,18 @@ defmodule Tuist.Release do
       {:error, :not_found} ->
         raise "No account #{account_id}"
     end
+  end
+
+  @doc """
+  Revokes every legacy user and project token (the ones without a `tuist_`
+  prefix) and nothing else. Check `legacy_token_usage/1` first:
+
+      bin/tuist rpc 'IO.inspect(Tuist.Release.revoke_legacy_tokens())'
+  """
+  def revoke_legacy_tokens do
+    counts = CredentialRevocation.revoke_legacy_tokens()
+    Logger.warning("Revoked every legacy token: #{inspect(counts)}")
+    counts
   end
 
   @doc """

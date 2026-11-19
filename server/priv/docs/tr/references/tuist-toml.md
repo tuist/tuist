@@ -2,15 +2,15 @@
 {
   "title": "tuist.toml",
   "titleTemplate": ":title · Referanslar · Tuist",
-  "description": "tuist.toml yapılandırma dosyası biçimi için referans."
+  "description": "tuist.toml yapılandırma dosyası biçimi referansı."
 }
 ---
 
 # tuist.toml {#tuist-toml}
 
-`tuist.toml`, derleme sistemi bağımsız bir yapılandırma dosyasıdır ve `Tuist.swift`’nin evrimidir. `Tuist.swift`’den farklı olarak Swift gerektirmez, bu da onu herhangi bir platformda ve derleme sisteminde kullanılabilir hale getirir. Linux tabanlı CI çalıştırıcıları gibi Swift’in mevcut olmadığı ortamlar veya tam bir `Tuist.swift` bildirimine gerek duymadan yalnızca sunucuyla ilgili ayarları yapılandırmanız gerektiğinde idealdir.
+`tuist.toml`, derleme sisteminden bağımsız bir yapılandırma dosyasıdır ve `Tuist.swift` dosyasının evrimleşmiş halidir. `Tuist.swift` dosyasının aksine Swift gerektirmez, bu da onu herhangi bir platformda ve derleme sisteminde kullanılabilir kılar. Swift’in bulunmadığı ortamlar (örneğin Linux tabanlı CI çalıştırıcıları) veya tam bir `Tuist.swift` bildirimine ihtiyaç duymadan yalnızca sunucuyla ilgili ayarları yapılandırmak istediğiniz durumlar için idealdir.
 
-Tuist, `tuist.toml` dosyasını geçerli çalışma dizininden yukarı doğru dizin hiyerarşisini tarayarak arar ve ilk eşleşmede durur. Bu, dosyayı projenizin kök dizinine yerleştirebileceğiniz ve Tuist komutlarını herhangi bir alt dizinden çalıştırabileceğiniz anlamına gelir.
+Tuist, `tuist.toml` dosyasını mevcut çalışma dizininden başlayarak dizin hiyerarşisini yukarı doğru tarayarak arar ve ilk eşleşmede durur. Bu, dosyayı projenizin kök dizinine yerleştirip Tuist komutlarını herhangi bir alt dizinden çalıştırabileceğiniz anlamına gelir.
 
 ## Desteklenen anahtarlar {#supported-keys}
 

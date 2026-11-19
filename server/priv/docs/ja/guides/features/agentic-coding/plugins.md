@@ -2,17 +2,17 @@
 {
   "title": "プラグイン",
   "titleTemplate": ":title · エージェントコーディング · 機能 · ガイド · Tuist",
-  "description": "Cursor用Tuistプラグイン、またはベンダー非依存のエージェントプラグインパッケージをインストールします。"
+  "description": "Cursor 用 Tuist プラグイン、またはベンダー非依存の Agent Plugins パッケージをインストールします。"
 }
 ---
 
 # プラグイン
 
-Tuist はエージェントスキルとホスト型 MCP サーバーをプラグインとしてパッケージ化しているため、両方を一緒にインストールできます。お使いのコーディングエージェントに合ったパッケージを選択してください。
+Tuist はエージェントスキルとホスト型 MCP サーバーをプラグインとしてパッケージ化しているため、両方をまとめてインストールできます。お使いのコーディングエージェントに合ったパッケージを選択してください。
 
 ## Claude Code
 
-[Tuist Claude Code マーケットプレイス](https://github.com/tuist/claude-plugin)では、以下のコマンドで Tuist プラグインをインストールできるようにパッケージ化されています：
+[Tuist Claude Code マーケットプレイス](https://github.com/tuist/claude-plugin)では、次のコマンドで Tuist プラグインをインストールできるようにパッケージ化されています:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
@@ -23,7 +23,7 @@ claude plugin install tuist@tuist-plugins
 
 ## Cursor
 
-[Cursor Marketplace](https://cursor.com/marketplace)から[Cursor 用 Tuist プラグイン](https://github.com/tuist/cursor-plugin)をインストールします：
+[Cursor Marketplace](https://cursor.com/marketplace)から[Cursor 用 Tuist プラグイン](https://github.com/tuist/cursor-plugin)をインストールします:
 
 1. Cursor のサイドバーで**Customize**を開きます。
 2. **Tuist**を検索します。
@@ -31,21 +31,21 @@ claude plugin install tuist@tuist-plugins
 
 Cursor で`/add-plugin`を入力しても、同じインストールフローを開くことができます。このプラグインは Tuist スキルを提供し、Cursor をホスト型 MCP サーバーに接続します。
 
-組織で Cursor マーケットプレイスを管理している場合は、まず**Settings → Plugins → Team Marketplaces → Import Marketplace**から`https://github.com/tuist/cursor-plugin`をインポートしてください。
+組織が Cursor マーケットプレイスを管理している場合は、まず**Settings → Plugins → Team Marketplaces → Import Marketplace**から`https://github.com/tuist/cursor-plugin`をインポートしてください。
 
 ## その他のコーディングエージェント
 
-[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)は、オープンでベンダー中立な[Agent Plugins](https://agent-plugins.org/)標準に従っています。互換性のあるクライアントでリポジトリを指定し、そのクライアントのプラグインディレクトリのインストールまたは参照に関する手順に従ってください：
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin)は、オープンでベンダー中立な[Agent Plugins](https://agent-plugins.org/)標準に従っています。互換性のあるクライアントで、そのクライアントのプラグインディレクトリのインストールまたは参照手順に従ってリポジトリを指定してください:
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
 ```
 
-Tuist スキルをインストールし、`https://tuist.dev/mcp`をリモート MCP サーバーとして登録します。Agent Plugins をまだサポートしていないクライアントの場合は、<.localized_link href="/guides/features/agentic-coding/skills">スキル</.localized_link>をインストールするか、<.localized_link href="/guides/features/agentic-coding/mcp">MCP サーバー</.localized_link>を個別に設定してください。
+これにより Tuist スキルがインストールされ、`https://tuist.dev/mcp`がリモート MCP サーバーとして登録されます。Agent Plugins をまだサポートしていないクライアントの場合は、<.localized_link href="/guides/features/agentic-coding/skills">スキル</.localized_link>をインストールするか、<.localized_link href="/guides/features/agentic-coding/mcp">MCP サーバー</.localized_link>を個別に設定してください。
 
 ## 認証
 
-ほとんどのスキルは Tuist コマンドラインインターフェースを使用するため、エージェントにプロジェクトデータへのアクセスを依頼する前に、一度認証を行ってください：
+ほとんどのスキルは Tuist コマンドラインインターフェースを使用するため、エージェントにプロジェクトデータへのアクセスを依頼する前に一度認証を行ってください:
 
 ```bash
 tuist auth login

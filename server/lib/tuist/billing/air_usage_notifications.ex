@@ -17,7 +17,6 @@ defmodule Tuist.Billing.AirUsageNotifications do
   alias Tuist.Runners.Trials
 
   @metrics [:cache_egress_megabytes, :cache_requests, :runner_minutes]
-  @cache_meters [:cache_egress_megabytes, :cache_requests]
 
   def enqueue(account_id, updated_at) do
     account = Repo.get!(Account, account_id)
@@ -33,10 +32,11 @@ defmodule Tuist.Billing.AirUsageNotifications do
 
   # Delivery checks this again, so a warning that stopped applying after it
   # was queued is dropped. Remote cache hits do not limit Air, so a stored
-  # notification about them is never delivered.
-  def eligible?(account, :runner_minutes), do: not Trials.on_trial?(account)
-  def eligible?(_account, metric) when metric in @cache_meters, do: true
+  # notification about them is never delivered. A runner trial lifts every Air
+  # cap, the cache ones included (see `Billing.over_free_tier?/1`), so a trial
+  # account is warned about none of them.
   def eligible?(_account, :remote_cache_hits), do: false
+  def eligible?(account, metric) when metric in @metrics, do: not Trials.on_trial?(account)
 
   def usage(account, :runner_minutes) do
     now = DateTime.utc_now()

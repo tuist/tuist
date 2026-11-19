@@ -1,6 +1,6 @@
 ## 自定义元数据 {#custom-metadata}
 
-你可以通过环境变量为构建附加元数据，以改进过滤。
+你可以通过环境变量为构建附加元数据，以改进过滤功能。
 
 ### 环境变量
 
@@ -11,7 +11,7 @@
 
 ### 示例
 
-在调用构建之前，在 CI 或你的 shell 中设置这些值：
+在调用构建之前，在 CI 或你的 Shell 中设置这些值：
 
 ```sh
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"

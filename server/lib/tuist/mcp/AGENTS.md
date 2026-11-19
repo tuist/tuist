@@ -102,6 +102,13 @@
   existing scalar trace column. Never accept SQL from callers; keep the
   15m–24h windows, row limits and transport bounds.
 
+- Organization AI tools share `Accounts.OrganizationAI` and its `Schemas`
+  (serialization and the configuration schema) with Settings → AI and
+  `API.OrganizationAIController`, so all three return the same shape and apply
+  the same administrator, `luft` flag and ownership checks. They run as the
+  user behind the credential, stay out of WebMCP, and never take provider API
+  keys: adding or editing a provider stays in the dashboard and the REST API.
+
 - Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when

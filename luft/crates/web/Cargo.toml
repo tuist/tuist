@@ -1,0 +1,21 @@
+[package]
+name = "luft-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# The web edge's view of the core: a wasm module the TypeScript edge in
+# ../../web loads. wasm-bindgen must match the wasm-bindgen CLI exactly.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tuist-app-core.workspace = true
+wasm-bindgen = "=0.2.130"
+
+# The browser's crypto.getRandomValues backs OAuth's PKCE and state values.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }
+# SQLite's clock, sleep and entropy come from the browser.
+sqlite-wasm-rs = { version = "0.6", features = ["wasm-bindgen"] }

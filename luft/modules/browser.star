@@ -1,6 +1,6 @@
-# Locked AARs are materialized before analysis; Once consumes ordinary Android providers.
+# Locked AARs are materialized before analysis; Struo consumes ordinary Android providers.
 def _browser_impl(ctx):
-    vendor = [path for path in walk_files(".once/vendor-browser") if path.endswith("/classes.jar") or path.endswith("/AndroidManifest.xml") or "/res/" in path]
+    vendor = [path for path in walk_files(".struo/vendor-browser") if path.endswith("/classes.jar") or path.endswith("/AndroidManifest.xml") or "/res/" in path]
     jars = sorted([path for path in vendor if path.endswith("/classes.jar")])
     manifests = sorted([path for path in vendor if path.endswith("/AndroidManifest.xml")])
     if not jars or not manifests:

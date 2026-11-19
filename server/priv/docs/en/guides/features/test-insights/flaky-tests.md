@@ -41,8 +41,8 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
-    title="Once"
+    title="Struo"
     details="Investigate inconsistent test results through reported retry attempts and CI history."
-    link="/guides/features/test-insights/flaky-tests/once"
+    link="/guides/features/test-insights/flaky-tests/struo"
 />
 </.home_cards>

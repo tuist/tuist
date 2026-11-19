@@ -7,6 +7,7 @@ import TuistAppStorage
 import TuistAutomation
 import TuistCore
 import TuistLogging
+import TuistProcess
 import TuistServer
 import TuistSimulator
 import TuistSupport
@@ -31,6 +32,7 @@ enum DeviceServiceError: FatalError, Equatable {
     case appBundleNotFoundInArchive
     case apkNotFoundInArchive
     case missingPackageName(String)
+    case noCompatibleMacBuild
 
     var description: String {
         switch self {
@@ -42,12 +44,14 @@ enum DeviceServiceError: FatalError, Equatable {
             return String(localized: "Could not find APK file in the downloaded archive")
         case let .missingPackageName(id):
             return String(localized: "The preview \(id) does not have a package name set.")
+        case .noCompatibleMacBuild:
+            return String(localized: "None of this preview's macOS builds can run on this Mac's processor.")
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .appDownloadFailed:
+        case .appDownloadFailed, .noCompatibleMacBuild:
             return .abort
         case .appBundleNotFoundInArchive, .apkNotFoundInArchive, .missingPackageName:
             return .bug
@@ -95,6 +99,8 @@ final class DeviceService: DeviceServicing {
     private let fileSystem: FileSysteming
     private let appBundleLoader: AppBundleLoading
     private let menuBarFocusService: MenuBarFocusServicing
+    private let commandRunner: CommandRunning
+    private let macPreviewsDirectory: AbsolutePath
 
     init(
         taskStatusReporter: any TaskStatusReporting,
@@ -107,7 +113,9 @@ final class DeviceService: DeviceServicing {
         remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
         fileSystem: FileSysteming = FileSystem(),
         appBundleLoader: AppBundleLoading = AppBundleLoader(),
-        menuBarFocusService: MenuBarFocusServicing = MenuBarFocusService()
+        menuBarFocusService: MenuBarFocusServicing = MenuBarFocusService(),
+        commandRunner: CommandRunning = CommandRunner(),
+        macPreviewsDirectory: AbsolutePath? = nil
     ) {
         self.taskStatusReporter = taskStatusReporter
         self.appStorage = appStorage
@@ -120,6 +128,12 @@ final class DeviceService: DeviceServicing {
         self.fileSystem = fileSystem
         self.appBundleLoader = appBundleLoader
         self.menuBarFocusService = menuBarFocusService
+        self.commandRunner = commandRunner
+        // swiftlint:disable:next force_try
+        self.macPreviewsDirectory = macPreviewsDirectory ?? (try! AbsolutePath(
+            validating: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Tuist/Previews").path
+        ))
     }
 
     @MainActor func selectDevice(_ newDevice: Device?) {
@@ -131,6 +145,8 @@ final class DeviceService: DeviceServicing {
             try? appStorage.set(SelectedDeviceKey.self, value: .device(id: physicalDevice.id))
         case let .androidDevice(androidDevice):
             try? appStorage.set(SelectedDeviceKey.self, value: .androidDevice(id: androidDevice.id))
+        case .thisMac:
+            try? appStorage.set(SelectedDeviceKey.self, value: .thisMac)
         case .none:
             try? appStorage.set(SelectedDeviceKey.self, value: nil)
         }
@@ -171,10 +187,13 @@ final class DeviceService: DeviceServicing {
             let serverURL = URL(string: serverURLString)
         else { throw SimulatorsViewModelError.invalidDeeplink(previewDeeplinkURL.absoluteString) }
 
+        // `platform=macos` runs on This Mac whatever the picker selection; otherwise the selected device is used.
+        let platform = urlComponents?.queryItems?.first(where: { $0.name == "platform" })?.value
         try await launchPreview(
             with: previewId,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            device: platform == "macos" ? .thisMac : nil
         )
     }
 
@@ -183,7 +202,16 @@ final class DeviceService: DeviceServicing {
         fullHandle: String,
         serverURL: URL
     ) async throws {
-        guard let selectedDevice else { throw SimulatorsViewModelError.noSelectedSimulator }
+        try await launchPreview(with: previewId, fullHandle: fullHandle, serverURL: serverURL, device: nil)
+    }
+
+    private func launchPreview(
+        with previewId: String,
+        fullHandle: String,
+        serverURL: URL,
+        device: Device?
+    ) async throws {
+        guard let selectedDevice = device ?? selectedDevice else { throw SimulatorsViewModelError.noSelectedSimulator }
 
         let status = TaskStatus(
             displayName: String(localized: "Installing preview"),
@@ -232,6 +260,9 @@ final class DeviceService: DeviceServicing {
         for preview: ServerPreview,
         selectedDevice: Device
     ) async throws -> DownloadedApp {
+        if selectedDevice == .thisMac {
+            return .appBundle(try await installMacApp(for: preview))
+        }
         let destination: DestinationType
         switch selectedDevice {
         case let .device(physicalDevice):
@@ -240,8 +271,10 @@ final class DeviceService: DeviceServicing {
             destination = .simulator(try simulator.runtime.platform())
         case .androidDevice:
             destination = .android
+        case .thisMac:
+            destination = .device(.macOS)
         }
-        guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url
+        guard let build = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })
         else {
             throw SimulatorsViewModelError.appNotFound(
                 selectedDevice,
@@ -249,7 +282,7 @@ final class DeviceService: DeviceServicing {
             )
         }
 
-        guard let archivePath = try await remoteArtifactDownloader.download(url: url)
+        guard let archivePath = try await remoteArtifactDownloader.download(url: build.url)
         else { throw DeviceServiceError.appDownloadFailed(preview.id) }
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try await fileUnarchiver.unzip()
@@ -264,6 +297,9 @@ final class DeviceService: DeviceServicing {
             else { throw DeviceServiceError.appBundleNotFoundInArchive }
 
             return .appBundle(try await appBundleLoader.load(appPath))
+
+        case .thisMac:
+            throw DeviceServiceError.appBundleNotFoundInArchive
 
         case .androidDevice:
             guard let packageName = preview.bundleIdentifier else {
@@ -282,6 +318,70 @@ final class DeviceService: DeviceServicing {
                 displayName: preview.displayName ?? packageName
             )
         }
+    }
+
+    /// Installs the first macOS app bundle build this Mac's processor can run, reusing a build installed earlier.
+    private func installMacApp(for preview: ServerPreview) async throws -> AppBundle {
+        let builds = preview.appBuilds.filter {
+            $0.type == .appBundle && $0.supportedPlatforms.contains(.device(.macOS))
+        }
+        guard !builds.isEmpty else {
+            throw SimulatorsViewModelError.appNotFound(.thisMac, preview.appBuilds.flatMap(\.supportedPlatforms))
+        }
+        for build in builds {
+            let appBundle = try await installedMacApp(for: build, preview: preview)
+            guard let executableName = appBundle.infoPlist.executableName else {
+                throw DeviceServiceError.appBundleNotFoundInArchive
+            }
+            let executable = appBundle.path.appending(components: "Contents", "MacOS", executableName)
+            if (try? ExecutablePreviewTarget.read(at: executable.url).isCompatible) == true {
+                return appBundle
+            }
+        }
+        throw DeviceServiceError.noCompatibleMacBuild
+    }
+
+    private func installedMacApp(for build: AppBuild, preview: ServerPreview) async throws -> AppBundle {
+        // Build IDs come from the server, so they're hashed rather than used as a path component.
+        let buildDirectory = macPreviewsDirectory.appending(component: build.id.md5)
+        // A build never changes, so an installed copy is reused instead of replacing one that may be running.
+        if let installedAppPath = try await appPath(in: buildDirectory) {
+            return try await appBundleLoader.load(installedAppPath)
+        }
+
+        guard let archivePath = try await remoteArtifactDownloader.download(url: build.url)
+        else { throw DeviceServiceError.appDownloadFailed(preview.id) }
+        let unarchivedDirectory = try await fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
+        guard let appPath = try await appPath(in: unarchivedDirectory)
+        else { throw DeviceServiceError.appBundleNotFoundInArchive }
+
+        // Publish the build with a same-filesystem rename so a failed or concurrent install never leaves half an app.
+        let staging = macPreviewsDirectory.appending(component: UUID().uuidString)
+        try await fileSystem.makeDirectory(at: staging)
+        do {
+            try await fileSystem.move(from: appPath, to: staging.appending(component: appPath.basename))
+            if try await fileSystem.exists(buildDirectory) {
+                try await fileSystem.remove(buildDirectory)
+            }
+            if rename(staging.pathString, buildDirectory.pathString) != 0 {
+                let code = errno
+                guard code == EEXIST || code == ENOTEMPTY else {
+                    throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+                }
+                try await fileSystem.remove(staging)
+            }
+        } catch {
+            try? await fileSystem.remove(staging)
+            throw error
+        }
+        guard let installedAppPath = try await self.appPath(in: buildDirectory)
+        else { throw DeviceServiceError.appBundleNotFoundInArchive }
+        return try await appBundleLoader.load(installedAppPath)
+    }
+
+    private func appPath(in directory: AbsolutePath) async throws -> AbsolutePath? {
+        guard try await fileSystem.exists(directory) else { return nil }
+        return try await fileSystem.glob(directory: directory, include: ["*.app"]).collect().first
     }
 
     private func launchApp(
@@ -303,6 +403,10 @@ final class DeviceService: DeviceServicing {
         case let (.apk(apkPath, packageName, _), .androidDevice(androidDevice)):
             try await adbController.installApp(at: apkPath, device: androidDevice)
             try await adbController.launchApp(packageName: packageName, device: androidDevice)
+        case let (.appBundle(appBundle), .thisMac):
+            _ = try await commandRunner.run(
+                arguments: ["/usr/bin/open", "-n", appBundle.path.pathString]
+            ).concatenatedString()
         default:
             break
         }
@@ -320,6 +424,8 @@ final class DeviceService: DeviceServicing {
             return devices.first(where: { $0.id == id }).map { .device($0) }
         case let .androidDevice(id):
             return androidDevices.first(where: { $0.id == id }).map { .androidDevice($0) }
+        case .thisMac:
+            return .thisMac
         }
     }
 }

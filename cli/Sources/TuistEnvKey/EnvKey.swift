@@ -205,6 +205,8 @@ public enum EnvKey: String, CaseIterable {
     case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
     case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
     case testStressNewTests = "TUIST_TEST_STRESS_NEW_TESTS"
+    case testSnapshots = "TUIST_TEST_SNAPSHOTS"
+    case testSnapshotSet = "TUIST_TEST_SNAPSHOT_SET"
 
     // TEST SHOW
 
@@ -427,6 +429,24 @@ public enum EnvKey: String, CaseIterable {
     case coverageCompleteFullHandle = "TUIST_COVERAGE_COMPLETE_FULL_HANDLE"
     case coverageCompleteCommit = "TUIST_COVERAGE_COMPLETE_COMMIT"
     case coverageCompleteJSON = "TUIST_COVERAGE_COMPLETE_JSON"
+
+    // SNAPSHOTS UPLOAD
+
+    case snapshotsUploadPath = "TUIST_SNAPSHOTS_UPLOAD_PATH"
+    case snapshotsUploadSet = "TUIST_SNAPSHOTS_UPLOAD_SET"
+    case snapshotsUploadFullHandle = "TUIST_SNAPSHOTS_UPLOAD_FULL_HANDLE"
+    case snapshotsUploadDiffThreshold = "TUIST_SNAPSHOTS_UPLOAD_DIFF_THRESHOLD"
+    case snapshotsUploadSelective = "TUIST_SNAPSHOTS_UPLOAD_SELECTIVE"
+    case snapshotsUploadAllImageNamesFile = "TUIST_SNAPSHOTS_UPLOAD_ALL_IMAGE_NAMES_FILE"
+    case snapshotsUploadFailOnChanges = "TUIST_SNAPSHOTS_UPLOAD_FAIL_ON_CHANGES"
+    case snapshotsUploadJSON = "TUIST_SNAPSHOTS_UPLOAD_JSON"
+
+    // SNAPSHOTS DOWNLOAD
+
+    case snapshotsDownloadPath = "TUIST_SNAPSHOTS_DOWNLOAD_PATH"
+    case snapshotsDownloadSet = "TUIST_SNAPSHOTS_DOWNLOAD_SET"
+    case snapshotsDownloadFullHandle = "TUIST_SNAPSHOTS_DOWNLOAD_FULL_HANDLE"
+    case snapshotsDownloadJSON = "TUIST_SNAPSHOTS_DOWNLOAD_JSON"
 
     // ORGANIZATION UPDATE MEMBER
 

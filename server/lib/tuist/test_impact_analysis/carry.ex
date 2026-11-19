@@ -38,7 +38,6 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests
-  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Xcode
 
@@ -111,25 +110,135 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   end
 
   @doc """
-  The lines the units carry in each file that counts, merged per file as
-  ranges (`Tuist.Tests.Coverage.Evidence.line_ranges/1`), and per file the
-  source its lines came from, the nearest when several did.
+  Where the units' lines are read from: one group per snapshot, nearest
+  source first, with the units' tests as ranges of their numbers
+  (`Snapshots.idx_chunks/1`), the modules whose processes' lines carry and
+  the source the group's lines come from. Small whatever the number of
+  tests, so a commit's reported coverage keeps it and reads one file's
+  carried lines from it later (`lines_sql/3`).
   """
-  def lines(context, units) do
+  def plan(units) do
     units
     |> Enum.group_by(& &1.snapshot_id)
     |> Enum.sort_by(fn {_snapshot_id, [unit | _]} -> source_rank(unit.source) end)
-    |> Enum.reduce({%{}, %{}}, fn {snapshot_id, snapshot_units}, {lines, sources} ->
-      source = hd(snapshot_units).source
-
-      context.project.id
-      |> snapshot_lines({snapshot_id, checkpoint_id(snapshot_units)}, snapshot_units)
-      |> Enum.reject(fn {path, _lines} -> ExcludedPaths.excluded?(context.excluded, path) end)
-      |> Enum.reduce({lines, sources}, fn {path, ranges}, {lines, sources} ->
-        {Map.update(lines, path, ranges, &Evidence.line_ranges(Evidence.range_lines(&1) ++ Evidence.range_lines(ranges))),
-         Map.put_new(sources, path, source)}
-      end)
+    |> Enum.map(fn {snapshot_id, [unit | _] = snapshot_units} ->
+      %{
+        snapshot_id: snapshot_id,
+        checkpoint_id: checkpoint_id(snapshot_units),
+        idx: snapshot_units |> Enum.flat_map(& &1.lines.idx) |> Snapshots.idx_chunks(),
+        targets: snapshot_units |> Enum.flat_map(& &1.lines.targets) |> Enum.uniq(),
+        source: unit.source
+      }
     end)
+  end
+
+  @doc """
+  SQL selecting the lines a plan (`plan/1`) carries, and its parameters: a
+  row per file and group, `path`, `lines` (sorted), `rank` (the group's
+  position in the plan, nearest first) and `source_run` (the run the
+  group's lines come from), for the files that count: not test code in the
+  snapshot, and not matching `excluded:` (a `Tuist.Tests.Coverage.ExcludedPaths`
+  pattern). `paths:` narrows it to those files. The lines are merged and
+  expanded in ClickHouse, so a caller joins them with the runs' rows there
+  instead of reading every file's lines.
+  """
+  def lines_sql(project_id, plan, opts \\ []) do
+    paths = Keyword.get(opts, :paths)
+
+    {branches, params} =
+      plan
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {group, rank} ->
+        chunks = if group.idx == [], do: [[]], else: group.idx
+        chunks |> Enum.with_index() |> Enum.map(fn {chunk, i} -> {group, rank, chunk, i} end)
+      end)
+      |> Enum.map_reduce(%{project_id: project_id}, fn {group, rank, chunk, i}, params ->
+        key = "#{rank}_#{i}"
+
+        params =
+          Map.merge(params, %{
+            "snapshot_id_#{key}" => group.snapshot_id,
+            "checkpoint_id_#{key}" => group.checkpoint_id,
+            "idx_#{key}" => chunk,
+            # Modules are read once, with the group's first chunk of tests.
+            "targets_#{key}" => if(i == 0, do: group.targets, else: []),
+            "source_run_#{key}" => group.source.run_id || ""
+          })
+
+        {lines_branch_sql(key, rank, not is_nil(paths)), params}
+      end)
+
+    params = if paths, do: Map.put(params, :paths, paths), else: params
+
+    {filter, params} =
+      case Keyword.get(opts, :excluded) do
+        nil -> {"", params}
+        excluded -> {"WHERE NOT match(path, {excluded:String})", Map.put(params, :excluded, excluded)}
+      end
+
+    union = Enum.map_join(branches, "\nUNION ALL\n", &"SELECT path, lines, rank, source_run FROM (#{&1})")
+    {"SELECT path, lines, rank, source_run FROM (#{union}) #{filter}", params}
+  end
+
+  # One group's chunk of tests: the snapshot's lines of those tests, their
+  # suites' setups and the group's modules, merged per file. The tests go as
+  # ranges of their numbers, contiguous per suite and module, and ClickHouse
+  # expands them back and finds their suites' and the modules' numbers
+  # (`Snapshots.scope_keys_sql/0`).
+  defp lines_branch_sql(key, rank, paths?) do
+    scope_keys =
+      Snapshots.scope_keys_sql()
+      |> String.replace("{snapshot_id:UUID}", "{snapshot_id_#{key}:UUID}")
+      |> String.replace("{checkpoint_id:UUID}", "{checkpoint_id_#{key}:UUID}")
+
+    paths_filter = if paths?, do: "AND (epoch, path_id) IN (SELECT epoch, path_id FROM line_paths)", else: ""
+    test_paths_filter = if paths?, do: "AND path IN {paths:Array(String)}", else: ""
+
+    """
+    WITH carried AS (#{Snapshots.idx_sql("idx_#{key}")}),
+    #{scope_keys},
+    refs AS (
+      SELECT epoch, line_set FROM test_impact_snapshot_lines
+      WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id_#{key}:UUID}
+        AND ((scope = 'test' AND test_idx IN carried)
+        OR (scope = 'suite' AND test_idx IN (
+          SELECT test_idx FROM suite_keys WHERE (module_name, suite_name) IN (
+            SELECT module_name, suite_name FROM numbering WHERE test_idx IN carried
+          )
+        ))
+        OR (scope = 'target' AND test_idx IN (
+          SELECT test_idx FROM module_keys WHERE module_name IN {targets_#{key}:Array(String)}
+        )))
+    ),
+    -- A snapshot's sets are its run's week's (one week per snapshot), read
+    -- once instead of from refs, which reads the snapshot's tests again.
+    epochs AS (
+      SELECT epoch FROM test_impact_snapshot_lines
+      WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id_#{key}:UUID}
+      LIMIT 1
+    ),
+    #{Snapshots.set_patterns_sql(paths?)}
+    SELECT p.path AS path, l.lines AS lines, toUInt32(#{rank}) AS rank, {source_run_#{key}:String} AS source_run FROM (
+      -- The sets share most patterns, so each is read once, and a file's
+      -- are merged by expanding their ranges.
+      SELECT epoch, path_id, CAST(arraySort(arrayDistinct(arrayFlatten(arrayMap((first, last) -> range(first, last + 1),
+        arrayFilter((x, i) -> i % 2 = 1, ranges, arrayEnumerate(ranges)),
+        arrayFilter((x, i) -> i % 2 = 0, ranges, arrayEnumerate(ranges)))))) AS Array(UInt32)) AS lines
+      FROM (
+        SELECT epoch, path_id, groupArrayArray(line_ranges) AS ranges FROM test_impact_line_patterns
+        WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM epochs)
+          AND (epoch, pattern) IN (SELECT epoch, pattern FROM set_patterns)
+          #{paths_filter}
+        GROUP BY epoch, path_id
+      )
+    ) AS l
+    INNER JOIN line_paths AS p ON p.epoch = l.epoch AND p.path_id = l.path_id
+    WHERE p.path NOT IN (
+        SELECT path FROM test_impact_snapshot_files
+        WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id_#{key}:UUID} AND is_test
+          #{test_paths_filter}
+      )
+    """
   end
 
   # Modules
@@ -549,77 +658,6 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     Enum.map(lines.idx, &{:test, &1}) ++
       Enum.map(lines.suites, fn {module, suite} -> {:suite, module, suite} end) ++
       Enum.map(lines.targets, &{:target, &1})
-  end
-
-  # Lines
-
-  # The snapshot's lines of the units' tests, their suites' setups and the
-  # modules in its files that aren't test code, merged per file in
-  # ClickHouse and read as ranges. The tests go as ranges of their numbers,
-  # contiguous per suite and module, and ClickHouse expands them back and
-  # finds their suites' and the modules' numbers (`Snapshots.scope_keys_sql/0`).
-  defp snapshot_lines(project_id, {snapshot_id, checkpoint_id}, units) do
-    targets = units |> Enum.flat_map(& &1.lines.targets) |> Enum.uniq()
-
-    units
-    |> Enum.flat_map(& &1.lines.idx)
-    |> Snapshots.idx_chunks()
-    |> then(fn
-      [] -> [[]]
-      chunks -> chunks
-    end)
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {chunk, i} ->
-      # Modules are read once, with the first chunk of tests.
-      targets = if i == 0, do: targets, else: []
-
-      Snapshots.query!(
-        """
-        WITH carried AS (#{Snapshots.idx_sql()}),
-        #{Snapshots.scope_keys_sql()},
-        refs AS (
-          SELECT epoch, line_set FROM test_impact_snapshot_lines
-          WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
-            AND ((scope = 'test' AND test_idx IN carried)
-            OR (scope = 'suite' AND test_idx IN (
-              SELECT test_idx FROM suite_keys WHERE (module_name, suite_name) IN (
-                SELECT module_name, suite_name FROM numbering WHERE test_idx IN carried
-              )
-            ))
-            OR (scope = 'target' AND test_idx IN (
-              SELECT test_idx FROM module_keys WHERE module_name IN {targets:Array(String)}
-            )))
-        ),
-        #{Snapshots.set_patterns_sql()}
-        SELECT p.path, #{Snapshots.ranges_sql("l.lines")} FROM (
-          -- The sets share most patterns, so each is read once, and a file's
-          -- are merged by expanding their ranges.
-          SELECT epoch, path_id, arraySort(arrayDistinct(arrayFlatten(arrayMap((first, last) -> range(first, last + 1),
-            arrayFilter((x, i) -> i % 2 = 1, ranges, arrayEnumerate(ranges)),
-            arrayFilter((x, i) -> i % 2 = 0, ranges, arrayEnumerate(ranges)))))) AS lines
-          FROM (
-            SELECT epoch, path_id, groupArrayArray(line_ranges) AS ranges FROM test_impact_line_patterns
-            WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs)
-              AND (epoch, pattern) IN (SELECT epoch, pattern FROM set_patterns)
-            GROUP BY epoch, path_id
-          )
-        ) AS l
-        INNER JOIN line_paths AS p ON p.epoch = l.epoch AND p.path_id = l.path_id
-        WHERE p.path NOT IN (
-            SELECT path FROM test_impact_snapshot_files
-            WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID} AND is_test
-          )
-        """,
-        %{
-          project_id: project_id,
-          snapshot_id: snapshot_id,
-          checkpoint_id: checkpoint_id,
-          idx: chunk,
-          targets: targets
-        }
-      )
-    end)
-    |> Enum.map(fn [path, ranges] -> {path, Enum.chunk_every(ranges, 2)} end)
   end
 
   # The checkpoint whose numbering an overlay's units share, the zero UUID

@@ -864,22 +864,28 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
 
   @doc """
   SQL defining `set_patterns` (`epoch`, `line_set`, `pattern`): the patterns
-  of the line sets a `refs` relation (`epoch`, `line_set`) names, whose file
+  of the line sets a `refs` relation (`epoch`, `line_set`) names, in the week
+  an `epochs` relation (`epoch`) holds, whose file
   (`path_id`) and lines (`line_ranges`, empty when only the file is known)
   `test_impact_line_patterns` holds. And `line_paths` (`epoch`, `path_id`,
   `path`): the paths of those weeks' numbers, to join once the patterns are
-  narrowed or merged, since the sets share most of them.
+  narrowed or merged, since the sets share most of them. With `paths?`, only
+  the paths a `{paths:Array(String)}` parameter names, read by the table's
+  sort key.
   """
-  def set_patterns_sql do
+  def set_patterns_sql(paths? \\ false) do
+    paths_filter = if paths?, do: "AND test_impact_line_paths.path IN {paths:Array(String)}", else: ""
+
     """
     set_patterns AS (
       SELECT epoch, line_set, pattern FROM test_impact_line_sets
       ARRAY JOIN patterns AS pattern
-      WHERE project_id = {project_id:Int64} AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs)
+      WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM epochs)
+        AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs)
     ),
     line_paths AS (
       SELECT epoch, path_id, any(path) AS path FROM test_impact_line_paths
-      WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs)
+      WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM epochs) #{paths_filter}
       GROUP BY epoch, path_id
     )
     """

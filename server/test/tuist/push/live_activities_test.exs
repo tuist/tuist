@@ -71,6 +71,101 @@ defmodule Tuist.Push.LiveActivitiesTest do
       refute JSON.encode!(document) =~ "command"
     end
 
+    test "shows a Once build in a running Bash call as its share of planned targets", %{user: user} do
+      building = thread!(user, "Build the app", "running")
+      run = run!(building, "running")
+      call!(run, 1, "Read", "completed")
+
+      call!(run, 2, "Bash", "executing", %{
+        "command" => "build",
+        "state" => "running",
+        "target" => "//app:secret-target",
+        "planned" => 40,
+        "done" => 12,
+        "cached" => 9,
+        "failed" => 0,
+        "tests" => %{"passed" => 0, "failed" => 0, "skipped" => 0}
+      })
+
+      testing = thread!(user, "Run the tests", "running", ago: 10)
+      run = run!(testing, "running")
+
+      call!(run, 1, "Bash", "executing", %{
+        "command" => "test",
+        "state" => "running",
+        "planned" => 0,
+        "done" => 3,
+        "cached" => 0,
+        "failed" => 0,
+        "tests" => %{"passed" => 120, "failed" => 2, "skipped" => 1}
+      })
+
+      {document, _working} = LiveActivities.content(user)
+
+      assert [
+               %{
+                 "headline" => "Run the tests",
+                 "phase" => "testing",
+                 "detail" => "Testing · 120 passed, 2 failed",
+                 "progress" => %{"kind" => "timer"}
+               },
+               %{
+                 "headline" => "Build the app",
+                 "phase" => "building",
+                 "symbol" => "hammer",
+                 "detail" => "Building · 12 of 40 targets",
+                 "progress" => %{"kind" => "timer", "done" => 12, "total" => 40},
+                 "trail" => ["blue", "orange"]
+               }
+             ] = document["threads"]
+
+      # Target names stay on the server, like tool arguments.
+      refute JSON.encode!(document) =~ "secret-target"
+    end
+
+    test "a command still running after its Once build ended runs commands again", %{user: user} do
+      run = run!(thread!(user, "Build the app", "running"), "running")
+
+      call!(run, 1, "Bash", "executing", %{
+        "command" => "build",
+        "state" => "succeeded",
+        "planned" => 40,
+        "done" => 40,
+        "cached" => 9,
+        "failed" => 0,
+        "tests" => %{"passed" => 0, "failed" => 0, "skipped" => 0}
+      })
+
+      {document, _working} = LiveActivities.content(user)
+
+      # Building, then running commands: one tint, so one dot.
+      assert [%{"phase" => "running", "detail" => detail, "progress" => progress, "trail" => ["orange"]}] =
+               document["threads"]
+
+      refute detail =~ "targets"
+      refute Map.has_key?(progress, "total")
+    end
+
+    test "a finished Once test stays Testing in the trail", %{user: user} do
+      run = run!(thread!(user, "Run the tests", "running"), "running")
+
+      call!(run, 1, "Bash", "completed", %{
+        "command" => "test",
+        "state" => "succeeded",
+        "planned" => 2,
+        "done" => 1,
+        "cached" => 0,
+        "failed" => 0,
+        "tests" => %{"passed" => 3, "failed" => 0, "skipped" => 0}
+      })
+
+      {document, _working} = LiveActivities.content(user)
+
+      # Its run ended, so it no longer runs, but it was a test run, and the
+      # thread now thinks.
+      assert [%{"phase" => "thinking", "trail" => ["teal", "gray"]}] = document["threads"]
+    end
+
     test "shows a thread that finished since the last push once, first and with its steps", %{user: user} do
       working = thread!(user, "Bump Kura to 0.9", "running", ago: 200)
       run!(working, "running")
@@ -91,6 +186,24 @@ defmodule Tuist.Push.LiveActivitiesTest do
 
       {document, _} = LiveActivities.content(user, working_ids)
       assert [%{"phase" => "thinking"}] = document["threads"]
+    end
+
+    test "leaves out snoozed threads and offers to snooze the working ones", %{user: user} do
+      working = thread!(user, "Bump Kura to 0.9", "running")
+      run!(working, "running")
+      until_needed = thread!(user, "Fix login redirect loop", "running")
+      run!(until_needed, "running")
+      Repo.update!(Ecto.Changeset.change(until_needed, snoozed_until_needed: true))
+      later = thread!(user, "Add coverage trend chart", "running")
+      run!(later, "running")
+      snoozed_until = DateTime.utc_now() |> DateTime.add(1, :hour) |> DateTime.truncate(:second)
+      Repo.update!(Ecto.Changeset.change(later, snoozed_until: snoozed_until))
+
+      {document, working_ids} = LiveActivities.content(user, [until_needed.id])
+
+      assert working_ids == [working.id]
+      assert [%{"snooze_link" => snooze_link, "link" => link}] = document["threads"]
+      assert snooze_link == String.replace(link, "/threads/#{working.id}?", "/threads/#{working.id}/snooze?")
     end
 
     test "leaves out threads the user can no longer read", %{user: user} do
@@ -493,9 +606,16 @@ defmodule Tuist.Push.LiveActivitiesTest do
 
   defp run!(thread, status), do: Repo.insert!(%Run{thread_id: thread.id, status: status, inserted_at: thread.inserted_at})
 
-  defp call!(run, position, name, status) do
+  defp call!(run, position, name, status, progress \\ nil) do
     message =
-      Repo.insert!(%Message{thread_id: run.thread_id, position: position, kind: "tool", body: "make", tool_name: name})
+      Repo.insert!(%Message{
+        thread_id: run.thread_id,
+        position: position,
+        kind: "tool",
+        body: "make",
+        tool_name: name,
+        progress: progress
+      })
 
     Repo.insert!(%ToolCall{
       run_id: run.id,

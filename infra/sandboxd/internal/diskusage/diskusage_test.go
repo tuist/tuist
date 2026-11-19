@@ -100,3 +100,31 @@ func TestDefaultExclusiveCountsAllocatedBytesOfSparseFiles(t *testing.T) {
 		t.Fatalf("sparse 64 MiB file with 1 MiB written measured %d bytes", bytes)
 	}
 }
+
+func TestReportSplitsJailBytesBySandbox(t *testing.T) {
+	dataDir := t.TempDir()
+	templates := filepath.Join(dataDir, "templates")
+	jail := filepath.Join(dataDir, "jail")
+	write(t, filepath.Join(templates, "default", "sha-1", "rootfs.ext4"), 400)
+	write(t, filepath.Join(jail, "firecracker", "a", "root", "workspace.ext4"), 30)
+	write(t, filepath.Join(jail, "firecracker", "a", "root", "mem"), 20)
+	write(t, filepath.Join(jail, "firecracker", "b", "root", "mem"), 50)
+	// A hardlinked template file belongs to the template, not the jail.
+	if err := os.Link(filepath.Join(templates, "default", "sha-1", "rootfs.ext4"), filepath.Join(jail, "firecracker", "b", "root", "rootfs.ext4")); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := Accounter{
+		DataDir: dataDir, TemplatesDir: templates, JailDir: jail,
+		Exclusive: func(_ string, info os.FileInfo) (uint64, error) { return uint64(info.Size()), nil },
+	}.Report()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Jails["a"] != 50 || report.Jails["b"] != 50 || len(report.Jails) != 2 {
+		t.Fatalf("jails = %v, want a: 50, b: 50", report.Jails)
+	}
+	if report.SandboxesBytes != 100 {
+		t.Fatalf("sandboxes = %d, want 100", report.SandboxesBytes)
+	}
+}

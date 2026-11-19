@@ -14,6 +14,7 @@ struct AppMessage: Decodable, Identifiable {
     var createdAt: String?
     /// Who wrote a prompt, in a thread someone was looped into.
     var author: HallPerson?
+    var attachments: [PromptAttachment]?
 
     var createdDate: Date? {
         guard let createdAt else { return nil }
@@ -31,6 +32,48 @@ struct AppMessage: Decodable, Identifiable {
     /// The plan the agent shares with `update_progress`, counted by the Rust core;
     /// `content` is the plan as a checklist.
     var progress: AppProgress?
+    /// A Bash call's Struo build or test progress, presented by the Rust core;
+    /// `content` says it in words.
+    var build: AppBuild?
+    var toolResult: AppToolResult?
+}
+
+struct AppToolResult: Decodable {
+    struct TestCase: Decodable {
+        let name: String
+        let module: String?
+        let suite: String?
+        let flaky: Bool?
+        let state: String?
+    }
+    let text: String
+    let preview: String
+    let raw: String
+    let testCases: [TestCase]?
+}
+
+struct AppBuild: Decodable {
+    struct Tests: Decodable {
+        let passed: Int
+        let failed: Int
+        let skipped: Int
+    }
+
+    /// `build` or `test`.
+    let command: String
+    let target: String?
+    let planned: Int
+    let done: Int
+    let cached: Int
+    let failed: Int
+    /// Case counts, once a case ran.
+    let tests: Tests?
+    /// The share of planned targets done, once Struo planned them.
+    let fraction: Double?
+    /// A target or test case failed.
+    let failing: Bool
+    /// The build still runs in a working thread.
+    let active: Bool
 }
 
 struct AppProgress: Decodable {
@@ -62,18 +105,24 @@ struct AppConversation: Decodable {
     let working: Bool
     let state: String?
     let messages: [AppMessage]
+    /// Set while the person snoozed it, decided by the Rust core.
+    var snooze: AppSnooze?
     /// The current step of the answering run's plan, when it shared one.
     var activity: AppActivity?
+    /// The core exposes this only for a live, ready sandbox residency.
+    var workspace_ready_id: String?
     /// The thread's owner and the people looped into it by a mention.
     var owner: HallPerson?
     var participants: [HallPerson]?
     /// Earlier messages stay on the server; `next_before` loads the page before these.
     var has_more: Bool?
     var next_before: Int?
-}
-
-struct ThreadRoute: Hashable, Identifiable {
-    let id: String
+    var section: String?
+    var provider: String?
+    var model: String?
+    var repository: String?
+    var branch: String?
+    var runner_id: String?
 }
 
 extension AppClient {
@@ -98,17 +147,20 @@ struct AppRunner: Decodable, Identifiable, Hashable {
 }
 
 /// Asks what to talk about and where it runs: on Tuist, or on one of the
-/// person's runners. The core picks the model.
+/// person's runners. The core picks the model. A sheet on the Mac; the
+/// iPhone's default chat screen.
 struct StartConversationView: View {
-    /// What the sheet starts with: the keyboard, or dictation from a shortcut.
+    /// What it starts with: the keyboard, or dictation from a shortcut. Nil
+    /// leaves the iPhone's chat screen as it is, without raising the keyboard.
     enum Input { case text, voice }
 
     let client: AppClient
-    var input = Input.text
+    var input: Input? = .text
     @State private var runners: [AppRunner] = []
     /// Nil runs the conversation on Tuist.
     @State private var runner: String?
     @State private var content = ""
+    @State private var attachments: [PromptAttachment] = []
     @State private var starting = false
     @State private var error: String?
     @State private var request: Task<Void, Never>?
@@ -121,80 +173,23 @@ struct StartConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        Form {
-            Section {
-                TextField("What do you want to talk about?", text: $content, axis: .vertical)
-                    .lineLimit(4 ... 12)
-                    .focused($focused)
-                    .disabled(starting || voice.busy)
-                    .onChange(of: content) { _, text in mentions.update(text) }
-                MentionBar(mentions: mentions, text: $content)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 8, trailing: 8))
-            } footer: {
-                if mentions.people.isEmpty == false, mentions.state.loop_in.isEmpty, mentions.state.query == nil {
-                    Text("Type @ to loop someone in.")
-                }
+        layout
+            .task { await mentions.load(client) }
+            // People without runners see no choice; a failure to list them changes nothing.
+            .task {
+                if let data = try? await client.call("runners"),
+                   let list = data["runners"],
+                   let decoded = try? JSONDecoder().decode([AppRunner].self, from: JSONSerialization.data(withJSONObject: list))
+                { runners = decoded }
             }
-            if let message = voice.errorMessage {
-                Text(verbatim: message).foregroundStyle(Noora.labelDestructive)
-            }
-            if !runners.isEmpty {
-                Picker("Run on", selection: $runner) {
-                    Text("Tuist").tag(String?.none)
-                    ForEach(runners) { runner in
-                        Text(verbatim: runner.online
-                            ? runner.name
-                            : String(format: String(localized: "%@ (offline)"), runner.name))
-                            .tag(Optional(runner.id))
-                    }
-                }
-                .disabled(starting || voice.busy)
-            }
-            if let error {
-                Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
-            }
-        }
-        .task { await mentions.load(client) }
-        // People without runners see no choice; a failure to list them changes nothing.
-        .task {
-            if let data = try? await client.call("runners"),
-               let list = data["runners"],
-               let decoded = try? JSONDecoder().decode([AppRunner].self, from: JSONSerialization.data(withJSONObject: list))
-            { runners = decoded }
-        }
-        #if os(macOS)
-        .formStyle(.grouped)
-        .frame(width: 480, height: 320)
-        #endif
-        .navigationTitle("New conversation")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }.disabled(starting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") { request = Task { await start() } }
-                        .disabled(starting || voice.busy || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            // Dictation adds editable text to the topic; only Start sends it.
-            .safeAreaInset(edge: .bottom) {
-                if voice.busy {
-                    ReplyComposer(reply: $content, disabled: true, sending: starting, voice: voice) {}
-                        .padding()
-                }
-            }
-            .interactiveDismissDisabled(starting)
             .onAppear { if input == .text { focused = true } }
             .onChange(of: voice.busy) { _, busy in if !busy { focused = true } }
-            // Dictate from a shortcut while the sheet is already open switches it to dictation.
+            // Dictate from a shortcut while it is already open switches it to dictation.
             .onChange(of: input) { _, input in
                 if input == .voice {
                     dictationStarted = false
                     beginRequestedDictation()
-                } else if !voice.busy {
+                } else if input == .text, !voice.busy {
                     focused = true
                 }
             }
@@ -207,6 +202,99 @@ struct StartConversationView: View {
             .onDisappear { request?.cancel(); voice.cancel() }
     }
 
+    #if os(iOS)
+        /// The iPhone's default chat screen: nothing is open yet, and sending starts a conversation.
+        private var layout: some View {
+            VStack(spacing: 12) {
+                Image("TuistRoundedIcon").resizable().frame(width: 56, height: 56).accessibilityHidden(true)
+                Text("Big things start here").font(.title2.weight(.semibold)).foregroundStyle(Noora.labelPrimary)
+                Text("Ask a question, explore an idea, or solve a problem with Tuist.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Noora.labelSecondary)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Noora.backgroundPrimary)
+            .contentShape(Rectangle())
+            .onTapGesture { focused = false }
+            .safeAreaInset(edge: .bottom) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let error {
+                        Text(verbatim: error).font(.caption).foregroundStyle(Noora.labelDestructive)
+                            .padding(.horizontal, 12)
+                    } else if mentionHint {
+                        Text("Type @ to loop someone in.").font(.caption).foregroundStyle(Noora.labelSecondary)
+                            .padding(.horizontal, 12)
+                    }
+                    ReplyComposer(
+                        reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
+                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments
+                    ) { request = Task { await start() } }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+            .navigationTitle(Text(verbatim: "Luft"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if !runners.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Picker("Run on", selection: $runner) { runnerOptions }
+                        } label: {
+                            Label("Run on", systemImage: "desktopcomputer")
+                        }
+                        .disabled(starting || voice.busy)
+                    }
+                }
+            }
+        }
+    #else
+        private var layout: some View {
+            Form {
+                Section {
+                    ReplyComposer(
+                        reply: $content, disabled: false, sending: starting, voice: voice, mentions: mentions,
+                        placeholder: "What do you want to talk about?", focus: $focused, attachments: $attachments
+                    ) { request = Task { await start() } }
+                } footer: {
+                    if mentionHint { Text("Type @ to loop someone in.") }
+                }
+                if !runners.isEmpty {
+                    Picker("Run on", selection: $runner) { runnerOptions }
+                        .disabled(starting || voice.busy)
+                }
+                if let error {
+                    Text(verbatim: error).foregroundStyle(Noora.labelDestructive)
+                }
+            }
+            .formStyle(.grouped)
+            .frame(width: 480, height: 320)
+            .navigationTitle("New conversation")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.disabled(starting)
+                }
+            }
+            .interactiveDismissDisabled(starting)
+        }
+    #endif
+
+    /// Someone from the organization could be looped in, and nobody is yet.
+    private var mentionHint: Bool {
+        !mentions.people.isEmpty && mentions.state.loop_in.isEmpty && mentions.state.query == nil
+    }
+
+    @ViewBuilder private var runnerOptions: some View {
+        Text("Tuist").tag(String?.none)
+        ForEach(runners) { runner in
+            Text(verbatim: runner.online
+                ? runner.name
+                : String(format: String(localized: "%@ (offline)"), runner.name))
+                .tag(Optional(runner.id))
+        }
+    }
+
     /// A shortcut can open the sheet before the app is active; the microphone waits for it.
     private func beginRequestedDictation() {
         guard input == .voice, scenePhase == .active, !dictationStarted else { return }
@@ -215,12 +303,14 @@ struct StartConversationView: View {
     }
 
     private func start() async {
+        guard !starting, !voice.busy,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return }
         starting = true
         defer { starting = false }
         let generation = client.view.generation
         let revision = client.view.navigation.revision
         do {
-            var args: [String: Any] = ["content": content]
+            var args: [String: Any] = ["content": content, "attachments": attachments.map(\.payload)]
             if let runner { args["runner_id"] = runner }
             let thread = try await client.conversation("start_thread", args)
             guard !Task.isCancelled, generation == client.view.generation,
@@ -248,11 +338,20 @@ struct ConversationView: View {
     @State private var olderBefore: Int?
     @State private var loadingOlder = false
     @State private var reply = ""
+    @State private var attachments: [PromptAttachment] = []
     @State private var sending = false
     @State private var error: String?
     @State private var showingPrompts = false
     @State private var chosenPrompt: String?
     @State private var pendingJump: String?
+    @State private var snoozeChoices = SnoozeChoices()
+    @State private var pickingSnoozeTime = false
+    @State private var showingDetails = false
+    @State private var confirmingArchive = false
+    @State private var updatingArchive = false
+    /// The server answered for this thread at least once: a thread never opened here
+    /// has no cached state, so whether it works isn't known before.
+    @State private var live = false
     /// Whether the end of the conversation is on screen; new messages only scroll while it is.
     @State private var atLatest = true
     // Not observed here: only the composer redraws as dictation levels change.
@@ -296,7 +395,7 @@ struct ConversationView: View {
                     }
                     if thread?.working == true {
                         HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
+                            WorkingIndicator()
                             if let activity = thread?.activity {
                                 Text(verbatim: activity.title).foregroundStyle(Noora.labelPrimary).lineLimit(1)
                                 Text("Step \(activity.step) of \(activity.total)")
@@ -329,29 +428,87 @@ struct ConversationView: View {
                 withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(target, anchor: .top) }
             }
         }
-        .background(Noora.backgroundPrimary)
+        .safeAreaInset(edge: .top) {
+            if let current = thread?.snooze {
+                HStack(spacing: 8) {
+                    Image(systemName: "moon.zzz").foregroundStyle(Noora.primary).accessibilityHidden(true)
+                    Text(verbatim: current.label).font(.subheadline).foregroundStyle(Noora.labelPrimary)
+                    Spacer()
+                    Button("Wake") { Task { await snooze(until: nil) } }.font(.subheadline.weight(.medium))
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .interactiveGlass(in: Capsule())
+                .padding(.horizontal).padding(.top, 4)
+            }
+        }
         .overlay { if thread == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
-            ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions) {
-                Task { await send() }
+            VStack(alignment: .trailing, spacing: 8) {
+                #if os(iOS)
+                    if thread?.workspace_ready_id != nil {
+                        Label("Sandbox ready", systemImage: "checkmark.circle")
+                            .font(.caption)
+                            .foregroundStyle(Noora.labelSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    // Floats over the messages, right above Send, so it is in reach of the thumb.
+                    promptsButton
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 44, height: 44)
+                        .interactiveGlass(in: Circle())
+                        .padding(.trailing, 4)
+                #endif
+                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions, attachments: $attachments) {
+                    Task { await send() }
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+        .background {
+            Noora.backgroundPrimary
+            #if os(iOS)
+                .overlay { SandboxReadyEffect(residency: thread?.workspace_ready_id) }
+            #endif
+        }
         .navigationTitle(Text(verbatim: thread?.title ?? thread?.goal ?? ""))
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
         #endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { showingPrompts = true } label: {
-                        Label("Prompts", systemImage: "list.bullet")
+                    Menu {
+                        Button("Session details", systemImage: "info.circle") { showingDetails = true }
+                        if thread?.section != "archived" {
+                            Menu {
+                                SnoozeButtons(
+                                    choices: snoozeChoices,
+                                    working: thread?.working == true,
+                                    snoozed: thread?.snooze != nil,
+                                    snooze: { until in Task { await snooze(until: until) } },
+                                    custom: { pickingSnoozeTime = true }
+                                )
+                            } label: {
+                                Label("Snooze", systemImage: thread?.snooze == nil ? "moon.zzz" : "moon.zzz.fill")
+                            }
+                        }
+                        Divider()
+                        if thread?.section == "archived" {
+                            Button("Restore", systemImage: "tray.and.arrow.up") { Task { await archive(false) } }
+                        } else {
+                            Button("Archive", systemImage: "archivebox", role: .destructive) { confirmingArchive = true }
+                        }
+                    } label: {
+                        Label("Session actions", systemImage: "ellipsis")
                     }
-                    .help("Prompts")
-                    .accessibilityHint("Choose a prompt to jump back to it")
-                    .disabled(thread == nil)
+                    .help("Session actions")
+                    .accessibilityIdentifier("session-actions")
+                    .disabled(thread == nil || updatingArchive)
                 }
+                #if os(macOS)
+                    ToolbarItem(placement: .primaryAction) { promptsButton }
+                #endif
             }
             // Jump only once the sheet is gone, so the scroll is not lost under it.
             .sheet(isPresented: $showingPrompts, onDismiss: {
@@ -386,6 +543,43 @@ struct ConversationView: View {
                     }
                 }
             }
+            .task { await snoozeChoices.follow(client) }
+            // The Live Activity's Snooze opens the thread with its choices over it. Dialog
+            // buttons take the presenting view's tint; the choices read as plain text.
+            .background {
+                Color.clear.confirmationDialog(
+                    "Snooze", isPresented: Binding(
+                        get: { client.view.navigation.snooze && client.view.navigation.thread_id == id && live },
+                        set: { if !$0 { leaveSnoozeChoices() } }
+                    ), titleVisibility: .visible
+                ) {
+                    SnoozeButtons(
+                        choices: snoozeChoices,
+                        working: thread?.working == true,
+                        snoozed: thread?.snooze != nil,
+                        inline: true,
+                        snooze: { until in Task { await snooze(until: until) } },
+                        custom: { pickingSnoozeTime = true }
+                    )
+                } message: {
+                    Text(verbatim: thread?.title ?? thread?.goal ?? "")
+                }
+                .tint(Noora.labelPrimary)
+            }
+            .sheet(isPresented: $pickingSnoozeTime) {
+                CustomSnoozeView { until in Task { await snooze(until: until) } }
+            }
+            .sheet(isPresented: $showingDetails) {
+                if let thread { SessionDetails(thread: thread) }
+            }
+            .alert("Archive Thread?", isPresented: $confirmingArchive) {
+                Button("Cancel", role: .cancel) {}
+                Button("Archive", role: .destructive) { Task { await archive(true) } }
+            } message: {
+                Text(thread?.working == true
+                    ? "Its run stops. You can find it under Archived."
+                    : "You can find it under Archived.")
+            }
             // The live socket: server changes and the agent's calls to this app's tools.
             .task(id: id) { await client.live(id) { await reload() } }
             // Unaccepted dictation never survives leaving the conversation or the app.
@@ -395,6 +589,16 @@ struct ConversationView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: audioInterruption)) { _ in voice.cancel() }
             .onDisappear { voice.cancel() }
+    }
+
+    /// Lists the person's earlier messages to jump back to.
+    private var promptsButton: some View {
+        Button { showingPrompts = true } label: {
+            Label("Prompts", systemImage: "list.bullet")
+        }
+        .help("Prompts")
+        .accessibilityHint("Choose a prompt to jump back to it")
+        .disabled(thread == nil)
     }
 
     /// Shows a newer latest page. Once earlier pages are loaded, messages that
@@ -415,6 +619,7 @@ struct ConversationView: View {
         while !Task.isCancelled {
             do {
                 show(try await client.conversation("thread", ["id": id]))
+                live = true
                 error = nil
             } catch {
                 guard !Task.isCancelled else { return }
@@ -422,6 +627,36 @@ struct ConversationView: View {
             }
             try? await Task.sleep(for: thread?.working == true ? .seconds(2) : .seconds(15))
         }
+    }
+
+    /// Snoozes or wakes the thread. A snoozed thread is out of the way, so
+    /// snoozing it returns to the inbox; waking it stays here.
+    private func snooze(until: String?) async {
+        do {
+            show(try await client.snooze(id, until: until))
+            if until != nil { await client.perform("navigation_back") } else { leaveSnoozeChoices() }
+        } catch {
+            self.error = error.localizedDescription
+            leaveSnoozeChoices()
+        }
+    }
+
+    private func archive(_ archived: Bool) async {
+        guard !updatingArchive else { return }
+        updatingArchive = true
+        defer { updatingArchive = false }
+        do {
+            show(try await client.conversation("archive_thread", ["id": id, "archived": archived]))
+            if archived { await client.perform("navigation_back") }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Closes the choices the Live Activity opened, keeping the thread open.
+    private func leaveSnoozeChoices() {
+        guard client.view.navigation.snooze else { return }
+        Task { await client.perform("navigate", ["url": "/threads/\(id)"]) }
     }
 
     /// Loads the conversation again when the server says it changed.
@@ -448,12 +683,14 @@ struct ConversationView: View {
     /// Sends the composer's text.
     private func send() async {
         let text = reply
-        guard !sending, !voice.busy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !sending, !voice.busy, thread?.working == false,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return }
         sending = true
         defer { sending = false }
         do {
-            show(try await client.conversation("send_message", ["id": id, "content": text]))
+            show(try await client.conversation("send_message", ["id": id, "content": text, "attachments": attachments.map(\.payload)]))
             reply = ""
+            attachments = []
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -570,35 +807,138 @@ private struct ToolActivity: View {
     }
 }
 
-private struct ToolCallRow: View {
+struct ToolCallRow: View {
     let tool: AppMessage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var expanded = false
+    @State private var showAll = false
+    @State private var showRaw = false
 
     private var running: Bool { tool.toolStatus == "running" }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Result").font(.caption.bold()).foregroundStyle(Noora.labelSecondary)
-                Text(verbatim: tool.content).font(.caption.monospaced()).textSelection(.enabled)
-                    .foregroundStyle(Noora.labelPrimary)
+        VStack(alignment: .leading, spacing: 6) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 8) {
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        ToolStatusIcon(running: running)
+                    }
+                    let layout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(spacing: 8))
+                    layout {
+                        Text(verbatim: tool.toolName ?? String(localized: "Tool"))
+                            .font(.subheadline.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                        Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done"))
+                            .font(.caption).foregroundStyle(Noora.labelSecondary)
+                            .fixedSize(horizontal: true, vertical: true)
+                    }
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.caption)
+                    }
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 6)
-        } label: {
-            HStack(spacing: 8) {
-                ToolStatusIcon(running: running)
-                Text(verbatim: tool.toolName ?? String(localized: "Tool"))
-                    .font(.subheadline.monospaced()).foregroundStyle(Noora.labelPrimary).lineLimit(1)
-                Text(running ? LocalizedStringKey("Running") : LocalizedStringKey("Done")).font(.caption).foregroundStyle(Noora.labelSecondary)
+            .buttonStyle(.borderless)
+            .disabled(running)
+            .accessibilityValue(expanded ? Text("Expanded") : Text("Collapsed"))
+            if let build = tool.build {
+                BuildProgressView(build: build).padding(.bottom, 10)
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            if expanded {
+                if let cases = tool.toolResult?.testCases {
+                    Text("\(cases.count) test cases").font(.caption).foregroundStyle(Noora.labelSecondary)
+                    ForEach(Array((showAll ? cases : Array(cases.prefix(3))).enumerated()), id: \.offset) { _, item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: item.name).font(.subheadline.weight(.medium))
+                            if let suite = item.suite { Text(verbatim: suite).font(.caption).foregroundStyle(Noora.labelSecondary) }
+                            if let module = item.module { Text(verbatim: module).font(.caption).foregroundStyle(Noora.labelSecondary) }
+                            HStack {
+                                if item.flaky == true { Text("Flaky").foregroundStyle(Noora.labelDestructive) }
+                                if let state = item.state { Text(verbatim: state).foregroundStyle(Noora.labelSecondary) }
+                            }.font(.caption)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Noora.backgroundPrimary, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    if cases.count > 3 { moreButton }
+                } else {
+                    Text(verbatim: showAll ? (tool.toolResult?.text ?? tool.content) : (tool.toolResult?.preview ?? tool.content))
+                        .font(.caption.monospaced()).textSelection(.enabled)
+                        .lineLimit(showAll ? nil : 8)
+                    // Wrapped lines can overflow even a short source string.
+                    moreButton
+                }
+                Divider().padding(.vertical, 4)
+                Button { showRaw.toggle() } label: {
+                    Label(showRaw ? LocalizedStringKey("Hide raw result") : LocalizedStringKey("Raw result"), systemImage: "curlybraces")
+                        .font(.caption).frame(minHeight: 44)
+                }.buttonStyle(.borderless)
+                if showRaw {
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(verbatim: tool.toolResult?.raw ?? tool.content)
+                            .font(.caption.monospaced()).textSelection(.enabled)
+                            .fixedSize(horizontal: true, vertical: true).padding(8)
+                    }.frame(height: 200)
+                        .background(Noora.backgroundPrimary, in: RoundedRectangle(cornerRadius: 8))
+                    ShareLink(item: tool.content) {
+                        Label("Share raw result", systemImage: "square.and.arrow.up").font(.caption).frame(minHeight: 44)
+                    }.buttonStyle(.borderless)
+                }
+                Spacer(minLength: 6)
+            }
         }
-        .disabled(running)
+        .foregroundStyle(Noora.labelPrimary)
         .padding(.horizontal, 12)
         .background(Noora.backgroundSecondary, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+    }
+
+    private var moreButton: some View {
+        Button(showAll ? LocalizedStringKey("Show less") : LocalizedStringKey("Show more")) { showAll.toggle() }
+            .font(.caption).frame(minHeight: 44).buttonStyle(.borderless)
+    }
+}
+
+/// A Struo build or test a Bash call runs: what it builds, how many of its
+/// planned targets are done and, for tests, how the cases went.
+private struct BuildProgressView: View {
+    let build: AppBuild
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(build.command == "test" ? LocalizedStringKey("Testing with Struo") : LocalizedStringKey("Building with Struo"))
+                    .font(.caption.weight(.medium)).foregroundStyle(Noora.labelPrimary)
+                if let target = build.target, !target.isEmpty {
+                    Text(verbatim: target).font(.caption.monospaced()).foregroundStyle(Noora.labelSecondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: 4)
+                if build.planned > 0 {
+                    Text("\(build.done) of \(build.planned) targets")
+                        .font(.caption).monospacedDigit().foregroundStyle(Noora.labelSecondary)
+                        .contentTransition(.numericText())
+                }
+            }
+            if let fraction = build.fraction {
+                ProgressView(value: fraction)
+                    .tint(build.failing ? Noora.labelDestructive : Noora.primary)
+                    .animation(.default, value: fraction)
+            } else if build.active {
+                ProgressView().progressViewStyle(.linear)
+            }
+            if let tests = build.tests {
+                Text("\(tests.passed) passed, \(tests.failed) failed, \(tests.skipped) skipped")
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(tests.failed > 0 ? Noora.labelDestructive : Noora.labelSecondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -699,15 +1039,20 @@ struct MessageRow: View {
                     if showAuthor, let handle = message.author?.handle {
                         Text(verbatim: "@\(handle)").font(.caption.weight(.semibold)).foregroundStyle(Noora.labelSecondary)
                     }
-                    Text(verbatim: message.content)
-                        .textSelection(.enabled)
-                        .foregroundStyle(Noora.labelPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                    if let files = message.attachments, !files.isEmpty {
+                        MessageAttachments(files: files)
+                    }
+                    if !message.content.isEmpty {
+                        Text(verbatim: message.content)
+                            .textSelection(.enabled)
+                            .foregroundStyle(Noora.labelPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Noora.neutralHover, in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Noora.border, lineWidth: 1))
+                    }
                 }
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: message.attachments?.isEmpty == false ? .contain : .combine)
             }
         case "assistant":
             Text(markdown(message.content)).textSelection(.enabled).foregroundStyle(Noora.labelPrimary)

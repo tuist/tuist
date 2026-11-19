@@ -57,6 +57,9 @@ type Config struct {
 	AllowedShapes []template.Shape
 	// SnapshotDir holds disk snapshots; empty disables them.
 	SnapshotDir string
+	// CacheImageDir holds ext4 cache images that creates may attach as an
+	// extra drive; empty disables cache drives.
+	CacheImageDir string
 	// FirecrackerVersion is the running binary's version, recorded with
 	// every memory image a pause writes.
 	FirecrackerVersion string
@@ -265,6 +268,17 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	fromArchive := args.FromArchive != nil
 	if fromSnapshot && fromArchive {
 		return res, errors.New("create takes a disk snapshot or an archive, not both")
+	}
+	if args.CacheImage != "" {
+		if m.cfg.CacheImageDir == "" {
+			return res, fmt.Errorf("%w: this daemon has no cache image directory", ErrCacheImage)
+		}
+		if !fromSnapshot {
+			return res, fmt.Errorf("%w: only a create from a disk snapshot cold boots and can attach one", ErrCacheImage)
+		}
+		if err := vm.ValidateID(args.CacheImage); err != nil {
+			return res, fmt.Errorf("%w: %v", ErrCacheImage, err)
+		}
 	}
 	var tmpl template.Template
 	if fromSnapshot || fromArchive {
@@ -552,6 +566,13 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 		}},
 		{"workspace drive", func() error {
 			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
+		}},
+		// A cold reboot keeps the cache drive the sandbox was created with.
+		{"cache drive", func() error {
+			if !vm.Exists(filepath.Join(sb.root, firecracker.CachePath)) {
+				return nil
+			}
+			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.CacheDriveID, PathOnHost: inst.GuestPath(firecracker.CachePath)})
 		}},
 		{"network-interface", func() error {
 			return api.PutNetworkInterface(ctx, firecracker.NetworkInterface{IfaceID: firecracker.IfaceID, GuestMAC: firecracker.GuestMAC, HostDevName: firecracker.TapName})

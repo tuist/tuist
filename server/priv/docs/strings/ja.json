@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "イメージ" },
       "implicit-dependencies": { "text": "暗黙的な依存関係" },
       "iphone-app": { "text": "iPhoneアプリ" },
       "macos-app": { "text": "macOSアプリ" },
@@ -45,7 +46,7 @@
       "release": { "text": "リリース" },
       "release-calendar": { "text": "リリースカレンダー" },
       "release-channels": { "text": "リリースチャネル" },
-      "run-previews": { "text": "プレビューを実行" },
+      "run-previews": { "text": "プレビューの実行" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rustキャッシュ" },
       "rust-project": { "text": "Rustプロジェクト" },
@@ -53,7 +54,7 @@
       "scim-provisioning": { "text": "SCIMプロビジョニング" },
       "server-api": { "text": "サーバーAPI" },
       "single-sign-on": { "text": "シングルサインオン" },
-      "supported-types": { "text": "サポートされているタイプ" },
+      "supported-types": { "text": "サポートされるタイプ" },
       "webhooks": { "text": "Webhook" },
       "xcodegen-project": { "text": "XcodeGenプロジェクト" },
       "xcodeproj-integration": { "text": "Xcodeproj統合" },
@@ -66,7 +67,7 @@
         "text": "言語 🌍"
       },
       "description": {
-        "text": "Tuistがより多くの言語をサポートしたり、このページの言語ガイダンスを改善したりするのに役立ちます。"
+        "text": "Tuistがより多くの言語をサポートしたり、このページの言語ガイダンスを改善するのにご協力いただけます。"
       },
       "cta": {
         "text": "貢献する"
@@ -89,7 +90,7 @@
         },
         "start-screen": {
           "recent-searches-title": "検索履歴",
-          "no-recent-searches-text": "検索履歴なし",
+          "no-recent-searches-text": "検索履歴はありません",
           "save-recent-search-button-title": "検索履歴に保存",
           "remove-recent-search-button-title": "検索履歴から削除",
           "favorite-searches-title": "お気に入り",
@@ -231,7 +232,7 @@
           }
         },
         "issue-reporting": {
-          "text": " issue報告"
+          "text": "Issueの報告"
         },
         "code-reviews": {
           "text": "コードレビュー"
@@ -252,7 +253,7 @@
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "ロギング"
+              "text": "ログ"
             }
           }
         }
@@ -293,9 +294,6 @@
         },
         "status": {
           "text": "ステータス"
-        },
-        "metrics-dashboard": {
-          "text": "メトリクスダッシュボード"
         }
       }
     },
@@ -306,7 +304,7 @@
           "text": "Xcode",
           "items": {
             "create-a-generated-project": {
-              "text": "生成されたプロジェクトを作成"
+              "text": "生成されたプロジェクトを作成する"
             }
           }
         }
@@ -421,7 +419,7 @@
                   "text": "コード共有"
                 },
                 "synthesized-files": {
-                  "text": "生成ファイル"
+                  "text": "合成ファイル"
                 },
                 "dynamic-configuration": {
                   "text": "動的設定"
