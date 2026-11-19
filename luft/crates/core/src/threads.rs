@@ -347,6 +347,42 @@ fn present(thread: &mut Value) {
         }
     }
     thread["activity"] = activity;
+    present_suggestions(thread);
+}
+
+/// Follow-ups belong only to the latest completed answer, never an earlier
+/// turn or a reply queued offline. Edges put these in the composer, not on the wire.
+fn present_suggestions(thread: &mut Value) {
+    let latest = thread["messages"]
+        .as_array()
+        .and_then(|messages| messages.last());
+    let suggestions = latest
+        .filter(|message| {
+            thread["state"] == "completed"
+                && thread["archive_status"] != "archived"
+                && message["role"] == "assistant"
+        })
+        .and_then(|message| message["suggestions"].as_array())
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty() && value.chars().count() <= 120)
+                .take(3)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let icons = suggestions
+        .iter()
+        .filter_map(|text| {
+            let icon = latest?["suggestion_icons"][*text].as_str()?;
+            matches!(icon, "investigate" | "test" | "explain" | "retry")
+                .then(|| ((*text).to_owned(), json!(icon)))
+        })
+        .collect::<serde_json::Map<_, _>>();
+    thread["suggestions"] = json!(suggestions);
+    thread["suggestion_icons"] = json!(icons);
 }
 
 /// Whether the person snoozed the thread, which keeps it out of their way
@@ -381,6 +417,7 @@ pub(crate) fn present_snooze(thread: &mut Value, now: i64) {
 
 /// Reconciles time-sensitive presentation after a thread came from the store.
 /// Cached readiness is history, never evidence that the VM is ready now.
+/// Suggestions also account for any queued messages overlaid by the store.
 pub(crate) fn present_stored(view: &mut Value, now: i64) {
     match view.get_mut("threads").and_then(Value::as_array_mut) {
         Some(threads) => threads.iter_mut().for_each(|t| present_snooze(t, now)),
@@ -389,6 +426,7 @@ pub(crate) fn present_stored(view: &mut Value, now: i64) {
             if view["freshness"]["state"] != "live" || view["working"] != true {
                 view["workspace_ready_id"] = Value::Null;
             }
+            present_suggestions(view);
         }
     }
 }

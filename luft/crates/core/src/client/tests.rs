@@ -1570,6 +1570,87 @@ const SERVER_ID: &str = "8f1c2a8e-0b7d-4c3e-9a1f-2d4b8e0c7f53";
 fn server_thread(messages: Value) -> Value {
     json!({"id":SERVER_ID,"status":"queued","archive_status":"active","messages":messages})
 }
+
+#[test]
+fn follow_ups_belong_to_the_latest_completed_answer_including_cached_reads() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    let mut thread = server_thread(json!([
+        {"role":"assistant","suggestions":["Old suggestion"]},
+        {"role":"user","content":"What next?"},
+        {"role":"assistant","content":"Done","suggestions":[
+            "", 42, "  Explain the tradeoff  ", "é".repeat(120), "x".repeat(121), "Add a regression test", "Fourth"
+        ], "suggestion_icons": {"Explain the tradeoff":"explain", "Add a regression test":"unknown", "Fourth":"test"}}
+    ]));
+    thread["status"] = json!("idle");
+    h.responses.push_back((200, thread.clone()));
+    let result = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    let expected = json!([
+        "Explain the tradeoff",
+        "é".repeat(120),
+        "Add a regression test"
+    ]);
+    assert_eq!(result["data"]["suggestions"], expected, "{result}");
+    assert_eq!(
+        result["data"]["suggestion_icons"],
+        json!({"Explain the tradeoff":"explain"})
+    );
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}));
+    assert_eq!(cached["data"]["suggestions"], expected, "{cached}");
+    assert_eq!(
+        cached["data"]["suggestion_icons"],
+        json!({"Explain the tradeoff":"explain"})
+    );
+
+    for status in [
+        "queued",
+        "running",
+        "failed",
+        "interrupted",
+        "outcome_unknown",
+    ] {
+        let mut working = thread.clone();
+        working["status"] = json!(status);
+        h.responses.push_back((200, working));
+        let result = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+        assert_eq!(
+            result["data"]["suggestions"],
+            json!([]),
+            "{status}: {result}"
+        );
+        assert_eq!(result["data"]["suggestion_icons"], json!({}));
+    }
+    let mut archived = thread.clone();
+    archived["archive_status"] = json!("archived");
+    h.responses.push_back((200, archived));
+    let result = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(result["data"]["suggestions"], json!([]));
+
+    // A newer answer without suggestions must not revive an older turn's.
+    thread["messages"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"role":"assistant","content":"No follow-up"}));
+    h.responses.push_back((200, thread.clone()));
+    let result = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(result["data"]["suggestions"], json!([]));
+
+    thread["messages"].as_array_mut().unwrap().pop();
+    h.responses.push_back((200, thread));
+    call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    h.offline = true;
+    let queued = call(
+        &mut c,
+        &mut h,
+        "send_message",
+        json!({"id":SERVER_ID,"content":"My next question"}),
+    );
+    assert_eq!(queued["data"]["suggestions"], json!([]), "{queued}");
+    assert_eq!(queued["data"]["suggestion_icons"], json!({}));
+    let cached = call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}));
+    assert_eq!(cached["data"]["suggestions"], json!([]), "{cached}");
+}
+
 #[test]
 fn replies_to_a_thread_started_offline_follow_it_to_the_server_id() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());

@@ -268,6 +268,9 @@ spec:
             {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
             {{- $daemonOnlyPorts = append $daemonOnlyPorts 3900 }}
             {{- end }}
+            {{- if .Values.sandboxes.networkPolicy.rustfsNamespace }}
+            {{- $daemonOnlyPorts = append $daemonOnlyPorts 9000 }}
+            {{- end }}
             {{- if $checkoutAgent }}
             {{- $daemonOnlyPorts = append $daemonOnlyPorts 8090 }}
             {{- end }}
@@ -497,6 +500,20 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- end }}
+    {{- with .Values.sandboxes.networkPolicy.rustfsNamespace }}
+    # The daemon's archive uploads and restores on the RustFS store.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+          podSelector:
+            matchLabels:
+              app: rustfs
+              component: store
+      ports:
+        - protocol: TCP
+          port: 9000
     {{- end }}
 {{- end }}
 {{- end }}

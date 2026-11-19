@@ -1290,7 +1290,7 @@ defmodule Tuist.Threads do
   def finish(run, result) do
     with_attempt(run, fn thread, fresh ->
       unknown = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and c.status == "executing")
-      {status, body, suggestions} = run_outcome(thread, fresh, {unknown, result})
+      {status, body, suggestions, icons} = run_outcome(thread, fresh, {unknown, result})
 
       if fresh.approval_id && status == "failed",
         do: Repo.update_all(from(a in Approval, where: a.id == ^fresh.approval_id), set: [status: :failed])
@@ -1304,7 +1304,14 @@ defmodule Tuist.Threads do
       )
 
       thread = Repo.reload!(thread)
-      append!(thread, %{kind: if(status == "idle", do: "agent", else: "notice"), body: body, suggestions: suggestions})
+
+      append!(thread, %{
+        kind: if(status == "idle", do: "agent", else: "notice"),
+        body: body,
+        suggestions: suggestions,
+        suggestion_icons: icons
+      })
+
       thread = update_thread!(Repo.reload!(thread), %{agent_status: status})
       Push.notify_thread_finished(thread, status)
       thread
@@ -1314,52 +1321,54 @@ defmodule Tuist.Threads do
   defp run_outcome(_thread, _run, {true, _}) do
     {"outcome_unknown",
      "A tool was interrupted. Its effects are unknown; further workspace changes are blocked. Inspect the workspace before continuing.",
-     []}
+     [], %{}}
   end
 
   defp run_outcome(_thread, _run, {false, {:ok, text}}) when is_binary(text) do
-    {reply, suggestions} = Agent.decode_reply(text)
-    {"idle", reply, suggestions}
+    {reply, suggestions, icons} = Agent.decode_reply(text)
+    {"idle", reply, suggestions, icons}
   end
 
   defp run_outcome(thread, run, {false, {:ok, %{head_sha: sha}}}) do
     Repo.update!(Changeset.change(thread, base_sha: sha))
     Repo.update_all(from(a in Approval, where: a.id == ^run.approval_id), set: [status: :succeeded])
 
-    {"idle", "Shipped the reviewed changes using the GitHub App. No deployment was triggered by Tuist Threads.", []}
+    {"idle", "Shipped the reviewed changes using the GitHub App. No deployment was triggered by Tuist Threads.", [], %{}}
   end
 
   defp run_outcome(_thread, _run, {false, {:error, :shipping_uncertain}}) do
     {"outcome_unknown",
      "The connection ended before Ship could confirm its result. Further changes are blocked until the reviewed destination is reconciled; the push is not automatically repeated.",
-     []}
+     [], %{}}
   end
 
   defp run_outcome(_thread, _run, {false, {:error, reason}}) when reason in [:pull_request_required, :protected_branch] do
     {"failed",
      "Repository protection prevents this Ship. Follow the repository's required review and checks; Threads will not bypass them.",
-     []}
+     [], %{}}
   end
 
   defp run_outcome(_thread, _run, {false, {:error, reason}})
        when reason in [:shipping_base_changed, :shipping_review_stale] do
     {"failed",
-     "The repository or workspace changed since review. Review the current changes again before approving Ship.", []}
+     "The repository or workspace changed since review. Review the current changes again before approving Ship.", [], %{}}
   end
 
   defp run_outcome(_thread, _run, {false, {:error, {failure, _reason}}})
        when failure in [:snapshot_load_failed, :journal_load_failed] do
     {"failed",
-     "This thread's saved conversation could not be read, so it cannot continue. Start a new thread to keep working.", []}
+     "This thread's saved conversation could not be read, so it cannot continue. Start a new thread to keep working.", [],
+     %{}}
   end
 
   defp run_outcome(_thread, _run, {false, {:error, :runner_not_found}}) do
-    {"failed", "This thread's runner was removed. Start a new thread on another runner or on Tuist.", []}
+    {"failed", "This thread's runner was removed. Start a new thread on another runner or on Tuist.", [], %{}}
   end
 
   defp run_outcome(_thread, _run, {false, _}) do
     {"failed",
-     "The run could not complete. Check the connected AI account and workspace, then send a new message to retry.", []}
+     "The run could not complete. Check the connected AI account and workspace, then send a new message to retry.", [],
+     %{}}
   end
 
   def recover do
@@ -1605,6 +1614,7 @@ defmodule Tuist.Threads do
       toolName: message.tool_name,
       toolStatus: message.tool_state,
       suggestions: message.suggestions,
+      suggestion_icons: message.suggestion_icons || %{},
       # Who wrote a prompt, so a thread with participants shows who asked.
       author: if(message.kind == "human" and not is_nil(message.author_id), do: people[message.author_id]),
       createdAt: DateTime.to_iso8601(message.inserted_at)

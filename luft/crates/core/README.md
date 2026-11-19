@@ -75,6 +75,21 @@ and supplies its label to `answer_question`. Generic cards have only `reply`,
 which edits the composer and never submits. Native fallbacks retain option and
 dismiss actions; terminal decisions render the question and recorded result.
 
+Conversations also expose `suggestions`: up to three follow-up drafts from the
+latest assistant message, only after the run completes and while not archived.
+The core omits blank, non-string and over-120-codepoint values, and clears the
+list after a new prompt, including one queued offline. Cached conversations use
+the same rule. Native edges show these above an empty reply field; choosing one
+fills and focuses the composer, never sends it or replaces an existing draft.
+These arrive in the server's final-answer data, not as tool calls.
+`suggestion_icons` maps those draft texts to optional semantic IDs: `investigate`,
+`test`, `explain`, or `retry`. The core drops unknown IDs and icons for drafts
+that aren't shown, including on cached reads. Apple renders SF Symbols, Android
+renders bundled Google Material outlined icons (license: `android/MATERIAL_ICONS_LICENSE`),
+and GPUI renders Lucide. Missing icons stay text-only; platform symbol names
+never cross the bridge. The server preserves its string-valued `suggestions`
+array for older clients and stores the optional icon metadata separately.
+
 The tab catalog is `threads` (index 0, the default), `halls`, `dms`, then `profile`; its C/JNI symbols are unchanged. Edges label `dms` **DMs**.
 Rust callers can instantiate `MobileClient` and implement `Host` independently. The hall operations live in `Halls`, behind the same `Transport`, with `organizations` for frontends that have no account menu. Presence lives in `Presence`, behind a `Socket` the caller implements. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 

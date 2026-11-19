@@ -10,6 +10,24 @@ generateCredentials: true
 target:
   id: rustfs-gra-production-v1
   site: gra
+  # Off until the drive's XFS quota is raised for Garage's workload: Garage
+  # sorts first and keeps taking in-cluster placements until then.
+  privateNetworkReady: false
+# Linux runners, sandboxd and the server reach the store in-cluster, never
+# through s3.tuist.dev.
+privateNetwork:
+  enabled: true
+  clients:
+    - namespace: tuist
+    - namespace: tuist-runners
+    - namespace: tuist-sandboxes
+      podLabels:
+        tuist.dev/sandboxd: "true"
+archiveBucket: sandbox-archives
+archiveBudgetGiB: 500
+actionsCache:
+  bucket: actions-cache
+  maxGB: 500
 members: 1
 drivesPerMember: 1
 parity: ""

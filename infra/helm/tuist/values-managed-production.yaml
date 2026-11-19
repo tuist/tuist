@@ -2210,6 +2210,7 @@ runnersFleet:
         runnerCacheVolumeGiB: 512
   networkPolicy:
     enabled: true
+    rustfsNamespace: rustfs-production
     exceptCIDRs:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
@@ -2437,6 +2438,7 @@ sandboxes:
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true
+    rustfsNamespace: rustfs-production
   macos:
     # Besides the default 26.6: the Xcode 27 minors, and 26.1.1, which
     # customers' CI still runs. They rank first in the rack's golden budget

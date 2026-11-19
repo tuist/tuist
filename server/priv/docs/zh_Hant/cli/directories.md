@@ -7,11 +7,11 @@
 ---
 # 目錄 {#directories}
 
-Tuist 依據 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，將檔案分散儲存在系統中的多個目錄。這提供了一種乾淨且標準化的方式來管理設定、快取與狀態檔案。
+Tuist 遵循 [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，將檔案組織在系統上的多個目錄中。這提供了一種乾淨且標準的方式來管理設定、快取和狀態檔案。
 
 ## 支援的環境變數 {#supported-environment-variables}
 
-Tuist 同時支援標準 XDG 變數與 Tuist 專屬的前綴變數。Tuist 專屬變數（以 `TUIST_` 為前綴）具有較高優先順序，讓你能夠獨立於其他應用程式來設定 Tuist。
+Tuist 同時支援標準 XDG 變數與帶有 Tuist 專屬前綴的變體。Tuist 專屬變體（以 `TUIST_` 為前綴）具有較高的優先順序，讓你可以獨立於其他應用程式來設定 Tuist。
 
 ### 設定目錄 {#configuration-directory}
 
@@ -46,7 +46,7 @@ tuist auth login
 **用途：**
 - **Plugins**：已下載並編譯的外掛程式快取
 - **ProjectDescriptionHelpers**：已編譯的專案描述輔助工具
-- **Manifests**：已快取的清單檔案
+- **Manifests**：快取的清單檔案
 - **Projects**：產生的自動化專案快取
 - **EditProjects**：edit 指令的快取
 - **Runs**：測試與建置執行的分析資料
@@ -89,22 +89,22 @@ tuist generate
 
 ## 優先順序 {#precedence-order}
 
-在決定要使用哪個目錄時，Tuist 會依照以下順序檢查環境變數：
+在決定使用哪個目錄時，Tuist 會依下列順序檢查環境變數：
 
 1. **Tuist 專屬變數**（例如 `TUIST_XDG_CONFIG_HOME`）
 2. **標準 XDG 變數**（例如 `XDG_CONFIG_HOME`）
 3. **預設位置**（例如 `~/.config/tuist`）
 
-這讓你能夠：
-- 使用標準 XDG 變數，一致性地組織所有應用程式
-- 當你需要為 Tuist 使用不同位置時，以 Tuist 專屬變數覆蓋設定
+這讓你可以：
+- 使用標準 XDG 變數，以一致的方式組織所有應用程式
+- 當你需要為 Tuist 使用不同位置時，以 Tuist 專屬變數覆寫
 - 無需任何設定即可依賴合理的預設值
 
 ## 常見使用情境 {#common-use-cases}
 
-### 依專案隔離 Tuist {#isolating-tuist-per-project}
+### 按專案隔離 Tuist {#isolating-tuist-per-project}
 
-你可能希望依專案隔離 Tuist 的快取與狀態：
+你可能希望按專案隔離 Tuist 的快取與狀態：
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -115,7 +115,7 @@ export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 
 ### CI/CD 環境 {#ci-cd-environments}
 
-在 CI 環境中，你可能希望使用暫存目錄：
+在 CI 環境中，你可能希望使用臨時目錄：
 
 ```yaml
 # GitHub Actions example

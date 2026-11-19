@@ -1,7 +1,7 @@
 //! Shared named, accessible buttons, preserving GPUI's native Enter/Space handling.
 use gpui::{
     App, Bounds, Div, FocusHandle, KeyBinding, Pixels, ScrollHandle, SharedString, Stateful,
-    Subscription, Window, actions, canvas, prelude::*,
+    Subscription, Window, actions, canvas, prelude::*, px,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -96,16 +96,28 @@ impl KeyboardControl for Stateful<Div> {
 
 /// Reveal only the obscured edge, without jumping every focused item to the top.
 pub fn reveal(bounds: Bounds<Pixels>, scroll: &ScrollHandle, window: &mut Window, cx: &mut App) {
-    let viewport = scroll.bounds();
-    let delta = if bounds.top() < viewport.top() {
+    // Focus adds a 2px border after the bounds above were captured.
+    let viewport = scroll.bounds().inset(px(2.));
+    let y = if bounds.top() < viewport.top() {
         viewport.top() - bounds.top()
     } else if bounds.bottom() > viewport.bottom() {
         viewport.bottom() - bounds.bottom()
     } else {
-        return;
+        px(0.)
     };
+    let x = if bounds.left() < viewport.left() {
+        viewport.left() - bounds.left()
+    } else if bounds.right() > viewport.right() {
+        viewport.right() - bounds.right()
+    } else {
+        px(0.)
+    };
+    if x == px(0.) && y == px(0.) {
+        return;
+    }
     let mut offset = scroll.offset();
-    offset.y += delta;
+    offset.x += x;
+    offset.y += y;
     scroll.set_offset(offset);
     // Focus notifications run during drawing; refresh after that frame finishes.
     window.defer(cx, |window, _| window.refresh());

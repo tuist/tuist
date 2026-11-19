@@ -94,6 +94,31 @@ jq -e '
   any(.[]; .kind == "NetworkPolicy" and any(.spec.egress[]?;
     .to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "observability" and .ports == [{protocol:"TCP",port:4318}]))
 ' "$work/production.json" >/dev/null
+# Production publishes the in-cluster endpoint and buckets but no placements
+# yet, admits only its three client namespaces, and lets the service user read
+# drive space for archive admission.
+jq -e '
+  any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and
+    (.spec.target.template.data["targets.json"] | fromjson | .["rustfs-gra-production-v1"] |
+      .private_endpoint == "http://rustfs-s3.rustfs-production.svc.cluster.local:9000" and
+      .private_network_ready == false and .archive_bucket == "sandbox-archives" and
+      .archive_capacity == "rustfs" and .actions_cache_bucket == "actions-cache" and
+      .actions_cache_bytes == 500000000000)) and
+  any(.[]; .kind == "NetworkPolicy" and .metadata.name == "rustfs-store" and
+    ([.spec.ingress[].from[] | .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] // empty] | sort) ==
+      ["tuist", "tuist-runners", "tuist-sandboxes"]) and
+  any(.[]; .kind == "ConfigMap" and .metadata.name == "rustfs-setup" and
+    (.data["policy.json"] | fromjson | .Statement | map(.Resource) | flatten | sort) ==
+      ["arn:aws:s3:::*", "arn:aws:s3:::actions-cache", "arn:aws:s3:::actions-cache/*",
+       "arn:aws:s3:::sandbox-archives", "arn:aws:s3:::sandbox-archives/*", "arn:aws:s3:::shards", "arn:aws:s3:::shards/*"] and
+    (.data["archive-lifecycle.json"] | fromjson | .Rules[0] | has("Expiration") | not)) and
+  any(.[]; .kind == "CronJob" and (.spec.jobTemplate.spec.template.spec.containers[0].args[0] |
+    contains("mc quota set admin/actions-cache --size 500GB")))
+' "$work/production.json" >/dev/null
+if helm template rustfs "$chart" -n rustfs-production -f "$chart/values-production-gra.yaml" \
+  --set privateNetwork.enabled=false --set target.privateNetworkReady=true >/dev/null 2>&1; then
+  echo 'FAIL: private placement accepted without a private network' >&2; exit 1
+fi
 # Without metricsEndpoint, nothing is exported and no egress opens.
 helm template rustfs "$chart" -n rustfs-staging --set enabled=true |
   yq -o json -I0 'select(.kind != null)' | jq -s . >"$work/no-metrics.json"
@@ -103,6 +128,6 @@ jq -e 'all(.[] | select(.kind == "StatefulSet") | .spec.template.spec.containers
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set target.id=x >/dev/null 2>&1; then
   echo 'FAIL: target published without generated credentials and a public host' >&2; exit 1
 fi
-echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics'
+echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics, private endpoint with archive and Actions cache buckets'
 echo 'PASS: single-member OVH performance variant: one member, eight drives, EC:4, kura-eu-west ingress'
 echo 'PASS: disabled defaults, isolation, eight volumes, four hosts, EC:4, retained PVCs, streaming gateway and restricted services'

@@ -12,6 +12,19 @@ spec:
         - podSelector:
             matchLabels: {app: {{ .Release.Name }}}
       ports: [{protocol: TCP, port: 9000}]
+    {{- if and .Values.privateNetwork.enabled .Values.privateNetwork.clients }}
+    # In-cluster callers on the private network.
+    - from:
+        {{- range .Values.privateNetwork.clients }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .namespace }}}
+          {{- with .podLabels }}
+          podSelector:
+            matchLabels: {{- toYaml . | nindent 14 }}
+          {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: 9000}]
+    {{- end }}
   egress:
     - to:
         - podSelector:

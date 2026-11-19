@@ -437,13 +437,17 @@ defmodule Tuist.ThreadsTest do
     assert {:ok, _} =
              Threads.finish(
                claimed,
-               {:ok, ~s({"reply":"Checked the code.","suggestions":["Show the change","Show the change"]})}
+               {:ok,
+                ~s({"reply":"Checked the code.","suggestions":[{"text":"Show the change","icon":"investigate"},"Show the change"]})}
              )
 
     assert {:ok, fresh} = Threads.get(user, account, thread.id)
     assert fresh.agent_status == "idle"
     assert List.last(fresh.messages).body == "Checked the code."
     assert List.last(fresh.messages).suggestions == ["Show the change"]
+    assert List.last(fresh.messages).suggestion_icons == %{"Show the change" => "investigate"}
+    assert List.last(Threads.serialize(fresh).messages).suggestions == ["Show the change"]
+    assert List.last(Threads.serialize(fresh).messages).suggestion_icons == %{"Show the change" => "investigate"}
     assert {:error, :stale_run} = Threads.finish(claimed, {:ok, "duplicate"})
     refute Threads.owns_run?(claimed.id, claimed.attempt)
   end

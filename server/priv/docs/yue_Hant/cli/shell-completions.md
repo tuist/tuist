@@ -2,28 +2,28 @@
 {
   "title": "Shell 自動補全",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "了解如何設定你的 Shell，以自動補全 Tuist 指令。"
+  "description": "學習如何設定你的 Shell，以自動補全 Tuist 指令。"
 }
 ---
 # Shell 自動補完 {#shell-completions}
 
-如果你已**全域安裝** Tuist（例如透過 Homebrew），你可以為 Zsh、Bash 和 Fish 安裝 Shell 自動補完，以自動補全指令和選項。
+如果你已**全局安裝** Tuist（例如透過 Homebrew），你可以為 Zsh、Bash 和 Fish 安裝 Shell 自動補完，以自動補全指令和選項。
 
 > [!NOTE]
-> **甚麼是全域安裝**
+> **甚麼是全局安裝**
 >
-> 全域安裝指安裝位置位於你 Shell 的 `$PATH` 環境變數中。這表示你可以在終端機的任何目錄執行 `tuist`。這是 Homebrew 的預設安裝方式。
+> 全局安裝是指安裝位置已加入你 Shell 的 `$PATH` 環境變數。這表示你可以在終端機的任何目錄執行 `tuist`。這是 Homebrew 的預設安裝方式。
 
 
 ## Zsh {#zsh}
 
-如果你已安裝 [oh-my-zsh](https://ohmyz.sh/)，你已經有一個會自動載入補完腳本的目錄 — `.oh-my-zsh/completions`。將新的補完腳本複製到該目錄中一個名為 `_tuist` 的新檔案：
+如果你已安裝 [oh-my-zsh](https://ohmyz.sh/)，你已經有一個會自動載入補完腳本的目錄 — `.oh-my-zsh/completions`。將你的新補完腳本複製到該目錄中一個名為 `_tuist` 的新檔案：
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-如果沒有 `oh-my-zsh`，你需要將補完腳本的路徑加入函式路徑，並啟用補完腳本自動載入。首先，將以下幾行加入 `~/.zshrc`：
+如果沒有 `oh-my-zsh`，你需要將補完腳本的路徑加入到函式路徑，並啟用補完腳本的自動載入。首先，將以下幾行加入到 `~/.zshrc`：
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -31,7 +31,7 @@ autoload -U compinit
 compinit
 ```
 
-接著，在 `~/.zsh/completion` 建立目錄，並將補完腳本複製到新目錄中，同樣命名為 `_tuist`。
+接著，在 `~/.zsh/completion` 建立一個目錄，並將補完腳本複製到該新目錄，同樣存為名為 `_tuist` 的檔案。
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
@@ -52,7 +52,7 @@ mkdir -p ~/.bash_completions
 tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
 ```
 
-然後將以下這一行加入 `~/.bash_profile` 或 `~/.bashrc`：
+然後將以下這一行加入到 `~/.bash_profile` 或 `~/.bashrc`：
 
 ```bash
 source ~/.bash_completions/tuist.bash

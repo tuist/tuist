@@ -980,17 +980,56 @@ class MainActivity : Activity() {
             }
         }
         if (thread.optBoolean("working")) { text(getString(R.string.thinking)); return }
-        content.addView(EditText(this).apply {
+        val suggestions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = if (reply.isEmpty()) View.VISIBLE else View.GONE
+        }
+        val composer = EditText(this).apply {
             setTextColor(noora("surface-label-primary"))
             setHintTextColor(noora("surface-label-tertiary"))
             hint = getString(R.string.reply)
             setText(reply)
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { reply = s.toString() }
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    reply = s.toString()
+                    suggestions.visibility = if (reply.isEmpty()) View.VISIBLE else View.GONE
+                }
                 override fun afterTextChanged(s: Editable?) {}
             })
-        })
+        }
+        thread.optJSONArray("suggestions")?.let { values ->
+            for (index in 0 until values.length()) {
+                val suggestion = values.getString(index)
+                suggestions.addView(styled(Button(this).apply {
+                    text = suggestion
+                    val icon = when (thread.optJSONObject("suggestion_icons")?.optString(suggestion)) {
+                        "investigate" -> R.drawable.suggestion_search
+                        "test" -> R.drawable.suggestion_check_circle
+                        "explain" -> R.drawable.suggestion_chat_bubble_outline
+                        "retry" -> R.drawable.suggestion_refresh
+                        else -> null
+                    }
+                    if (icon != null) {
+                        val drawable = getDrawable(icon)!!.mutate().apply {
+                            setTint(noora("button-secondary-label"))
+                            setBounds(0, 0, dp(18), dp(18))
+                        }
+                        setCompoundDrawablesRelative(drawable, null, null, null)
+                        compoundDrawablePadding = dp(8)
+                    }
+                    setOnClickListener {
+                        if (!busy && reply.isEmpty()) {
+                            composer.setText(suggestion)
+                            composer.setSelection(suggestion.length)
+                            composer.requestFocus()
+                        }
+                    }
+                }), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+            }
+        }
+        content.addView(suggestions)
+        content.addView(composer)
         button(R.string.send, primary = true) {
             if (reply.isBlank()) return@button
             call("send_message", JSONObject().put("id", thread.optString("id")).put("content", reply)) { data ->

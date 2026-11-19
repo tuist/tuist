@@ -113,7 +113,7 @@ Internal service access and operator paths that are deliberately not exposed pub
 
 ## Other services
 
-GitHub for source control, continuous integration, and container images. Stripe for payments. Mailgun for transactional email. Sentry for error reporting. Each provider secures its own platform; Tuist controls its configuration, who can access it, and what data is sent to it. All are assessed under the [Third-party risk management policy](/security/access-and-risk-management/third-party-risk-management-policy).
+GitHub for source control, continuous integration, and container images. Stripe for payments. Mailgun for transactional email. Each provider secures its own platform; Tuist controls its configuration, who can access it, and what data is sent to it. All are assessed under the [Third-party risk management policy](/security/access-and-risk-management/third-party-risk-management-policy). Application errors go to Tuist's self-hosted Atlas and Pulse error ingest, which Tuist operates.
 
 ## What no provider covers
 

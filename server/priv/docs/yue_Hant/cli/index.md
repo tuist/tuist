@@ -7,13 +7,13 @@
 ---
 # CLI {#cli}
 
-Tuist CLI 係同 Tuist 互動嘅其中一個介面；如果你使用 <.localized_link href="/guides/features/projects">生成嘅專案</.localized_link>，佢就係最常用嘅。佢提供生成專案、快取二進制檔案、執行測試、分享預覽等指令。
+Tuist CLI 係同 Tuist 互動嘅其中一個介面，如果你使用 <.localized_link href="/guides/features/projects">生成嘅專案</.localized_link>，佢就係最常用嘅一個。佢提供咗生成專案、快取二進制檔案、執行測試、分享預覽等命令。
 
 ## 開始使用 {#getting-started}
 
 如果你尚未安裝 Tuist，請跟隨 <.localized_link href="/guides/install-tuist">安裝指南</.localized_link> 開始。
 
-安裝完成後，你可以喺終端機執行 `tuist` 來查看可用指令列表：
+安裝完成後，你可以喺終端機執行 `tuist` 以查看可用命令清單：
 
 ```bash
 tuist --help
@@ -21,7 +21,7 @@ tuist --help
 
 ## 設定 {#configuration}
 
-可以透過 `tuist.toml` 檔案設定 CLI 行為。請參閱 <.localized_link href="/references/tuist-toml">tuist.toml 參考</.localized_link> 了解所有可用選項。
+可以透過 `tuist.toml` 檔案設定 CLI 行為。請參閱 <.localized_link href="/references/tuist-toml">tuist.toml 參考文件</.localized_link> 以了解所有可用選項。
 
 ## 疑難排解 {#troubleshooting}
 

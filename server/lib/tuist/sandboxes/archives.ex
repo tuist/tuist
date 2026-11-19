@@ -55,12 +55,14 @@ defmodule Tuist.Sandboxes.Archives do
   There is no per-account archive limit. Account-storage bytes and archives
   in other stores do not consume a store's budget. Uploads can cross the
   budget; it is a routing threshold, not a reservation. Before each upload,
-  every URL in the target's `archive_capacity_urls` must report Garage data
-  and metadata free bytes sufficient for the archive's worst-case size plus
-  1 GiB of headroom. Missing configuration, failed probes or missing readings
-  route new archives to account storage too. Garage's filesystem readings
-  include other objects and delayed reclamation, but concurrent writers can
-  still consume space after admission.
+  the store must report free bytes sufficient for the archive's worst-case
+  size plus 1 GiB of headroom: a Garage store through every URL in its
+  `archive_capacity_urls` (data and metadata volumes), a RustFS store
+  (`archive_capacity: "rustfs"`) through its signed admin storage info, taking
+  its tightest drive. Missing configuration, failed probes or missing readings
+  route new archives to account storage too. These readings include other
+  objects and delayed reclamation, but concurrent writers can still consume
+  space after admission.
 
   Upload pressure and the periodic pass queue `offload_oldest/2`: completed
   Orb and snapshot archives move to account storage oldest `archived_at`
@@ -107,6 +109,7 @@ defmodule Tuist.Sandboxes.Archives do
   @mib 1024 * 1024
   @gib 1024 * @mib
   @default_archive_budget_bytes 100 * @gib
+  @empty_sha256 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   # The archived kernel, and room for the archive's framing and an
   # incompressible worst case on top of the disk ceiling.
   @kernel_allowance_bytes 512 * @mib
@@ -1478,14 +1481,38 @@ defmodule Tuist.Sandboxes.Archives do
     budget = Map.get(config, "archive_budget_bytes", @default_archive_budget_bytes)
 
     with true <- in_rack_archived_bytes(id) < budget,
-         {:ok, free} <- free_bytes(config) do
+         {:ok, free} <- free_bytes(id, config) do
       free >= max_bytes + @gib
     else
       _ -> false
     end
   end
 
-  defp free_bytes(%{"archive_capacity_urls" => [_ | _] = urls}) do
+  # RustFS reports drive space only through its signed admin API, which the
+  # store's own service user may call for this (admin:StorageInfo). The
+  # tightest drive bounds what one more archive can use.
+  defp free_bytes(id, %{"archive_capacity" => "rustfs"} = config) do
+    with {:ok, %{config: aws}} <- ShardStorage.in_cluster_target(id, config),
+         url = "#{aws.scheme}#{aws.host}:#{aws.port}/rustfs/admin/v3/storageinfo",
+         {:ok, headers} <- ExAws.Auth.headers(:get, url, :s3, aws, [{"x-amz-content-sha256", @empty_sha256}], ""),
+         {:ok, %Req.Response{status: 200, body: %{"info" => %{"disks" => [_ | _] = disks}}}} <-
+           Req.get(url,
+             headers: headers,
+             retry: false,
+             redirect: false,
+             receive_timeout: 1_000,
+             pool_timeout: 1_000,
+             connect_options: [timeout: 1_000]
+           ),
+         free = Enum.map(disks, &(is_map(&1) && &1["availspace"])),
+         true <- Enum.all?(free, &(is_integer(&1) and &1 >= 0)) do
+      {:ok, Enum.min(free)}
+    else
+      _ -> :unknown
+    end
+  end
+
+  defp free_bytes(_id, %{"archive_capacity_urls" => [_ | _] = urls}) do
     Enum.reduce_while(urls, nil, fn url, minimum ->
       with {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) <-
              Req.get(url,
@@ -1503,7 +1530,7 @@ defmodule Tuist.Sandboxes.Archives do
     end)
   end
 
-  defp free_bytes(_config), do: :unknown
+  defp free_bytes(_id, _config), do: :unknown
 
   defp metric_free_bytes(metrics) do
     readings =
@@ -1553,7 +1580,7 @@ defmodule Tuist.Sandboxes.Archives do
     budget_deficit = max(0, routed_bytes(store) - budget + 1)
 
     space_deficit =
-      case free_bytes(config) do
+      case free_bytes(store, config) do
         {:ok, free} -> max(0, ceil(max_bytes + @gib - free) - retiring_bytes(store))
         :unknown -> 0
       end
@@ -1762,7 +1789,7 @@ defmodule Tuist.Sandboxes.Archives do
   defp stores do
     for {id, %{"archive_bucket" => bucket} = config} <- Environment.shard_storage_targets(),
         is_binary(bucket) and bucket != "",
-        {:ok, target} <- [ShardStorage.s3_target(id, Map.put(config, "bucket", bucket))],
+        {:ok, target} <- [ShardStorage.in_cluster_target(id, Map.put(config, "bucket", bucket))],
         into: %{},
         do: {id, {config, target}}
   end

@@ -28,7 +28,9 @@ defmodule Tuist.Threads.Agent do
 
     Return your final answer as a raw JSON object with exactly these keys:
     "reply": your complete concise Markdown answer to the person's request;
-    "suggestions": an array of zero to three short follow-up messages the person could send next.
+    "suggestions": zero to three objects with "text" (a short follow-up message the person could send next)
+    and "icon" ("investigate", "test", "explain", "retry", or null when none fits).
+    For example: {"text":"Explain the tradeoff","icon":"explain"}. Choose icons by meaning, not platform symbol names.
     Ground follow-ups in this conversation and your latest findings. Write each in the person's voice,
     at most 120 Unicode codepoints. Offer distinct useful next questions, not repeated starter prompts
     or questions already answered. Do not suggest actions outside your available capabilities.
@@ -137,21 +139,31 @@ defmodule Tuist.Threads.Agent do
 
     case JSON.decode(json) do
       {:ok, %{"reply" => reply} = result} when is_binary(reply) ->
-        {String.trim(reply), suggestions(result["suggestions"])}
+        {suggestions, icons} = suggestions(result["suggestions"])
+        {String.trim(reply), suggestions, icons}
 
       _ ->
-        {text, []}
+        {text, [], %{}}
     end
   end
 
   defp suggestions(values) when is_list(values) do
     values
-    |> Enum.filter(&is_binary/1)
-    |> Enum.map(&String.trim/1)
-    |> Enum.filter(&(&1 != "" and length(String.codepoints(&1)) <= 120 and byte_size(&1) <= 480))
-    |> Enum.uniq()
+    |> Enum.flat_map(fn
+      text when is_binary(text) -> [{String.trim(text), nil}]
+      %{"text" => text} = suggestion when is_binary(text) -> [{String.trim(text), suggestion["icon"]}]
+      _ -> []
+    end)
+    |> Enum.filter(fn {text, _} -> text != "" and length(String.codepoints(text)) <= 120 and byte_size(text) <= 480 end)
+    |> Enum.uniq_by(&elem(&1, 0))
     |> Enum.take(3)
+    |> then(fn suggestions ->
+      icons =
+        for {text, icon} <- suggestions, icon in ["investigate", "test", "explain", "retry"], into: %{}, do: {text, icon}
+
+      {Enum.map(suggestions, &elem(&1, 0)), icons}
+    end)
   end
 
-  defp suggestions(_values), do: []
+  defp suggestions(_values), do: {[], %{}}
 end
