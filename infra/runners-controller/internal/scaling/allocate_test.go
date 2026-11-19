@@ -164,6 +164,7 @@ func macDemand(name string, s Signals, k PolicyKnobs) PoolDemand {
 		MinWarmPoolFloor: k.MinWarmPoolFloor,
 		Active:           s.CurrentOccupancy()+s.Queued > 0,
 		InUse:            s.InUse(),
+		ColdJobs:         s.ColdJobs,
 		HoursWithJobs:    s.HoursWithJobs,
 		Load:             s.Load(),
 		Target:           DesiredReplicas(s, k),
@@ -633,6 +634,34 @@ func TestAllocateCompute_IdleFloorsGoToThePoolUsedInMoreHours(t *testing.T) {
 	}
 	if got["27-1"] != 7 || got["26-3"] != 0 {
 		t.Errorf("the seven seats left should keep 27-1 warm, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
+	}
+}
+
+// The rack on 2026-11-19 at 10:34: 26-6 (jobs in 270 hours, 360 of them past
+// the first of their burst) held five idle runners while 27-1 (231 hours,
+// 2159 such jobs, all customers') had one, and a customer's next fan-out of
+// seven booted cold. The floor goes to the pool whose bursts it serves.
+func TestAllocateCompute_FloorsGoToThePoolWithMoreColdJobs(t *testing.T) {
+	slot := 24 * gib
+	now := time.Date(2026, 11, 19, 10, 34, 0, 0, time.UTC)
+	pools := []PoolDemand{
+		{Name: "26-6", PerPodCost: slot, Floor: 6, Load: 1, Target: 6, InUse: true, Active: true, ColdJobs: 360, HoursWithJobs: 270, LastDemandAt: now},
+		{Name: "27-1", PerPodCost: slot, Floor: 17, Load: 6, Target: 17, InUse: true, Active: true, ColdJobs: 2159, HoursWithJobs: 231, LastDemandAt: now},
+	}
+
+	// Ten seats past both pools' load and baseline (2 and 7): 27-1's ten
+	// learned spares take them all. By hours with jobs, 26-6 took four first.
+	got := AllocateCompute(pools, 19*slot, nil)
+	if got["27-1"] != 17 || got["26-6"] != 2 {
+		t.Errorf("byte budget: want 27-1=17 26-6=2, got %v", got)
+	}
+
+	for i := range pools {
+		pools[i].ShapeKey = "8vcpu"
+	}
+	got = AllocateCompute(pools, 1000*gib, map[string]int32{"8vcpu": 19})
+	if got["27-1"] != 17 || got["26-6"] != 2 {
+		t.Errorf("shape cap: want 27-1=17 26-6=2, got %v", got)
 	}
 }
 

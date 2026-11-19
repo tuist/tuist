@@ -738,6 +738,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			MinWarmPoolFloor: k.MinWarmPoolFloor,
 			Active:           sig.CurrentOccupancy()+sig.Queued > 0,
 			InUse:            sig.InUse(),
+			ColdJobs:         sig.ColdJobs,
 			HoursWithJobs:    sig.HoursWithJobs,
 			LastDemandAt:     lastDemandAt,
 			Load:             sig.Load(),
