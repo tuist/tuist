@@ -2097,6 +2097,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs", TestRunsLive, metadata: @public_project_route_metadata
       live "/tests/coverage", CoverageLive
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
+      live "/tests/coverage/commits", CoverageCommitsLive
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
       live "/tests/coverage/pulls/:number", CoverageDetailLive, :pull_request
       live "/tests/coverage/files/*path", CoverageFileLive, :show

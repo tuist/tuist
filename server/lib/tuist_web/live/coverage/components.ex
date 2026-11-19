@@ -184,15 +184,23 @@ defmodule TuistWeb.Coverage.Components do
   end
 
   attr :title, :string, required: true
+  attr :description, :string, default: nil
   attr :get_started_href, :string, default: nil
   attr :image, :string, default: "line_chart", values: ~w(line_chart table)
   attr :rest, :global
+  slot :actions
 
   def coverage_empty(assigns) do
     assigns = assign(assigns, :artwork, empty_artwork(assigns.image))
 
     ~H"""
-    <.empty_card_section title={@title} get_started_href={@get_started_href} {@rest}>
+    <.empty_card_section
+      title={@title}
+      description={@description}
+      get_started_href={@get_started_href}
+      {@rest}
+    >
+      <:actions>{render_slot(@actions)}</:actions>
       <:image>
         <img src={@artwork.light} data-theme="light" loading="lazy" decoding="async" />
         <img src={@artwork.dark} data-theme="dark" loading="lazy" decoding="async" />
@@ -340,6 +348,7 @@ defmodule TuistWeb.Coverage.Components do
 
   defp back_label(["commits", sha]), do: dgettext("dashboard_tests", "Commit %{name}", name: short_sha(sha))
   defp back_label(["pulls", number]), do: dgettext("dashboard_tests", "Pull request #%{number}", number: number)
+  defp back_label(["commits"]), do: dgettext("dashboard_tests", "Recent Commits")
   defp back_label(_path), do: dgettext("dashboard_tests", "Code Coverage")
 
   @doc false
@@ -739,9 +748,11 @@ defmodule TuistWeb.Coverage.Components do
 
   attr :point_href, :any, default: nil, doc: "The page a chart point opens, from the point; nil when points open nothing."
   attr :covered_lines_note, :string, default: nil, doc: "A sentence the covered lines' description ends with."
+  attr :empty_description, :string, default: nil, doc: "A sentence under the empty state's title."
 
   slot :actions
   slot :details, doc: "Figures shown under the chart."
+  slot :empty_actions, doc: "Links under the empty state's title."
 
   @doc """
   A branch's coverage over the period: its latest measured commit's figure,
@@ -835,9 +846,12 @@ defmodule TuistWeb.Coverage.Components do
               branch: @branch
             )
           }
+          description={@empty_description}
           get_started_href="https://tuist.dev/en/docs/guides/features/test-code-coverage"
           data-part="empty-analytics"
-        />
+        >
+          <:actions>{render_slot(@empty_actions)}</:actions>
+        </.coverage_empty>
       </div>
     </.card>
     """
