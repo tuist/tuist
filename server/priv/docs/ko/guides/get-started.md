@@ -7,9 +7,9 @@
 ---
 # 시작하기 {#get-started}
 
-현재 앱이 빌드되는 방식에 맞는 경로를 선택하세요. 각 경로는 설치해야 할 항목, 캐싱·인사이트·테스트 기능을 활성화하는 방법, 그리고 엔드투엔드로 설정을 검증하는 방법을 안내합니다. 각 기능을 독립적으로 도입하거나, 여러 플랫폼에서 배포한다면 조합해서 사용할 수 있습니다.
+현재 앱이 빌드되는 방식에 맞는 경로를 선택하세요. 각 경로는 설치 항목, 캐싱·인사이트·테스팅 기능 활성화 방법, 그리고 종단 간 설정 검증 방법을 안내합니다. 기능을 개별적으로 도입하거나, 여러 플랫폼으로 배포하는 경우 조합하여 사용할 수 있습니다.
 
-대부분의 경로는 <.localized_link href="/guides/install-tuist">Tuist 명령줄 인터페이스</.localized_link>를 사용합니다. Elixir는 Hex 패키지를 사용하며, Once는 네이티브 Tuist 프로바이더를 통해 연결됩니다. 둘 다 통합을 위해 Tuist CLI가 필요하지 않습니다.
+대부분의 경로는 <.localized_link href="/guides/install-tuist">Tuist 명령줄 인터페이스</.localized_link>를 사용합니다. Elixir는 Hex 패키지를 사용하며, Once는 네이티브 Tuist 제공자를 통해 연결됩니다. 둘 다 통합을 위해 Tuist CLI가 필요하지 않습니다.
 
 ## Xcode 프로젝트 {#existing-xcode-project}
 
@@ -37,13 +37,13 @@ Swift 매니페스트로부터 Tuist가 Xcode 프로젝트를 정의하고 생�
 
 ## Rust 프로젝트 {#rust-project}
 
-Tuist CLI를 통해 Cargo를 실행하여 doc test를 포함한 빌드 및 개별 테스트 결과를 보고하고, 불안정한 테스트를 조사하세요.
+Tuist CLI를 통해 Cargo를 실행하여 doctests를 포함한 빌드 및 개별 테스트 결과를 보고하고, 불안정한 테스트를 조사하세요.
 
 <.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
 
 ## Bazel 프로젝트 {#bazel-project}
 
-Bazel 워크스페이스를 Tuist의 Remote Execution API 캐시 및 Build Event Service로 지정하여 팀과 CI 전반에 캐시 히트와 인사이트를 공유하세요.
+Bazel 워크스페이스를 Tuist의 Remote Execution API 캐시 및 Build Event Service로 지정하여 팀과 CI 전반에서 캐시 히트와 인사이트를 공유하세요.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
