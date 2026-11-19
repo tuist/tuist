@@ -3944,49 +3944,57 @@ async fn batch_read_many_atomic(
 ) -> Vec<(BlobRead, Duration)> {
     enum Plan {
         Done(BlobRead),
-        Read(Box<ArtifactManifest>),
+        Read(Arc<ArtifactManifest>),
         PerBlob,
     }
-    // Each item reports the time spent on it: its own manifest lookup plus,
-    // for a grouped read, its group's read.
-    let mut plans = Vec::with_capacity(digests.len());
-    let mut durations = Vec::with_capacity(digests.len());
-    for digest in digests {
-        let started_at = Instant::now();
+    // Each item reports the time spent on it: the batch's manifest lookup
+    // plus, for a grouped read, its group's read.
+    let started_at = Instant::now();
+    let mut plans: Vec<Plan> = Vec::with_capacity(digests.len());
+    let mut lookups: Vec<(usize, String)> = Vec::new();
+    for (index, digest) in digests.iter().enumerate() {
         if is_empty_blob(digest) {
             plans.push(Plan::Done(Ok(Some(Vec::new()))));
-            durations.push(started_at.elapsed());
             continue;
         }
-        let key = match digest_key(digest) {
-            Ok(key) => blob_key(&key),
-            Err(status) => {
-                plans.push(Plan::Done(Err(status)));
-                durations.push(started_at.elapsed());
-                continue;
+        match digest_key(digest) {
+            Ok(key) => {
+                lookups.push((index, blob_key(&key)));
+                plans.push(Plan::PerBlob);
             }
-        };
-        let plan = match state
-            .store
-            .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
-            .await
-        {
-            Ok(Some(manifest)) => match budget.claim(manifest.size, "CAS response materialization")
-            {
-                Ok(()) => Plan::Read(Box::new(manifest)),
-                Err(status) => Plan::Done(Err(status)),
-            },
-            Ok(None) => Plan::PerBlob,
-            Err(error) => {
+            Err(status) => plans.push(Plan::Done(Err(status))),
+        }
+    }
+    // One manifest-cache lock and one RocksDB multi-get for the whole batch,
+    // instead of one awaited lookup (and one point read per cache miss) per
+    // digest. Digests without a manifest stay on the per-blob path, which
+    // resolves recipes and misses exactly as before.
+    let keys: Vec<&str> = lookups.iter().map(|(_, key)| key.as_str()).collect();
+    match state
+        .store
+        .fetch_artifacts_for_serving(ArtifactProducer::Reapi, namespace_id, &keys)
+    {
+        Ok(manifests) => {
+            for ((index, _), manifest) in lookups.iter().zip(manifests) {
+                let Some(manifest) = manifest else {
+                    continue;
+                };
+                plans[*index] = match budget.claim(manifest.size, "CAS response materialization") {
+                    Ok(()) => Plan::Read(manifest),
+                    Err(status) => Plan::Done(Err(status)),
+                };
+            }
+        }
+        Err(error) => {
+            for (index, _) in &lookups {
                 state
                     .metrics
                     .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-                Plan::Done(Err(Status::internal(error)))
+                plans[*index] = Plan::Done(Err(Status::internal(error.clone())));
             }
-        };
-        plans.push(plan);
-        durations.push(started_at.elapsed());
+        }
     }
+    let durations = vec![started_at.elapsed(); digests.len()];
 
     let reads: Vec<(usize, &ArtifactManifest)> = plans
         .iter()

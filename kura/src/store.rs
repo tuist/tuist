@@ -2934,7 +2934,8 @@ impl Store {
                 .collect()
         };
 
-        let manifests = self.manifests_retained_batch(pending.iter().map(|&index| id(index)))?;
+        let manifests =
+            self.manifests_retained_batch(pending.iter().map(|&index| id(index)), false)?;
         let segment_state = self.segment_state_snapshot();
         for (index, manifest) in pending.into_iter().zip(manifests) {
             let Some(manifest) = manifest else {
@@ -2993,10 +2994,12 @@ impl Store {
     }
 
     /// [`Store::manifest_retained`] for many ids under one manifest-cache lock
-    /// and one RocksDB multi-get, without admitting the rows it reads.
+    /// and one RocksDB multi-get. Rows read from RocksDB are admitted to the
+    /// manifest cache (under one more lock) only when `admit` is set.
     fn manifests_retained_batch<'a>(
         &self,
         artifact_ids: impl ExactSizeIterator<Item = &'a str>,
+        admit: bool,
     ) -> Result<Vec<Option<Arc<ArtifactManifest>>>, String> {
         let mut manifests = Vec::with_capacity(artifact_ids.len());
         let mut misses = Vec::new();
@@ -3025,11 +3028,64 @@ impl Store {
             misses.iter().map(|(_, artifact_id)| artifact_id.as_bytes()),
             false,
         );
+        let mut read = Vec::new();
         for ((index, artifact_id), row) in misses.into_iter().zip(rows) {
             let row =
                 row.map_err(|error| format!("failed to read manifest from RocksDB: {error}"))?;
             if let Some(bytes) = row {
-                manifests[index] = Some(Arc::new(decode_manifest_record(artifact_id, &bytes)?));
+                let manifest = Arc::new(decode_manifest_record(artifact_id, &bytes)?);
+                if admit {
+                    read.push(manifest.clone());
+                }
+                manifests[index] = Some(manifest);
+            }
+        }
+        if !read.is_empty() {
+            if self.memory.allow_manifest_cache_admission() {
+                let mut cache = self
+                    .manifest_cache
+                    .lock()
+                    .expect("manifest cache lock poisoned");
+                for manifest in read {
+                    let result = cache.insert_retained(manifest);
+                    self.record_manifest_cache_insert(result);
+                }
+                self.record_manifest_cache_state(&cache);
+            } else {
+                for _ in read {
+                    self.record_manifest_cache_pressure_skip();
+                }
+            }
+        }
+        Ok(manifests)
+    }
+
+    /// [`Store::fetch_artifact_for_serving`] for many keys, in request order:
+    /// one manifest-cache lock, one RocksDB multi-get for the cache misses
+    /// (admitted like a single serving read's), and one segment-state snapshot
+    /// to queue promotions out of Old segments. A failed read fails the batch.
+    pub fn fetch_artifacts_for_serving(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        keys: &[&str],
+    ) -> Result<Vec<Option<Arc<ArtifactManifest>>>, String> {
+        let ids: Vec<[u8; 64]> = keys
+            .iter()
+            .map(|key| {
+                let mut id = [0_u8; 64];
+                artifact_storage_id_in(&mut id, producer, &self.tenant_id, namespace_id, key);
+                id
+            })
+            .collect();
+        let manifests = self.manifests_retained_batch(ids.iter().map(artifact_id_str), true)?;
+        let segment_state = self.segment_state_snapshot();
+        for manifest in manifests.iter().flatten() {
+            if let Some(segment_id) = manifest.segment_id.as_deref()
+                && segment_state.generations.get(segment_id).copied()
+                    == Some(SegmentGeneration::Old)
+            {
+                self.enqueue_promotion(&manifest.artifact_id, RefreshTrigger::Serve);
             }
         }
         Ok(manifests)
@@ -19703,6 +19759,60 @@ mod tests {
                 .expect("manifest probe should succeed"),
             vec![false, true]
         );
+    }
+
+    #[tokio::test]
+    async fn batched_serving_lookups_match_single_serving_reads() {
+        let (_temp_dir, _config, store) = temp_store();
+        let mut stored = Vec::new();
+        for key in ["cached", "uncached"] {
+            stored.push(
+                store
+                    .persist_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "ios",
+                        key,
+                        "application/octet-stream",
+                        &[7_u8; 4096],
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+        // One row answers from the manifest cache, the other from RocksDB.
+        store.remove_manifest_cache_keys(std::slice::from_ref(&stored[1].artifact_id));
+        assert!(store.manifest_cache_get(&stored[1].artifact_id).is_none());
+        store.age_every_segment_for_test();
+
+        let manifests = store
+            .fetch_artifacts_for_serving(
+                ArtifactProducer::Reapi,
+                "ios",
+                &["uncached", "absent", "cached"],
+            )
+            .unwrap();
+
+        let ids: Vec<Option<&str>> = manifests
+            .iter()
+            .map(|manifest| manifest.as_ref().map(|m| m.artifact_id.as_str()))
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                Some(stored[1].artifact_id.as_str()),
+                None,
+                Some(stored[0].artifact_id.as_str()),
+            ]
+        );
+        // Like a single serving read, a row read from RocksDB is admitted and
+        // every blob served out of an Old segment is queued for promotion.
+        assert!(store.manifest_cache_get(&stored[1].artifact_id).is_some());
+        for manifest in &stored {
+            assert_eq!(
+                store.pending_promotion_for_test(&manifest.artifact_id),
+                Some(RefreshTrigger::Serve)
+            );
+        }
     }
 
     #[tokio::test]
