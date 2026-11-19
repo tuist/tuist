@@ -122,11 +122,23 @@ helm upgrade --install cert-manager jetstack/cert-manager \
   -n cert-manager --create-namespace --set crds.enabled=true
 
 # ingress-nginx (Hetzner LB annotations on the Service get a cloud LB).
+# Runs our patched controller and certgen images; keep the chart version,
+# tags and digests in sync with infra/helm/platform/values.yaml.
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --version 4.15.1 \
   -n ingress-nginx --create-namespace \
   --set controller.service.annotations."load-balancer\.hetzner\.cloud/location"=fsn1 \
-  --set controller.service.annotations."load-balancer\.hetzner\.cloud/name"=atlas-production-ingress
+  --set controller.service.annotations."load-balancer\.hetzner\.cloud/name"=atlas-production-ingress \
+  --set controller.image.registry=ghcr.io \
+  --set controller.image.image=tuist/ingress-nginx-controller \
+  --set controller.image.tag=v1.15.16-tuist.1 \
+  --set controller.image.digest=sha256:85740990b9ec9a27dfa0f4bd62f522f16cda7d3406d7e6195a63be8ff39a5771 \
+  --set controller.image.digestChroot="" \
+  --set controller.admissionWebhooks.patch.image.registry=ghcr.io \
+  --set controller.admissionWebhooks.patch.image.image=tuist/ingress-nginx-kube-webhook-certgen \
+  --set controller.admissionWebhooks.patch.image.tag=v1.15.16-tuist.1 \
+  --set controller.admissionWebhooks.patch.image.digest=sha256:e2fb85522b193171ffec2fdfe39d620c2014e1e4090fd50f73c5cf32f6e724bb
 
 # Cloudflare token Secret (external-dns reads it)
 kubectl create namespace external-dns --dry-run=client -o yaml | kubectl apply -f -
