@@ -1509,18 +1509,23 @@ defmodule Tuist.Accounts.AgentAuth do
     # enrollment. A registration created before enrollment is not an exemption.
     Repo.one!(from user in User, where: user.id == ^user.id, lock: "FOR UPDATE")
 
-    if UserMFA.enabled?(user) do
-      # Reload after the lock: caller-supplied proof and revoked/expired sessions
-      # must not authorize a claim. get_user_session also enforces current MFA.
+    # Reload after the lock: caller-supplied proof and revoked/expired sessions
+    # must not authorize a claim. get_user_session also enforces current MFA.
+    session =
       with %UserToken{token: token} <- session,
-           %UserToken{user_id: user_id} <- Accounts.get_user_session(token),
+           %UserToken{user_id: user_id} = session <- Accounts.get_user_session(token),
            true <- user_id == user.id do
-        :ok
+        session
       else
-        _ -> {:error, :mfa_required}
+        _ -> nil
       end
-    else
-      :ok
+
+    cond do
+      UserMFA.enabled?(user) and not match?(%UserToken{}, session) -> {:error, :mfa_required}
+      # Organizations that require a second factor refuse sessions that didn't
+      # pass one, including every session of a user with no factor enrolled.
+      Accounts.mfa_requirement(user, session) != :ok -> {:error, :mfa_required}
+      true -> :ok
     end
   end
 

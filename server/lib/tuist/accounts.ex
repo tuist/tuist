@@ -2043,6 +2043,41 @@ defmodule Tuist.Accounts do
     end
   end
 
+  @doc """
+  Returns what the browser `session` (a `UserToken`, or `nil` for sign-ins
+  without one, such as a direct password exchange for API tokens) needs before
+  it can issue credentials that act for `user` in every organization they
+  belong to:
+
+    * `:ok` when the session meets the two-factor requirement of every
+      organization of the user (see `UserToken.satisfies_mfa?/2`).
+    * `{:mfa_required, organization}` naming an organization whose
+      requirement it doesn't meet.
+  """
+  def mfa_requirement(%User{} = user, session) do
+    now = Tuist.Time.utc_now()
+
+    unmet =
+      user
+      |> get_user_organization_accounts()
+      |> Enum.map(& &1.organization)
+      |> Enum.find(&(Organization.mfa_required?(&1, now) and not UserToken.satisfies_mfa?(session, &1)))
+
+    if unmet, do: {:mfa_required, unmet}, else: :ok
+  end
+
+  @doc """
+  Makes `organization` require two-factor authentication from its members
+  from `required_at` on, or stops requiring it with `nil`. Members who have
+  not enrolled a factor by then are sent to enroll one before they can use
+  the organization or issue credentials.
+  """
+  def update_organization_mfa_requirement(%Organization{} = organization, required_at) do
+    organization
+    |> Organization.mfa_requirement_changeset(required_at)
+    |> Repo.update()
+  end
+
   @sso_refresh_grace_seconds 4 * 7 * 24 * 60 * 60
 
   @doc """

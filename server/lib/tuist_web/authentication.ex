@@ -13,6 +13,7 @@ defmodule TuistWeb.Authentication do
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserToken
@@ -679,13 +680,13 @@ defmodule TuistWeb.Authentication do
 
     account_handle = get_in(socket.assigns, [:sso_route_params, "account_handle"])
 
-    case required_sso_organization(socket, account_handle, socket.assigns[:current_user_session]) do
+    case account_requirement(socket, account_handle, socket.assigns[:current_user_session]) do
       nil ->
         {:cont, socket}
 
-      _organization ->
+      _requirement ->
         # A socket cannot update the session cookie. Go through HTTP first,
-        # so redirect_to_sso_sign_in records this page, not an old return URL.
+        # so the plug's redirect records this page, not an old return URL.
         # Old clients without a valid path use this organization's entry page.
         return_to = socket.assigns[:browser_session_path] || ~p"/#{account_handle}/projects"
         {:halt, LiveView.redirect(socket, to: return_to)}
@@ -764,12 +765,15 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    case required_sso_organization(conn, account_handle, conn.assigns[:current_user_session]) do
+    case account_requirement(conn, account_handle, conn.assigns[:current_user_session]) do
       nil ->
         conn
 
-      organization ->
+      {:sso, organization} ->
         redirect_to_sso_sign_in(conn, organization)
+
+      {:mfa, organization} ->
+        redirect_to_mfa_enrollment(conn, organization)
     end
   end
 
@@ -783,9 +787,12 @@ defmodule TuistWeb.Authentication do
     conn |> assign(:sso_members_only?, true) |> require_sso_authentication(opts)
   end
 
-  defp required_sso_organization(_subject, nil, _session), do: nil
+  # What the session still needs before it can use the account in the path:
+  # `{:sso, organization}` to sign in through the organization's provider, or
+  # `{:mfa, organization}` to pass a second factor. `nil` when nothing.
+  defp account_requirement(_subject, nil, _session), do: nil
 
-  defp required_sso_organization(subject, account_handle, session) do
+  defp account_requirement(subject, account_handle, session) do
     cond do
       TuistWeb.OperatorGrant.active_grant?(subject, account_handle) ->
         # An operator holding a valid grant for this account bypasses the
@@ -806,14 +813,32 @@ defmodule TuistWeb.Authentication do
       true ->
         with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
              organization_id when not is_nil(organization_id) <- account.organization_id,
-             {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-             true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-             true <- sso_applies_to?(subject.assigns, organization),
-             false <- UserToken.satisfies_sso?(session, organization) do
-          organization
+             {:ok, organization} <- Accounts.get_organization_by_id(organization_id) do
+          cond do
+            sso_required?(subject.assigns, organization, session) -> {:sso, organization}
+            mfa_required?(subject.assigns, organization, session) -> {:mfa, organization}
+            true -> nil
+          end
         else
           _ -> nil
         end
+    end
+  end
+
+  defp sso_required?(assigns, organization, session) do
+    organization.sso_enforced and not is_nil(organization.sso_provider) and
+      sso_applies_to?(assigns, organization) and not UserToken.satisfies_sso?(session, organization)
+  end
+
+  # Only members are held to the requirement: everyone else sees no more than
+  # the organization's public data, as a signed-out visitor would.
+  defp mfa_required?(assigns, organization, session) do
+    with true <- Organization.mfa_required?(organization),
+         false <- UserToken.satisfies_mfa?(session, organization),
+         %User{} = user <- assigns[:current_user] do
+      Accounts.belongs_to_organization?(user, organization)
+    else
+      _ -> false
     end
   end
 
@@ -832,14 +857,20 @@ defmodule TuistWeb.Authentication do
   redirecting to the provider.
   """
   def require_sso_authentication_for_account_api(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    case required_sso_organization(conn, account_handle, conn.assigns[:current_user_session]) do
+    case account_requirement(conn, account_handle, conn.assigns[:current_user_session]) do
       nil ->
         conn
 
-      _organization ->
+      {:sso, _organization} ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "Sign in with this organization's single sign-on provider to use its Tuist tools."})
+        |> halt()
+
+      {:mfa, _organization} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "This organization requires two-factor authentication. Set it up and sign in again."})
         |> halt()
     end
   end
@@ -847,7 +878,8 @@ defmodule TuistWeb.Authentication do
   @doc """
   Guards pages that issue credentials acting for the user in every account
   they can reach, such as OAuth authorizations and CLI device codes, so the
-  credential cannot be used to sidestep an organization's SSO enforcement.
+  credential cannot be used to sidestep an organization's SSO enforcement or
+  its two-factor requirement.
   """
   def require_sso_authentication_for_credentials(conn, _opts) do
     case current_user(conn) do
@@ -855,9 +887,14 @@ defmodule TuistWeb.Authentication do
         conn
 
       user ->
-        case Accounts.sso_requirement(user, conn.assigns[:current_user_session]) do
+        session = conn.assigns[:current_user_session]
+
+        case Accounts.sso_requirement(user, session) do
           :ok ->
-            conn
+            case Accounts.mfa_requirement(user, session) do
+              :ok -> conn
+              {:mfa_required, organization} -> redirect_to_mfa_enrollment(conn, organization)
+            end
 
           {:sign_in_with, organization} ->
             redirect_to_sso_sign_in(conn, organization)
@@ -870,6 +907,30 @@ defmodule TuistWeb.Authentication do
                   )
         end
     end
+  end
+
+  # Enrolling a factor replaces the session with one that passed it. A member
+  # who already has a passkey signs in again with it instead, and the stored
+  # return path brings them back to the page they asked for.
+  defp redirect_to_mfa_enrollment(conn, %Organization{} = organization) do
+    handle =
+      case Accounts.get_account_from_organization(organization) do
+        %{name: name} -> name
+        nil -> nil
+      end
+
+    conn
+    |> put_return_to(:user_return_to, current_path(conn))
+    |> put_flash(
+      :error,
+      dgettext(
+        "dashboard_auth",
+        "%{organization} requires two-factor authentication. Set up an authenticator app, or sign in again with a passkey, to continue.",
+        organization: handle
+      )
+    )
+    |> redirect(to: ~p"/users/settings/mfa")
+    |> halt()
   end
 
   defp redirect_to_sso_sign_in(conn, organization) do

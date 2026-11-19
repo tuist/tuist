@@ -93,6 +93,21 @@ defmodule Tuist.Accounts.UserToken do
   def satisfies_sso?(_, _), do: false
 
   @doc """
+  Whether the browser `session` meets an organization's two-factor
+  requirement (`Tuist.Accounts.Organization.mfa_required?/2`). A session
+  passed a second factor when it was signed in with a passkey or completed
+  an authenticator-app or passkey challenge. A sign-in through the provider
+  of an organization that enforces single sign-on also counts for that
+  organization: its identity provider, not Tuist, owns the second factor.
+  """
+  def satisfies_mfa?(%UserToken{mfa_verified_at: %DateTime{}}, _organization), do: true
+
+  def satisfies_mfa?(%UserToken{} = session, organization),
+    do: organization.sso_enforced and satisfies_sso?(session, organization)
+
+  def satisfies_mfa?(_, _), do: false
+
+  @doc """
   The single sign-on `proof` (a session, or a device code its session
   approved) as claims for the credentials it issues, so refreshing them can
   check the organizations' SSO again. Empty when it proves no SSO sign-in.

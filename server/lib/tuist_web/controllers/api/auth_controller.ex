@@ -417,6 +417,13 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:unauthorized)
         |> json(%{message: "Your organization requires single sign-on. Sign in through your identity provider instead."})
 
+      # A password exchange proves no second factor, so it can't satisfy an
+      # organization that requires one.
+      Accounts.mfa_requirement(user, nil) != :ok ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "Your organization requires two-factor authentication. Use browser sign-in."})
+
       true ->
         claims =
           Map.merge(
