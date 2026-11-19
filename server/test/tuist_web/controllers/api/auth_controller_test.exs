@@ -211,6 +211,49 @@ defmodule TuistWeb.API.AuthControllerTest do
              })
     end
 
+    test "stamps the refreshing request's origin, replacing the old token's", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, refresh_token, _opts} =
+        Tuist.Authentication.encode_and_sign(user, %{"cache_origin" => "US-CA"},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      {:ok, unlocated_refresh_token, _opts} =
+        Tuist.Authentication.encode_and_sign(user, %{"cache_origin" => "US-CA"},
+          token_type: :refresh,
+          ttl: {4, :weeks}
+        )
+
+      stub(TuistWeb.RemoteIp, :origin, fn _ -> "DE" end)
+
+      # When
+      located =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+        |> json_response(:ok)
+
+      stub(TuistWeb.RemoteIp, :origin, fn _ -> nil end)
+
+      unlocated =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: unlocated_refresh_token})
+        |> json_response(:ok)
+
+      # Then
+      {:ok, access_claims} = Tuist.Authentication.decode_and_verify(located["access_token"])
+      {:ok, refresh_claims} = Tuist.Authentication.decode_and_verify(located["refresh_token"])
+      assert access_claims["cache_origin"] == "DE"
+      assert refresh_claims["cache_origin"] == "DE"
+
+      {:ok, unlocated_claims} = Tuist.Authentication.decode_and_verify(unlocated["access_token"])
+      refute Map.has_key?(unlocated_claims, "cache_origin")
+    end
+
     test "returns refreshed tokens when the refresh token resolves to an AuthenticatedAccount",
          %{conn: conn} do
       # Given
@@ -248,7 +291,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Given
       refresh_token = "refresh_token"
 
-      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}, sso_claims: nil] ->
+      expect(Tuist.Authentication, :refresh, fn ^refresh_token, [ttl: {4, :weeks}, sso_claims: nil, origin: _origin] ->
         {:error, :expired_token}
       end)
 
