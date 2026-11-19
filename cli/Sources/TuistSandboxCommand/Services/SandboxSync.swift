@@ -70,17 +70,28 @@ struct SandboxSync {
         try Self.serialize(entries).write(to: URL(fileURLWithPath: manifest.pathString))
         let id = try await git(["hash-object", "--no-filters", manifest.pathString], in: repository)
 
-        let destination: String
-        if let given = destination {
-            destination = given
+        let resolvedDestination: String
+        if let destination {
+            resolvedDestination = destination
         } else {
-            let origin = try? await git(["remote", "get-url", "origin"], in: repository)
-            destination = "$HOME/work/\(origin.flatMap(Self.repositoryName(fromRemoteURL:)) ?? repository.basename)"
+            resolvedDestination = await defaultDestination(of: repository)
         }
-        var result = try await apply(entries, id: id, manifests: manifests, repository: repository, destination: destination)
+        var result = try await apply(
+            entries,
+            id: id,
+            manifests: manifests,
+            repository: repository,
+            destination: resolvedDestination
+        )
         if result == nil {
             // The sandbox's copy moved since the probe, such as through a sync from elsewhere: send everything.
-            result = try await apply(entries, id: id, manifests: nil, repository: repository, destination: destination)
+            result = try await apply(
+                entries,
+                id: id,
+                manifests: nil,
+                repository: repository,
+                destination: resolvedDestination
+            )
         }
         guard let result else {
             throw SandboxCommandError.stepFailed("Syncing the worktree to the sandbox", "The sandbox's copy kept changing.")
@@ -385,6 +396,12 @@ struct SandboxSync {
             accumulated += file.bytes
         }
         return shards
+    }
+
+    /// `$HOME/work/<name>`, with the name in the `origin` remote's URL, else the worktree directory's.
+    private func defaultDestination(of repository: AbsolutePath) async -> String {
+        let origin = try? await git(["remote", "get-url", "origin"], in: repository)
+        return "$HOME/work/\(origin.flatMap(Self.repositoryName(fromRemoteURL:)) ?? repository.basename)"
     }
 
     /// The repository's name in a remote URL, such as `app` in `https://github.com/acme/app.git` or `git@github.com:acme/app`:
