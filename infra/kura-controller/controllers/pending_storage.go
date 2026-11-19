@@ -19,8 +19,7 @@ import (
 // Recreate only unscheduled pods after publishing the smaller template; serving
 // replicas follow the ordinary rolling update and retain their cache volumes.
 func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	desired := diskReservation(instance)
-	if desired.IsZero() {
+	if declared := diskReservation(instance); declared.IsZero() {
 		return nil
 	}
 	sts := &appsv1.StatefulSet{}
@@ -28,6 +27,10 @@ func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx contex
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
+		return err
+	}
+	desired, err := r.templateDiskReservation(ctx, instance, sts)
+	if err != nil {
 		return err
 	}
 	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||

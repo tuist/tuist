@@ -283,7 +283,8 @@ Rebuild and verify the emptied node, clear the selection, then select the next.
 Already-LVM volume growth retains its normal per-replica path.
 
 - `kura-thin-encrypted-nvme` selects prepared nodes and reserves the complete virtual ceiling (cache ceiling + workspace + filesystem/encryption overhead) as `tuist.dev/kura-disk`. PVC size remains the useful cache ceiling. Keep `diskReservation` aligned with CSI's versioned sizing policy. Thick-to-thin moves retain the single-source-node migration gate; a thick PV is not a verified thin destination.
-- During migration, compare the pod's disk reservation with `diskReservation(instance)`, not the PVC cache ceiling. Comparing the larger thin reservation with the smaller ceiling repeatedly re-applies the held template and prevents replica rebuild from advancing.
+- During migration, compare the pod's disk reservation with `templateDiskReservation`, not the PVC cache ceiling. Comparing the larger thin reservation with the smaller ceiling repeatedly re-applies the held template and prevents replica rebuild from advancing.
+- Claims are rebuilt only to grow, so a smaller thin `storageSize` leaves larger volumes bound. `templateDiskReservation` reserves the largest verified thin volume bound to any replica, or the scheduler undercounts the pool and keeps choosing a host whose CSI refuses the next volume. Like fast probes, the raise is adopted only on a new StatefulSet or an image change and kept afterwards.
 - Release an LVM resize's OnDelete hold only after every replacement has a fresh, valid Ready runtime observation with completed initial backfill and no exhausted backfill budget. Kubernetes Ready alone can release a queued template rollout before the last replacement has copied its donor's data.
 
 Thin migration additionally requires the runtime's incarnation-bound public

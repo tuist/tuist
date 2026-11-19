@@ -3496,8 +3496,13 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 			return err
 		}
 		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
+		disk, err := r.templateDiskReservation(ctx, instance, sts)
+		if err != nil {
+			return err
+		}
 		previousTemplate := sts.Spec.Template.DeepCopy()
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
+		setKuraDiskReservation(&sts.Spec.Template.Spec, instance, disk)
 		sts.Spec.Template.Spec.Tolerations = tolerations
 		configurePodEgressBandwidth(instance, &sts.Spec.Template, previousTemplate, r.EgressTreeNodePools)
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template, previousTemplate)
@@ -3734,8 +3739,12 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 		if err != nil || !held {
 			return true, err
 		}
+		desiredDisk, err := r.templateDiskReservation(ctx, instance, sts)
+		if err != nil {
+			return true, err
+		}
 		request := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource)
-		if request.Cmp(diskReservation(instance)) != 0 {
+		if request.Cmp(desiredDisk) != 0 {
 			return true, r.applyStatefulSet(ctx, instance, true)
 		}
 	}
