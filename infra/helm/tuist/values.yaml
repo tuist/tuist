@@ -871,6 +871,19 @@ server:
     # the item exists in the environment's vault.
     fcm:
       enabled: false
+    # Makes the server the OpenID Provider the Luft server (luft.work) signs
+    # people in with (TUIST_OIDC_SIGNING_KEY, TUIST_LUFT_SERVER_OAUTH_*). The
+    # signing key is the OIDC_PROVIDER item's file attachment; the client ID
+    # and secret are the LUFT_SERVER item the luft-server chart also reads.
+    # Enable only after both items exist in the environment's vault; a missing
+    # field fails the pre-upgrade ExternalSecret and blocks the deploy.
+    luftServerOidc:
+      enabled: false
+      signingKeyItem: OIDC_PROVIDER
+      signingKeyFile: signing-key.pem
+      clientItem: LUFT_SERVER
+      redirectUris:
+        - https://luft.work/auth/callback
     # Entire plugin signing key. Enable only after the Ed25519 private PEM
     # exists in the environment's vault. Slug and delivery JWKS URL are
     # configured separately after partner registration with Entire.
