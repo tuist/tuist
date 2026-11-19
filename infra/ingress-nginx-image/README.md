@@ -34,6 +34,12 @@ Tags are `<fork version>-tuist.<TUIST_BUILD>`, for example `v1.15.16-tuist.1`,
 and are never overwritten: publishing fails if the tag already exists. Pin by
 digest in charts.
 
+The clusters pull these images without credentials, so they must be public.
+Packages in the tuist organization are created public, and the publish job
+checks that each pushed digest pulls anonymously. If that check fails, an
+organization owner sets the package to Public under Package settings; GitHub
+has no API for it. The images do not need republishing.
+
 ## Changing what is built
 
 Everything is pinned in [`fork.env`](fork.env):
