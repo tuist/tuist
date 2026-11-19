@@ -2240,7 +2240,7 @@ demoted.
 
 ### Kura thin pool rules
 
-Eight rules in folder `Alerts`, group **Kura thin pools**, recorded in
+Seven rules in folder `Alerts`, group **Kura thin pools**, recorded in
 [`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
 the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
 `:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
@@ -2250,7 +2250,7 @@ carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
 non-production keep list in `values.yaml`, because thin pools are rehearsed on
 staging. Each environment's metrics now land in its own Pulse, and only
 `kura-thin-pool-metrics-missing` runs there for staging and canary (as `-stg`
-and `-can` copies). The five usage and degraded rules read production Pulse
+and `-can` copies). The four usage, health and degraded rules read production Pulse
 (`cg3i1jh2k1v5sb`) only, so staging and canary thin pools have no usage or
 degraded alert until those rules get `-stg` and `-can` copies. **No Data:
 Normal**, **Error: Keep last state**. None sets `notification_settings`: the
@@ -2264,29 +2264,35 @@ the JSON; publish rule and policy changes separately.
 
 | Rule | UID | Threshold | Pending | Severity | Routing |
 | --- | --- | --- | --- | --- | --- |
-| Kura thin pool data usage high | `kura-thin-pool-data-high` | data used > 80% | 15m | warning | policy tree |
-| Kura thin pool data almost full | `kura-thin-pool-data-full` | data used > 90% | 5m | critical | `Incidents` in production |
+| Kura thin pool cannot back its volumes | `kura-thin-pool-unhealthy` | healthy gauge = 0 | 10m | critical | `Incidents` in production |
 | Kura thin pool metadata usage high | `kura-thin-pool-metadata-high` | metadata used > 70% | 15m | warning | policy tree |
 | Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
 | Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
 | Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
 
-#### Kura thin pool data usage
+#### Kura thin pool cannot back its volumes
 
 ```promql
-max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes)
-/ max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)
+max by (cluster, node, vg, pool) (1 - kura_volumes_thin_pool_healthy)
 ```
 
-Pools are created with `error_if_no_space`, so a full pool fails tenant writes
-with I/O errors rather than queueing them. In `ceiling-backed-v1` every volume
-is fully backed and the driver keeps a data reserve, so crossing 80% means
-committed ceilings are near the pool size or mappings are unattributed; once
-tenants share overcommitted disk this becomes the main capacity signal. Read
-`GET /v1/node` on the node's allocator socket and compare `committed_bytes`,
-`unattributed_mapped_bytes` and per-volume `mapped_bytes`. Reclaim or move
-volumes through the planned migration path. Never extend, convert or change the
-geometry of a populated pool as the fix.
+There is deliberately no rule on data used over pool size. In
+`ceiling-backed-v1` the driver admits a volume only when the pool can back its
+full ceiling after the data reserve, so caches filling their ceilings take a
+healthy pool to 90% and more without any risk of running it out of space; the
+80% and 90% data rules fired on such pools in November 2026. The plugin sets
+`kura_volumes_thin_pool_healthy` to 0 when its own check fails: committed
+ceilings plus unattributed mappings exceed the usable bytes, data or metadata
+entered the reserve, the volume slot budget is exceeded, or the pool left its
+qualified state. Only then can tenant writes exhaust the pool, which is
+created with `error_if_no_space` and fails them with I/O errors rather than
+queueing them. The node admits no new volumes meanwhile.
+
+Read `GET /v1/node` on the node's allocator socket for `reason`, and compare
+`committed_bytes`, `usable_bytes`, `unattributed_mapped_bytes` and per-volume
+`mapped_bytes`. Reclaim unattributed mappings or move volumes through the
+planned migration path. Never extend, convert or change the geometry of a
+populated pool as the fix.
 
 #### Kura thin pool metadata usage
 

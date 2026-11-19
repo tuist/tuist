@@ -1,9 +1,9 @@
 [
   {
     "annotations": {
-      "description": "The pool is created with error_if_no_space, so once its data is full every new write from a tenant on this node fails with an I/O error instead of queueing. In ceiling-backed-v1 every volume is fully backed, so growth past the reserve means unattributed mappings or a pool shared beyond its ceilings. Read /v1/node on the node's allocator socket, compare committed and mapped bytes, and reclaim or move volumes before it fills. Never extend or convert the pool by hand as a fix.",
-      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-data-usage",
-      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) data is {{ $values.A.Value | humanizePercentage }} used"
+      "description": "The CSI node plugin's own ceiling-backed-v1 check failed: the pool's committed ceilings plus unattributed mappings exceed what it can back after its reserve, data or metadata entered the reserve, or the pool left its qualified state. Full data alone is normal: every volume is fully backed and caches fill their ceilings, so this rule, not data used over pool size, is the signal that tenant writes can run the pool out of space. The node admits no new volumes meanwhile. Read /v1/node on the node's allocator socket for the reason, committed_bytes, usable_bytes and unattributed_mapped_bytes, and reclaim unattributed mappings or move volumes through the planned migration path. Never extend or convert the pool by hand as a fix.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-cannot-back-its-volumes",
+      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) cannot back its volumes"
     },
     "condition": "C",
     "data": [
@@ -11,7 +11,7 @@
         "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
           "editorMode": "code",
-          "expr": "max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes) / max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)",
+          "expr": "max by (cluster, node, vg, pool) (1 - kura_volumes_thin_pool_healthy)",
           "instant": true,
           "intervalMs": 1000,
           "legendFormat": "__auto",
@@ -33,7 +33,7 @@
             {
               "evaluator": {
                 "params": [
-                  0.8
+                  0
                 ],
                 "type": "gt"
               },
@@ -72,92 +72,7 @@
     ],
     "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
-    "for": "15m",
-    "isPaused": false,
-    "keep_firing_for": "0s",
-    "labels": {
-      "severity": "warning"
-    },
-    "noDataState": "OK",
-    "orgID": 1,
-    "ruleGroup": "Kura thin pools",
-    "title": "Kura thin pool data usage high",
-    "uid": "kura-thin-pool-data-high"
-  },
-  {
-    "annotations": {
-      "description": "The pool is created with error_if_no_space, so once its data is full every new write from a tenant on this node fails with an I/O error instead of queueing. In ceiling-backed-v1 every volume is fully backed, so growth past the reserve means unattributed mappings or a pool shared beyond its ceilings. Read /v1/node on the node's allocator socket, compare committed and mapped bytes, and reclaim or move volumes before it fills. Never extend or convert the pool by hand as a fix.",
-      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-thin-pool-data-usage",
-      "summary": "Kura thin pool {{ $labels.vg }}/{{ $labels.pool }} on {{ $labels.node }} ({{ $labels.cluster }}) data is {{ $values.A.Value | humanizePercentage }} used"
-    },
-    "condition": "C",
-    "data": [
-      {
-        "datasourceUid": "cg3i1jh2k1v5sb",
-        "model": {
-          "editorMode": "code",
-          "expr": "max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes) / max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)",
-          "instant": true,
-          "intervalMs": 1000,
-          "legendFormat": "__auto",
-          "maxDataPoints": 43200,
-          "range": false,
-          "refId": "A"
-        },
-        "queryType": "",
-        "refId": "A",
-        "relativeTimeRange": {
-          "from": 600,
-          "to": 0
-        }
-      },
-      {
-        "datasourceUid": "__expr__",
-        "model": {
-          "conditions": [
-            {
-              "evaluator": {
-                "params": [
-                  0.9
-                ],
-                "type": "gt"
-              },
-              "operator": {
-                "type": "and"
-              },
-              "query": {
-                "params": [
-                  "C"
-                ]
-              },
-              "reducer": {
-                "params": [],
-                "type": "last"
-              },
-              "type": "query"
-            }
-          ],
-          "datasource": {
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "A",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "refId": "C",
-          "type": "threshold"
-        },
-        "queryType": "expression",
-        "refId": "C",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
-        }
-      }
-    ],
-    "execErrState": "KeepLast",
-    "folderUID": "df5dn1g4rckxsf",
-    "for": "5m",
+    "for": "10m",
     "isPaused": false,
     "keep_firing_for": "0s",
     "labels": {
@@ -166,8 +81,8 @@
     "noDataState": "OK",
     "orgID": 1,
     "ruleGroup": "Kura thin pools",
-    "title": "Kura thin pool data almost full",
-    "uid": "kura-thin-pool-data-full"
+    "title": "Kura thin pool cannot back its volumes",
+    "uid": "kura-thin-pool-unhealthy"
   },
   {
     "annotations": {
