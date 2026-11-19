@@ -223,6 +223,32 @@ struct CoverageUploadServiceTests {
         #expect(given.coverage.storageKey == "tuist/tuist/runs/run-1/coverage.ndjson.deflate")
     }
 
+    @Test(.withMockedDependencies()) func uploadsCoverageThatCompressesUnderTheThresholdButInflatesPastIt() async throws {
+        // About 300 KB of NDJSON that DEFLATE shrinks well below 100 KB: inline, the server would
+        // inflate the run's body past the limit the threshold is meant to stay under.
+        stubParser(files: 2000)
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(100_000)
+        given(createUploadService)
+            .createCoverageUpload(fullHandle: .any, serverURL: .any, testRunId: .any)
+            .willReturn((
+                storageKey: "tuist/tuist/runs/run-1/coverage.ndjson.deflate",
+                uploadURL: URL(string: "https://storage/put")!
+            ))
+        given(uploader).upload(file: .any, to: .any).willReturn()
+
+        let prepared = try #require(await subject.prepare(
+            resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
+            manifest: manifest,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            testRunId: "run-1"
+        ))
+
+        #expect(prepared.coverage.files == nil)
+        #expect(prepared.coverage.storageKey == "tuist/tuist/runs/run-1/coverage.ndjson.deflate")
+        verify(uploader).upload(file: .any, to: .any).called(1)
+    }
+
     @Test(.withMockedDependencies()) func fallsBackToTheDefaultThresholdAndNeverFailsTheRun() async throws {
         stubParser(files: 1)
         given(settingsService)
