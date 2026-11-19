@@ -36,6 +36,14 @@ and the class does not allow expansion, so this is a host step: lower the hard
 limit of Garage's project with `xfs_quota` (from the host mount namespace, under
 a production elevation), confirm `prjquota` enforcement on `/data`, then deploy
 `shard-storage` with `storage.reservation: 2Ti` and recreate its pod (OnDelete).
+
+To take over Garage's in-cluster workload, the drive then grew in place: lower
+Garage's project hard limit to 1200Gi (above its usage), raise RustFS's project
+to 1850Gi, then deploy both reservations (`storage.reservation: 1200Gi`,
+`resources.requests.ephemeral-storage: 1850Gi`) and recreate `shard-storage-0`
+before `rustfs-0`, so the node's 3.08 TiB allocatable fits both while each pod
+schedules. The PVC still reads 1000G; the project limit and the reservation are
+what count. Grow it again the same way, lowering Garage only above its usage.
 Until then the RustFS pod stays Pending: Garage's 3Ti request leaves the node
 less ephemeral storage than RustFS requests.
 

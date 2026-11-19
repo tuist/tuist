@@ -34,20 +34,23 @@ for environment in staging canary production; do
   helm template shard-storage "$CHART" --namespace kura -f "$CHART/values-$environment.yaml" --set enabled=true --set externalSecrets.item=SHARD_STORAGE |
     yq -o json -I0 'select(.kind != null)' | jq -s . > "$WORK/$environment.json"
   size=200Gi
-  if [[ "$environment" == production ]]; then size=3Ti; fi
+  reservation=200Gi
+  # Production's PVC predates a host quota lowered for RustFS; the request
+  # follows the quota.
+  if [[ "$environment" == production ]]; then size=3Ti; reservation=1200Gi; fi
   pool=shard-storage
   region=null
   if [[ "$environment" == staging ]]; then
     pool=kura-dedibox
     region='"eu-west"'
   fi
-  jq -e --arg size "$size" --arg pool "$pool" --argjson region "$region" '
+  jq -e --arg size "$size" --arg reservation "$reservation" --arg pool "$pool" --argjson region "$region" '
     any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
       .spec.template.metadata.labels["tuist.dev/region"] == $region and
       .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == $pool and
       .spec.updateStrategy.type == "OnDelete" and
       (.spec.template.spec.containers[0].args | index("--single-node")) != null and
-      .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $size and
+      .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == $reservation and
       .spec.volumeClaimTemplates[0].spec.resources.requests.storage == $size) and
     all(.[]; .kind != "PodDisruptionBudget") and
     all(.[] | select(.kind == "Service"); [.spec.ports[].port] == [3900,3903]) and
@@ -147,7 +150,7 @@ jq -e '
     .spec.podManagementPolicy == "Parallel" and .spec.updateStrategy.type == "OnDelete" and
     .spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey == "kubernetes.io/hostname" and
     .spec.template.spec.containers[0].args == ["server"] and
-    .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == "3Ti" and
+    .spec.template.spec.containers[0].resources.requests["ephemeral-storage"] == "1200Gi" and
     .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "3Ti" and
     .spec.template.spec.automountServiceAccountToken == false) and
   any(.[]; .kind == "PodDisruptionBudget" and .spec.minAvailable == 2) and
