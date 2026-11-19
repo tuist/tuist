@@ -10,7 +10,6 @@ defmodule TuistWeb.AuthenticationPlugTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.AuthenticationPlug
-  alias TuistWeb.Headers
 
   # This is needed in combination with "async: false" to ensure
   # that mocks are used within the cache process.
