@@ -2561,29 +2561,12 @@ runnersFleetLinux:
   # communication"). Shapes come back one at a time with `exclusiveCPUs: true`
   # once the runners-vm-memory-probe workflow passes on them, under a
   # kata-qemu-<size> RuntimeClass whose podFixed grows with the guest:
-  # 8vcpu-32gb and 16vcpu-64gb since 2026-11-19.
+  # 8vcpu-32gb, 16vcpu-32gb and 16vcpu-64gb since 2026-11-19.
   # Turning it back on rolls idle Pods; never restart the kubelet on a host
   # running exclusive Pods: it leaks their cores (kubernetes/kubernetes#140989,
   # see infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
   exclusiveCPUs:
     defaultEnabled: false
-  pools:
-    # The 16vcpu-32gb shape on exclusive CPUs, for the runners-vm-memory-probe
-    # workflow only (`runs-on: tuist-vm-memory-probe-16x32`), so the 32 GiB
-    # guest is proven to fit its host cgroup before the customer shape gets
-    # exclusive CPUs. Scales to zero; remove it once that shape is exclusive.
-    - name: vm-memory-probe-16x32
-      dispatchLabel: tuist-vm-memory-probe-16x32
-      runtimeClass: kata-qemu
-      exclusiveCPUs: true
-      pod:
-        cpuMilli: 16000
-        memoryMB: 32768
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-        scaleDownCooldownSeconds: 300
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
@@ -2649,8 +2632,11 @@ runnersFleetLinux:
       exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
+    # Exclusive CPUs since 2026-11-19, under kata-qemu-32g (5120Mi podFixed),
+    # so each Pod reserves 37 GiB instead of 35.5 GiB.
     - vcpus: 16
       memoryGb: 32
+      exclusiveCPUs: true
       autoscaling:
         maxLearnedWarmPoolFloor: 2
     # Ceiling shape, production-only. On exclusive CPUs since 2026-11-19, under
