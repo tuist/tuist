@@ -2020,7 +2020,10 @@ targets.append(
             "TestCoverageAttribution": .framework,
             "TestCoverageAttributionObserver": .framework,
         ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"]),
+        // Imports XCTest. Drop this once the pinned Tuist CLI lists TuistSnapshotsTesting in
+        // PackageInfoMapper's forceEnabledTestingSearchPath.
+        targetSettings: ["TuistSnapshotsTesting": .settings(base: ["ENABLE_TESTING_SEARCH_PATHS": "YES"])]
     )
 #endif
 
