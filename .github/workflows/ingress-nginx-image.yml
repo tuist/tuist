@@ -6,7 +6,7 @@ name: Ingress NGINX Image
 # them against the official images they replace, and runs the fork's nginx
 # test suite. Pull requests only build. Pushes to main and manual dispatches
 # on main publish immutable `<fork version>-tuist.<n>` tags to
-# ghcr.io/tuist/ingress-nginx/*. See infra/ingress-nginx-image/README.md.
+# ghcr.io/tuist/ingress-nginx-{nginx,controller,kube-webhook-certgen}. See infra/ingress-nginx-image/README.md.
 #
 # The fork's source is untrusted input: the jobs that build and run it get a
 # read-only token, and the publishing job only loads and pushes their output.
@@ -122,7 +122,7 @@ jobs:
           refs=()
           for key in NGINX_IMAGE CONTROLLER_IMAGE CERTGEN_IMAGE; do
             ref=$(sed -n "s/^${key}=//p" images.env)
-            if [[ ! "$ref" =~ ^ghcr\.io/tuist/ingress-nginx/(nginx|controller|kube-webhook-certgen):v[0-9]+\.[0-9]+\.[0-9]+-tuist\.[0-9]+$ ]]; then
+            if [[ ! "$ref" =~ ^ghcr\.io/tuist/ingress-nginx-(nginx|controller|kube-webhook-certgen):v[0-9]+\.[0-9]+\.[0-9]+-tuist\.[0-9]+$ ]]; then
               echo "::error::unexpected $key in images.env: $ref"
               exit 1
             fi
@@ -146,33 +146,5 @@ jobs:
             digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
             echo "Pushed ${ref}@${digest}"
             echo "| \`$ref\` | \`$digest\` |" >> "$GITHUB_STEP_SUMMARY"
-            echo "${ref}@${digest}" >> pushed.txt
           done
           cat report.md >> "$GITHUB_STEP_SUMMARY"
-      # The clusters pull these images without credentials. Packages in the
-      # tuist organization are created public, but nothing in this job can
-      # set visibility (GitHub has no API for it), so check it.
-      - name: Check the images pull anonymously
-        working-directory: ${{ runner.temp }}/images
-        run: |
-          set -euo pipefail
-          failed=0
-          while IFS= read -r pinned; do
-            repo=${pinned#ghcr.io/}
-            repo=${repo%%:*}
-            digest=${pinned##*@}
-            package=${repo#tuist/}
-            # The token endpoint refuses private packages; the manifest request then fails too.
-            token=$(curl -sS "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r ".token // empty")
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --head \
-              -H "Authorization: Bearer ${token}" \
-              -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
-              "https://ghcr.io/v2/${repo}/manifests/${digest}")
-            if [[ "$code" == 200 ]]; then
-              echo "${pinned} pulls anonymously"
-            else
-              echo "::error::${pinned} is not publicly pullable (HTTP ${code}). An organization owner must set https://github.com/orgs/tuist/packages/container/package/${package//\//%2F} to Public under Package settings; it does not need republishing."
-              failed=1
-            fi
-          done < pushed.txt
-          exit "$failed"

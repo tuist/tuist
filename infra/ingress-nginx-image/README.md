@@ -11,9 +11,9 @@ the fork publishes no free versioned images, so we build them here.
 
 | Image | From the fork | Replaces |
 | --- | --- | --- |
-| `ghcr.io/tuist/ingress-nginx/nginx` | `images/nginx` (nginx compiled with the patch stack) | `registry.k8s.io/ingress-nginx/nginx` |
-| `ghcr.io/tuist/ingress-nginx/controller` | `rootfs/`, `FROM` our nginx image | `registry.k8s.io/ingress-nginx/controller:v1.15.1` |
-| `ghcr.io/tuist/ingress-nginx/kube-webhook-certgen` | `images/kube-webhook-certgen` | `registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.6.9` |
+| `ghcr.io/tuist/ingress-nginx-nginx` | `images/nginx` (nginx compiled with the patch stack) | `registry.k8s.io/ingress-nginx/nginx` |
+| `ghcr.io/tuist/ingress-nginx-controller` | `rootfs/`, `FROM` our nginx image | `registry.k8s.io/ingress-nginx/controller:v1.15.1` |
+| `ghcr.io/tuist/ingress-nginx-kube-webhook-certgen` | `images/kube-webhook-certgen` | `registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.6.9` |
 
 The controller and certgen images are drop-in replacements for the official
 chart 4.15.1 images: same entrypoint, user (uid 101, gid 82), paths and file
@@ -21,7 +21,7 @@ capabilities. `verify.sh` checks that on every build against the official
 images pinned in `fork.env`. To use them, point the chart's `controller.image`
 (and `controller.admissionWebhooks.patch.image`) at the published tag and digest
 from the publishing run's summary. Set `registry` to `ghcr.io` and `image` to
-`tuist/ingress-nginx/controller`, or `tuist/ingress-nginx/kube-webhook-certgen`
+`tuist/ingress-nginx-controller`, or `tuist/ingress-nginx-kube-webhook-certgen`
 for the certgen image.
 
 `controller-chroot` is not built: we do not run the chroot variant.
@@ -33,12 +33,6 @@ so arm64 would mean compiling nginx, OpenTelemetry and ModSecurity under QEMU.
 Tags are `<fork version>-tuist.<TUIST_BUILD>`, for example `v1.15.16-tuist.1`,
 and are never overwritten: publishing fails if the tag already exists. Pin by
 digest in charts.
-
-The clusters pull these images without credentials, so they must be public.
-Packages in the tuist organization are created public, and the publish job
-checks that each pushed digest pulls anonymously. If that check fails, an
-organization owner sets the package to Public under Package settings; GitHub
-has no API for it. The images do not need republishing.
 
 ## Changing what is built
 

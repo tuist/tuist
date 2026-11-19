@@ -8,7 +8,8 @@
 #
 # WORK_DIR receives the fork checkout, build logs, and images.env with the
 # built image references. Needs Docker with buildx and network access.
-# IMAGE_PREFIX (default ghcr.io/tuist/ingress-nginx) names the images;
+# IMAGE_PREFIX (default ghcr.io/tuist/ingress-nginx) names the images
+# <prefix>-nginx, <prefix>-controller and <prefix>-kube-webhook-certgen;
 # TUIST_REVISION (default: this checkout's HEAD) is recorded in a label.
 
 set -euo pipefail
@@ -38,9 +39,9 @@ labels=(
 )
 build=(docker buildx build --builder default --load --no-cache --provenance=false --sbom=false --progress=plain)
 
-nginx_image="$prefix/nginx:$tag"
-controller_image="$prefix/controller:$tag"
-certgen_image="$prefix/kube-webhook-certgen:$tag"
+nginx_image="$prefix-nginx:$tag"
+controller_image="$prefix-controller:$tag"
+certgen_image="$prefix-kube-webhook-certgen:$tag"
 
 echo "::group::Build $nginx_image"
 "${build[@]}" --pull "${labels[@]}" \
