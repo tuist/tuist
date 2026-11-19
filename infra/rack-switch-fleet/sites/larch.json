@@ -139,12 +139,13 @@
       "console_baud": 115200,
       "apply_order": 1,
       "apply_note": "Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
-      "adopted": false,
+      "mac": "64:9d:99:d9:81:0b",
+      "adopted": true,
       "feeds": [
         "feed-a",
         "feed-b"
       ],
-      "note": "The second S5860 (FS order FS261015598071). Standalone until its label MAC is recorded: the controller identifies a switch by MAC. Its MAC, and larch-edge-b's tor_management link to it, go in once the unit is unpacked. Its management port and console go to larch-edge-b.",
+      "note": "The second S5860 (FS order FS261015598071). Its MAC was read on site on 20 Nov 2026 from its management port's IPv6 link-local address, with the unit still at factory state. Its management port and console go to larch-edge-b.",
       "ports": {
         "25": {
           "purpose": "isl",
@@ -255,7 +256,7 @@
         },
         {
           "switch": "larch-tor-b",
-          "port": 28,
+          "port": 21,
           "media": "copper",
           "nic": "bmc",
           "purpose": "management"
@@ -299,7 +300,12 @@
           "nic": "bmc",
           "purpose": "management"
         }
-      ]
+      ],
+      "tor_management": {
+        "switch": "larch-tor-b",
+        "nic": "lan1",
+        "address": "192.168.61.5/30"
+      }
     },
     {
       "name": "larch-store-a",

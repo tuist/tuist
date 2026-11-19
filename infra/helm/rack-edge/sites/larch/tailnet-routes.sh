@@ -4,4 +4,7 @@ routes=
 if ip -4 -o addr show dev eno1 2>/dev/null | grep -qF ' 192.168.61.1/30'; then
   routes="${routes:+$routes,}192.168.61.2/32"
 fi
+if ip -4 -o addr show dev eno1 2>/dev/null | grep -qF ' 192.168.61.5/30'; then
+  routes="${routes:+$routes,}192.168.61.6/32"
+fi
 exec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes="$routes"
