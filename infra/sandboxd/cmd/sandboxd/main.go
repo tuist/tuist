@@ -33,12 +33,12 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/sandbox"
-	"github.com/tuist/tuist/infra/sandboxd/pkg/server"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/server"
 )
 
 // version is set with -ldflags "-X main.version=...".
@@ -299,12 +299,24 @@ func main() {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
 	}
-	// Remote-execution daemons keep their old tags: the server places
-	// executions on the tag most nodes are configured with, so a node that
-	// dropped the old one during an OnDelete rollout would take no work until
-	// most nodes rolled.
-	if templateTag != "" && executionSlots == 0 {
-		inUse := map[string]bool{}
+	// Remote-execution daemons also keep the tag they ran before this one:
+	// the server places executions on the tag most nodes are configured
+	// with, so a node that dropped it during an OnDelete rollout would take
+	// no work until most nodes rolled. Older tags serve nothing; keeping
+	// every one filled runner disks past the blob cache's free-space floor.
+	prune := templateTag != ""
+	inUse := map[string]bool{}
+	if prune && executionSlots > 0 {
+		previous, err := store.PreviousTag(templateName, templateTag)
+		if err != nil {
+			// Keep every tag rather than drop the one a rollout still needs.
+			logger.Warn("finding the previous template tag", "template", templateName, "error", err)
+			prune = false
+		} else if previous != "" {
+			inUse[previous] = true
+		}
+	}
+	if prune {
 		for _, sb := range manager.List() {
 			if sb.Template == templateName {
 				inUse[sb.TemplateTag] = true

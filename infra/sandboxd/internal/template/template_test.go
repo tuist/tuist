@@ -449,3 +449,31 @@ func TestBazelTemplatePreparesAndUnmountsPristineWorkspace(t *testing.T) {
 		t.Fatalf("template must unmount before snapshot: %v", execs)
 	}
 }
+
+func TestPreviousTagIsTheOtherTagTheNodeRanLast(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	if tag, err := store.PreviousTag("bazel", "current"); err != nil || tag != "" {
+		t.Fatalf("no template: %q %v", tag, err)
+	}
+	// Installed oldest first, but "rolled-back" ran again after "previous",
+	// and the init container rewrote its metadata then.
+	base := time.Now().Add(-time.Hour)
+	for i, tag := range []string{"rolled-back", "previous", "oldest", "current"} {
+		seedTemplate(t, dir, "bazel", tag)
+		at := base.Add(time.Duration([]int{3, 2, 1, 4}[i]) * time.Minute)
+		if err := os.Chtimes(filepath.Join(dir, "bazel", tag, MetadataFile), at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An interrupted seed has no metadata and never counts.
+	if err := os.MkdirAll(filepath.Join(dir, "bazel", "partial"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if tag, err := store.PreviousTag("bazel", "current"); err != nil || tag != "rolled-back" {
+		t.Fatalf("previous tag %q %v, want rolled-back", tag, err)
+	}
+	if tag, err := store.PreviousTag("bazel", "rolled-back"); err != nil || tag != "current" {
+		t.Fatalf("previous tag of rolled-back %q %v, want current", tag, err)
+	}
+}
