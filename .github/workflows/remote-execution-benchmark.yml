@@ -84,7 +84,11 @@ jobs:
           working_directory: kura
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+        # archive.ubuntu.com and security.ubuntu.com timed out on 2026-11-19;
+        # the kernel.org mirror carries the same archive.
+        run: |
+          sudo sed -i -E 's#https?://(archive|security)\.ubuntu\.com/ubuntu/?#https://mirrors.edge.kernel.org/ubuntu/#g' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
 
       - name: Set up Tuist
         run: |
