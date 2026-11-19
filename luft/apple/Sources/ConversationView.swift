@@ -102,6 +102,12 @@ struct AppConversation: Decodable {
     /// Earlier messages stay on the server; `next_before` loads the page before these.
     var has_more: Bool?
     var next_before: Int?
+    var section: String?
+    var provider: String?
+    var model: String?
+    var repository: String?
+    var branch: String?
+    var runner_id: String?
 }
 
 extension AppClient {
@@ -325,6 +331,9 @@ struct ConversationView: View {
     @State private var pendingJump: String?
     @State private var snoozeChoices = SnoozeChoices()
     @State private var pickingSnoozeTime = false
+    @State private var showingDetails = false
+    @State private var confirmingArchive = false
+    @State private var updatingArchive = false
     /// The server answered for this thread at least once: a thread never opened here
     /// has no cached state, so whether it works isn't known before.
     @State private var live = false
@@ -455,18 +464,32 @@ struct ConversationView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        SnoozeButtons(
-                            choices: snoozeChoices,
-                            working: thread?.working == true,
-                            snoozed: thread?.snooze != nil,
-                            snooze: { until in Task { await snooze(until: until) } },
-                            custom: { pickingSnoozeTime = true }
-                        )
+                        Button("Session details", systemImage: "info.circle") { showingDetails = true }
+                        if thread?.section != "archived" {
+                            Menu {
+                                SnoozeButtons(
+                                    choices: snoozeChoices,
+                                    working: thread?.working == true,
+                                    snoozed: thread?.snooze != nil,
+                                    snooze: { until in Task { await snooze(until: until) } },
+                                    custom: { pickingSnoozeTime = true }
+                                )
+                            } label: {
+                                Label("Snooze", systemImage: thread?.snooze == nil ? "moon.zzz" : "moon.zzz.fill")
+                            }
+                        }
+                        Divider()
+                        if thread?.section == "archived" {
+                            Button("Restore", systemImage: "tray.and.arrow.up") { Task { await archive(false) } }
+                        } else {
+                            Button("Archive", systemImage: "archivebox", role: .destructive) { confirmingArchive = true }
+                        }
                     } label: {
-                        Label("Snooze", systemImage: thread?.snooze == nil ? "moon.zzz" : "moon.zzz.fill")
+                        Label("Session actions", systemImage: "ellipsis")
                     }
-                    .help("Snooze")
-                    .disabled(thread == nil)
+                    .help("Session actions")
+                    .accessibilityIdentifier("session-actions")
+                    .disabled(thread == nil || updatingArchive)
                 }
                 #if os(macOS)
                     ToolbarItem(placement: .primaryAction) { promptsButton }
@@ -531,6 +554,17 @@ struct ConversationView: View {
             .sheet(isPresented: $pickingSnoozeTime) {
                 CustomSnoozeView { until in Task { await snooze(until: until) } }
             }
+            .sheet(isPresented: $showingDetails) {
+                if let thread { SessionDetails(thread: thread) }
+            }
+            .alert("Archive Thread?", isPresented: $confirmingArchive) {
+                Button("Cancel", role: .cancel) {}
+                Button("Archive", role: .destructive) { Task { await archive(true) } }
+            } message: {
+                Text(thread?.working == true
+                    ? "Its run stops. You can find it under Archived."
+                    : "You can find it under Archived.")
+            }
             // The live socket: server changes and the agent's calls to this app's tools.
             .task(id: id) { await client.live(id) { await reload() } }
             // Unaccepted dictation never survives leaving the conversation or the app.
@@ -589,6 +623,18 @@ struct ConversationView: View {
         } catch {
             self.error = error.localizedDescription
             leaveSnoozeChoices()
+        }
+    }
+
+    private func archive(_ archived: Bool) async {
+        guard !updatingArchive else { return }
+        updatingArchive = true
+        defer { updatingArchive = false }
+        do {
+            show(try await client.conversation("archive_thread", ["id": id, "archived": archived]))
+            if archived { await client.perform("navigation_back") }
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 

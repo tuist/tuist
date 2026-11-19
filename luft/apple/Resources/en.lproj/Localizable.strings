@@ -294,3 +294,17 @@
 "Light appearance" = "Light appearance";
 "Dark appearance" = "Dark appearance";
 "Sandbox first breath" = "Sandbox first breath";
+"Session actions" = "Session actions";
+"Session details" = "Session details";
+"Overview" = "Overview";
+"Original request" = "Original request";
+"Configuration" = "Configuration";
+"Provider" = "Provider";
+"Model" = "Model";
+"Repository" = "Repository";
+"Branch" = "Branch";
+"Runner ID" = "Runner ID";
+"Session ID" = "Session ID";
+"People" = "People";
+"Owner" = "Owner";
+"Private conversation" = "Private conversation";
