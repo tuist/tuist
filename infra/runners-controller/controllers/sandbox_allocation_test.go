@@ -58,6 +58,37 @@ func TestSandboxAllocationAccountsForBusyWarmAndOtherPods(t *testing.T) {
 	}
 }
 
+func TestSandboxAllocationReportsUnrequestedCPU(t *testing.T) {
+	node := linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024)
+	pool := linuxFleetPool("small", 1, 8192, 1, 10)
+	fleet := &fleetAllocation{members: map[string]fleetMember{pool.Name: {pool: pool}}}
+	cpu := func(milli int64) corev1.ResourceList {
+		return corev1.ResourceList{corev1.ResourceCPU: *resource.NewMilliQuantity(milli, resource.DecimalSI)}
+	}
+	// An exclusive-CPU runner budgets at the Pod level, plus its RuntimeClass overhead.
+	exclusive := busyLinuxRunner("exclusive", pool.Name, node.Name, 16)
+	exclusive.Spec.Resources = &corev1.ResourceRequirements{Requests: cpu(8000)}
+	exclusive.Spec.Overhead = cpu(250)
+	shared := idleLinuxRunner("shared", pool.Name, node.Name, 2, time.Hour)
+	shared.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("1")
+	// The daemon asked to shrink to 500m; until the kubelet applies it,
+	// it still holds the 3 cores it had.
+	daemon := sandboxDaemonPod("daemon", node.Name, 1, 1, false)
+	daemon.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("500m")
+	daemon.Status.ContainerStatuses[0].AllocatedResources[corev1.ResourceCPU] = resource.MustParse("3")
+	finished := busyLinuxRunner("finished", pool.Name, node.Name, 4)
+	finished.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("4")
+	finished.Status.Phase = corev1.PodSucceeded
+	pods := []corev1.Pod{*exclusive, *shared, *daemon, *finished}
+	allocation := planSandboxAllocation(node, sandboxDaemon{name: daemon.Name, node: node.Name, memory: gib}, pods, fleet)
+	if allocation.CPUFreeMilli != 32000-8250-1000-3000 {
+		t.Fatalf("cpu free = %d, want %d", allocation.CPUFreeMilli, 32000-8250-1000-3000)
+	}
+	if got := allocationPodRequest(exclusive, corev1.ResourceMemory); got != 16*gib {
+		t.Fatalf("memory of a CPU-only Pod budget = %d, want the containers' 16 GiB", got)
+	}
+}
+
 func TestSandboxAllocationAllowsQueuedCIButProtectsReservations(t *testing.T) {
 	node := linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024)
 	daemon := sandboxDaemon{name: "daemon", node: node.Name, memory: gib}
