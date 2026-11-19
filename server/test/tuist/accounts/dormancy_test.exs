@@ -13,9 +13,17 @@ defmodule Tuist.Accounts.DormancyTest do
 
   @domain "tuist.dev"
 
+  defp signed_in_days_ago(user, days) do
+    at = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -days * 24 * 60 * 60, :second)
+    Repo.update_all(from(u in User, where: u.id == ^user.id), set: [last_sign_in_at: at])
+    Accounts.get_user_by_id(user.id)
+  end
+
   defp operator_fixture(opts \\ []) do
     email = "operator-#{TuistTestSupport.Utilities.unique_integer()}@#{@domain}"
-    user = AccountsFixtures.user_fixture(email: email)
+
+    user =
+      AccountsFixtures.user_fixture([email: email] ++ Keyword.take(opts, [:created_at]))
 
     case Keyword.get(opts, :last_sign_in_days_ago) do
       nil ->
@@ -195,7 +203,7 @@ defmodule Tuist.Accounts.DormancyTest do
       # Given a sweep that has already chosen its candidates, and the account
       # coming back to life before the write lands.
       user = operator_fixture(last_sign_in_days_ago: 200)
-      candidates = Dormancy.list_disable_candidates(NaiveDateTime.utc_now(:second), @domain)
+      candidates = Dormancy.list_disable_candidates(NaiveDateTime.utc_now(:second), {@domain, []})
       assert user.id in Enum.map(candidates, & &1.id)
 
       Repo.update_all(
@@ -215,7 +223,7 @@ defmodule Tuist.Accounts.DormancyTest do
       # Given
       user = operator_fixture(last_sign_in_days_ago: 400)
       disable(user)
-      candidates = Dormancy.list_scrub_candidates(NaiveDateTime.utc_now(:second), @domain)
+      candidates = Dormancy.list_scrub_candidates(NaiveDateTime.utc_now(:second), {@domain, []})
       assert user.id in Enum.map(candidates, & &1.id)
 
       Repo.update_all(from(u in User, where: u.id == ^user.id), set: [active: true])
@@ -270,6 +278,75 @@ defmodule Tuist.Accounts.DormancyTest do
 
       # Then
       refute user.id in result.scrubbed
+      refute user.id in result.disabled
+    end
+
+    test "disables dormant members of internal organizations on any email domain" do
+      # Given a bot account in an organization Tuist owns, and an equally
+      # dormant member of a customer organization.
+      internal =
+        AccountsFixtures.organization_fixture(name: "TuistInternal#{TuistTestSupport.Utilities.unique_integer()}")
+
+      customer = AccountsFixtures.organization_fixture()
+      bot = signed_in_days_ago(AccountsFixtures.user_fixture(email: "bot@example.com"), 200)
+      outsider = signed_in_days_ago(AccountsFixtures.user_fixture(email: "someone@example.org"), 200)
+      Accounts.add_user_to_organization(bot, internal)
+      Accounts.add_user_to_organization(outsider, customer)
+      handles = [String.downcase(internal.account.name)]
+
+      # When
+      result = Dormancy.sweep(operator_email_domain: @domain, internal_organization_handles: handles)
+
+      # Then
+      assert bot.id in result.disabled
+      refute outsider.id in result.disabled
+      refute Accounts.get_user_by_id(bot.id).active
+      assert Accounts.get_user_by_id(outsider.id).active
+    end
+
+    test "a scrubbed member of an internal organization is not reprocessed" do
+      # Given a scrubbed member, whose role row survives the scrub.
+      internal = AccountsFixtures.organization_fixture()
+      bot = signed_in_days_ago(AccountsFixtures.user_fixture(email: "bot@example.com"), 400)
+      Accounts.add_user_to_organization(bot, internal)
+      bot |> disable() |> Dormancy.scrub()
+
+      # When
+      result =
+        Dormancy.sweep(operator_email_domain: @domain, internal_organization_handles: [internal.account.name])
+
+      # Then
+      refute bot.id in result.scrubbed
+      refute bot.id in result.clock_started
+      refute bot.id in result.unknown_activity
+    end
+
+    test "ages accounts that never signed in from the activity-tracking floor" do
+      # Given two operators that never authenticated: one created before
+      # tracking began, one created and left unused well after it.
+      floor = Dormancy.activity_tracking_started_at()
+      before = operator_fixture(created_at: DateTime.from_naive!(NaiveDateTime.add(floor, -300, :day), "Etc/UTC"))
+      unused = operator_fixture(created_at: DateTime.from_naive!(NaiveDateTime.add(floor, 100, :day), "Etc/UTC"))
+
+      # When the sweep runs 200 days after tracking began
+      result = Dormancy.sweep(operator_email_domain: @domain, now: NaiveDateTime.add(floor, 200, :day))
+
+      # Then the older account is past the threshold measured from the floor,
+      # not from its creation date or from "never", and the newer one is not.
+      assert before.id in result.disabled
+      refute unused.id in result.disabled
+      assert unused.id in result.unknown_activity
+    end
+
+    test "does not disable never-signed-in accounts before the floor has aged" do
+      # Given an operator created long before tracking began
+      floor = Dormancy.activity_tracking_started_at()
+      user = operator_fixture(created_at: DateTime.from_naive!(NaiveDateTime.add(floor, -800, :day), "Etc/UTC"))
+
+      # When the sweep runs one day short of the threshold after the floor
+      result = Dormancy.sweep(operator_email_domain: @domain, now: NaiveDateTime.add(floor, 179, :day))
+
+      # Then
       refute user.id in result.disabled
     end
 
