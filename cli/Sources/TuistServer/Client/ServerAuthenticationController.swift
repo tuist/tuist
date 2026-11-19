@@ -26,6 +26,7 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
     case failToLaunchRefreshProcess(command: String, arguments: [String], serverURL: URL)
     case timedOut(seconds: Int, serverURL: URL)
     case cantRefreshWithLockingAndBackground
+    case workloadSessionExpired(serverURL: URL)
 
     public var errorDescription: String? {
         switch self {
@@ -39,6 +40,9 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
         case .cantRefreshWithLockingAndBackground:
             return
                 "The refreshing with background and locking configurations enabled is not a valid configuration (liley a bug)."
+        case let .workloadSessionExpired(serverURL):
+            return
+                "The session for \(serverURL.absoluteString) came from a workload identity and expired. It has no refresh token, so it renews only where a workload identity is available, such as with TUIST_OIDC_TOKEN set."
         }
     }
 }
@@ -452,11 +456,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         }
 
-        switch (
-            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh),
-            inBackground,
-            locking
-        ) {
+        let status = try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh)
+        // Nothing here can renew such a session, so fail at once instead of retrying the refresh under the
+        // shared lock for its full timeout, which made every process that could renew it wait behind this one.
+        if case .expired = status, try await isUnrenewableWorkloadSession(serverURL: serverURL) {
+            throw ServerAuthenticationControllerError.workloadSessionExpired(serverURL: serverURL)
+        }
+
+        switch (status, inBackground, locking) {
         case let (.valid(token), _, _):
             return token
         case (.absent, _, _):
@@ -774,6 +781,20 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         #else
             return nil
+        #endif
+    }
+
+    /// An expired account session without a refresh token, such as one exchanged from a workload identity, in an
+    /// environment without a workload identity to exchange again: a process that outlives the identity's command,
+    /// such as the cache proxy's agent. Reads the store again, so a session another process just renewed counts.
+    private func isUnrenewableWorkloadSession(serverURL: URL) async throws -> Bool {
+        guard case let .account(accessToken) = try await fetchTokenFromStore(serverURL: serverURL),
+              accessToken.expiryDate.timeIntervalSince(Date.now()) < 30
+        else { return false }
+        #if canImport(TuistOIDC)
+            return !CIOIDCAuthenticator().hasWorkloadIdentity
+        #else
+            return true
         #endif
     }
 
