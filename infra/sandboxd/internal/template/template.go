@@ -386,6 +386,39 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 	return removed, nil
 }
 
+// PreviousTag returns the tag of template `name`, other than `current`, that
+// the node ran most recently, or "" when there is none. The template init
+// container rewrites a tag's metadata.json every time a Pod starts with it,
+// so the newest one names the tag this node ran before `current`.
+func (s *Store) PreviousTag(name, current string) (string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return "", fmt.Errorf("template name: %w", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(s.Dir, name))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	var previous string
+	var newest time.Time
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == current {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(s.Dir, name, e.Name(), MetadataFile))
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if previous == "" || info.ModTime().After(newest) {
+			previous, newest = e.Name(), info.ModTime()
+		}
+	}
+	return previous, nil
+}
+
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind, shapes snapshotted by a different Firecracker version, which
 // that version cannot load, shapes built with a workspace of another size
