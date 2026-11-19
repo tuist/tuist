@@ -59,6 +59,9 @@ type Header struct {
 	// Memory is set when the object holds the VM's memory image ahead of
 	// this stream (see memory.go) and the stream holds its VM state.
 	Memory *MemoryHeader `json:"memory,omitempty"`
+	// CachePlaceholder: the VM state has the template's empty cache drive,
+	// which the archive does not hold; a warm restore recreates it.
+	CachePlaceholder bool `json:"cache_placeholder,omitempty"`
 }
 
 // MemoryHeader describes an archived memory image. Its VM state restores

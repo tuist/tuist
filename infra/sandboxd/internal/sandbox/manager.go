@@ -392,11 +392,11 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if artifacts.Meta.CacheDrive {
 		if args.CacheImage != "" {
 			err = m.attachCacheImage(args.CacheImage, root, uid)
+			sb.mu.Lock()
+			sb.meta.CacheImage = args.CacheImage
+			sb.mu.Unlock()
 		} else {
-			cache := filepath.Join(root, firecracker.CachePath)
-			if err = vm.Sparse(cache, template.CachePlaceholderBytes); err == nil {
-				err = vm.Chown(cache, uid, uid)
-			}
+			err = m.cachePlaceholder(root, uid)
 		}
 		if err != nil {
 			return res, err
