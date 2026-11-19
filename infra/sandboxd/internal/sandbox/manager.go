@@ -930,6 +930,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		sb.meta.State = protocol.StatePaused
 		sb.meta.ColdBoot = true
 		sb.meta.DisksSynced = synced
+		sb.meta.PausedCPUMs = cpuMs
 		sb.meta.Error = ""
 		saveErr := sb.meta.Save(sb.root)
 		sb.mu.Unlock()
@@ -949,6 +950,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	sb.meta.Generation++
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
 	sb.meta.DisksSynced = synced
+	sb.meta.PausedCPUMs = cpuMs
 	sb.meta.Error = ""
 	err = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
@@ -1426,6 +1428,9 @@ func (m *Manager) Recover(ctx context.Context) error {
 				meta.State = protocol.StatePaused
 				meta.ColdBoot = true
 				meta.Error = ""
+				// Nothing read its CPU time as it stopped; an earlier
+				// pause's reading would bill the wrong interval.
+				meta.PausedCPUMs = 0
 			} else {
 				meta.State = protocol.StateError
 				meta.Error = "daemon restarted while running and the sandbox disks are missing"

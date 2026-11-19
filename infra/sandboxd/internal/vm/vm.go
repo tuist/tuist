@@ -76,8 +76,9 @@ type Instance interface {
 	API() *firecracker.Client
 	VsockPath() string
 	PID() int
-	// CPUTime is the VMM process's user and system time, its vCPU threads
-	// included; false where it cannot be read.
+	// CPUTime is the guest's CPU time: the user and system time of the
+	// VM's vCPU threads, without the VMM's own device emulation; false
+	// where it cannot be read.
 	CPUTime() (time.Duration, bool)
 	Done() <-chan struct{}
 	ExitError() error
@@ -509,16 +510,49 @@ func (l *cappedLog) Close() error {
 	return l.file.Close()
 }
 
-func (m *machine) CPUTime() (time.Duration, bool) { return processCPUTime(m.PID()) }
+func (m *machine) CPUTime() (time.Duration, bool) { return vcpuCPUTime("/proc", m.PID()) }
 
 // userHZ is the unit of utime and stime in /proc/<pid>/stat.
 const userHZ = 100
 
-func processCPUTime(pid int) (time.Duration, bool) {
+// vcpuThreadPrefix names Firecracker's vCPU threads (`fc_vcpu <index>`).
+// Its other threads (the VMM's event loop, which emulates the virtio
+// devices, and the API server) do the host's work for the guest, which
+// the guest cannot see and is not billed for.
+const vcpuThreadPrefix = "fc_vcpu"
+
+// vcpuCPUTime sums the CPU time of the process's vCPU threads. A process
+// without any, such as a VMM that names its threads otherwise, counts as
+// a whole.
+func vcpuCPUTime(proc string, pid int) (time.Duration, bool) {
 	if pid <= 0 {
 		return 0, false
 	}
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	process := filepath.Join(proc, strconv.Itoa(pid))
+	tasks, err := os.ReadDir(filepath.Join(process, "task"))
+	if err != nil {
+		return 0, false
+	}
+	var total time.Duration
+	vcpus := 0
+	for _, task := range tasks {
+		comm, err := os.ReadFile(filepath.Join(process, "task", task.Name(), "comm"))
+		if err != nil || !strings.HasPrefix(string(comm), vcpuThreadPrefix) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(process, "task", task.Name(), "stat"))
+		if err != nil {
+			continue
+		}
+		if cpu, ok := parseStatCPUTime(string(data)); ok {
+			total += cpu
+			vcpus++
+		}
+	}
+	if vcpus > 0 {
+		return total, true
+	}
+	data, err := os.ReadFile(filepath.Join(process, "stat"))
 	if err != nil {
 		return 0, false
 	}

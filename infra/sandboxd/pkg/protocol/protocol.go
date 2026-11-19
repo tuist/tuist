@@ -155,7 +155,9 @@ type SandboxInfo struct {
 	// VM while it was running and the disks moved on since the last snapshot.
 	ColdBoot bool `json:"cold_boot,omitempty"`
 	// CPUMs is a running VM's CPU time since its process started, for the
-	// server to tell an active guest from an idle one.
+	// server to tell an active guest from an idle one and to meter it. For
+	// a paused VM it is the reading taken at its pause, as in PauseResult,
+	// so the server can bill a pause it learns of from a report.
 	CPUMs int64 `json:"cpu_ms,omitempty"`
 	// DiskBytes is what the sandbox's jail holds on the node that no
 	// template or other sandbox shares, measured with the disk report, so

@@ -611,9 +611,9 @@ func TestRecover(t *testing.T) {
 			}
 		}
 	}
-	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
+	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2, PausedCPUMs: 9000}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("nosnapshot", Metadata{ID: "nosnapshot", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StateRunning, Slot: 1})
-	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot")
+	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1, FirecrackerVersion: "v1.16.1", PausedCPUMs: 1200}, "mem", "snapshot")
 	write("sameversion", Metadata{ID: "sameversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 5, Generation: 2, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("oldversion", Metadata{ID: "oldversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 4, Generation: 3, FirecrackerVersion: "v1.16.0"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("tmpl-default-t1-2x4096", Metadata{}, "mem")
@@ -637,6 +637,11 @@ func TestRecover(t *testing.T) {
 	}
 	if byID["waspaused"].ColdBoot {
 		t.Fatalf("a cleanly paused sandbox must keep its memory image: %+v", byID["waspaused"])
+	}
+	// A clean pause keeps reporting its CPU reading; a VM the daemon lost
+	// was never read, and must not report an earlier pause's.
+	if byID["waspaused"].CPUMs != 1200 || byID["wasrunning"].CPUMs != 0 {
+		t.Fatalf("paused cpu_ms: waspaused %d, wasrunning %d; want 1200 and 0", byID["waspaused"].CPUMs, byID["wasrunning"].CPUMs)
 	}
 	// Another Firecracker version cannot load the memory image a clean
 	// pause left, so the sandbox cold boots on its disks instead.
@@ -1337,7 +1342,17 @@ func TestCPUTimeIsReportedWhileRunningAndAtPause(t *testing.T) {
 	if res.CPUMs != 2500 {
 		t.Fatalf("pause cpu_ms = %d, want 2500", res.CPUMs)
 	}
-	if got := h.m.List()[0].CPUMs; got != 0 {
-		t.Fatalf("paused cpu_ms = %d, want 0", got)
+	// A paused sandbox keeps reporting the reading of its pause, also
+	// after the daemon restarts, so the server bills a pause it only learns
+	// of from a report.
+	if got := h.m.List()[0].CPUMs; got != 2500 {
+		t.Fatalf("paused cpu_ms = %d, want the pause's 2500", got)
+	}
+	meta, err := LoadMetadata(vm.RootDir(h.jailBase, testID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.PausedCPUMs != 2500 {
+		t.Fatalf("persisted paused_cpu_ms = %d, want 2500", meta.PausedCPUMs)
 	}
 }

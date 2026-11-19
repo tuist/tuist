@@ -38,6 +38,10 @@ type Metadata struct {
 	// DisksSynced records that the last pause flushed the guest page cache
 	// to the disks, so they can be saved without the memory image.
 	DisksSynced bool `json:"disks_synced,omitempty"`
+	// PausedCPUMs is the VM's CPU time at its last pause, which reports
+	// carry while it stays paused so the server bills a pause it learns of
+	// from a report (a daemon shutdown's) up to it. Zero when unread.
+	PausedCPUMs int64 `json:"paused_cpu_ms,omitempty"`
 	// RootfsGrowPending records that the rootfs file was grown to its
 	// template's size and the guest has not grown its filesystem yet.
 	RootfsGrowPending bool      `json:"rootfs_grow_pending,omitempty"`
@@ -56,11 +60,15 @@ func (m Metadata) Shape() template.Shape {
 }
 
 func (m Metadata) Info(workerRunning bool) protocol.SandboxInfo {
-	return protocol.SandboxInfo{
+	info := protocol.SandboxInfo{
 		ID: m.ID, State: m.State, Template: m.Template, TemplateTag: m.Tag,
 		VCPUs: m.VCPUs, MemoryMB: m.MemoryMB, WorkspaceGB: m.WorkspaceGB, Hostname: m.Hostname,
 		WorkerRunning: workerRunning, ColdBoot: m.ColdBoot, Generation: m.Generation, CreatedAt: m.CreatedAt, Error: m.Error,
 	}
+	if m.State == protocol.StatePaused {
+		info.CPUMs = m.PausedCPUMs
+	}
+	return info
 }
 
 func LoadMetadata(root string) (Metadata, error) {
