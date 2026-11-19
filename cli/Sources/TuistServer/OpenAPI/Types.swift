@@ -1256,7 +1256,7 @@ public protocol APIProtocol: Sendable {
     func listTestModuleRuns(_ input: Operations.listTestModuleRuns.Input) async throws -> Operations.listTestModuleRuns.Output
     /// Get the code coverage upload settings for a project.
     ///
-    /// The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.
+    /// The size, in bytes of the uncompressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run. The run's request body is held to its limit after it is inflated, so the comparison uses the uncompressed size even when the client compresses the request.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/settings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/settings/get(getCoverageSettings)`.
@@ -4492,7 +4492,7 @@ extension APIProtocol {
     }
     /// Get the code coverage upload settings for a project.
     ///
-    /// The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.
+    /// The size, in bytes of the uncompressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run. The run's request body is held to its limit after it is inflated, so the comparison uses the uncompressed size even when the client compresses the request.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/settings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/settings/get(getCoverageSettings)`.
@@ -21590,14 +21590,14 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/CoverageSettings`.
         public struct CoverageSettings: Codable, Hashable, Sendable {
-            /// Compressed coverage larger than this goes through an upload.
+            /// Coverage whose uncompressed size is larger than this goes through an upload.
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageSettings/inline_threshold_bytes`.
             public var inline_threshold_bytes: Swift.Int
             /// Creates a new `CoverageSettings`.
             ///
             /// - Parameters:
-            ///   - inline_threshold_bytes: Compressed coverage larger than this goes through an upload.
+            ///   - inline_threshold_bytes: Coverage whose uncompressed size is larger than this goes through an upload.
             public init(inline_threshold_bytes: Swift.Int) {
                 self.inline_threshold_bytes = inline_threshold_bytes
             }
@@ -130221,7 +130221,7 @@ public enum Operations {
     }
     /// Get the code coverage upload settings for a project.
     ///
-    /// The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.
+    /// The size, in bytes of the uncompressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run. The run's request body is held to its limit after it is inflated, so the comparison uses the uncompressed size even when the client compresses the request.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/settings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/settings/get(getCoverageSettings)`.
@@ -130283,14 +130283,14 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/settings/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Compressed coverage larger than this goes through an upload.
+                        /// Coverage whose uncompressed size is larger than this goes through an upload.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/settings/GET/responses/200/content/json/inline_threshold_bytes`.
                         public var inline_threshold_bytes: Swift.Int
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - inline_threshold_bytes: Compressed coverage larger than this goes through an upload.
+                        ///   - inline_threshold_bytes: Coverage whose uncompressed size is larger than this goes through an upload.
                         public init(inline_threshold_bytes: Swift.Int) {
                             self.inline_threshold_bytes = inline_threshold_bytes
                         }

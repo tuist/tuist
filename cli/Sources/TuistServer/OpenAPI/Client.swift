@@ -34922,7 +34922,7 @@ public struct Client: APIProtocol {
     }
     /// Get the code coverage upload settings for a project.
     ///
-    /// The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.
+    /// The size, in bytes of the uncompressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run. The run's request body is held to its limit after it is inflated, so the comparison uses the uncompressed size even when the client compresses the request.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/coverage/settings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/coverage/settings/get(getCoverageSettings)`.
