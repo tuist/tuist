@@ -7,6 +7,7 @@ defmodule Tuist.Sandboxes.Query do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Analytics
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
@@ -33,10 +34,16 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   # The changeset validates each platform's shapes; omitted fields take the platform's defaults.
+  # A macOS sandbox for a `repository` boots from its Claude Code macOS
+  # snapshot when one is ready, and has one built otherwise.
   def run(:create, account, params) do
     attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
 
-    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(kept(created))}
+    with {:ok, source} <- ClaudeCodeSnapshots.mac_source(account, params["repository"], attrs),
+         {:ok, created} <- Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: source && source.snapshot) do
+      ClaudeCodeSnapshots.request_mac_build(source)
+      {:ok, sandbox(kept(created))}
+    end
   end
 
   def run(:show, account, params) do

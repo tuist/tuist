@@ -11,10 +11,12 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
 
   A Claude Code repository snapshot has no Amp identifier: it is keyed by
   its `agent_environment`, `repository` (`owner/name`) and the SHA-256 of
-  the environment's setup script it ran (`Tuist.Sandboxes.ClaudeCodeSnapshots`).
-  Its build is a row of that key in state `building`, with no node and the
-  same id as its builder sandbox, which becomes `failed` when the build
-  fails; at most one of either exists per key.
+  the environment's setup script it ran (`Tuist.Sandboxes.ClaudeCodeSnapshots`),
+  per `template`. Its build is a row of that key in state `building`, with no
+  node and the same id as its builder sandbox, which becomes `failed` when the
+  build fails; at most one of either exists per key. A `darwin` snapshot of a
+  Linux environment ran its macOS setup script, for the Macs its sessions
+  create.
 
   `platform` is the OS of the sandbox it was saved from. A macOS host keeps
   its snapshots as stopped Tart VMs whose overlay holds only what the guest
@@ -107,6 +109,7 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
       :setup_sha256,
       :template,
       :workspace_gb,
+      :platform,
       :last_used_at
     ])
     |> validate_required([
@@ -118,8 +121,8 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
       :workspace_gb,
       :last_used_at
     ])
-    |> unique_constraint([:agent_environment_id, :repository, :setup_sha256],
-      name: :sandbox_disk_snapshots_repository_build_index
+    |> unique_constraint([:agent_environment_id, :repository, :setup_sha256, :template],
+      name: :sandbox_disk_snapshots_repository_template_build_index
     )
   end
 

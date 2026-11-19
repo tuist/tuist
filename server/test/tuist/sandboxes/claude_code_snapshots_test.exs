@@ -4,6 +4,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
+  import TuistTestSupport.Fixtures.ProjectsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.GitHub
@@ -180,6 +181,98 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
              snapshot = Repo.get!(DiskSnapshot, save.snapshot_id)
 
     assert ClaudeCodeSnapshots.find(agent_environment, %{owner: "acme", name: "app"}).id == snapshot.id
+  end
+
+  test "a Mac a Linux session creates for a connected repository has its snapshot built where sync puts the worktree",
+       %{account: account, agent_environment: agent_environment, test_pid: test_pid} do
+    {:ok, agent_environment} =
+      Sandboxes.update_agent_environment(agent_environment, %{macos_setup_script: "mise install && tuist generate\n"})
+
+    project_fixture(account: account, vcs_connection: [repository_full_handle: "acme/app"])
+
+    stub(Nodes, :connected_nodes, fn ->
+      [%{name: "node-a", disk: %{}, templates: [%{name: "macos", ready: true, tag: "sha-new", rootfs_bytes: 1}]}]
+    end)
+
+    stub_node(test_pid)
+
+    # The environment's own Linux snapshot of the repository, which a Mac's
+    # must leave alone.
+    {:ok, linux_snapshot} =
+      %DiskSnapshot{state: :ready}
+      |> DiskSnapshot.create_changeset(%{
+        account_id: account.id,
+        agent_environment_id: agent_environment.id,
+        repository: "acme/app",
+        setup_sha256: ClaudeCodeSnapshots.setup_sha256(@setup_script),
+        node_name: "node-a",
+        template: "default",
+        workspace_gb: agent_environment.workspace_gb,
+        last_used_at: DateTime.utc_now(:second)
+      })
+      |> Repo.insert()
+
+    # Named in another case, the repository takes its connected name.
+    assert {:ok, %{snapshot: nil, repository: "acme/app", template: "macos"} = source} =
+             ClaudeCodeSnapshots.mac_source(account, "ACME/app", %{platform: "darwin"})
+
+    assert :ok = ClaudeCodeSnapshots.request_mac_build(source)
+
+    assert %DiskSnapshot{state: :building, platform: :darwin, template: "macos"} =
+             build =
+             Repo.one!(from(d in DiskSnapshot, where: d.state == :building and d.platform == :darwin))
+
+    assert {:snooze, 30} = advance(build)
+    assert [{:create, create}, {:hold_residency, _hold}, {:exec, start}] = node_calls()
+    assert create.template == "macos"
+    assert %Sandbox{platform: :darwin, vcpus: 8} = Repo.get!(Sandbox, build.id)
+
+    # Cloned to `$HOME/work/<name>`, sync's default path, with the macOS
+    # script, and recorded as sync records what it sent.
+    command = start.env["TUIST_COMMAND"]
+    assert command =~ "'/Users/runner/work/app' 'https://github.com/acme/app'"
+    assert command =~ "'mise install && tuist generate\n'"
+    assert command =~ ~S|state="$HOME/.tuist-sync/|
+    assert command =~ "git rev-parse HEAD > \"$state/commit\""
+
+    finish_command(build, 0)
+    assert :ok = advance(build)
+
+    assert %DiskSnapshot{state: :ready, platform: :darwin, template: "macos", template_tag: "sha-new"} =
+             snapshot =
+             Repo.one!(from(d in DiskSnapshot, where: d.state == :ready and d.platform == :darwin))
+
+    assert Repo.get(DiskSnapshot, linux_snapshot.id)
+
+    # The next Mac of that Xcode boots from it; another Xcode's has none yet.
+    assert {:ok, %{snapshot: %DiskSnapshot{id: id}}} =
+             ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin"})
+
+    assert id == snapshot.id
+
+    assert {:ok, %{snapshot: nil, template: "macos-xcode-1-2"}} =
+             ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin", template: "macos-xcode-1-2"})
+  end
+
+  test "only a Mac for a repository connected to the account's projects has a snapshot source", %{
+    account: account,
+    agent_environment: agent_environment
+  } do
+    other_account = account_fixture()
+    project_fixture(account: other_account, vcs_connection: [repository_full_handle: "acme/secret"])
+    project_fixture(account: account, vcs_connection: [repository_full_handle: "acme/app"])
+
+    # The environment has no macOS setup script yet.
+    assert {:ok, nil} = ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin"})
+
+    {:ok, _agent_environment} =
+      Sandboxes.update_agent_environment(agent_environment, %{macos_setup_script: "mise install\n"})
+
+    assert {:ok, %{repository: "acme/app"}} = ClaudeCodeSnapshots.mac_source(account, "acme/app", %{platform: "darwin"})
+    assert {:ok, nil} = ClaudeCodeSnapshots.mac_source(account, "acme/secret", %{platform: "darwin"})
+    assert {:ok, nil} = ClaudeCodeSnapshots.mac_source(account, "acme/app", %{})
+    assert {:ok, nil} = ClaudeCodeSnapshots.mac_source(account, nil, %{platform: "darwin"})
+    assert {:error, :invalid_parameters} = ClaudeCodeSnapshots.mac_source(account, "acme", %{platform: "darwin"})
   end
 
   test "a builder another admission of the account kept out is created on a later check", %{

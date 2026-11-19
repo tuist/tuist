@@ -154,7 +154,12 @@ defmodule Tuist.Sandboxes.Schemas do
           %{start: timestamp(), end: timestamp()}
 
         :create ->
-          shape()
+          Map.put(shape(), :repository, %Schema{
+            type: :string,
+            pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$",
+            description:
+              "macOS only: the github.com repository (`owner/name`) the sandbox is for, connected to one of the account's projects. When a Linux Claude Code environment of the account has a macOS setup script, the sandbox boots from that repository's snapshot for its Xcode, with the default branch cloned to `$HOME/work/<name>`, the script run and the project built there, so the first `tuist sandbox sync` sends only what changed. Without a snapshot it boots bare and one is built for the next sandbox."
+          })
 
         _ ->
           %{sandbox_id: %Schema{type: :string, format: "uuid"}}

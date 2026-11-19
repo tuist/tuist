@@ -351,7 +351,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Linux nodes run at the mark, which would refuse them all. A copy in use
   above the mark makes the disk-pressure sweep archive an idle Orb sooner.
   A Claude Code repository snapshot has no Amp id: it is keyed by
-  `agent_environment_id`, `repository` and `setup_sha256`, saved from a
+  `agent_environment_id`, `repository`, `setup_sha256` and `template`
+  (a Linux environment's Macs keep one per Xcode template, which never
+  supersede its sessions' snapshots), saved from a
   paused builder sandbox (`save_build/2`), and replaces the environment's
   older ready snapshots of the repository. `find_ready_for_repository/3`
   only returns one whose `template_tag` a connected node creates new
@@ -368,7 +370,29 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   placed only on a host where it leaves a granted slot free
   (`MacosCapacity`'s `slots/1`): it holds a slot for up to an hour and
   serves no session, so it waits for an idle host instead of taking one CI
-  could use. `ClaudeCodeRunners` creates a session's sandbox
+  could use. A Linux environment's `macos_setup_script`
+  prepares the Macs its sessions create through `Query.run(:create)` (the
+  `create_sandbox` tool's `repository`, a github.com `owner/name` one of the
+  account's projects is connected to; `mac_source/3`): the Mac boots from the
+  repository's darwin snapshot of its Xcode template and workspace size, else
+  bare with a build requested (`request_mac_build/1`, the default macOS shape).
+  Such a build clones to `$HOME/work/<name>`, `tuist sandbox sync`'s default
+  (the name in the worktree's `origin` URL, so a local directory of another
+  name lands there too):
+  Xcode keys DerivedData by the workspace's path, so another path rebuilds
+  from scratch. After the script it resets tracked files and records the
+  clone as sync does (`$HOME/.tuist-sync/<cksum of path>/{id,paths}`, plus
+  `commit`). The CLI's probe returns that commit, rebuilds its manifest from
+  local Git objects and uses it only when its hash equals the recorded id, so
+  the first sync is a delta and leaves unchanged files' modification times,
+  which Xcode compares, alone (a full sync rewrites every file and rebuilt
+  459 Swift files of the Tuist app in a measurement). A delta drops
+  `commit`. Measured on Xcode 27.0 (2026-11): every boot mounts the Metal
+  toolchain cryptex under a new random path that ends up in the link line of
+  host macro plugins, so after any cold boot, a snapshot boot included, the
+  macro plugins relink and their dependents rebuild (about 55 s of 140 s for
+  the Tuist app); the rest stays warm. A stable mount path in the image would
+  remove it. `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs
   in a session's sandbox before its runner, so the spawn lease never limits
