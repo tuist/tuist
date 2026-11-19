@@ -7,7 +7,7 @@
 ---
 # Gradle 測試分片 {#gradle-test-sharding}
 
-Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務於先前 CI 執行中記錄的測試套件來規劃分片，並使用 Tuist 伺服器依據歷史計時資料建立平衡的分片計畫。
+Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務於先前 CI 執行中記錄的測試套件來規劃，並利用 Tuist 伺服器依據歷史耗時資料建立負載均衡的分片計畫。
 
 > [!IMPORTANT]
 > **必要條件**
@@ -18,7 +18,7 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 測試分片採用兩階段工作流程：
 
-1. **建置階段：** Tuist 會根據為你專案記錄的測試套件，在伺服器上建立**分片計畫**。伺服器會使用過去 30 天的歷史測試計時資料，將測試分配到各分片，使每個分片的耗時大致相同。建置階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
+1. **建置階段：** Tuist 會根據為你專案記錄的測試套件，在伺服器上建立**分片計畫**。伺服器會使用過去 30 天的歷史測試耗時資料，將測試分配至各個分片，使每個分片的執行時間大致相同。建置階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
 2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並僅執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
 
 ## 建置階段 {#build-phase}
@@ -31,11 +31,11 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 ```
 
 此任務會：
-1. 找出包含待分片測試任務的專案，而不編譯它們
-2. 根據過去 30 天為這些專案記錄的測試套件與計時資料，在 Tuist 伺服器上建立分片計畫
+1. 找出包含待分片測試任務的專案，但不編譯它們
+2. 根據過去 30 天為這些專案記錄的測試套件與耗時資料，在 Tuist 伺服器上建立分片計畫
 3. 為你的 CI 系統輸出分片矩陣
 
-若尚未記錄任何測試套件（例如首次執行），計畫將只包含一個執行所有測試的分片。
+若尚未記錄任何測試套件（例如首次執行），計畫會包含單一的分片，並執行所有測試。
 
 ### 建置選項 {#build-options}
 
@@ -43,12 +43,12 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 | 屬性 | 說明 |
 |----------|-------------|
-| `-PtuistShardMax=<N>` | 最大分片數量（預設：2） |
+| `-PtuistShardMax=<N>` | 最大分片數量（預設值：2） |
 | `-PtuistShardMin=<N>` | 最小分片數量 |
 | `-PtuistShardMaxDuration=<MS>` | 每個分片的目標最長持續時間（毫秒） |
-| `-PtuistShardTestTask=<NAME>` | 要進行分片的測試任務，例如 `testDebugUnitTest`。預設為建置中的每個測試任務 |
+| `-PtuistShardTestTask=<NAME>` | 要進行分片的測試任務，例如 `testDebugUnitTest`。預設為建置中的所有測試任務 |
 
-具有多個建置變體的 Android 專案，每個變體都有一個單元測試任務。將 `-PtuistShardTestTask` 設定為你的分片所執行的變體，這樣只會規劃包含該變體的專案：
+具有多個建置變體的 Android 專案，每個變體各有一個單元測試任務。將 `-PtuistShardTestTask` 設定為你的分片所執行的變體，這樣只會規劃包含該變體的專案：
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -60,21 +60,21 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 ## 測試階段 {#test-phase}
 
-每個分片執行器會使用標準的 `test` 任務執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並過濾測試執行，使其僅包含指派的測試套件。沒有測試套件指派給該分片的專案，其測試任務會被略過。
+每個分片執行器會使用標準的 `test` 任務執行指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並篩選測試執行範圍，僅包含指派的測試套件。沒有測試套件指派給該分片的專案，其測試任務會被略過。
 
-最後一個分片會執行每個測試任務，並排除指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
+最後一個分片會執行所有測試任務，並排除已指派給其他分片的套件，因此尚未有記錄執行的套件（例如新增的套件）仍會執行。
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
 ```
 
-若你在建置階段設定了 `-PtuistShardTestTask`，請在每個分片中執行相同的任務，例如 `./gradlew testDebugUnitTest`。
+若在建置階段設定了 `-PtuistShardTestTask`，請在每個分片中執行相同的任務，例如 `./gradlew testDebugUnitTest`。
 
 ## 持續整合 {#continuous-integration}
 
 <!-- @snippet: ./_ci-providers -->
 
-每個建置與分片工作在執行 Gradle 前都需要進行驗證。你可以安裝 Tuist CLI 並使用 CI 供應商的 OIDC 身分執行 `tuist auth login`，或將帳號權杖以 `TUIST_TOKEN` 的形式公開。請參閱<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle 外掛程式驗證</.localized_link>。以下範例省略了該步驟。
+每個建置與分片工作都需要在執行 Gradle 前進行驗證。你可以安裝 Tuist CLI 並使用 CI 供應商的 OIDC 身分執行 `tuist auth login`，或將帳號權杖以 `TUIST_TOKEN` 的形式公開。請參閱<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle 外掛程式驗證</.localized_link>。以下範例省略了該步驟。
 
 ### GitHub Actions {#github-actions}
 
@@ -122,7 +122,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其作為[子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作擴充它：
+Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其作為[子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
 
 ```yaml
 # .gitlab-ci.yml
@@ -227,7 +227,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist 會產生 `.tuist-shard-pipeline.yml`，其中每個分片對應一個步驟。使用 `buildkite-agent pipeline upload` 上傳它：
+Tuist 會產生 `.tuist-shard-pipeline.yml`，每個分片對應一個步驟。使用 `buildkite-agent pipeline upload` 上傳：
 
 ```yaml
 # pipeline.yml
@@ -238,7 +238,7 @@ steps:
       buildkite-agent pipeline upload .tuist-shard-pipeline.yml
 ```
 
-每個產生的步驟都在其環境中設定了 `TUIST_SHARD_INDEX`。使用共用指令碼將測試命令加入每個分片步驟：
+每個產生的步驟在其環境中都已設定 `TUIST_SHARD_INDEX`。使用共用指令碼將測試命令加入每個分片步驟：
 
 ```bash
 # .buildkite/shard-step.sh
@@ -248,7 +248,7 @@ steps:
 
 ### Codemagic {#codemagic}
 
-Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，供每個工作流程使用：
+Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，供各工作流程使用：
 
 ```yaml
 # codemagic.yaml
