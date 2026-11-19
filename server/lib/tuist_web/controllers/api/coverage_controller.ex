@@ -42,7 +42,7 @@ defmodule TuistWeb.API.CoverageController do
   operation(:settings,
     summary: "Get the code coverage upload settings for a project.",
     description:
-      "The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.",
+      "The size, in bytes of the uncompressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run. The run's request body is held to its limit after it is inflated, so the comparison uses the uncompressed size even when the client compresses the request.",
     operation_id: "getCoverageSettings",
     parameters: @path_parameters,
     responses: %{
@@ -54,7 +54,7 @@ defmodule TuistWeb.API.CoverageController do
            properties: %{
              inline_threshold_bytes: %Schema{
                type: :integer,
-               description: "Compressed coverage larger than this goes through an upload."
+               description: "Coverage whose uncompressed size is larger than this goes through an upload."
              }
            },
            required: [:inline_threshold_bytes]
