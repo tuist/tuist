@@ -227,7 +227,7 @@ struct CargoReporting {
                 "history_source": history.payload.source,
                 "history_fallback_reason": history.payload.fallbackReason,
                 "git_dirty": history.payload.dirty,
-                // On a pull request's merge checkout, the commit the history and the listing describe.
+                // The commit the history and the listing describe (`gitInfo`: the checkout's HEAD).
                 "git_commit_sha": history.history.headSHA.isEmpty ? nil : history.history.headSHA,
                 "git_branch": history.branch,
             ]

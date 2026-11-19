@@ -368,7 +368,7 @@ public struct SnapshotBuildService: SnapshotBuildServicing {
         request.setValue("image/png", forHTTPHeaderField: "Content-Type")
         request.addAzureBlobTypeHeaderIfNeeded()
         // Content-addressed: putting the same bytes again changes nothing, so retrying is safe.
-        let (_, response) = try await transfer.upload(request, fromFile: file.url)
+        let (_, response) = try await transfer.upload(request, fromFile: URL(fileURLWithPath: file.pathString))
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200 ..< 300).contains(statusCode) else { throw SnapshotBuildServiceError.uploadFailed(statusCode) }
     }
@@ -500,7 +500,10 @@ public struct SnapshotBuildService: SnapshotBuildServicing {
             try? FileManager.default.removeItem(at: downloaded)
             throw SnapshotBuildServiceError.downloadFailed(statusCode)
         }
-        try FileManager.default.createDirectory(at: file.parentDirectory.url, withIntermediateDirectories: true)
-        _ = try FileManager.default.replaceItemAt(file.url, withItemAt: downloaded)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: file.parentDirectory.pathString),
+            withIntermediateDirectories: true
+        )
+        _ = try FileManager.default.replaceItemAt(URL(fileURLWithPath: file.pathString), withItemAt: downloaded)
     }
 }
