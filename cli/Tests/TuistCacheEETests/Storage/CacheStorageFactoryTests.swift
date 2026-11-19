@@ -32,6 +32,7 @@ struct CacheStorageFactoryTests {
 
     private var cacheDirectoriesProvider: CacheDirectoriesProvider
     private var cacheURLStore: MockCacheURLStoring
+    private var cacheTokenStore: MockCacheTokenStoring
     private var serverAuthenticationController: MockServerAuthenticationControlling
     private var subject: CacheStorageFactory
     private var serverEnvironmentService: MockServerEnvironmentServicing
@@ -39,6 +40,7 @@ struct CacheStorageFactoryTests {
     init() {
         cacheDirectoriesProvider = CacheDirectoriesProvider()
         cacheURLStore = MockCacheURLStoring()
+        cacheTokenStore = MockCacheTokenStoring()
         serverAuthenticationController = MockServerAuthenticationControlling()
         serverEnvironmentService = MockServerEnvironmentServicing()
         subject = CacheStorageFactory(
@@ -46,8 +48,49 @@ struct CacheStorageFactoryTests {
             serverAuthenticationController: serverAuthenticationController,
             serverEnvironmentService: serverEnvironmentService,
             cacheURLStore: cacheURLStore,
+            cacheTokenStore: cacheTokenStore,
             validateREAPI: { _ in }
         )
+    }
+
+    @Test(arguments: [("cache-token", "cache-token"), (nil, "ci-token")] as [(String?, String)])
+    func reapiCallsSendTheExchangedCacheToken(exchanged: String?, sent: String) async throws {
+        given(serverAuthenticationController).authenticationToken(serverURL: .value(Constants.URLs.production))
+            .willReturn(.project("ci-token"))
+        given(cacheTokenStore).cacheToken(
+            authenticationURL: .value(Constants.URLs.production),
+            fullHandle: .value("tuist/project")
+        ).willReturn(exchanged)
+
+        let credential = try await subject.reapiCredential(
+            serverURL: Constants.URLs.production,
+            fullHandle: "tuist/project",
+            networkTrusted: false
+        )
+
+        #expect(credential == sent)
+    }
+
+    @Test(.withScopedAlertController(), .withMockedEnvironment())
+    func anExhaustedPlanAtTheExchangeKeepsLocalModulesWithoutASecondWarning() async throws {
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.project("ci-token"))
+        given(cacheURLStore).getCacheURL(for: .any, accountHandle: .any)
+            .willReturn(URL(string: "https://tuist.cache.tuist.dev")!)
+        let factory = CacheStorageFactory(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            serverAuthenticationController: serverAuthenticationController,
+            serverEnvironmentService: serverEnvironmentService,
+            cacheURLStore: cacheURLStore,
+            cacheTokenStore: cacheTokenStore,
+            validateREAPI: { _ in throw GetCacheTokenServiceError.freeTierExhausted("The plan is used up.") }
+        )
+
+        let storage = try await factory.cacheStorage(config: .test(fullHandle: "tuist/project"))
+
+        #expect(storage is BinaryCacheStorage)
+        #expect(AlertController.current.warnings().isEmpty)
     }
 
     @Test(
