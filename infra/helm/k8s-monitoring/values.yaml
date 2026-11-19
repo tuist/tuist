@@ -2621,11 +2621,37 @@ k8s-monitoring:
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:
       presets: [singleton]
-    # OTLP receiver is a plain service the server pushes spans to; one
-    # Deployment replica is plenty and avoids the per-node DaemonSet
-    # footprint of the upstream default.
+    # OTLP receiver is a plain service every workload pushes spans to, a
+    # Deployment rather than the upstream per-node DaemonSet.
+    #
+    # Two replicas, not one. Every Kura pod in every region exports here
+    # with a 5 s budget; on 2026-11-19 the single replica repeatedly left
+    # every pod's export unanswered past it at the same moment, and 396
+    # Kura pods logged 1,741 export timeouts in about two hours, each one a
+    # dropped span batch.
+    # The subchart sets no requests, so that replica shared a 71% busy
+    # general node unaccounted. Nothing here is per-replica state: the
+    # loadbalancing exporter routes spans by trace ID whichever replica
+    # received them, the WALs are each pod's own, and Kura reopens its
+    # connection to the Service after a replica goes away.
     alloy-receiver:
       presets: [deployment]
+      controller:
+        replicas: 2
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 1
+        # Production pins non-processor workloads to the general pool
+        # (infra/helm/AGENTS.md); every env has one.
+        nodeSelector:
+          node.cluster.x-k8s.io/pool: general
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: alloy-receiver
       # Loki push endpoint for workloads that cannot be tailed.
       #
       # Alloy's pod-log collection reads container log files from the node,
@@ -2641,6 +2667,18 @@ k8s-monitoring:
       # /loki/api/v1/push contract the app's handler speaks, so no client-side
       # auth is involved and the tailnet ACL is the access control.
       alloy:
+        # Production's single replica ran at about 0.35 CPU and 660 MiB.
+        # The request reserves that per replica, so either one can carry
+        # the whole load while the other restarts. No CPU limit: throttling
+        # an OTLP receiver turns into client timeouts, the failure this
+        # replica count exists to stop. The memory limit keeps a leak in the
+        # pod's cgroup instead of the node's.
+        resources:
+          requests:
+            cpu: 400m
+            memory: 768Mi
+          limits:
+            memory: 2Gi
         extraPorts:
           - name: otlp-grpc
             port: 4317
