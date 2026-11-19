@@ -1,15 +1,15 @@
 ---
 {
-  "title": "Yeni bir proje oluştur",
+  "title": "Yeni bir proje oluşturun",
   "titleTemplate": ":title · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
   "description": "Tuist ile yeni bir projenin nasıl oluşturulacağını öğrenin."
 }
 ---
 # Yeni bir proje oluşturun {#create-a-new-project}
 
-Tuist ile yeni bir projeye başlamanın en basit yolu `tuist init` komutunu kullanmaktır. Bu komut, projenizi kurmanızda size rehberlik eden etkileşimli bir CLI başlatır. İstendiğinde, "oluşturulmuş proje" seçeneğini seçtiğinizden emin olun.
+Tuist ile yeni bir projeye başlamanın en doğrudan yolu, `tuist init` komutunu kullanmaktır. Bu komut, projenizi kurmanızda size rehberlik eden etkileşimli bir CLI başlatır. İstendiğinde, "oluşturulmuş proje" seçeneğini seçtiğinizden emin olun.
 
-Ardından `tuist edit` çalıştırarak <.localized_link href="/guides/features/projects/editing">projeyi düzenleyebilir</.localized_link> ve Xcode projeyi düzenleyebileceğiniz bir proje açar. Oluşturulan dosyalardan biri, projenizin tanımını içeren `Project.swift` dosyasıdır. Swift Package Manager'a aşinaysanız, bunu Xcode projelerinin terminolojisiyle `Package.swift` olarak düşünebilirsiniz.
+Ardından <.localized_link href="/guides/features/projects/editing">projeyi düzenleyebilir</.localized_link> ve `tuist edit` çalıştırabilirsiniz; Xcode, projeyi düzenleyebileceğiniz bir proje açacaktır. Oluşturulan dosyalardan biri, projenizin tanımını içeren `Project.swift` dosyasıdır. Swift Package Manager'a aşinaysanız, bunu Xcode projelerinin terminolojisiyle yazılmış `Package.swift` olarak düşünebilirsiniz.
 
 ::: code-group
 ```swift [Project.swift]
@@ -52,7 +52,7 @@ let project = Project(
 :::
 
 > [!NOTE]
-> Bakım yükünü en aza indirmek için mevcut şablon listesini bilinçli olarak kısa tutuyoruz. Bir uygulamayı temsil etmeyen, örneğin bir framework gibi bir proje oluşturmak istiyorsanız, başlangıç noktası olarak `tuist init` kullanabilir ve ardından oluşturulan projeyi ihtiyaçlarınıza göre değiştirebilirsiniz.
+> Bakım yükünü en aza indirmek için mevcut şablon listesini bilinçli olarak kısa tutuyoruz. Bir uygulama yerine, örneğin bir framework temsil eden bir proje oluşturmak istiyorsanız, başlangıç noktası olarak `tuist init` kullanabilir ve ardından oluşturulan projeyi ihtiyaçlarınıza göre değiştirebilirsiniz.
 
 
 ## Projeyi manuel olarak oluşturma {#manually-creating-a-project}
@@ -64,7 +64,7 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-Ardından, Tuist'i yapılandıran ve projenin kök dizinini belirlemek için Tuist tarafından kullanılan bir `Tuist.swift` dosyası ile projenizin tanımlanacağı bir `Project.swift` dosyası oluşturun:
+Ardından, Tuist'i yapılandıran ve Tuist'in projenin kök dizinini belirlemek için kullandığı bir `Tuist.swift` dosyası ile projenizin tanımlanacağı bir `Project.swift` dosyası oluşturun:
 
 ::: code-group
 ```swift [Project.swift]
@@ -93,4 +93,4 @@ let tuist = Tuist()
 :::
 
 > [!WARNING]
-> Tuist, projenizin kökünü belirlemek için `Tuist/` dizinini kullanır ve buradan dizinleri globlayarak diğer manifest dosyalarını arar. Bu dosyaları tercih ettiğiniz düzenleyiciyle oluşturmanızı öneririz; bu noktadan sonra projeyi Xcode ile düzenlemek için `tuist edit` kullanabilirsiniz.
+> Tuist, projenizin kökünü belirlemek için `Tuist/` dizinini kullanır ve buradan başlayarak diğer manifest dosyalarını dizinlerde globlayarak arar. Bu dosyaları tercih ettiğiniz editörle oluşturmanızı öneririz; bu noktadan sonra projeyi Xcode ile düzenlemek için `tuist edit` kullanabilirsiniz.

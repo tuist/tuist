@@ -7,7 +7,7 @@
 ---
 # Xcode 預覽
 
-編譯你的應用程式，然後使用 `tuist share` 將其發佈到你的 Tuist 專案。請先參閱 <.localized_link href="/guides/get-started/existing-xcode-project">現有 Xcode 專案</.localized_link> 或 <.localized_link href="/guides/get-started/generated-xcode-project">生成專案</.localized_link> 指南來連接你的專案。
+編譯你的應用程式，然後使用 `tuist share` 將其發布到你的 Tuist 專案。首先參照 <.localized_link href="/guides/get-started/existing-xcode-project">現有 Xcode 專案</.localized_link> 或 <.localized_link href="/guides/get-started/generated-xcode-project">生成專案</.localized_link> 指南來連接你的專案。
 
 ## 編譯與分享
 
@@ -46,18 +46,18 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa
 ```
 
-接收者可以在其移動裝置上開啟 IPA 預覽連結以安裝應用程式。身分驗證和專案的預覽可見性設定仍然適用。
+接收者可以在其移動裝置上開啟 IPA 預覽連結以安裝應用程式。身份驗證和專案的預覽可見性設定仍然適用。
 
 ## CI 與編譯版本號
 
-使用你現有的 <.localized_link href="/guides/integrations/continuous-integration">CI 身分驗證</.localized_link>，並確保 `CFBundleVersion` 對每個新編譯版本都是唯一的。例如，使用 GitHub Actions 的 <code v-pre>${{ github.run_number }}</code>。透過 `tuist share` 再次上傳相同的二進位檔案和編譯版本號將會失敗，而不會建立重複項目。
+使用你現有的 <.localized_link href="/guides/integrations/continuous-integration">CI 身份驗證</.localized_link>，並確保每個新編譯版本的 `CFBundleVersion` 都是唯一的。例如，使用 GitHub Actions 的 <code v-pre>${{ github.run_number }}</code>。透過 `tuist share` 再次上傳相同的二進制檔案和編譯版本號將會失敗，而不會建立重複項目。
 
 ```bash
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-請參閱 <.localized_link href="/guides/features/previews#run-a-preview">執行預覽</.localized_link> 以了解如何執行已發佈的編譯版本、存取權限、追蹤軌道以及 README 徽章。
+請參閱 <.localized_link href="/guides/features/previews#run-a-preview">執行預覽</.localized_link> 以了解如何執行已發布的編譯版本、存取權限、追蹤軌道以及 README 徽章。
 
 <!-- @snippet: ./_tuist-share -->
 
-接收者可以使用 <.localized_link href="/guides/features/previews/run/macos">Tuist macOS 應用程式</.localized_link> 或 <.localized_link href="/guides/features/previews/run/ios">iPhone 應用程式</.localized_link>，這與編譯系統整合無關。iPhone 指南還涵蓋了使用 Tuist SDK 的 <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">應用程式內更新通知</.localized_link>。
+接收者可以獨立於編譯系統整合之外，使用 <.localized_link href="/guides/features/previews/run/macos">Tuist macOS 應用程式</.localized_link> 或 <.localized_link href="/guides/features/previews/run/ios">iPhone 應用程式</.localized_link>。iPhone 指南還涵蓋了使用 Tuist SDK 的 <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">應用程式內更新通知</.localized_link>。

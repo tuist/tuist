@@ -25,4 +25,4 @@
 
 macOS 应用首先为每个应用请求最新的兼容预览。在那些先选择不同应用再应用平台过滤器的旧服务器上，它会回退到分页历史记录，而不会设置可能隐藏可用构建的截止点。
 
-有关访问权限和组织方式，请参阅 <.localized_link href="/guides/features/previews#visibility">可见性和轨道</.localized_link>。
+有关访问和组织，请参阅 <.localized_link href="/guides/features/previews#visibility">可见性和轨道</.localized_link>。

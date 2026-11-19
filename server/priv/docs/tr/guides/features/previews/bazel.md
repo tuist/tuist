@@ -7,11 +7,11 @@
 ---
 # Bazel önizlemeleri
 
-Mevcut Bazel hedeflerinizden Android APK’ları, Apple simülatör ve macOS uygulamalarını ve komut satırı araçlarını yayınlayın. Paylaşmak istediğiniz her çıktı için bir önizleme hedefi ekleyin; normal derlemeleriniz değişmeden kalır.
+Mevcut Bazel hedeflerinizden Android APK'ları, Apple simülatör ve macOS uygulamalarını ve komut satırı araçlarını yayınlayın. Paylaşmak istediğiniz her çıktı için bir önizleme hedefi ekleyin; normal derlemeleriniz değişmeden kalır.
 
 ## Kurulum
 
-Kullanmak istediğiniz commit’i sabitleyerek [`rules_tuist` öğesini Tuist deposundan](https://github.com/tuist/tuist/tree/main/bazel) `MODULE.bazel` dosyasına ekleyin:
+Tuist deposundan [`rules_tuist` öğesini](https://github.com/tuist/tuist/tree/main/bazel) `MODULE.bazel` dosyasına ekleyin ve kullanmak istediğiniz commit'i sabitleyin:
 
 ```starlark
 bazel_dep(name = "rules_tuist")
@@ -24,15 +24,15 @@ git_override(
 )
 ```
 
-Mevcut uygulama hedeflerinizi, yerel SDK’larınızı ve imzalama yapılandırmanızı koruyun. Yayınlama araçlarını Bazel sağlar.
+Mevcut uygulama hedeflerinizi, yerel SDK'larınızı ve imzalama ayarlarınızı koruyun. Yayınlama araçlarını Bazel sağlar.
 
-Doğrudan Bazel üzerinden oturum açın:
+Doğrudan Bazel üzerinden giriş yapın:
 
 ```bash
 bazel run @rules_tuist//:login
 ```
 
-Bu işlem kimlik bilgilerini Tuist CLI ve Gradle eklentisiyle paylaşır; mevcut bir oturum da çalışır. CI ortamında `TUIST_TOKEN` kullanın veya Tuist’in <.localized_link href="/guides/integrations/continuous-integration">OIDC kimlik doğrulaması</.localized_link> ile giriş hedefini çalıştırın. Kimlik bilgilerini asla BUILD dosyalarına veya kural özniteliklerine koymayın. Kendi barındırdığınız bir örneğe oturum açmak için `-- --url https://tuist.example.com` parametresini iletin.
+Bu işlem kimlik bilgilerini Tuist CLI ve Gradle eklentisiyle paylaşır; mevcut bir giriş de çalışır. CI'da `TUIST_TOKEN` kullanın veya Tuist'in <.localized_link href="/guides/integrations/continuous-integration">OIDC kimlik doğrulaması</.localized_link> ile giriş hedefini çalıştırın. Kimlik bilgilerini asla BUILD dosyalarına veya kural özniteliklerine koymayın. Kendi barındırdığınız bir örneğe giriş yapmak için `-- --url https://tuist.example.com` parametresini iletin.
 
 `BUILD.bazel` dosyanızda yalnızca ihtiyacınız olan adaptörü yükleyin:
 
@@ -59,7 +59,7 @@ load("@rules_tuist//:executable.bzl", "executable_preview")
 executable_preview(name = "preview_cli", binary = ":my_tool")
 ```
 
-Çalıştırılabilir önizleme, hedefin bildirilen çalışma zamanı dosyalarını içerir. Aracınızın ihtiyaç duyduğu kitaplıkları ve kaynakları Bazel hedefinizde bildirin ve derleme dizininizin dışında çalışan yollar kullanın.
+Çalıştırılabilir önizleme, hedefin bildirilen çalışma zamanı dosyalarını içerir. Aracınızın ihtiyaç duyduğu kütüphaneleri ve kaynakları Bazel hedefinizde bildirin ve derleme dizininizin dışında çalışan yollar kullanın.
 
 ## Derleme ve yayınlama
 
@@ -72,30 +72,30 @@ bazel run //:preview_macos -- --publish --project acme/app --track review
 bazel run //:preview_cli -- --publish --project acme/app --track review
 ```
 
-Uygulama ve simülatör platformu etiketlerini kendi etiketlerinizle değiştirin. Kendi barındırdığınız Tuist kaynağı için `--url` ve bir Git commit’i ilişkilendirmek için `--revision` parametresini iletin.
+Uygulama ve simülatör platformu etiketlerini kendi etiketlerinizle değiştirin. Kendi barındırdığınız Tuist kaynağı için `--url` ve bir Git commit'ini ilişkilendirmek için `--revision` parametresini iletin.
 
-Başarılı bir derlemeyi paylaşmak için `--publish --project account/project` parametresini iletin. `--publish` olmadan veya `--no-publish` ile hiçbir şey yüklenmez ve oturum açma gerekmez. Normal `bazel build` komutu, önbellek isabetlerinde bile asla yayınlama yapmaz. `tuist bazel setup` yayınlamayı değil, önbelleğe almayı ve içgörüler sağlamayı etkinleştirir.
+Başarılı bir derlemeyi paylaşmak için `--publish --project account/project` parametresini iletin. `--publish` olmadan veya `--no-publish` ile hiçbir şey yüklenmez ve giriş gerekmez. Normal `bazel build` komutu, önbellek isabetlerinde bile asla yayınlama yapmaz. `tuist bazel setup` yayınlamayı değil, önbelleğe almayı ve içgörüler etkinleştirir.
 
 ## Desteklenen çıktılar
 
-- **Android:** hata ayıklama derlemeleri dahil olmak üzere imzalı uygulama APK’ları. Android SDK derleme araçlarını ve komut satırı araçlarını kurun ve `ANDROID_HOME` veya `ANDROID_SDK_ROOT` ortam değişkenlerini ayarlayın. Test APK’ları ve Android App Bundle’ları desteklenmez.
+- **Android:** hata ayıklama derlemeleri dahil olmak üzere imzalı uygulama APK'ları. Android SDK derleme araçlarını ve komut satırı araçlarını kurun ve `ANDROID_HOME` veya `ANDROID_SDK_ROOT` ortam değişkenlerini ayarlayın. Test APK'ları ve Android App Bundle'ları desteklenmez.
 - **Apple:** macOS üzerinde derlenen ve doğrulanan, ad-hoc imzalı simülatör ve macOS uygulamaları. Fiziksel cihaz derlemeleri, çerçeveler, uzantılar ve testler desteklenmez. Deneysel ağaç arşivleri yerine arşiv çıktısını kullanın.
-- **Komut satırı araçları:** arm64 veya x86_64 için macOS veya Linux çalıştırılabilir dosyaları, evrensel macOS ikili dosyaları dahil. Betikler, alıcının sisteminde bir shebang ve yorumlayıcı gerektirir. Çalışma zamanı bağımlılıklarını hedefinizde bildirin; Tuist eksik kitaplıkları veya dil çalışma zamanlarını yüklemez.
+- **Komut satırı araçları:** arm64 veya x86_64 için macOS veya Linux çalıştırılabilirleri, evrensel macOS ikilileri dahil. Betikler, alıcının sisteminde bir shebang ve yorumlayıcı gerektirir. Çalışma zamanı bağımlılıklarını hedefinizde bildirin; Tuist eksik kütüphaneleri veya dil çalışma zamanlarını yüklemez.
 
-## Önbellek yeniden oynatma, hatalar ve saklama
+## Önbellek tekrarı, hatalar ve saklama
 
-Aynı yayınlamayı tekrarlamak, Bazel derlemeyi önbellekten geri yüklese bile mevcut önizlemeyi yeniden kullanarak tekrar yüklemekten kaçınır. Çıktıyı, kanalı veya revizyonu değiştirmek yeni bir yayınlama oluşturur. Yükleme hatası komutu başarısız kılar; tekrar denemeden önce yayınlamanın tamamlanıp tamamlanmadığını kontrol etmek için komutu yeniden çalıştırabilirsiniz.
+Aynı yayınlamayı tekrarlamak, Bazel derlemeyi önbellekten geri yüklese bile mevcut önizlemeyi yeniden yüklemeksizin yeniden kullanır. Çıktıyı, kanalı veya revizyonu değiştirmek yeni bir yayınlama oluşturur. Bir yükleme hatası komutu başarısız kılar; tekrar denemeden önce yayınlamanın tamamlanıp tamamlanmadığını kontrol etmek için komutu yeniden çalıştırabilirsiniz.
 
-Komut, projenizin önizlemelerine bağlantı verir; burada işleme biraz zaman alabilir. Önizlemeler, projenin varsayılan görünürlüğünü kullanır.
+Komut, projenizin önizlemelerine bağlantı verir; burada işleme kısa bir süre alabilir. Önizlemeler, projenin varsayılan görünürlüğünü kullanır.
 
-Barındırılan Tuist’te yapıt yayınlamaları 30 gün sonra sona erer. Kendi barındırdığınız örnekler `TUIST_APP_PREVIEW_RETENTION_DAYS` kullanır; bu ayarı boş bırakmak bu aile için süresi dolmayı devre dışı bırakır. Süresi dolmuş yayınlama kayıtları, aynı niyeti yeniden oynatarak canlandırılamaz.
+Barındırılan Tuist'te yapıt yayınlamaları 30 gün sonra sona erer. Kendi barındırdığınız örnekler `TUIST_APP_PREVIEW_RETENTION_DAYS` kullanır; bu ayarı boş bırakmak bu aile için sona ermeyi devre dışı bırakır. Süresi dolmuş yayınlama kayıtları, aynı niyeti tekrarlayarak canlandırılamaz.
 
 Yayınlanan derlemeleri çalıştırmak, erişim, kanallar ve README rozetleri için <.localized_link href="/guides/features/previews#run-a-preview">Önizleme çalıştırma</.localized_link> bölümüne bakın.
 
 ## Apple önizlemeleri
 
-Apple simülatör ve macOS önizlemeleri için <.localized_link href="/guides/features/previews/run/macos">Tuist macOS yardımcı uygulama talimatlarına</.localized_link> bakın. Bunlar Bazel’in uygulama uygunluğu veya imzalama gereksinimlerini değiştirmez.
+Apple simülatör ve macOS önizlemeleri için <.localized_link href="/guides/features/previews/run/macos">Tuist macOS yardımcı uygulama talimatlarına</.localized_link> bakın. Bunlar, Bazel'in uygulama uygunluğu veya imzalama gereksinimlerini değiştirmez.
 
 ## İlgili iş akışları {#publish-from-once}
 
-Mevcut Struo entegrasyonları için ayrı bir <.localized_link href="/guides/features/previews/struo">yapıt yayınlama kılavuzu</.localized_link> bulunur. Her iki iş akışı da yayınlamayı, önbelleğe alınmış grafik yürütmesinden ayrı tutar.
+Mevcut Struo entegrasyonlarının ayrı bir <.localized_link href="/guides/features/previews/struo">yapıt yayınlama kılavuzu</.localized_link> vardır. Her iki iş akışı da yayınlamayı, önbelleğe alınmış grafik yürütmesinden ayrı tutar.

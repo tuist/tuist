@@ -17,25 +17,25 @@
     </a>
 </div>
 
-アプリ名またはリリースノートで検索し、トラックを選択してプレビューを絞り込みます。**すべて**を選択すると、トラックのないプレビューを含め、すべてのトラックを閲覧できます。プレビューを開いて、完全なリリースノートを確認してください。
+アプリ名またはリリースノートで検索し、トラックを選択してプレビューをフィルタリングします。**すべて**を選択すると、トラックのないプレビューを含め、すべてのトラックを閲覧できます。プレビューを開いて、完全なリリースノートを確認してください。
 
 ## クライアントとサーバーの互換性 {#client-and-server-compatibility}
 
-Tuistアプリを最新の状態に保ってください。Tuistをセルフホストしている場合は、サーバーを更新してトラックフィルタリングとリリースノートを利用できるようにしてください。古いサーバーでも、フィルタリングなしでプレビューを閲覧できます。
+Tuistアプリを最新の状態に保ってください。Tuistをセルフホストしている場合は、トラックフィルタリングとリリースノートを使用するためにサーバーを更新してください。古いサーバーでも、フィルタリングなしでプレビューを閲覧することは可能です。
 
-## アプリ内アップデート通知 {#in-app-update-notifications}
+## アプリ内更新通知 {#in-app-update-notifications}
 
-[Tuist SDK](https://github.com/tuist/sdk)を使用すると、Appleアプリが新しいプレビューを検出し、テスターに通知できます。同じ**プレビュー トラック**内のアップデートをチェックします。`tuist share --track`で公開されたプレビューの場合、その明示的なトラックが使用されます。明示的なトラックがない場合はgitブランチが使用されるため、`main`からビルドされたプレビューは`main`からの新しいプレビューのみを通知します。
+[Tuist SDK](https://github.com/tuist/sdk)を使用すると、Appleアプリが新しいプレビューを検出してテスターに通知できるようになります。同じ**プレビュートラック**内で更新をチェックします。`tuist share --track`で公開されたプレビューの場合、その明示的なトラックが使用されます。明示的なトラックがない場合はgitブランチが使用されるため、`main`からビルドされたプレビューは`main`からの新しいプレビューのみを通知します。
 
 ### インストール {#sdk-installation}
 
-Tuist SDKをSwift Packageの依存関係として追加してください:
+Tuist SDKをSwift Packageの依存関係として追加します:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### アップデートの監視 {#sdk-monitor-updates}
+### 更新の監視 {#sdk-monitor-updates}
 
 `monitorPreviewUpdates`を使用して、新しいプレビューバージョンを定期的にチェックします:
 
@@ -58,9 +58,9 @@ struct MyApp: App {
 }
 ```
 
-### 単一のアップデートチェック {#sdk-single-check}
+### 単一の更新チェック {#sdk-single-check}
 
-手動でアップデートをチェックする場合:
+手動で更新をチェックする場合:
 
 ```swift
 let sdk = TuistSDK(
@@ -73,7 +73,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### アップデート監視の停止 {#sdk-stop-monitoring}
+### 更新監視の停止 {#sdk-stop-monitoring}
 
 `monitorPreviewUpdates`はキャンセル可能な`Task`を返します:
 
@@ -87,4 +87,4 @@ task.cancel()
 ```
 
 > [!NOTE]
-> アップデートチェックは、シミュレーターおよびApp Storeビルドでは自動的に無効になります。
+> 更新チェックは、シミュレーターおよびApp Storeビルドでは自動的に無効になります。

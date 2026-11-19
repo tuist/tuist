@@ -2,7 +2,7 @@
 {
   "title": "Tuist'i Swift Package ile Kullanma",
   "titleTemplate": ":title · Benimseme · Projeler · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist'i Swift Package ile nasıl kullanacağınızı öğrenin."
+  "description": "Tuist'i bir Swift Package ile nasıl kullanacağınızı öğrenin."
 }
 ---
 # Swift Package ile Tuist Kullanımı <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
@@ -10,7 +10,7 @@
 Tuist, projelerinizde DSL olarak `Package.swift` kullanımını destekler ve paket hedeflerinizi yerel bir Xcode projesine ve hedeflerine dönüştürür.
 
 > [!WARNING]
-> Bu özelliğin amacı, geliştiricilerin Swift Paketlerinde Tuist'i benimsemenin etkisini kolayca değerlendirmesini sağlamaktır. Bu nedenle, Swift Package Manager özelliklerinin tamamını desteklemeyi veya <.localized_link href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</.localized_link> gibi Tuist'in tüm benzersiz özelliklerini paketler dünyasına getirmeyi planlamıyoruz.
+> Bu özelliğin amacı, geliştiricilerin Swift Paketlerinde Tuist benimsemenin etkisini değerlendirmeleri için kolay bir yol sunmaktır. Bu nedenle, Swift Package Manager özelliklerinin tamamını desteklemeyi veya <.localized_link href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</.localized_link> gibi Tuist'in benzersiz özelliklerini paket dünyasına getirmeyi planlamıyoruz.
 
 
 > [!NOTE]
@@ -28,7 +28,7 @@ git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Depo dizinine girdikten sonra, Swift Package Manager bağımlılıklarını yüklememiz gerekir:
+Deponun dizinine girdikten sonra, Swift Package Manager bağımlılıklarını yüklememiz gerekir:
 
 ```bash
 tuist install
