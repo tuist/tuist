@@ -65,7 +65,7 @@ let package = Package(
 )
 ```
 
-A continuación, edita el destino de la aplicación en tu proyecto para declarar `Kingfisher` como dependencia:
+Después, edita el target de la aplicación en tu proyecto para declarar `Kingfisher` como dependencia:
 
 ```swift
 import ProjectDescription
@@ -105,12 +105,12 @@ let project = Project(
 )
 ```
 
-Después, ejecuta `tuist install` para resolver y descargar las dependencias mediante el [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
+Luego ejecuta `tuist install` para resolver y descargar las dependencias mediante el [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
 > [!NOTE]
 > **SwiftPM como resolvedor de dependencias**
 >
-> El enfoque recomendado por Tuist para las dependencias usa el Swift Package Manager (SPM) únicamente para resolverlas. Luego, Tuist las convierte en proyectos y destinos de Xcode para ofrecer la máxima configurabilidad y control.
+> El enfoque recomendado por Tuist para las dependencias usa el Swift Package Manager (SPM) solo para resolverlas. Después, Tuist las convierte en proyectos y targets de Xcode para ofrecer la máxima configurabilidad y control.
 
 
 ## Visualizar el proyecto {#visualize-the-project}

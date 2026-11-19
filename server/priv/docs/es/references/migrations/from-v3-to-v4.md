@@ -7,11 +7,11 @@
 ---
 # De Tuist v3 a v4 {#from-tuist-v3-to-v4}
 
-Con el lanzamiento de [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0), aprovechamos la oportunidad para introducir algunos cambios incompatibles en el proyecto, que creímos facilitarían su uso y mantenimiento a largo plazo. Este documento describe los cambios que deberás aplicar a tu proyecto para actualizar de Tuist 3 a Tuist 4.
+Con el lanzamiento de [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0), aprovechamos la oportunidad para introducir algunos cambios incompatibles en el proyecto, que consideramos facilitarían su uso y mantenimiento a largo plazo. Este documento detalla los cambios que deberás aplicar a tu proyecto para actualizar de Tuist 3 a Tuist 4.
 
 ## Se eliminó la gestión de versiones mediante `tuistenv` {#dropped-version-management-through-tuistenv}
 
-Antes de Tuist 4, el script de instalación instalaba una herramienta, `tuistenv`, que se renombraba a `tuist` durante la instalación. La herramienta se encargaba de instalar y activar versiones de Tuist garantizando determinismo entre entornos. Con el objetivo de reducir la superficie de funcionalidades de Tuist, decidimos eliminar `tuistenv` en favor de [Mise](https://mise.jdx.dev/), una herramienta que hace lo mismo pero es más flexible y puede usarse con distintas herramientas. Si utilizabas `tuistenv`, tendrás que desinstalar la versión actual de Tuist ejecutando `curl -Ls https://uninstall.tuist.io | bash` y luego instalarla con el método de instalación que prefieras. Recomendamos encarecidamente usar Mise porque puede instalar y activar versiones de forma determinista entre entornos.
+Antes de Tuist 4, el script de instalación instalaba una herramienta, `tuistenv`, que se renombraba a `tuist` durante la instalación. Esta herramienta se encargaba de instalar y activar versiones de Tuist, garantizando determinismo entre entornos. Con el objetivo de reducir la superficie de funcionalidades de Tuist, decidimos eliminar `tuistenv` en favor de [Mise](https://mise.jdx.dev/), una herramienta que realiza la misma tarea pero es más flexible y puede utilizarse con distintas herramientas. Si usabas `tuistenv`, tendrás que desinstalar la versión actual de Tuist ejecutando `curl -Ls https://uninstall.tuist.io | bash` y luego instalarla mediante el método de instalación que prefieras. Recomendamos encarecidamente usar Mise porque permite instalar y activar versiones de forma determinista entre entornos.
 
 ::: code-group
 
@@ -30,30 +30,30 @@ curl -Ls https://uninstall.tuist.io | bash
 > [!NOTE]
 > **Homebrew es compatible**
 >
-> Ten en cuenta que aún puedes instalar Tuist con Homebrew, un gestor de paquetes popular para macOS. Puedes encontrar las instrucciones para instalar Tuist con Homebrew en la <.localized_link href="/guides/install-tuist#recommended-homebrew">guía de instalación</.localized_link>.
+> Ten en cuenta que aún puedes instalar Tuist mediante Homebrew, un gestor de paquetes popular para macOS. Puedes encontrar las instrucciones para instalar Tuist con Homebrew en la <.localized_link href="/guides/install-tuist#recommended-homebrew">guía de instalación</.localized_link>.
 
 
 ## Se eliminaron los constructores `init` de los modelos `ProjectDescription` {#dropped-init-constructors-from-projectdescription-models}
 
-Con el objetivo de mejorar la legibilidad y expresividad de las APIs, decidimos eliminar los constructores `init` de todos los modelos `ProjectDescription`. Ahora cada modelo proporciona un constructor estático que puedes usar para crear instancias. Si utilizabas los constructores `init`, tendrás que actualizar tu proyecto para usar los constructores estáticos.
+Con el objetivo de mejorar la legibilidad y expresividad de las API, decidimos eliminar los constructores `init` de todos los modelos `ProjectDescription`. Ahora cada modelo proporciona un constructor estático que puedes usar para crear instancias. Si utilizabas los constructores `init`, tendrás que actualizar tu proyecto para usar los constructores estáticos.
 
 > [!TIP]
-> **Convención de nomenclatura**
+> **Convención de nombres**
 >
-> La convención de nomenclatura que seguimos es usar el nombre del modelo como nombre del constructor estático. Por ejemplo, el constructor estático del modelo `Target` es `Target.target`.
+> La convención de nombres que seguimos consiste en usar el nombre del modelo como nombre del constructor estático. Por ejemplo, el constructor estático del modelo `Target` es `Target.target`.
 
 
 ## Se renombró `--no-cache` a `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
-Como la opción `--no-cache` era ambigua, decidimos renombrarla a `--no-binary-cache` para dejar claro que se refiere a la caché binaria. Si utilizabas la opción `--no-cache`, tendrás que actualizar tu proyecto para usar la opción `--no-binary-cache`.
+Como la opción `--no-cache` era ambigua, decidimos renombrarla a `--no-binary-cache` para dejar claro que hace referencia a la caché binaria. Si utilizabas la opción `--no-cache`, tendrás que actualizar tu proyecto para usar la opción `--no-binary-cache`.
 
 ## Se renombró `tuist fetch` a `tuist install` {#renamed-tuist-fetch-to-tuist-install}
 
 Renombramos el comando `tuist fetch` a `tuist install` para alinearnos con la convención de la industria. Si utilizabas el comando `tuist fetch`, tendrás que actualizar tu proyecto para usar el comando `tuist install`.
 
-## [Adoptar `Package.swift` como DSL para dependencias](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+## [Adopta `Package.swift` como DSL para dependencias](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Antes de Tuist 4, podías definir dependencias en un archivo `Dependencies.swift`. Este formato propietario rompía el soporte en herramientas como [Dependabot](https://github.com/dependabot) o [Renovatebot](https://github.com/renovatebot/renovate) para actualizar dependencias automáticamente. Además, introducía indirecciones innecesarias para los usuarios. Por ello, decidimos adoptar `Package.swift` como única forma de definir dependencias en Tuist. Si utilizabas el archivo `Dependencies.swift`, tendrás que mover el contenido de tu `Tuist/Dependencies.swift` a un `Package.swift` en la raíz y usar la directiva `#if TUIST` para configurar la integración. Puedes leer más sobre cómo integrar dependencias de Swift Package <.localized_link href="/guides/features/projects/dependencies#swift-packages">aquí</.localized_link>
+Antes de Tuist 4, podías definir dependencias en un archivo `Dependencies.swift`. Este formato propietario rompía la compatibilidad con herramientas como [Dependabot](https://github.com/dependabot) o [Renovatebot](https://github.com/renovatebot/renovate) para actualizar dependencias automáticamente. Además, introducía indirecciones innecesarias para los usuarios. Por ello, decidimos adoptar `Package.swift` como única forma de definir dependencias en Tuist. Si utilizabas el archivo `Dependencies.swift`, tendrás que mover el contenido de tu `Tuist/Dependencies.swift` a un `Package.swift` en la raíz y usar la directiva `#if TUIST` para configurar la integración. Puedes leer más sobre cómo integrar dependencias de Swift Package <.localized_link href="/guides/features/projects/dependencies#swift-packages">aquí</.localized_link>
 
 ## Se renombró `tuist cache warm` a `tuist cache` {#renamed-tuist-cache-warm-to-tuist-cache}
 
@@ -66,7 +66,7 @@ Decidimos renombrar el comando `tuist cache print-hashes` a `tuist cache --print
 
 ## Se eliminaron los perfiles de caché {#removed-caching-profiles}
 
-Antes de Tuist 4, podías definir perfiles de caché en `Tuist/Config.swift`, que contenían una configuración para la caché. Decidimos eliminar esta funcionalidad porque podía generar confusión al usarla en el proceso de generación con un perfil distinto del que se usó para generar el proyecto. Además, podía llevar a los usuarios a usar un perfil de depuración para compilar una versión de lanzamiento de la app, lo que podría provocar resultados inesperados. En su lugar, introdujimos la opción `--configuration`, que puedes usar para especificar la configuración que deseas emplear al generar el proyecto. Si utilizabas perfiles de caché, tendrás que actualizar tu proyecto para usar la opción `--configuration`.
+Antes de Tuist 4, podías definir perfiles de caché en `Tuist/Config.swift`, que contenían una configuración para la caché. Decidimos eliminar esta funcionalidad porque podía generar confusión al usarla en el proceso de generación con un perfil distinto del que se usó para generar el proyecto. Además, podía llevar a los usuarios a emplear un perfil de depuración para compilar una versión de lanzamiento de la app, lo que podría provocar resultados inesperados. En su lugar, introdujimos la opción `--configuration`, que puedes usar para especificar la configuración que deseas emplear al generar el proyecto. Si utilizabas perfiles de caché, tendrás que actualizar tu proyecto para usar la opción `--configuration`.
 
 ## Se eliminó `--skip-cache` en favor de argumentos {#removed-skipcache-in-favor-of-arguments}
 
@@ -86,8 +86,8 @@ tuist generate Foo
 
 ## [Se eliminaron las capacidades de firma](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
-La firma ya está resuelta por herramientas de la comunidad como [Fastlane](https://fastlane.tools/) y el propio Xcode, que lo hacen mucho mejor. Consideramos que la firma era un objetivo demasiado ambicioso para Tuist y que era mejor centrarse en las funcionalidades principales del proyecto. Si utilizabas las capacidades de firma de Tuist, que consistían en cifrar los certificados y los perfiles en el repositorio e instalarlos en los lugares adecuados durante la generación, quizá quieras replicar esa lógica en tus propios scripts que se ejecutan antes de la generación del proyecto. En concreto:
-  - Un script que descifra los certificados y los perfiles usando una clave almacenada en el sistema de archivos o en una variable de entorno, e instala los certificados en el llavero y los perfiles de aprovisionamiento en el directorio `~/Library/MobileDevice/Provisioning\ Profiles`.
+La firma ya está resuelta por herramientas de la comunidad como [Fastlane](https://fastlane.tools/) y el propio Xcode, que hacen un trabajo mucho mejor en ese aspecto. Consideramos que la firma era un objetivo secundario para Tuist y que era mejor centrarse en las funcionalidades principales del proyecto. Si utilizabas las capacidades de firma de Tuist, que consistían en cifrar los certificados y perfiles en el repositorio e instalarlos en los lugares adecuados durante la generación, quizás quieras replicar esa lógica en tus propios scripts que se ejecutan antes de la generación del proyecto. En particular:
+  - Un script que descifra los certificados y perfiles usando una clave almacenada en el sistema de archivos o en una variable de entorno, e instala los certificados en el llavero y los perfiles de aprovisionamiento en el directorio `~/Library/MobileDevice/Provisioning\ Profiles`.
   - Un script que pueda tomar perfiles y certificados existentes y cifrarlos.
 
 > [!TIP]
@@ -96,19 +96,19 @@ La firma ya está resuelta por herramientas de la comunidad como [Fastlane](http
 > La firma requiere que los certificados correctos estén presentes en el llavero y que los perfiles de aprovisionamiento estén en el directorio `~/Library/MobileDevice/Provisioning\ Profiles`. Puedes usar la herramienta de línea de comandos `security` para instalar certificados en el llavero y el comando `cp` para copiar los perfiles de aprovisionamiento al directorio adecuado.
 
 
-## Se eliminó la integración con Carthage mediante `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
+## Se eliminó la integración de Carthage mediante `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
-Antes de Tuist 4, las dependencias de Carthage podían definirse en un archivo `Dependencies.swift`, que los usuarios podían obtener ejecutando `tuist fetch`. También consideramos que esto era un objetivo demasiado ambicioso para Tuist, especialmente pensando en un futuro donde Swift Package Manager sería la forma preferida de gestionar dependencias. Si utilizabas dependencias de Carthage, tendrás que usar `Carthage` directamente para descargar los frameworks y XCFrameworks precompilados al directorio estándar de Carthage y, después, hacer referencia a esos binarios desde tus destinos usando los casos `TargetDependency.xcframework` y `TargetDependency.framework`.
+Antes de Tuist 4, las dependencias de Carthage se podían definir en un archivo `Dependencies.swift`, que los usuarios podían obtener ejecutando `tuist fetch`. También consideramos que esto era un objetivo secundario para Tuist, especialmente teniendo en cuenta un futuro donde Swift Package Manager sería la forma preferida de gestionar dependencias. Si utilizabas dependencias de Carthage, tendrás que usar `Carthage` directamente para descargar los frameworks y XCFrameworks precompilados al directorio estándar de Carthage y, a continuación, hacer referencia a esos binarios desde tus destinos usando los casos `TargetDependency.xcframework` y `TargetDependency.framework`.
 
 > [!NOTE]
 > **Carthage sigue siendo compatible**
 >
-> Algunos usuarios entendieron que eliminamos el soporte para Carthage. No fue así. El contrato entre Tuist y la salida de Carthage son los frameworks y XCFrameworks almacenados en el sistema. Lo único que cambió es quién se encarga de obtener las dependencias. Antes lo hacía Tuist a través de Carthage; ahora lo hace Carthage.
+> Algunos usuarios entendieron que eliminamos el soporte para Carthage. No fue así. El contrato entre Tuist y la salida de Carthage consiste en frameworks y XCFrameworks almacenados en el sistema. Lo único que ha cambiado es quién se encarga de obtener las dependencias. Antes lo hacía Tuist a través de Carthage; ahora lo hace Carthage.
 
 
 ## Se eliminó la API `TargetDependency.packagePlugin` {#dropped-the-targetdependencypackageplugin-api}
 
-Antes de Tuist 4, podías definir una dependencia de plugin de paquete usando el caso `TargetDependency.packagePlugin`. Tras ver cómo Swift Package Manager introducía nuevos tipos de paquetes, decidimos evolucionar la API hacia algo más flexible y preparado para el futuro. Si utilizabas `TargetDependency.packagePlugin`, tendrás que usar `TargetDependency.package` en su lugar y pasar el tipo de paquete que deseas utilizar como argumento.
+Antes de Tuist 4, podías definir una dependencia de plugin de paquete usando el caso `TargetDependency.packagePlugin`. Tras ver cómo Swift Package Manager introducía nuevos tipos de paquetes, decidimos iterar sobre la API hacia algo más flexible y preparado para el futuro. Si utilizabas `TargetDependency.packagePlugin`, tendrás que usar `TargetDependency.package` en su lugar y pasar el tipo de paquete que deseas utilizar como argumento.
 
 ## [Se eliminaron las APIs obsoletas](https://github.com/tuist/tuist/pull/5560) {#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
