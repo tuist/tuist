@@ -15537,6 +15537,13 @@ components:
       x-validate:
     CreateSandbox:
       properties:
+        guaranteed_vcpus:
+          description: 'Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.'
+          maximum: 8
+          minimum: 1
+          type: number
+          x-struct:
+          x-validate:
         memory_mb:
           enum:
             - 4096
@@ -17532,6 +17539,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        guaranteed_vcpus:
+          description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+          type: number
+          x-struct:
+          x-validate:
         hostname:
           nullable: true
           type: string
@@ -19322,6 +19334,11 @@ components:
               error_message:
                 nullable: true
                 type: string
+                x-struct:
+                x-validate:
+              guaranteed_vcpus:
+                description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                type: number
                 x-struct:
                 x-validate:
               hostname:
@@ -23817,6 +23834,11 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        guaranteed_vcpus:
+                          description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                          type: number
+                          x-struct:
+                          x-validate:
                         hostname:
                           nullable: true
                           type: string
@@ -23988,6 +24010,13 @@ paths:
           application/json:
             schema:
               properties:
+                guaranteed_vcpus:
+                  description: 'Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.'
+                  maximum: 8
+                  minimum: 1
+                  type: number
+                  x-struct:
+                  x-validate:
                 memory_mb:
                   enum:
                     - 4096
@@ -24076,6 +24105,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:
@@ -29809,6 +29843,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:
@@ -36424,6 +36463,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:
@@ -46585,6 +46629,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
+                    x-struct:
+                    x-validate:
                   hostname:
                     nullable: true
                     type: string
@@ -54142,6 +54191,11 @@ paths:
                   error_message:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
                     x-struct:
                     x-validate:
                   hostname:

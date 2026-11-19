@@ -140,6 +140,40 @@ struct SandboxCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
+    func createsALinuxSandboxWithAGuarantee() async throws {
+        let created = Self.sandbox(status: "starting")
+            .replacingOccurrences(of: "\"vcpus\":4", with: "\"vcpus\":16,\"guaranteed_vcpus\":2")
+        given(sandboxesService).createSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            platform: .value(.linux),
+            template: .value(nil),
+            xcodeVersion: .value(nil),
+            vcpus: .value(nil),
+            memoryMB: .value(nil),
+            workspaceGB: .value(nil),
+            guaranteedVCPUs: .value(2)
+        ).willReturn(try Self.decode(created))
+
+        let command = try SandboxCreateCommand.parse(["--guaranteed-vcpus", "2"])
+        try await subject().create(
+            options: Self.values(),
+            platform: command.resolvedPlatform.server,
+            template: command.template,
+            xcodeVersion: command.xcode,
+            vcpus: command.vcpus,
+            memoryGB: command.memoryGB,
+            workspaceGB: command.workspaceGb,
+            guaranteedVCPUs: command.guaranteedVCPUs
+        )
+
+        #expect(ui().contains("Guaranteed: 2 vCPUs"))
+        // A macOS sandbox holds every vCPU, and only the offered guarantees go.
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "macos", "--guaranteed-vcpus", "2"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--guaranteed-vcpus", "3"]) }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
     func createsAMacOSSandbox() async throws {
         let created = Self.sandbox(status: "starting")
             .replacingOccurrences(of: "\"vcpus\":4", with: "\"platform\":\"darwin\",\"vcpus\":8")
@@ -151,7 +185,8 @@ struct SandboxCommandServiceTests {
             xcodeVersion: .value(nil),
             vcpus: .value(8),
             memoryMB: .value(24576),
-            workspaceGB: .value(nil)
+            workspaceGB: .value(nil),
+            guaranteedVCPUs: .value(nil)
         ).willReturn(try Self.decode(created))
 
         let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
@@ -181,7 +216,8 @@ struct SandboxCommandServiceTests {
             xcodeVersion: .value("26.1.1"),
             vcpus: .value(nil),
             memoryMB: .value(nil),
-            workspaceGB: .value(nil)
+            workspaceGB: .value(nil),
+            guaranteedVCPUs: .value(nil)
         ).willReturn(try Self.decode(created))
 
         let command = try SandboxCreateCommand.parse(["--xcode", "26.1.1"])

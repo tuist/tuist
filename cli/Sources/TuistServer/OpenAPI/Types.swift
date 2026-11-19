@@ -29721,6 +29721,10 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/CreateSandbox`.
         public struct CreateSandbox: Codable, Hashable, Sendable {
+            /// Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/guaranteed_vcpus`.
+            public var guaranteed_vcpus: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
             @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
                 case _4096 = 4096
@@ -29766,6 +29770,7 @@ public enum Components {
             /// Creates a new `CreateSandbox`.
             ///
             /// - Parameters:
+            ///   - guaranteed_vcpus: Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.
             ///   - memory_mb:
             ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - template: Sandbox template name.
@@ -29773,6 +29778,7 @@ public enum Components {
             ///   - workspace_gb:
             ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
+                guaranteed_vcpus: Swift.Double? = nil,
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
                 platform: Components.Schemas.CreateSandbox.platformPayload? = nil,
                 template: Swift.String? = nil,
@@ -29780,6 +29786,7 @@ public enum Components {
                 workspace_gb: Swift.Int? = nil,
                 xcode_version: Swift.String? = nil
             ) {
+                self.guaranteed_vcpus = guaranteed_vcpus
                 self.memory_mb = memory_mb
                 self.platform = platform
                 self.template = template
@@ -29788,6 +29795,7 @@ public enum Components {
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
+                case guaranteed_vcpus
                 case memory_mb
                 case platform
                 case template
@@ -32439,6 +32447,10 @@ public enum Components {
             public var archived_at: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Sandbox/error_message`.
             public var error_message: Swift.String?
+            /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/guaranteed_vcpus`.
+            public var guaranteed_vcpus: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/Sandbox/hostname`.
             public var hostname: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/id`.
@@ -32501,6 +32513,7 @@ public enum Components {
             ///   - archive_bytes: Size of the stored archive in bytes.
             ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
             ///   - error_message:
+            ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
             ///   - hostname:
             ///   - id:
             ///   - inserted_at:
@@ -32525,6 +32538,7 @@ public enum Components {
                 archive_bytes: Swift.Int? = nil,
                 archived_at: Foundation.Date? = nil,
                 error_message: Swift.String? = nil,
+                guaranteed_vcpus: Swift.Double? = nil,
                 hostname: Swift.String? = nil,
                 id: Swift.String,
                 inserted_at: Foundation.Date,
@@ -32549,6 +32563,7 @@ public enum Components {
                 self.archive_bytes = archive_bytes
                 self.archived_at = archived_at
                 self.error_message = error_message
+                self.guaranteed_vcpus = guaranteed_vcpus
                 self.hostname = hostname
                 self.id = id
                 self.inserted_at = inserted_at
@@ -32574,6 +32589,7 @@ public enum Components {
                 case archive_bytes
                 case archived_at
                 case error_message
+                case guaranteed_vcpus
                 case hostname
                 case id
                 case inserted_at
@@ -34852,6 +34868,10 @@ public enum Components {
                 public var archived_at: Foundation.Date?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/error_message`.
                 public var error_message: Swift.String?
+                /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/guaranteed_vcpus`.
+                public var guaranteed_vcpus: Swift.Double?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/hostname`.
                 public var hostname: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/id`.
@@ -34914,6 +34934,7 @@ public enum Components {
                 ///   - archive_bytes: Size of the stored archive in bytes.
                 ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                 ///   - error_message:
+                ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                 ///   - hostname:
                 ///   - id:
                 ///   - inserted_at:
@@ -34938,6 +34959,7 @@ public enum Components {
                     archive_bytes: Swift.Int? = nil,
                     archived_at: Foundation.Date? = nil,
                     error_message: Swift.String? = nil,
+                    guaranteed_vcpus: Swift.Double? = nil,
                     hostname: Swift.String? = nil,
                     id: Swift.String,
                     inserted_at: Foundation.Date,
@@ -34962,6 +34984,7 @@ public enum Components {
                     self.archive_bytes = archive_bytes
                     self.archived_at = archived_at
                     self.error_message = error_message
+                    self.guaranteed_vcpus = guaranteed_vcpus
                     self.hostname = hostname
                     self.id = id
                     self.inserted_at = inserted_at
@@ -34987,6 +35010,7 @@ public enum Components {
                     case archive_bytes
                     case archived_at
                     case error_message
+                    case guaranteed_vcpus
                     case hostname
                     case id
                     case inserted_at
@@ -43050,6 +43074,10 @@ public enum Operations {
                             public var archived_at: Foundation.Date?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/error_message`.
                             public var error_message: Swift.String?
+                            /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/guaranteed_vcpus`.
+                            public var guaranteed_vcpus: Swift.Double?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/hostname`.
                             public var hostname: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/id`.
@@ -43112,6 +43140,7 @@ public enum Operations {
                             ///   - archive_bytes: Size of the stored archive in bytes.
                             ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                             ///   - error_message:
+                            ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                             ///   - hostname:
                             ///   - id:
                             ///   - inserted_at:
@@ -43136,6 +43165,7 @@ public enum Operations {
                                 archive_bytes: Swift.Int? = nil,
                                 archived_at: Foundation.Date? = nil,
                                 error_message: Swift.String? = nil,
+                                guaranteed_vcpus: Swift.Double? = nil,
                                 hostname: Swift.String? = nil,
                                 id: Swift.String,
                                 inserted_at: Foundation.Date,
@@ -43160,6 +43190,7 @@ public enum Operations {
                                 self.archive_bytes = archive_bytes
                                 self.archived_at = archived_at
                                 self.error_message = error_message
+                                self.guaranteed_vcpus = guaranteed_vcpus
                                 self.hostname = hostname
                                 self.id = id
                                 self.inserted_at = inserted_at
@@ -43185,6 +43216,7 @@ public enum Operations {
                                 case archive_bytes
                                 case archived_at
                                 case error_message
+                                case guaranteed_vcpus
                                 case hostname
                                 case id
                                 case inserted_at
@@ -43542,6 +43574,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/guaranteed_vcpus`.
+                    public var guaranteed_vcpus: Swift.Double?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
                     @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
                         case _4096 = 4096
@@ -43587,6 +43623,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - guaranteed_vcpus: Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.
                     ///   - memory_mb:
                     ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - template: Sandbox template name.
@@ -43594,6 +43631,7 @@ public enum Operations {
                     ///   - workspace_gb:
                     ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
+                        guaranteed_vcpus: Swift.Double? = nil,
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
@@ -43601,6 +43639,7 @@ public enum Operations {
                         workspace_gb: Swift.Int? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
+                        self.guaranteed_vcpus = guaranteed_vcpus
                         self.memory_mb = memory_mb
                         self.platform = platform
                         self.template = template
@@ -43609,6 +43648,7 @@ public enum Operations {
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case guaranteed_vcpus
                         case memory_mb
                         case platform
                         case template
@@ -43661,6 +43701,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/guaranteed_vcpus`.
+                        public var guaranteed_vcpus: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/hostname`.
                         public var hostname: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/id`.
@@ -43723,6 +43767,7 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
@@ -43747,6 +43792,7 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
@@ -43771,6 +43817,7 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
@@ -43796,6 +43843,7 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
@@ -60478,6 +60526,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/guaranteed_vcpus`.
+                        public var guaranteed_vcpus: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/hostname`.
                         public var hostname: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/id`.
@@ -60540,6 +60592,7 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
@@ -60564,6 +60617,7 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
@@ -60588,6 +60642,7 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
@@ -60613,6 +60668,7 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
@@ -81454,6 +81510,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/guaranteed_vcpus`.
+                        public var guaranteed_vcpus: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/hostname`.
                         public var hostname: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/id`.
@@ -81516,6 +81576,7 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
@@ -81540,6 +81601,7 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
@@ -81564,6 +81626,7 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
@@ -81589,6 +81652,7 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
@@ -108407,6 +108471,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/guaranteed_vcpus`.
+                        public var guaranteed_vcpus: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/hostname`.
                         public var hostname: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/id`.
@@ -108469,6 +108537,7 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
@@ -108493,6 +108562,7 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
@@ -108517,6 +108587,7 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
@@ -108542,6 +108613,7 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
@@ -130124,6 +130196,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/guaranteed_vcpus`.
+                        public var guaranteed_vcpus: Swift.Double?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/hostname`.
                         public var hostname: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/id`.
@@ -130186,6 +130262,7 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
@@ -130210,6 +130287,7 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
@@ -130234,6 +130312,7 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
@@ -130259,6 +130338,7 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
