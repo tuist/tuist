@@ -13,7 +13,7 @@ decode() {
     [[ $value =~ ^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$ ]] || fail 'Invalid base64'
     printf '%s' "$value" | openssl base64 -d -A
 }
-query() { (cd "$1"; shift; once --format json query "$@"); }
+query() { (cd "$1"; shift; struo --format json query "$@"); }
 
 toml() {
     jq -r 'def value:
@@ -60,25 +60,25 @@ optimize_graph() (
     local root=$1 temp id
     temp=$(mktemp -d)
     trap 'rm -rf "$temp"' EXIT
-    query "$root" schema cargo_dependencies | jq -e '.attrs | any(.name == "dep_rustc_flags")' >/dev/null || fail 'Once optimization schema changed'
+    query "$root" schema cargo_dependencies | jq -e '.attrs | any(.name == "dep_rustc_flags")' >/dev/null || fail 'Struo optimization schema changed'
     # Native Windows jq otherwise writes CRLF, making Bash read CR as part of each ID.
     query "$root" 'MATCH (t:Target) WHERE t.id STARTS WITH "cargo_" RETURN t.id, t.kind' | jq -br '.rows[][0]' > "$temp/ids"
     while IFS= read -r id; do query "$root" target "$id"; done < "$temp/ids" | jq -s '.' > "$temp/targets"
-    jq -e --arg binary "$BINARY" 'any(.[]; .label.id == $binary)' "$temp/targets" >/dev/null || fail 'Once did not declare the desktop binary'
-    yq -p toml -o json '.' "$root/once.toml" > "$temp/seed"
+    jq -e --arg binary "$BINARY" 'any(.[]; .label.id == $binary)' "$temp/targets" >/dev/null || fail 'Struo did not declare the desktop binary'
+    yq -p toml -o json '.' "$root/struo.toml" > "$temp/seed"
     (cd "$root"; cargo vendor --locked --versioned-dirs third_party/rust/vendor > /dev/null)
     jq -n --slurpfile seed "$temp/seed" --slurpfile targets "$temp/targets" --argjson flags "$FLAGS" '
-      {workspace:{include:["once.toml"],exclude:["**/Cargo.toml"]}, infrastructure:{cache:{provider:"local"}},
+      {workspace:{include:["struo.toml"],exclude:["**/Cargo.toml"]}, infrastructure:{cache:{provider:"local"}},
        target: ([{name:"DesktopDependencies",kind:"cargo_dependencies",srcs:$seed[0].target[0].srcs,
          attrs:($seed[0].target[0].attrs + {dep_rustc_flags:$flags,vendor_dir:"third_party/rust/vendor"})}] +
          [$targets[0][] | {name:.label.name,kind,srcs,deps,attrs:(.attrs + {rustc_flags:$flags})}])}' |
-      toml > "$root/once.toml"
-    query "$root" validate-workspace | jq -e '.valid' >/dev/null || fail 'Invalid optimized Once graph'
+      toml > "$root/struo.toml"
+    query "$root" validate-workspace | jq -e '.valid' >/dev/null || fail 'Invalid optimized Struo graph'
     while IFS= read -r id; do
-        query "$root" target "$id" | jq -e --argjson flags "$FLAGS" '.attrs.rustc_flags == $flags' >/dev/null || fail 'Once dropped first-party optimization flags'
+        query "$root" target "$id" | jq -e --argjson flags "$FLAGS" '.attrs.rustc_flags == $flags' >/dev/null || fail 'Struo dropped first-party optimization flags'
     done < "$temp/ids"
     query "$root" 'MATCH (t:Target) WHERE t.kind IN ["rust_crate", "rust_proc_macro"] RETURN t.id, t.attrs.rustc_flags' |
-      jq -e --argjson flags "$FLAGS" '.rows | length > 0 and all(.[]; .[1] == $flags)' >/dev/null || fail 'Once dropped dependency optimization flags'
+      jq -e --argjson flags "$FLAGS" '.rows | length > 0 and all(.[]; .[1] == $flags)' >/dev/null || fail 'Struo dropped dependency optimization flags'
 )
 
 icon() {
@@ -139,9 +139,9 @@ sign() {
 
 check_tools() {
     local expected actual
-    expected=$(yq -p toml -r '.tools."github:tuist/once"' "$ROOT/mise.toml")
-    actual=$(once --version)
-    test "$actual" = "once $expected" || fail "Require Once $expected; got $actual"
+    expected=$(yq -p toml -r '.tools."github:tuist/struo"' "$ROOT/mise.toml")
+    actual=$(struo --version)
+    test "$actual" = "struo $expected" || fail "Require Struo $expected; got $actual"
     test "$(cargo-packager --version)" = 'cargo-packager 0.11.7' || fail 'Require cargo-packager 0.11.7'
 }
 
@@ -160,9 +160,9 @@ build() (
     cp "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$root/"
     cp -R "$ROOT/gpui" "$ROOT/crates" "$root/"
     # Packaging needs only the Cargo graph, not native frontend rules or prepared SDK dependencies.
-    yq -p toml -o json '.' "$ROOT/once.toml" |
-        jq '.workspace.include = ["once.toml"] | del(.modules) | .target |= map(select(.name == "LuftDesktop"))' |
-        toml > "$root/once.toml"
+    yq -p toml -o json '.' "$ROOT/struo.toml" |
+        jq '.workspace.include = ["struo.toml"] | del(.modules) | .target |= map(select(.name == "LuftDesktop"))' |
+        toml > "$root/struo.toml"
     value=$(version "$root")
     if test "$release" = true; then
         required DESKTOP_UPDATE_PUBLIC_KEY
@@ -173,9 +173,9 @@ build() (
     else
         printf '%s\n' "$fmt" > "$root/crates/updater/src/package-kind.txt"
     fi
-    export ONCE_CACHE_PROVIDER=local
-    # Concurrent Once test batches remove and recreate shared per-package
-    # outputs (`.once/out/<package>/deps-rlib-search`). Windows fails on that
+    export STRUO_CACHE_PROVIDER=local
+    # Concurrent Struo test batches remove and recreate shared per-package
+    # outputs (`.struo/out/<package>/deps-rlib-search`). Windows fails on that
     # race, so run its batches one at a time.
     jobs=
     test "$fmt" != nsis || jobs=1
@@ -183,9 +183,9 @@ build() (
     # Test the staged sources before switching the graph to shipping flags.
     (
         cd "$root"
-        if once test --all ${jobs:+--jobs "$jobs"}; then :; else
+        if struo test --all ${jobs:+--jobs "$jobs"}; then :; else
             status=$?
-            for log in .once/out/*/test/rust-libtest.log; do
+            for log in .struo/out/*/test/rust-libtest.log; do
                 test -f "$log" || continue
                 printf '\n--- %s ---\n' "$log"
                 cat "$log"
@@ -194,11 +194,11 @@ build() (
         fi
     )
     optimize_graph "$root"
-    (cd "$root"; once build "$BINARY")
+    (cd "$root"; struo build "$BINARY")
     name=Luft
     test "$fmt" != nsis || name=Luft.exe
-    binary=$root/.once/out/$BINARY/$name
-    test -f "$binary" && test ! -L "$binary" || fail 'Expected native Once declared binary output'
+    binary=$root/.struo/out/$BINARY/$name
+    test -f "$binary" && test ! -L "$binary" || fail 'Expected native Struo declared binary output'
     mkdir "$stage/bin"
     cp "$binary" "$stage/bin/$name"
     cp "$ROOT/gpui/resources/icon.png" "$stage/icon.png"

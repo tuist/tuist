@@ -952,7 +952,7 @@ defmodule Tuist.Threads do
         do: " · #{tests["passed"]} passed, #{tests["failed"]} failed, #{tests["skipped"]} skipped",
         else: ""
 
-    "#{subject} with Once · #{targets}#{cases}"
+    "#{subject} with Struo · #{targets}#{cases}"
   end
 
   def call_external_tool(run, invocation_id, name, args, dispatch) do

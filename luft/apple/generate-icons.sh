@@ -17,7 +17,7 @@ xcrun actool "$source_icon" --compile "$scratch/ios" --platform iphonesimulator 
 xcrun actool "$source_icon" --compile "$scratch/macos" --platform macosx \
   --minimum-deployment-target 14.0 --app-icon AppIcon \
   --output-partial-info-plist "$scratch/macos.plist"
-# Explicit resources keep actool's loose icon files in Once's cached bundle outputs.
+# Explicit resources keep actool's loose icon files in Struo's cached bundle outputs.
 cp "$scratch/ios/"*.png ios/Resources/
 cp "$scratch/macos/AppIcon.icns" macos/Resources/
 developer=$(xcode-select -p)

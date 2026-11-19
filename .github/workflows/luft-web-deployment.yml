@@ -60,7 +60,7 @@ jobs:
     env:
       MISE_CEILING_PATHS: ${{ github.workspace }}
       MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
-      ONCE_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
+      STRUO_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
@@ -74,23 +74,23 @@ jobs:
       - uses: ./.github/actions/mise
         with:
           working_directory: luft
-          install_args: rust github:tuist/once node cargo:wasm-bindgen-cli
+          install_args: rust github:tuist/struo node cargo:wasm-bindgen-cli
           cache: "false"
-      # once links libasound; sqlite-wasm-rs compiles SQLite for wasm32 with clang.
-      - name: Install Once runtime libraries and clang
+      # struo links libasound; sqlite-wasm-rs compiles SQLite for wasm32 with clang.
+      - name: Install Struo runtime libraries and clang
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends libasound2t64 clang
       - name: Authenticate hosted cache and insights
         if: github.event.pull_request.head.repo.fork != true
         working-directory: luft
-        run: once auth login --provider tuist --no-browser
-      - name: Build the site with Once
+        run: struo auth login --provider tuist --no-browser
+      - name: Build the site with Struo
         working-directory: luft
         run: |
           rustup target add wasm32-unknown-unknown
           python3 prepare-native.py
-          once build LuftWeb
+          struo build LuftWeb
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
@@ -103,7 +103,7 @@ jobs:
         with:
           context: ./luft/web
           file: ./luft/web/Dockerfile
-          build-contexts: site=./luft/.once/out/LuftWeb/dist
+          build-contexts: site=./luft/.struo/out/LuftWeb/dist
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}

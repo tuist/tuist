@@ -20,6 +20,46 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "Struo guides retain legacy fragments while using the renamed commands and configuration" do
+      for {path, fragment} <- [
+            {"get-started/struo-project", "project"},
+            {"features/cache/struo", "cache"},
+            {"features/build-insights/struo", "build-insights"},
+            {"features/test-insights/struo", "test-insights"},
+            {"features/test-insights/flaky-tests/struo", "flaky-tests"},
+            {"features/test-sharding/struo", "test-sharding"},
+            {"features/previews/struo", "previews"},
+            {"features/runners/struo", "remote-execution"}
+          ] do
+        page = Docs.get_page("/en/guides/" <> path)
+        assert page.title =~ "Struo"
+        assert page.body =~ ~s(id="once-#{fragment}")
+        assert page.body =~ ~s(id="struo-#{fragment}")
+        refute page.markdown =~ "https://buildonce.dev"
+      end
+
+      onboarding = Docs.get_page("/en/guides/get-started/struo-project").markdown
+      assert onboarding =~ "github:tuist/struo@1.0.0"
+      assert onboarding =~ "struo connect --provider tuist --create"
+      assert onboarding =~ "`struo.toml`"
+      assert onboarding =~ "`STRUO_CACHE_PROVIDER`"
+      assert onboarding =~ "`~/.cache/struo/cas`"
+      assert onboarding =~ "cold local cache"
+      assert onboarding =~ "`once.events.v1`"
+      assert onboarding =~ "`/api/.../once`"
+
+      previews = Docs.get_page("/en/guides/features/previews/struo").markdown
+      assert previews =~ "dev.struo.apple-install.v2"
+      assert previews =~ "dev.struo.android-install.v1"
+
+      tools = Docs.get_page("/en/guides/features/agentic-coding/mcp").markdown
+      assert tools =~ "`list_once_runs`"
+      assert tools =~ "`get_once_run`"
+      assert tools =~ "`once_version`"
+      assert tools =~ "`once_actions`"
+      assert tools =~ "`.../once/runs`"
+    end
+
     @tag :tmp_dir
     test "localized headings retain explicit IDs with or without a separating space", %{tmp_dir: tmp_dir} do
       source_path = Path.join(tmp_dir, "localized-headings.md")
@@ -137,7 +177,7 @@ defmodule Tuist.DocsTest do
       assert overview.markdown =~ "bundle-id=com.example.app"
       assert overview.markdown =~ "/guides/features/previews/run/cli"
 
-      for system <- ["xcode", "gradle", "bazel", "once"] do
+      for system <- ["xcode", "gradle", "bazel", "struo"] do
         page = Docs.get_page("/en/guides/features/previews/" <> system)
 
         for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
@@ -147,7 +187,7 @@ defmodule Tuist.DocsTest do
         assert page.markdown =~ ~s(href="/guides/features/previews#run-a-preview")
         refute page.markdown =~ "<!-- @snippet:"
 
-        if system in ["bazel", "once"] do
+        if system in ["bazel", "struo"] do
           refute page.markdown =~ "--release-notes"
           refute page.markdown =~ "tuist share --json"
           refute page.markdown =~ "monitorPreviewUpdates"
@@ -269,7 +309,7 @@ defmodule Tuist.DocsTest do
 
     test "cache documentation exposes Rust with its experimental qualification" do
       index = Docs.get_page("/en/index").markdown
-      assert index =~ "supported_for=\"apple,gradle,bazel,elixir,rust,once\""
+      assert index =~ "supported_for=\"apple,gradle,bazel,elixir,rust,struo\""
       assert index =~ "Rust's experimental compilation cache"
 
       cache = Docs.get_page("/en/guides/features/cache").markdown

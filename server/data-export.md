@@ -501,6 +501,10 @@ operations; retain them until an administrator removes them.
   the original payload in the artifact namespace, rather than a detached copy.
   This key is server-owned, not accepted as upload metadata. Include it in
   preview exports and retrieve the referenced bytes from account storage.
+  Struo's `dev.struo.apple-install.v2` and `dev.struo.android-install.v1`
+  interfaces project the same rows and icon objects as their legacy `dev.once.*`
+  counterparts; their metadata schemas remain `once.apple_application.v1` and
+  `once.android_application.v1`. Storage keys, retention and export are unchanged.
   The Android display name, when present and valid, becomes `previews.display_name`;
   otherwise the application ID is used. Apple and Android install interfaces may
   name a PNG icon payload (`spec.icon_payload`). Projection enqueues a

@@ -1,7 +1,7 @@
 # Luft workspace. Cargo owns the GPUI graph; native frontends share
 # the Rust core without pulling GPUI or a second HTTP stack into native builds.
 [workspace]
-include = ["once.toml", "native-dependencies/once.toml"]
+include = ["struo.toml", "native-dependencies/struo.toml"]
 exclude = ["**/Cargo.toml"]
 
 [modules]
@@ -125,7 +125,7 @@ info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NA
 entitlements = "ios/Simulator.entitlements"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png", "cards/bundle.js"]
-postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".once/out/LuftIOS/LuftLiveActivity.appex",".once/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".once/out/LuftIOS/LuftLiveActivity.appex"],"outputs":[".once/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".once/out/LuftIOS/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/LuftIOS/Luft.app/Metadata.appintents"],"cacheable":false}']
+postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".struo/out/LuftIOS/LuftLiveActivity.appex",".struo/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".struo/out/LuftIOS/LuftLiveActivity.appex"],"outputs":[".struo/out/LuftIOS/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphonesimulator","apple/Sources/AppShortcuts.swift",".struo/out/LuftIOS/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".struo/out/LuftIOS/Luft.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]
 name = "LuftIOSDevice"
@@ -143,7 +143,7 @@ info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos", LUFT_PUSH_ENVIRONMENT = "" }
 asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
-postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".once/out/LuftIOSDevice/LuftLiveActivity.appex",".once/out/LuftIOSDevice/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".once/out/LuftIOSDevice/LuftLiveActivity.appex"],"outputs":[".once/out/LuftIOSDevice/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphoneos","apple/Sources/AppShortcuts.swift",".once/out/LuftIOSDevice/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".once/out/LuftIOSDevice/Luft.app/Metadata.appintents"],"cacheable":false}']
+postbuild_actions = ['{"id":"embed-live-activity","argv":["/bin/bash","modules/embed-widget.sh",".struo/out/LuftIOSDevice/LuftLiveActivity.appex",".struo/out/LuftIOSDevice/Luft.app/PlugIns/LuftLiveActivity.appex"],"inputs":["modules/embed-widget.sh",".struo/out/LuftIOSDevice/LuftLiveActivity.appex"],"outputs":[".struo/out/LuftIOSDevice/Luft.app/PlugIns/LuftLiveActivity.appex"],"cacheable":true}', '{"id":"app-intents-metadata","argv":["/bin/bash","modules/appintents.sh","iphoneos","apple/Sources/AppShortcuts.swift",".struo/out/LuftIOSDevice/Luft.app"],"inputs":["modules/appintents.sh","apple/Sources/AppShortcuts.swift"],"outputs":[".struo/out/LuftIOSDevice/Luft.app/Metadata.appintents"],"cacheable":false}']
 
 [[target]]
 name = "LuftMacOS"
@@ -152,7 +152,7 @@ srcs = ["apple/Sources/**/*.swift"]
 deps = ["./LuftCoreMacOS", "./LuftCoreFFI", "./LuftRunnerApple"]
 [target.attrs]
 # Copies the runner daemon beside the app's executable before signing.
-prepackage_actions = ["{\"id\": \"embed-runner\", \"display_name\": \"Embed the runner daemon\", \"cacheable\": true, \"inputs\": [\".once/out/LuftRunnerApple/luft-runner\"], \"outputs\": [\".once/out/LuftMacOS/Luft.app/Contents/MacOS/luft-runner\"], \"script\": \"install -m 755 .once/out/LuftRunnerApple/luft-runner \\\".once/out/LuftMacOS/Luft.app/Contents/MacOS/luft-runner\\\"\"}"]
+prepackage_actions = ["{\"id\": \"embed-runner\", \"display_name\": \"Embed the runner daemon\", \"cacheable\": true, \"inputs\": [\".struo/out/LuftRunnerApple/luft-runner\"], \"outputs\": [\".struo/out/LuftMacOS/Luft.app/Contents/MacOS/luft-runner\"], \"script\": \"install -m 755 .struo/out/LuftRunnerApple/luft-runner \\\".struo/out/LuftMacOS/Luft.app/Contents/MacOS/luft-runner\\\"\"}"]
 platform = "macos"
 bundle_id = "dev.tuist.code"
 product_name = "Luft"
@@ -163,7 +163,7 @@ asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "macos/Resources/AppIcon.icns"]
 
 # The threads Live Activity's WidgetKit extension (modules/widget.star), which
-# each iOS host embeds before Once signs it. It only draws the document the
+# each iOS host embeds before Struo signs it. It only draws the document the
 # server pushes; see ios/LiveActivity/AGENTS.md.
 [[target]]
 name = "LuftLiveActivitySimulator"

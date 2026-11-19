@@ -404,7 +404,7 @@ defmodule TuistWeb.RemoteExecutionLive do
       >
         <.empty_card_section
           title={
-            dgettext("dashboard_builds", "Per-action remote timings are not available for Once yet")
+            dgettext("dashboard_builds", "Per-action remote timings are not available for Struo yet")
           }
           data-part="empty-bazel-invocations-card-section"
           data-once-telemetry-gap
@@ -418,7 +418,7 @@ defmodule TuistWeb.RemoteExecutionLive do
           <p>
             {dgettext(
               "dashboard_builds",
-              "Once run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
+              "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
             )}
           </p>
           <.link_button

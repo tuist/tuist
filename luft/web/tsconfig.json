@@ -8,7 +8,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "paths": { "luft-core": ["../.once/out/LuftCoreBindings/luft_core.d.ts"] }
+    "paths": { "luft-core": ["../.struo/out/LuftCoreBindings/luft_core.d.ts"] }
   },
   "include": ["src"]
 }

@@ -1955,7 +1955,7 @@ fn tool_results_unwrap_text_without_replacing_raw_evidence() {
 }
 
 #[test]
-fn a_bash_calls_once_build_shows_its_share_of_planned_targets_while_it_runs() {
+fn a_bash_calls_struo_build_shows_its_share_of_planned_targets_while_it_runs() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
     let build = |state: &str, planned: u64, done: u64| {
@@ -1964,7 +1964,7 @@ fn a_bash_calls_once_build_shows_its_share_of_planned_targets_while_it_runs() {
     };
     let messages = json!([
         {"role":"user","content":"Build it"},
-        {"role":"tool","content":"Building //app with Once · 3 of 4 targets (1 cached)","toolName":"Bash",
+        {"role":"tool","content":"Building //app with Struo · 3 of 4 targets (1 cached)","toolName":"Bash",
          "toolStatus":"running","build":build("running", 4, 3)},
         {"role":"tool","content":"Building","toolName":"Bash","toolStatus":"running","build":build("running", 0, 2)},
         {"role":"tool","content":"done","toolName":"Bash","toolStatus":"complete","build":build("succeeded", 4, 4)},

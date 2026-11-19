@@ -572,7 +572,7 @@ fn present_progress(message: &mut Value, active: bool) -> Value {
     }
 }
 
-/// A tool message's `build` is the progress a Once build or test in its
+/// A tool message's `build` is the progress a Struo build or test in its
 /// command reported: `command` (`build` or `test`), `state` (`running`,
 /// `succeeded` or `failed`), `target`, target counts (`planned`, `done`,
 /// `cached`, `failed`), `running` target ids and `tests` case counts. The core

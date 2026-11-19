@@ -10,7 +10,7 @@ pub mod paths;
 pub mod service;
 pub mod status;
 
-/// Cargo sets the package version; Once's rustc actions do not.
+/// Cargo sets the package version; Struo's rustc actions do not.
 pub const VERSION: &str = match option_env!("CARGO_PKG_VERSION") {
     Some(version) => version,
     None => "0.1.0",

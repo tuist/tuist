@@ -52,7 +52,7 @@ A build without task cache hits reports zero. If any cached task lacks its origi
 
 Reported elapsed savings come from `tuist.cache_time_saved_ms` metadata. This metric remains separate from the automatic estimate.
 
-Cache savings have no value when no builds report them. Once does not currently record this measurement. Cache hit and miss rates are not available through this data source.
+Cache savings have no value when no builds report them. Struo does not currently record this measurement. Cache hit and miss rates are not available through this data source.
 
 ### Tables
 
@@ -66,7 +66,7 @@ These identifiers are values of the query's `queryType` field.
 
 Recent failures include start time, duration, user, branch, and requested tasks. Failure categories are `verification`, `infrastructure_tooling`, and `unknown`.
 
-Workload summaries and branch/workload value lists return up to 1000 values. Build-health variable queries use the last 90 days; legacy Gradle variable queries keep their existing history window. Bazel shows the build user reported by the tool. Other integrations show the account associated with the reporting credential. Historical Bazel and Once runs, and Once runs reported with project credentials, appear as Unknown when no user was recorded.
+Workload summaries and branch/workload value lists return up to 1000 values. Build-health variable queries use the last 90 days; legacy Gradle variable queries keep their existing history window. Bazel shows the build user reported by the tool. Other integrations show the account associated with the reporting credential. Historical Bazel and Struo runs, and Struo runs reported with project credentials, appear as Unknown when no user was recorded.
 
 Use the Failure category filter on Build Runs to find matching failures. The category appears in build details, with an info hint explaining its meaning; default overview and Build Runs tables keep their existing columns. Successful, cancelled and unfinished builds have no failure category. Gradle’s Cache Analytics card and build details show Cumulative task time saved; the tooltip explains the estimate and the effect of parallel tasks. The cache widget compares the selected range with the immediately preceding equal-length period using the same filters. Comparisons are neutral: a larger total can reflect more builds. Missing previous estimates show no comparison; a recorded zero baseline shows the absolute increase rather than a percentage.
 
@@ -76,17 +76,17 @@ Import [the build-health dashboard](https://github.com/tuist/tuist/blob/main/gra
 
 ## Build systems {#build-systems}
 
-Build-health queries and the standard dashboard support Bazel, Cargo, Once, Gradle, and Xcode. Tuist selects the build system from your project. Mix projects are not currently supported by the build-health queries or standard dashboard.
+Build-health queries and the standard dashboard support Bazel, Cargo, Struo, Gradle, and Xcode. Tuist selects the build system from your project. Mix projects are not currently supported by the build-health queries or standard dashboard.
 
 | Build system | Workload | Cancellation reporting | Cache savings |
 | --- | --- | --- | --- |
 | Bazel | Command | Exit code 8, except `run` | Requires custom metadata |
 | Cargo | Command | Not distinguished; count is zero | Elapsed savings require custom metadata; compiler work avoided is not elapsed savings |
-| Once | Command kind | Recorded cancellation reason | Not recorded |
+| Struo | Command kind | Recorded cancellation reason | Not recorded |
 | Gradle | Task group | Reported cancellations | Automatic work-avoided estimate; elapsed savings require custom metadata |
 | Xcode | Scheme | Not distinguished; count is zero | Requires custom metadata |
 
-Processing records and unfinished runs are excluded. Bazel includes build, test, run, and coverage commands. Once includes finalized build, test, and generic runs. Cargo includes build commands such as `build`, `check`, and `test-build`; legacy test-execution reports are excluded from build health. Cargo recent failures use the recorded start time when available, falling back to insertion time; missing durations remain unavailable rather than zero.
+Processing records and unfinished runs are excluded. Bazel includes build, test, run, and coverage commands. Struo includes finalized build, test, and generic runs. Cargo includes build commands such as `build`, `check`, and `test-build`; legacy test-execution reports are excluded from build health. Cargo recent failures use the recorded start time when available, falling back to insertion time; missing durations remain unavailable rather than zero.
 
 Gradle groups tasks as instrumented tests, unit tests, lint/checks, assemble/package, or Other, in that order of precedence. Each build belongs to one workload. Custom metadata can override workloads for Xcode, Bazel, Cargo, and Gradle.
 
@@ -94,8 +94,8 @@ Gradle groups tasks as instrumented tests, unit tests, lint/checks, assemble/pac
 
 | Category | Meaning | Recorded evidence |
 | --- | --- | --- |
-| `verification` | Code failed compilation, linking, tests, or checks. | Gradle verification or compilation exceptions and known failed task types; Xcode compiler and linker issues; Bazel structured nonzero compiler/test action results; Cargo recorded failed rustc compilations; Once test failures or failed actions explicitly declared as compile, link, test, lint, or check. |
-| `infrastructure_tooling` | The build could not run normally because its tools, dependencies, or environment failed. | Gradle configuration, dependency resolution, input/output, or memory failures; Bazel structured infrastructure failures and [documented exit codes](https://bazel.build/run/scripts); Once infrastructure action errors. |
+| `verification` | Code failed compilation, linking, tests, or checks. | Gradle verification or compilation exceptions and known failed task types; Xcode compiler and linker issues; Bazel structured nonzero compiler/test action results; Cargo recorded failed rustc compilations; Struo test failures or failed actions explicitly declared as compile, link, test, lint, or check. |
+| `infrastructure_tooling` | The build could not run normally because its tools, dependencies, or environment failed. | Gradle configuration, dependency resolution, input/output, or memory failures; Bazel structured infrastructure failures and [documented exit codes](https://bazel.build/run/scripts); Struo infrastructure action errors. |
 | `unknown` | The report does not contain enough evidence to classify the failure. | Arbitrary commands, missing diagnostics, and older reports without structured evidence. |
 
 Gradle configuration-phase failures, including errors in build scripts, are grouped under infrastructure/tooling because task execution could not proceed.
@@ -146,7 +146,7 @@ All queries accept date ranges up to 366 days. Their boundaries and timestamps d
 | Query | Timestamp used | Range boundaries |
 | --- | --- | --- |
 | Build health: Xcode, Bazel, Cargo, Gradle | Record insertion time | Includes start, excludes end |
-| Build health: Once | Run start time | Includes start, excludes end |
+| Build health: Struo | Run start time | Includes start, excludes end |
 | Xcode build durations | Record insertion time | Excludes start and end |
 | Test durations | Recorded run time | Includes start and end |
 

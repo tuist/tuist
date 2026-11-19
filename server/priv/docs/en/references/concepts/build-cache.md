@@ -124,6 +124,6 @@ A build cache adds infrastructure, a security boundary, and a new class of bugs.
 - <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> connects Xcode's compilation cache to a shared remote cache, for any Xcode project on Xcode 26 or later.
 - <.localized_link href="/guides/features/cache/module-cache">Module cache</.localized_link> replaces whole modules with prebuilt binaries in projects generated with Tuist.
 - <.localized_link href="/guides/features/cache/gradle-cache">Gradle cache</.localized_link> and <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache</.localized_link> serve as a Gradle remote build cache and a Remote Execution API cache for Bazel.
-- <.localized_link href="/guides/features/cache">Cache</.localized_link> lists every supported build system, including Elixir and Once.
+- <.localized_link href="/guides/features/cache">Cache</.localized_link> lists every supported build system, including Elixir and Struo.
 - [Slow builds](https://tuist.dev/solutions/slow-builds) is a practical guide to finding the work worth removing before choosing a cache.
 - [The physics of build systems](https://tuist.dev/blog/2026/08/25/the-physics-of-build-systems) and [Kura](https://tuist.dev/blog/2026/09/14/kura) explain, with measurements from Tuist's cache, how artifact size and request volume differ between the module cache, Xcode's compilation cache, Bazel, and Gradle.

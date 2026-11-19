@@ -93,7 +93,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
       {"Gradle", "brand_gradle", "/build-systems/gradle"},
       {"Bazel", "brand_bazel", "/build-systems/bazel"},
       {"Elixir", "brand_elixir", "/build-systems/elixir"},
-      {"Once", "brand_once", "/build-systems/once"}
+      {"Struo", "brand_once", "/build-systems/struo"}
     ]
   end
 end

@@ -24,7 +24,8 @@ defmodule TuistWeb.OnceCacheLive do
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    {:ok, assign(socket, :head_title, "#{dgettext("dashboard", "Once Cache")} · #{account.name}/#{project.name} · Tuist")}
+    {:ok,
+     assign(socket, :head_title, "#{dgettext("dashboard", "Struo Cache")} · #{account.name}/#{project.name} · Tuist")}
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
@@ -181,7 +182,7 @@ defmodule TuistWeb.OnceCacheLive do
             description={
               dgettext(
                 "dashboard_projects",
-                "The percentage of action-cache lookups served from Once's remote cache, measured per run."
+                "The percentage of action-cache lookups served from Struo's remote cache, measured per run."
               )
             }
             value={
@@ -212,7 +213,7 @@ defmodule TuistWeb.OnceCacheLive do
             description={
               dgettext(
                 "dashboard_projects",
-                "The bytes returned from and accepted by Once's remote cache during the selected period."
+                "The bytes returned from and accepted by Struo's remote cache during the selected period."
               )
             }
             value={
@@ -271,7 +272,7 @@ defmodule TuistWeb.OnceCacheLive do
             description={
               dgettext(
                 "dashboard_projects",
-                "The average time Once's remote cache spent serving reads and writes during the selected period."
+                "The average time Struo's remote cache spent serving reads and writes during the selected period."
               )
             }
             value={
@@ -395,7 +396,7 @@ defmodule TuistWeb.OnceCacheLive do
             chart_type_event="select_hit_rate_chart_type"
             group_by_options={[
               %{value: "host", label: dgettext("dashboard_projects", "Host")},
-              %{value: "version", label: dgettext("dashboard_projects", "Once version")}
+              %{value: "version", label: dgettext("dashboard_projects", "Struo version")}
             ]}
             selected_group_by={@hit_rate_scatter_group_by}
             group_by_query_param="cache-hit-rate-scatter-group-by"

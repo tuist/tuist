@@ -210,7 +210,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Project.once_project?(@selected_project)}
-        label={dgettext("dashboard", "Once Cache")}
+        label={dgettext("dashboard", "Struo Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"}
         selected={

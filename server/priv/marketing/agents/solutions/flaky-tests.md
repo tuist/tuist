@@ -40,7 +40,7 @@ Use the project's failure history to repair shared state, timing assumptions, an
 
 Quarantine can be manual or automated where supported. Assign an owner, keep a repair issue, and periodically review whether a muted test has become reliable. Prefer retaining execution when that evidence is useful; skipping may be appropriate when a test cannot safely run.
 
-Detection supports Xcode, Gradle, Bazel, and Elixir, with integration-specific requirements. Elixir supports cross-run detection without retries and mute/skip quarantine with recent authenticated `tuist_ex` versions. Muting has restrictions with umbrella-root runs and `--warnings-as-errors`; failed policy lookups run all tests. Xcode quarantine requires the Tuist test wrapper rather than arbitrary `xcodebuild` execution. Check the [support matrix](/marketing-markdown/tests), including Cargo and canary Once support, before enabling a policy.
+Detection supports Xcode, Gradle, Bazel, and Elixir, with integration-specific requirements. Elixir supports cross-run detection without retries and mute/skip quarantine with recent authenticated `tuist_ex` versions. Muting has restrictions with umbrella-root runs and `--warnings-as-errors`; failed policy lookups run all tests. Xcode quarantine requires the Tuist test wrapper rather than arbitrary `xcodebuild` execution. Check the [support matrix](/marketing-markdown/tests), including Cargo and canary Struo support, before enabling a policy.
 
 ## Investigate with an agent
 

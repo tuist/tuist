@@ -76,10 +76,10 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
-  Discovery document for Once clients talking to this deployment.
+  Discovery document for Struo clients talking to this deployment.
 
-  The convention is Once's: any server that speaks the Once event protocol
-  advertises where each protocol lives at `/.well-known/once`, and clients
+  Servers speaking the Struo event protocol advertise where each protocol
+  lives at `/.well-known/struo` (with `/.well-known/once` retained for older clients), and clients
   read it before they pick a URL. Owning the topology on the server side
   means the fleet can move to a dedicated ingest tier, shard per region, or
   decommission a node without a client release.

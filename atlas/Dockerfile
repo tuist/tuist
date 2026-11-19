@@ -11,7 +11,7 @@
 # The Condukt native dependency needs GNU C Library 2.38 or newer, so the
 # runner uses Debian Trixie.
 #
-# Base images are pinned by digest so Once can cache individual instructions
+# Base images are pinned by digest so Struo can cache individual instructions
 # in CI without a moving tag serving a stale image. A reference with both a
 # tag and a digest is pulled by the digest alone, so each image is written
 # out as one literal and its tag and digest change in the same edit.
@@ -109,7 +109,7 @@ RUN mix deps.get --only $MIX_ENV
 
 # copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
-# to be re-compiled. Sources are literal paths: Once can't tell which files
+# to be re-compiled. Sources are literal paths: Struo can't tell which files
 # a COPY with a variable reads, so it keys it on the whole build context,
 # and that differs between checkouts.
 COPY atlas/config/config.exs atlas/config/prod.exs config/

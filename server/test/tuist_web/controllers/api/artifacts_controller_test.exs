@@ -55,7 +55,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
 
   test "retains a multi-kind closure and projects eligible applications exactly once", context do
     metadata = [
-      {"dev.once.android-install.v1",
+      {"dev.struo.android-install.v1",
        %{
          "schema" => "once.android_application.v1",
          "signature_verified" => true,
@@ -63,7 +63,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
          "version_name" => "2.3",
          "version_code" => "23"
        }},
-      {"dev.once.apple-install.v2",
+      {"dev.struo.apple-install.v2",
        %{
          "schema" => "once.apple_application.v1",
          "signature_verified" => true,
@@ -151,6 +151,18 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
            "bundle_identifier" => "org.example.apple",
            "display_name" => "Apple App"
          }, {@png <> "apple", "image/png"}},
+        {"dev.struo.android-install.v1", android.("org.example.struo", %{"display_name" => "Struo App"}),
+         {@png <> "struo-android", "image/png"}},
+        {"dev.struo.apple-install.v2",
+         %{
+           "schema" => "once.apple_application.v1",
+           "signature_verified" => true,
+           "signing" => "ad_hoc",
+           "platform" => "macos",
+           "sdk_variant" => "device",
+           "bundle_identifier" => "org.example.struo.apple",
+           "display_name" => "Struo Mac App"
+         }, {@png <> "struo-apple", "image/png"}},
         {"dev.tuist.executable.v1",
          %{
            "schema" => "tuist.executable.v1",
@@ -177,13 +189,13 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
     end
 
     assert :ok = ProjectApplicationsWorker.perform(job)
-    assert length(Repo.all(Preview)) == 9
-    assert length(icon_jobs.()) == 3
+    assert length(Repo.all(Preview)) == 11
+    assert length(icon_jobs.()) == 5
 
     stub(Storage, :put_object, fn _, _, _ -> {:error, :timeout} end)
     results = Enum.map(icon_jobs.(), &PreviewIconWorker.perform(%Oban.Job{args: &1.args}))
-    assert Enum.count(results, &match?({:error, _}, &1)) == 2
-    assert length(Repo.all(Preview)) == 9
+    assert Enum.count(results, &match?({:error, _}, &1)) == 4
+    assert length(Repo.all(Preview)) == 11
 
     stub(Storage, :put_object, fn key, bytes, _ ->
       Agent.update(context.store, &Map.put(&1, key, bytes))
@@ -192,7 +204,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
 
     assert Enum.all?(icon_jobs.(), &(PreviewIconWorker.perform(%Oban.Job{args: &1.args}) == :ok))
     assert :ok = ProjectApplicationsWorker.perform(job)
-    assert length(icon_jobs.()) == 3
+    assert length(icon_jobs.()) == 5
 
     icons =
       Map.new(Repo.all(Preview), fn preview ->
@@ -208,7 +220,9 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
              {"org.example.badname", "org.example.badname"} => nil,
              {"org.example.mapname", "org.example.mapname"} => nil,
              {"org.example.longname", "org.example.longname"} => nil,
-             {"org.example.apple", "Apple App"} => @png <> "apple"
+             {"org.example.apple", "Apple App"} => @png <> "apple",
+             {"org.example.struo", "Struo App"} => @png <> "struo-android",
+             {"org.example.struo.apple", "Struo Mac App"} => @png <> "struo-apple"
            }
 
     # A late icon job must not recreate an icon once its publication expired.

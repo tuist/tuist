@@ -1,9 +1,9 @@
 # Desktop distribution
 
 Linux x86_64 AppImage and Windows x86_64 per-user NSIS are packaged with
-**cargo-packager 0.11.7**, from native **Once** outputs. The GPUI upgrade needs
-Once's `build_script_sources` support and its build-script debug-assertions fix,
-both included in Once 0.77.5 and later (the workspace pins 0.81.1). The latter enables GPUI's build script
+**cargo-packager 0.11.7**, from native **Struo** outputs. The GPUI upgrade needs
+Struo's `build_script_sources` support and its build-script debug-assertions fix,
+both originally included in Once 0.77.5 (the workspace pins Struo 1.0.0). The latter enables GPUI's build script
 to generate embedded Windows shaders for optimized builds.
 The existing Swift
 macOS app, DMG release and Sparkle feed are unchanged. macOS is a development
@@ -12,7 +12,7 @@ and graph-qualification host, not a packaging target here.
 ## Build and inspect
 
 Use Bash (Git Bash on Windows), jq, mikefarah yq, OpenSSL, the native dependencies
-listed in `luft.yml`, Once and Rust from `luft/mise.toml`, cargo-packager
+listed in `luft.yml`, Struo and Rust from `luft/mise.toml`, cargo-packager
 0.11.7 and minisign. jq and yq are pinned in mise. Installing the
 packager tool with `cargo install --locked cargo-packager --version '=0.11.7'`
 does not build the application. Ubuntu 22.04 has no minisign package; CI uses
@@ -28,7 +28,7 @@ From `luft/`, on native Linux/Windows x86_64:
 
 ```sh
 for test in distribution/test_*.sh; do bash "$test"; done
-ONCE_CACHE_PROVIDER=local mise exec -- bash distribution/release.sh build --output /absolute/new/staging
+STRUO_CACHE_PROVIDER=local mise exec -- bash distribution/release.sh build --output /absolute/new/staging
 bash distribution/smoke.sh /absolute/new/staging
 ```
 
@@ -40,9 +40,9 @@ is proof of GPU rendering or a complete N → N+1 update/restart.
 The staging directory must not exist. It contains:
 
 - `source/`: private source-only copy, locked vendor sources and its own local
-  `.once/` cache. Never upload this directory or reuse another run's cache.
-- `bin/Luft[.exe]`: copied from the actual Once-declared
-  `.once/out/cargo_tuist_desktop_bin_Luft/Luft[.exe]` output after build/tests.
+  `.struo/` cache. Never upload this directory or reuse another run's cache.
+- `bin/Luft[.exe]`: copied from the actual Struo-declared
+  `.struo/out/cargo_tuist_desktop_bin_Luft/Luft[.exe]` output after build/tests.
 - `packager.json`: explicit pinned-schema config, without build hooks; `icon.png`
   and a PNG-backed Windows ICO generated from the real 256px brand icon.
 - `packages/`: native packages, not assumed Cargo `target/release` products.
@@ -50,26 +50,26 @@ The staging directory must not exist. It contains:
   record (`linux-x86_64.json` / `windows-x86_64.json`). Unsigned CI records cannot
   generate a release feed.
 
-### Once optimization qualification
+### Struo optimization qualification
 
-The pinned Once has **no `build --release`**. `query schema cargo_workspace` only offers
+The pinned Struo has **no `build --release`**. `query schema cargo_workspace` only offers
 `dep_rustc_flags` for external dependencies. The pinned `rust.star` implements
 `_rust_user_flags` from each Rust target's `rustc_flags`; it does not turn a
 Cargo release profile or ambient `RUSTFLAGS` into first-party compiler flags.
 
-`release.sh` queries Once's generated first-party targets, preserves their
+`release.sh` queries Struo's generated first-party targets, preserves their
 attributes/dependency aliases/test roots, and writes explicit private target
 declarations with `-C opt-level=3 -C debuginfo=0` on **every first-party target**.
 The private graph uses `cargo_dependencies` with the same flags for external
 crates. That schema requires vendored source trees, so `cargo vendor --locked
 --versioned-dirs` only fetches/copies locked source; it never compiles the app.
-Staged sources run `once test --all` before this graph rewrite, with debug
+Staged sources run `struo test --all` before this graph rewrite, with debug
 assertions enabled: GPUI's keyboard/layout tests need its debug-only bounds
 instrumentation. A test failure stops packaging and prints the libtest logs.
 The graph is validated and each first-party flag set is read back before
-`once build cargo_tuist_desktop_bin_Luft`. Build scripts
-receive `OPT_LEVEL=3`, `DEBUG=false`; Once's `PROFILE` remains `debug`, not Cargo's
-release profile. This is an optimized Once build, not a claim of Cargo Release
+`struo build cargo_tuist_desktop_bin_Luft`. Build scripts
+receive `OPT_LEVEL=3`, `DEBUG=false`; Struo's `PROFILE` remains `debug`, not Cargo's
+release profile. This is an optimized Struo build, not a claim of Cargo Release
 profile parity, LTO, stripping, or deterministic/reproducible output.
 
 ## Installation identity and protocol

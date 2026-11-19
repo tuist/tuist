@@ -11,13 +11,15 @@ To run Tuist commands in your [continuous integration](https://en.wikipedia.org/
 
 Authentication is optional but required if you want to use server-side features like <.localized_link href="/guides/features/cache">cache</.localized_link>. To shorten CI runs and lower their cost once Tuist is installed, see [Slow builds](https://tuist.dev/solutions/slow-builds) and [CI costs](https://tuist.dev/solutions/ci-costs).
 
-The following sections provide examples of how to do this on different CI platforms. Once connects through its own native Tuist provider; it does not need the Tuist CLI. See [Once](#once) for that workflow.
+The following sections provide examples of how to do this on different CI platforms. Struo connects through its own native Tuist provider; it does not need the Tuist CLI. See [Struo](#struo) for that workflow.
 
-## Once {#once}
+## Struo {#struo}
 
-Commit the provider and cache binding from <.localized_link href="/guides/get-started/once-project">Get started with Once</.localized_link>. Install Once in the job using [Once's installation instructions](https://buildonce.dev/docs/guide/getting-started), then authenticate before running cacheable work.
+<a id="once"></a>
 
-GitHub Actions, CircleCI, and Bitrise support Once's headless OpenID Connect login. Connect the repository to your Tuist project as described in <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link>. On GitHub Actions, grant identity-token permission:
+Commit the provider and cache binding from <.localized_link href="/guides/get-started/struo-project">Get started with Struo</.localized_link>. Install Struo in the job using [Struo's installation instructions](https://struo.run/docs/guide/getting-started), then authenticate before running cacheable work.
+
+GitHub Actions, CircleCI, and Bitrise support Struo's headless OpenID Connect login. Connect the repository to your Tuist project as described in <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link>. On GitHub Actions, grant identity-token permission:
 
 ```yaml
 permissions:
@@ -30,17 +32,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v2
-      # Pin Once in your repository's mise.toml.
-      - run: once auth login --provider tuist --no-browser
-      - run: once build MyTarget
-      - run: once test
+      # Pin Struo in your repository's mise.toml.
+      - run: struo auth login --provider tuist --no-browser
+      - run: struo build MyTarget
+      - run: struo test
 ```
 
-Choose an OS with the toolchains your targets require. Replace `MyTarget` with your target, and pin Once through your existing tool-installation workflow. The resulting session is reused for cache access, reporting, and artifact publication during the job.
+Choose an OS with the toolchains your targets require. Replace `MyTarget` with your target, and pin Struo through your existing tool-installation workflow. The resulting session is reused for cache access, reporting, and artifact publication during the job.
 
-On other providers, set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> authorized for the operations you need. Store it in the CI secret store, never in `once.toml` or the workflow source. No interactive login step is required when using that token.
+On other providers, set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> authorized for the operations you need. Store it in the CI secret store, never in `struo.toml` or the workflow source. No interactive login step is required when using that token.
 
-For multi-worker suites, follow <.localized_link href="/guides/features/test-sharding/once">Once test sharding</.localized_link>. To publish applications, add an explicit <.localized_link href="/guides/features/previews/once">Once preview publication</.localized_link> step. Ordinary builds do not implicitly publish previews.
+For multi-worker suites, follow <.localized_link href="/guides/features/test-sharding/struo">Struo test sharding</.localized_link>. To publish applications, add an explicit <.localized_link href="/guides/features/previews/struo">Struo preview publication</.localized_link> step. Ordinary builds do not implicitly publish previews.
 
 ## Examples {#examples}
 

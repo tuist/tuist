@@ -3,7 +3,7 @@ import Combine
 /// Hands an App Shortcut's route from App Intents to the workspace, which sends
 /// it to the core like a link. Only iOS offers shortcuts.
 /// This file must compile on its own: `modules/appintents.sh` extracts the
-/// Shortcuts metadata from it, because Once does not run Xcode's App Intents step.
+/// Shortcuts metadata from it, because Struo does not run Xcode's App Intents step.
 @MainActor
 final class ShortcutInbox: ObservableObject {
     static let shared = ShortcutInbox()

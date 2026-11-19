@@ -302,7 +302,7 @@ defmodule Tuist.MCP.SideQuestsTest do
       assert tip =~ "Bazel (`MODULE.bazel`"
       assert tip =~ "Rust (`Cargo.toml`; its cache is experimental)"
       refute tip =~ "Gradle (`"
-      refute tip =~ "Once"
+      refute tip =~ "Struo"
     end
 
     test "has nothing to suggest once the account uses every build system", %{user: user, account: account} do

@@ -544,7 +544,7 @@ defmodule Tuist.ThreadsTest do
     messages = Threads.serialize(Threads.history(Repo.reload!(thread))).messages
     assert [%{content: "Working…"} = first, second] = Enum.filter(messages, &(&1.role == "tool"))
     refute Map.has_key?(first, :build)
-    assert second.content == "Building //app[31m with Once · 12 of 40 targets (9 cached)"
+    assert second.content == "Building //app[31m with Struo · 12 of 40 targets (9 cached)"
 
     assert second.build == %{
              "command" => "build",

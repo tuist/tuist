@@ -3545,16 +3545,6 @@ msgstr ""
 msgid "Time in status"
 msgstr ""
 
-#: lib/tuist_web/live/remote_execution_live.ex:419
-#, elixir-autogen, elixir-format
-msgid "Once run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
-msgstr ""
-
-#: lib/tuist_web/live/remote_execution_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Per-action remote timings are not available for Once yet"
-msgstr ""
-
 #: lib/tuist_web/live/remote_execution_live.ex:261
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
@@ -3593,4 +3583,14 @@ msgstr ""
 #: lib/tuist_web/live/remote_execution_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "Time the executor ran in each action's VM, from its start to its exit, summed over executions. It includes fetching inputs and uploading outputs, but not queueing or preparing the VM. The Usage page bills this time per machine shape."
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:407
+#, elixir-autogen, elixir-format
+msgid "Per-action remote timings are not available for Struo yet"
+msgstr ""
+
+#: lib/tuist_web/live/remote_execution_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Struo run telemetry does not yet distinguish remote actions from local ones, so queue and execution times per action and the invocations that ran them are not shown."
 msgstr ""

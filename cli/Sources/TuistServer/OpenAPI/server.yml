@@ -529,6 +529,7 @@ components:
             - mix
             - bazel
             - cargo
+            - struo
             - once
           type: string
           x-struct:
@@ -1153,9 +1154,9 @@ components:
           x-struct:
           x-validate:
       required:
-        - end_at
-        - page
         - page_size
+        - page
+        - end_at
         - total_count
         - total_pages
         - has_next_page
@@ -2955,6 +2956,45 @@ components:
       type: object
       x-struct:
       x-validate:
+    OrganizationAIProvider:
+      properties:
+        base_url:
+          description: Null for a linked Claude organization.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          type: integer
+          x-struct:
+          x-validate:
+        kind:
+          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+          enum:
+            - api_key
+            - claude_linked_billing
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - kind
+        - name
+        - base_url
+        - updated_at
+      title: OrganizationAIProvider
+      type: object
+      x-struct:
+      x-validate:
     CoverageRunRow:
       properties:
         coverage:
@@ -4230,6 +4270,38 @@ components:
       title: AutomationAlert
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlert
+      x-validate:
+    RemoteExecutionUsageShape:
+      additionalProperties: false
+      properties:
+        execution_ms:
+          description: Measured execution time.
+          type: integer
+          x-struct:
+          x-validate:
+        executions:
+          description: Executions that ran in a VM.
+          type: integer
+          x-struct:
+          x-validate:
+        memory_gb:
+          description: Memory in GB of the VM shape.
+          type: integer
+          x-struct:
+          x-validate:
+        vcpus:
+          description: vCPUs of the VM shape.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - execution_ms
+        - executions
+        - memory_gb
+        - vcpus
+      title: RemoteExecutionUsageShape
+      type: object
+      x-struct:
       x-validate:
     BazelBuildStepDetail:
       properties:
@@ -7034,8 +7106,8 @@ components:
         - id
         - unit
         - value
-        - previous_value
         - points
+        - previous_value
       title: PulseWidget
       type: object
       x-struct:
@@ -7352,9 +7424,9 @@ components:
               x-struct:
               x-validate:
           required:
-            - end_at
-            - page
             - page_size
+            - page
+            - end_at
             - total_count
             - total_pages
             - has_next_page
@@ -8323,6 +8395,188 @@ components:
         - stdout
         - stderr
       title: SandboxExecResult
+      type: object
+      x-struct:
+      x-validate:
+    OrganizationAIConfiguration:
+      properties:
+        default_model_id:
+          description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        models:
+          items:
+            properties:
+              id:
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+              provider_id:
+                type: integer
+                x-struct:
+                x-validate:
+              updated_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              upstream_model_id:
+                description: The model ID requests send to the provider.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - name
+              - provider_id
+              - upstream_model_id
+              - updated_at
+            title: OrganizationAIModel
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        providers:
+          items:
+            properties:
+              base_url:
+                description: Null for a linked Claude organization.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                type: integer
+                x-struct:
+                x-validate:
+              kind:
+                description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                enum:
+                  - api_key
+                  - claude_linked_billing
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+              updated_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - kind
+              - name
+              - base_url
+              - updated_at
+            title: OrganizationAIProvider
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        task_routes:
+          items:
+            properties:
+              id:
+                type: integer
+                x-struct:
+                x-validate:
+              model_id:
+                description: The configured model the task uses instead of the default.
+                type: integer
+                x-struct:
+                x-validate:
+              task:
+                description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                enum:
+                  - pulse_grouping
+                  - pulse_explanation
+                type: string
+                x-struct:
+                x-validate:
+              updated_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - task
+              - model_id
+              - updated_at
+            title: OrganizationAITaskRoute
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        tasks:
+          description: Every routable task and the model its requests use now.
+          items:
+            properties:
+              category:
+                description: The product area the task belongs to.
+                enum:
+                  - pulse
+                type: string
+                x-struct:
+                x-validate:
+              model_id:
+                description: The configured model the task uses, or null when it sends no requests.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              source:
+                description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                enum:
+                  - route
+                  - default
+                  - none
+                type: string
+                x-struct:
+                x-validate:
+              task:
+                description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                enum:
+                  - pulse_grouping
+                  - pulse_explanation
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - task
+              - category
+              - model_id
+              - source
+            title: OrganizationAITask
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - providers
+        - models
+        - default_model_id
+        - task_routes
+        - tasks
+      title: OrganizationAIConfiguration
       type: object
       x-struct:
       x-validate:
@@ -10049,6 +10303,40 @@ components:
         - is_ci
         - observed_at
       title: BazelBuildActionObservation
+      type: object
+      x-struct:
+      x-validate:
+    OrganizationAIModel:
+      properties:
+        id:
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        provider_id:
+          type: integer
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        upstream_model_id:
+          description: The model ID requests send to the provider.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - provider_id
+        - upstream_model_id
+        - updated_at
+      title: OrganizationAIModel
       type: object
       x-struct:
       x-validate:
@@ -12165,6 +12453,146 @@ components:
       type: object
       x-struct:
       x-validate:
+    RemoteExecutionUsage:
+      additionalProperties: false
+      description: Executions recorded by the execution node, with the time the executor ran in each single-use VM, from its start to its exit. It includes fetching inputs and uploading outputs, not queueing or preparing the VM. Results served from the cache are not executions. Every bucket of the period is listed.
+      properties:
+        execution_ms:
+          description: Measured execution time.
+          type: integer
+          x-struct:
+          x-validate:
+        executions:
+          description: Executions that ran in a VM.
+          type: integer
+          x-struct:
+          x-validate:
+        from:
+          description: Start of the period, inclusive.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        granularity:
+          description: 'Bucket size of `series`: `hour`, `day` or `month`.'
+          type: string
+          x-struct:
+          x-validate:
+        modes:
+          items:
+            additionalProperties: false
+            properties:
+              execution_ms:
+                description: Measured execution time.
+                type: integer
+                x-struct:
+                x-validate:
+              executions:
+                description: Executions that ran in a VM.
+                type: integer
+                x-struct:
+                x-validate:
+              mode:
+                description: "How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string."
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - execution_ms
+              - executions
+              - mode
+            title: RemoteExecutionUsageMode
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        series:
+          items:
+            additionalProperties: false
+            properties:
+              bucket:
+                description: The bucket's start in UTC, formatted for its granularity.
+                type: string
+                x-struct:
+                x-validate:
+              execution_ms:
+                description: Measured execution time.
+                type: integer
+                x-struct:
+                x-validate:
+              executions:
+                description: Executions that ran in a VM.
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - bucket
+              - execution_ms
+              - executions
+            title: RemoteExecutionUsagePoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        shapes:
+          items:
+            additionalProperties: false
+            properties:
+              execution_ms:
+                description: Measured execution time.
+                type: integer
+                x-struct:
+                x-validate:
+              executions:
+                description: Executions that ran in a VM.
+                type: integer
+                x-struct:
+                x-validate:
+              memory_gb:
+                description: Memory in GB of the VM shape.
+                type: integer
+                x-struct:
+                x-validate:
+              vcpus:
+                description: vCPUs of the VM shape.
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - execution_ms
+              - executions
+              - memory_gb
+              - vcpus
+            title: RemoteExecutionUsageShape
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        to:
+          description: End of the period, exclusive.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - execution_ms
+        - executions
+        - from
+        - granularity
+        - modes
+        - series
+        - shapes
+        - to
+      title: RemoteExecutionUsage
+      type: object
+      x-struct:
+      x-validate:
     DurationMetrics:
       description: Time-bucketed duration metrics for build or test runs. The bucket granularity (hour, day, or month) is derived from the requested time range.
       properties:
@@ -12390,6 +12818,66 @@ components:
         - projects
         - payment_required
       title: CacheAccess
+      type: object
+      x-struct:
+      x-validate:
+    RemoteExecutionActiveAction:
+      additionalProperties: false
+      properties:
+        action_digest:
+          description: The REAPI action digest as `hash/size`.
+          type: string
+          x-struct:
+          x-validate:
+        invocation_id:
+          description: The Bazel invocation that requested the action, from its request metadata.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        memory_gb:
+          description: Memory in GB of the VM the action runs or will run in.
+          type: integer
+          x-struct:
+          x-validate:
+        mnemonic:
+          description: The action's mnemonic, such as `CppCompile`.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        since:
+          description: When the action entered its current state.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        state:
+          description: '`running` or `queued`. Open string: more states can be added.'
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          description: The label of the target the action belongs to.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        vcpus:
+          description: vCPUs of the VM the action runs or will run in.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - action_digest
+        - invocation_id
+        - memory_gb
+        - mnemonic
+        - since
+        - state
+        - target
+        - vcpus
+      title: RemoteExecutionActiveAction
       type: object
       x-struct:
       x-validate:
@@ -13005,6 +13493,47 @@ components:
         - state
         - status
       title: SnapshotBaselineBuild
+      type: object
+      x-struct:
+      x-validate:
+    OrganizationAITask:
+      properties:
+        category:
+          description: The product area the task belongs to.
+          enum:
+            - pulse
+          type: string
+          x-struct:
+          x-validate:
+        model_id:
+          description: The configured model the task uses, or null when it sends no requests.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        source:
+          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+          enum:
+            - route
+            - default
+            - none
+          type: string
+          x-struct:
+          x-validate:
+        task:
+          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+          enum:
+            - pulse_grouping
+            - pulse_explanation
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - task
+        - category
+        - model_id
+        - source
+      title: OrganizationAITask
       type: object
       x-struct:
       x-validate:
@@ -13950,9 +14479,9 @@ components:
               x-struct:
               x-validate:
           required:
-            - end_at
-            - page
             - page_size
+            - page
+            - end_at
             - total_count
             - total_pages
             - has_next_page
@@ -14617,6 +15146,174 @@ components:
         - targets
         - pagination_metadata
       title: CommitCoverageTargets
+      type: object
+      x-struct:
+      x-validate:
+    RemoteExecutionActivity:
+      additionalProperties: false
+      description: Running actions first, each group oldest first. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish. `invocations` lists the running Bazel invocations, newest first.
+      properties:
+        actions:
+          items:
+            additionalProperties: false
+            properties:
+              action_digest:
+                description: The REAPI action digest as `hash/size`.
+                type: string
+                x-struct:
+                x-validate:
+              invocation_id:
+                description: The Bazel invocation that requested the action, from its request metadata.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              memory_gb:
+                description: Memory in GB of the VM the action runs or will run in.
+                type: integer
+                x-struct:
+                x-validate:
+              mnemonic:
+                description: The action's mnemonic, such as `CppCompile`.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              since:
+                description: When the action entered its current state.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              state:
+                description: '`running` or `queued`. Open string: more states can be added.'
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                description: The label of the target the action belongs to.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              vcpus:
+                description: vCPUs of the VM the action runs or will run in.
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - action_digest
+              - invocation_id
+              - memory_gb
+              - mnemonic
+              - since
+              - state
+              - target
+              - vcpus
+            title: RemoteExecutionActiveAction
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        invocations:
+          items:
+            additionalProperties: false
+            description: An invocation that started in the last 24 hours and has not finished.
+            properties:
+              command:
+                description: The Bazel command, or null while the build event stream has not reported it.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              git_branch:
+                description: The Git branch, or empty when not reported.
+                type: string
+                x-struct:
+                x-validate:
+              git_commit_sha:
+                description: The Git commit, or empty when not reported.
+                type: string
+                x-struct:
+                x-validate:
+              invocation_id:
+                description: The Bazel invocation ID.
+                type: string
+                x-struct:
+                x-validate:
+              is_ci:
+                description: Whether it runs on CI; null when unknown.
+                nullable: true
+                type: boolean
+                x-struct:
+                x-validate:
+              queued:
+                description: Its remote actions waiting for a VM.
+                type: integer
+                x-struct:
+                x-validate:
+              running:
+                description: Its remote actions executing in a VM.
+                type: integer
+                x-struct:
+                x-validate:
+              started_at:
+                description: When the invocation started.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              target_patterns:
+                items:
+                  description: A requested target pattern.
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - command
+              - git_branch
+              - git_commit_sha
+              - invocation_id
+              - is_ci
+              - queued
+              - running
+              - started_at
+              - target_patterns
+            title: RemoteExecutionRunningInvocation
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        observed_at:
+          description: When the scheduler was read.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        queued:
+          description: Actions waiting for a VM.
+          type: integer
+          x-struct:
+          x-validate:
+        running:
+          description: Actions executing in a VM.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - actions
+        - invocations
+        - observed_at
+        - queued
+        - running
+      title: RemoteExecutionActivity
       type: object
       x-struct:
       x-validate:
@@ -15855,6 +16552,32 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ReportActor
       x-validate:
+    RemoteExecutionUsagePoint:
+      additionalProperties: false
+      properties:
+        bucket:
+          description: The bucket's start in UTC, formatted for its granularity.
+          type: string
+          x-struct:
+          x-validate:
+        execution_ms:
+          description: Measured execution time.
+          type: integer
+          x-struct:
+          x-validate:
+        executions:
+          description: Executions that ran in a VM.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - bucket
+        - execution_ms
+        - executions
+      title: RemoteExecutionUsagePoint
+      type: object
+      x-struct:
+      x-validate:
     PulseAnalytics:
       additionalProperties: false
       properties:
@@ -15915,8 +16638,8 @@ components:
               - id
               - unit
               - value
-              - previous_value
               - points
+              - previous_value
             title: PulseWidget
             type: object
             x-struct:
@@ -18042,6 +18765,32 @@ components:
       type: integer
       x-struct:
       x-validate:
+    RemoteExecutionUsageMode:
+      additionalProperties: false
+      properties:
+        execution_ms:
+          description: Measured execution time.
+          type: integer
+          x-struct:
+          x-validate:
+        executions:
+          description: Executions that ran in a VM.
+          type: integer
+          x-struct:
+          x-validate:
+        mode:
+          description: "How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string."
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - execution_ms
+        - executions
+        - mode
+      title: RemoteExecutionUsageMode
+      type: object
+      x-struct:
+      x-validate:
     BuildMultipartUploadCompletionParams:
       description: Parameters to complete a multipart upload for a build.
       properties:
@@ -19888,6 +20637,76 @@ components:
       type: object
       x-struct:
       x-validate:
+    RemoteExecutionRunningInvocation:
+      additionalProperties: false
+      description: An invocation that started in the last 24 hours and has not finished.
+      properties:
+        command:
+          description: The Bazel command, or null while the build event stream has not reported it.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The Git branch, or empty when not reported.
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The Git commit, or empty when not reported.
+          type: string
+          x-struct:
+          x-validate:
+        invocation_id:
+          description: The Bazel invocation ID.
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          description: Whether it runs on CI; null when unknown.
+          nullable: true
+          type: boolean
+          x-struct:
+          x-validate:
+        queued:
+          description: Its remote actions waiting for a VM.
+          type: integer
+          x-struct:
+          x-validate:
+        running:
+          description: Its remote actions executing in a VM.
+          type: integer
+          x-struct:
+          x-validate:
+        started_at:
+          description: When the invocation started.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        target_patterns:
+          items:
+            description: A requested target pattern.
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - command
+        - git_branch
+        - git_commit_sha
+        - invocation_id
+        - is_ci
+        - queued
+        - running
+        - started_at
+        - target_patterns
+      title: RemoteExecutionRunningInvocation
+      type: object
+      x-struct:
+      x-validate:
     Tokens:
       description: A list of project tokens.
       properties:
@@ -20157,6 +20976,39 @@ components:
         - skipped
       title: SelectiveTestingDecision
       type: string
+      x-struct:
+      x-validate:
+    OrganizationAITaskRoute:
+      properties:
+        id:
+          type: integer
+          x-struct:
+          x-validate:
+        model_id:
+          description: The configured model the task uses instead of the default.
+          type: integer
+          x-struct:
+          x-validate:
+        task:
+          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+          enum:
+            - pulse_grouping
+            - pulse_explanation
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - task
+        - model_id
+        - updated_at
+      title: OrganizationAITaskRoute
+      type: object
       x-struct:
       x-validate:
     PulseSentryEnvelopeResponse:
@@ -26333,6 +27185,7 @@ paths:
                     - mix
                     - bazel
                     - cargo
+                    - struo
                     - once
                   type: string
                   x-struct:
@@ -28150,6 +29003,493 @@ paths:
       summary: Revokes a project token.
       tags:
         - Project tokens
+  /api/accounts/{account_handle}/ai/models/{id}:
+    delete:
+      callbacks: {}
+      description: Also removes its task routes, so those tasks fall back to the default model. If no default remains (none was selected, or this was it), every task without a route stops sending requests until a default is selected.
+      operationId: deleteOrganizationAIModel
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The record ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+      summary: Removes a model
+      tags:
+        - Organization AI
+    patch:
+      callbacks: {}
+      operationId: updateOrganizationAIModel
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The record ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+                provider_id:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                upstream_model_id:
+                  description: The model ID from the provider, unique for the provider.
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: The fields to change
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The configuration is invalid
+      summary: Updates a model
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -29589,8 +30929,8 @@ paths:
                         - id
                         - unit
                         - value
-                        - previous_value
                         - points
+                        - previous_value
                       title: PulseWidget
                       type: object
                       x-struct:
@@ -33730,6 +35070,229 @@ paths:
       summary: List runner workflows for an account.
       tags:
         - Runners
+  /api/projects/{account_handle}/{project_handle}/remote-execution/usage:
+    get:
+      callbacks: {}
+      description: Executions and measured execution time, in total, per VM shape, per dispatch mode and per hour, day or month. The period defaults to the last 30 days and spans at most 366 days.
+      operationId: getRemoteExecutionUsage
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: to
+          required: false
+          schema:
+            description: End of the period, exclusive. Defaults to now.
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: from
+          required: false
+          schema:
+            description: Start of the period, inclusive. Defaults to 30 days before `to`.
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                description: Executions recorded by the execution node, with the time the executor ran in each single-use VM, from its start to its exit. It includes fetching inputs and uploading outputs, not queueing or preparing the VM. Results served from the cache are not executions. Every bucket of the period is listed.
+                properties:
+                  execution_ms:
+                    description: Measured execution time.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executions:
+                    description: Executions that ran in a VM.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  from:
+                    description: Start of the period, inclusive.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  granularity:
+                    description: 'Bucket size of `series`: `hour`, `day` or `month`.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  modes:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        execution_ms:
+                          description: Measured execution time.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executions:
+                          description: Executions that ran in a VM.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        mode:
+                          description: "How the action reached its VM: `scheduled` by the account's scheduler or `leased` to the execution gateway. Open string."
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - execution_ms
+                        - executions
+                        - mode
+                      title: RemoteExecutionUsageMode
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  series:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        bucket:
+                          description: The bucket's start in UTC, formatted for its granularity.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        execution_ms:
+                          description: Measured execution time.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executions:
+                          description: Executions that ran in a VM.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - bucket
+                        - execution_ms
+                        - executions
+                      title: RemoteExecutionUsagePoint
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  shapes:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        execution_ms:
+                          description: Measured execution time.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executions:
+                          description: Executions that ran in a VM.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          description: Memory in GB of the VM shape.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          description: vCPUs of the VM shape.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - execution_ms
+                        - executions
+                        - memory_gb
+                        - vcpus
+                      title: RemoteExecutionUsageShape
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  to:
+                    description: End of the period, exclusive.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - execution_ms
+                  - executions
+                  - from
+                  - granularity
+                  - modes
+                  - series
+                  - shapes
+                  - to
+                title: RemoteExecutionUsage
+                type: object
+                x-struct:
+                x-validate:
+          description: Remote execution usage
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The period is invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get the project's remote execution usage over a period.
+      tags:
+        - Remote execution
   /api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands:
     get:
       callbacks: {}
@@ -35302,6 +36865,260 @@ paths:
       summary: List CAS outputs for a given build.
       tags:
         - Builds
+  /api/accounts/{account_handle}/ai/task-routes:
+    post:
+      callbacks: {}
+      description: A task has at most one route; tasks without one use the default model.
+      operationId: createOrganizationAITaskRoute
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                model_id:
+                  description: The configured model the task uses.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                task:
+                  description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                  enum:
+                    - pulse_grouping
+                    - pulse_explanation
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - task
+                - model_id
+              type: object
+              x-struct:
+              x-validate:
+        description: The route
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The configuration is invalid
+      summary: Routes a task to a model
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
@@ -37684,9 +39501,9 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - end_at
-                      - page
                       - page_size
+                      - page
+                      - end_at
                       - total_count
                       - total_pages
                       - has_next_page
@@ -43665,6 +45482,237 @@ paths:
       summary: Create a new build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/remote-execution/activity:
+    get:
+      callbacks: {}
+      description: A snapshot of the account's execution scheduler. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish.
+      operationId: getRemoteExecutionActivity
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                description: Running actions first, each group oldest first. Actions the execution gateway runs on a VM it holds in advance are not listed; they appear in usage once they finish. `invocations` lists the running Bazel invocations, newest first.
+                properties:
+                  actions:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        action_digest:
+                          description: The REAPI action digest as `hash/size`.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        invocation_id:
+                          description: The Bazel invocation that requested the action, from its request metadata.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          description: Memory in GB of the VM the action runs or will run in.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        mnemonic:
+                          description: The action's mnemonic, such as `CppCompile`.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        since:
+                          description: When the action entered its current state.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        state:
+                          description: '`running` or `queued`. Open string: more states can be added.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The label of the target the action belongs to.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        vcpus:
+                          description: vCPUs of the VM the action runs or will run in.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - action_digest
+                        - invocation_id
+                        - memory_gb
+                        - mnemonic
+                        - since
+                        - state
+                        - target
+                        - vcpus
+                      title: RemoteExecutionActiveAction
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  invocations:
+                    items:
+                      additionalProperties: false
+                      description: An invocation that started in the last 24 hours and has not finished.
+                      properties:
+                        command:
+                          description: The Bazel command, or null while the build event stream has not reported it.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: The Git branch, or empty when not reported.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: The Git commit, or empty when not reported.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        invocation_id:
+                          description: The Bazel invocation ID.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether it runs on CI; null when unknown.
+                          nullable: true
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        queued:
+                          description: Its remote actions waiting for a VM.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        running:
+                          description: Its remote actions executing in a VM.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          description: When the invocation started.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target_patterns:
+                          items:
+                            description: A requested target pattern.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                      required:
+                        - command
+                        - git_branch
+                        - git_commit_sha
+                        - invocation_id
+                        - is_ci
+                        - queued
+                        - running
+                        - started_at
+                        - target_patterns
+                      title: RemoteExecutionRunningInvocation
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  observed_at:
+                    description: When the scheduler was read.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  queued:
+                    description: Actions waiting for a VM.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  running:
+                    description: Actions executing in a VM.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - actions
+                  - invocations
+                  - observed_at
+                  - queued
+                  - running
+                title: RemoteExecutionActivity
+                type: object
+                x-struct:
+                x-validate:
+          description: Running and queued actions
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The scheduler did not answer; retry shortly
+      summary: List the project's remote actions running and queued right now.
+      tags:
+        - Remote execution
   /api/projects/{account_handle}/{project_handle}/builds/metrics/duration:
     get:
       callbacks: {}
@@ -43801,6 +45849,245 @@ paths:
       summary: Time-bucketed build duration percentiles for a project.
       tags:
         - Metrics
+  /api/accounts/{account_handle}/ai/default-model:
+    put:
+      callbacks: {}
+      description: Tasks without a route use the default. Null clears it, so only routed tasks send requests.
+      operationId: setOrganizationAIDefaultModel
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                model_id:
+                  nullable: true
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - model_id
+              type: object
+              x-struct:
+              x-validate:
+        description: The default model
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+      summary: Selects the default model
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start:
     post:
       callbacks: {}
@@ -45997,9 +48284,9 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - end_at
-                      - page
                       - page_size
+                      - page
+                      - end_at
                       - total_count
                       - total_pages
                       - has_next_page
@@ -47395,7 +49682,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}/executions:
     get:
       callbacks: {}
-      description: List recorded history for a Once action across builds.
+      description: List recorded history for a Struo action across builds.
       operationId: listProjectOnceActionHistory
       parameters:
         - description: ''
@@ -47645,7 +49932,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: List recorded history for a Once action across builds.
+          description: List recorded history for a Struo action across builds.
         '400':
           content:
             application/json:
@@ -47691,7 +49978,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Analytics query exceeded the server's resource limits
-      summary: List recorded history for a Once action across builds.
+      summary: List recorded history for a Struo action across builds.
       tags:
         - OnceAction
   /api/projects/{account_handle}/{project_handle}/previews/generate-url:
@@ -52609,6 +54896,501 @@ paths:
       summary: List webhook endpoints for an account.
       tags:
         - Webhooks
+  /api/accounts/{account_handle}/ai/providers/{id}:
+    delete:
+      callbacks: {}
+      description: Deletes its stored key, its models and their task routes. Removing a linked Claude organization first unlinks it at Anthropic. Revoke the key at the provider to revoke access there.
+      operationId: deleteOrganizationAIProvider
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The record ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Anthropic couldn't unlink the Claude organization
+      summary: Removes an AI provider
+      tags:
+        - Organization AI
+    patch:
+      callbacks: {}
+      description: A new key replaces the old one for every model using the provider. Linked Claude organizations can't be edited.
+      operationId: updateOrganizationAIProvider
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The record ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                api_key:
+                  description: Stored encrypted and never returned. When updating, omit it to keep the current key, unless the base URL changes.
+                  type: string
+                  x-struct:
+                  x-validate:
+                base_url:
+                  description: Public HTTPS endpoint for an OpenAI-compatible API, including any /v1 prefix. Requests append /chat/completions.
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: The fields to change
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The configuration is invalid
+      summary: Updates an AI provider
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}/notification-alerts:
     get:
       callbacks: {}
@@ -60893,10 +63675,265 @@ paths:
       summary: Get a Once run with its action totals, cache summary and, for test runs, test totals.
       tags:
         - Once
+  /api/accounts/{account_handle}/ai/models:
+    post:
+      callbacks: {}
+      description: Adding a model never selects it as the default.
+      operationId: createOrganizationAIModel
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+                provider_id:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                upstream_model_id:
+                  description: The model ID from the provider, unique for the provider.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - name
+                - provider_id
+                - upstream_model_id
+              type: object
+              x-struct:
+              x-validate:
+        description: The model
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The configuration is invalid
+      summary: Adds a model
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}/once/actions:
     get:
       callbacks: {}
-      description: List Once actions across builds.
+      description: List Struo actions across builds.
       operationId: listProjectOnceActions
       parameters:
         - description: ''
@@ -61045,7 +64082,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: List Once actions across builds.
+          description: List Struo actions across builds.
         '400':
           content:
             application/json:
@@ -61091,7 +64128,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Analytics query exceeded the server's resource limits
-      summary: List Once actions across builds.
+      summary: List Struo actions across builds.
       tags:
         - OnceAction
   /api/projects/{account_handle}/{project_handle}/tests/coverage/commits:
@@ -64978,6 +68015,493 @@ paths:
       summary: Get a webhook endpoint.
       tags:
         - Webhooks
+  /api/accounts/{account_handle}/ai/task-routes/{id}:
+    delete:
+      callbacks: {}
+      description: The task uses the default model again, or sends no requests without one.
+      operationId: deleteOrganizationAITaskRoute
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The record ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+      summary: Removes a task route
+      tags:
+        - Organization AI
+    patch:
+      callbacks: {}
+      operationId: updateOrganizationAITaskRoute
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The record ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                model_id:
+                  description: The configured model the task uses.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                task:
+                  description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                  enum:
+                    - pulse_grouping
+                    - pulse_explanation
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: The fields to change
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The configuration is invalid
+      summary: Updates a task route
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}/executions:
     get:
       callbacks: {}
@@ -66081,7 +69605,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/once/actions/{action_id}:
     get:
       callbacks: {}
-      description: Get a Once action and its analytics across builds.
+      description: Get a Struo action and its analytics across builds.
       operationId: getProjectOnceAction
       parameters:
         - description: ''
@@ -66420,7 +69944,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: Get a Once action and its analytics across builds.
+          description: Get a Struo action and its analytics across builds.
         '400':
           content:
             application/json:
@@ -66466,7 +69990,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Analytics query exceeded the server's resource limits
-      summary: Get a Once action and its analytics across builds.
+      summary: Get a Struo action and its analytics across builds.
       tags:
         - OnceAction
   /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/revisions:
@@ -66875,6 +70399,261 @@ paths:
       summary: List Gradle branches or workload groups.
       tags:
         - Metrics
+  /api/accounts/{account_handle}/ai/providers:
+    post:
+      callbacks: {}
+      operationId: createOrganizationAIProvider
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                api_key:
+                  description: Stored encrypted and never returned. When updating, omit it to keep the current key, unless the base URL changes.
+                  type: string
+                  x-struct:
+                  x-validate:
+                base_url:
+                  description: Public HTTPS endpoint for an OpenAI-compatible API, including any /v1 prefix. Requests append /chat/completions.
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - name
+                - base_url
+                - api_key
+              type: object
+              x-struct:
+              x-validate:
+        description: The provider
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The configuration is invalid
+      summary: Adds an AI provider
+      tags:
+        - Organization AI
   /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}:
     get:
       callbacks: {}
@@ -68813,6 +72592,7 @@ paths:
                     - xcode
                     - gradle
                     - bazel
+                    - struo
                     - once
                     - mix
                     - cargo
@@ -68870,6 +72650,228 @@ paths:
       summary: Create a new project.
       tags:
         - Projects
+  /api/accounts/{account_handle}/ai:
+    get:
+      callbacks: {}
+      description: Lists providers (without keys), models, the default model, task routes and the model each task uses now.
+      operationId: getOrganizationAIConfiguration
+      parameters:
+        - description: The organization handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  default_model_id:
+                    description: The configured model tasks without a route use, or null. Without a default, only routed tasks send requests.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  models:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider_id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        upstream_model_id:
+                          description: The model ID requests send to the provider.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - provider_id
+                        - upstream_model_id
+                        - updated_at
+                      title: OrganizationAIModel
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  providers:
+                    items:
+                      properties:
+                        base_url:
+                          description: Null for a linked Claude organization.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        kind:
+                          description: '`api_key`: an OpenAI-compatible endpoint with a stored key. `claude_linked_billing`: a linked Claude organization, linked from the dashboard.'
+                          enum:
+                            - api_key
+                            - claude_linked_billing
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - kind
+                        - name
+                        - base_url
+                        - updated_at
+                      title: OrganizationAIProvider
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  task_routes:
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses instead of the default.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task
+                        - model_id
+                        - updated_at
+                      title: OrganizationAITaskRoute
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    description: Every routable task and the model its requests use now.
+                    items:
+                      properties:
+                        category:
+                          description: The product area the task belongs to.
+                          enum:
+                            - pulse
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_id:
+                          description: The configured model the task uses, or null when it sends no requests.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        source:
+                          description: "`route`: the task's own route. `default`: no route, so the default model. `none`: neither, so the task sends no requests."
+                          enum:
+                            - route
+                            - default
+                            - none
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task:
+                          description: '`pulse_grouping`: decide whether Pulse observations belong together. `pulse_explanation`: name and explain Pulse symptoms.'
+                          enum:
+                            - pulse_grouping
+                            - pulse_explanation
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - task
+                        - category
+                        - model_id
+                        - source
+                      title: OrganizationAITask
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - providers
+                  - models
+                  - default_model_id
+                  - task_routes
+                  - tasks
+                title: OrganizationAIConfiguration
+                type: object
+                x-struct:
+                x-validate:
+          description: The organization's AI configuration
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only an organization administrator can manage its AI configuration
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization, its AI configuration or the record wasn't found
+      summary: Shows an organization's AI configuration
+      tags:
+        - Organization AI
   /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads:
     post:
       callbacks: {}

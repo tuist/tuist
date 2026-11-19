@@ -641,10 +641,12 @@ socket, the poller and the caller share a replica:
   start (`:no_capacity`, `{:host_busy, _}`) is retried inside the request
   every second for 25 s, so a command starts within a second of its host
   freeing.
-  Every command gets `ONCE_PROGRESS` (unless its env sets one) naming
-  `once-progress.jsonl` in that directory, and `read/3` returns the file's last
-  line as `progress`, so a thread run shows a Once build's progress without an
-  extra exec; the guest writes it, so validate it before use.
+  Every command gets `STRUO_PROGRESS` (unless its env sets one) naming
+  `struo-progress.jsonl` in that directory, and `read/3` returns the file's last
+  line as `progress`, so a thread run shows a Struo build's progress without an
+  extra exec; the guest writes it, so validate it before use. Legacy clients get
+  `ONCE_PROGRESS` pointing at the same default file; reads also accept the old
+  `once-progress.jsonl` for commands started before the rename.
   A caller that already holds a residency, such as a thread run
   (`Tuist.Threads.Sandbox`), passes it as `:residency`: the command joins it
   instead of `commands`, and `release_if_idle/2` leaves it to its holder.

@@ -75,8 +75,8 @@ defmodule Tuist.BuildEntities.Resources do
       id_param: :action_id,
       history_key: :executions,
       title: "OnceAction",
-      label: "Once actions",
-      label_singular: "a Once action",
+      label: "Struo actions",
+      label_singular: "a Struo action",
       api_path: "/once/actions",
       history_path: "executions",
       path: "/builds/once/actions"
