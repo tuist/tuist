@@ -1477,9 +1477,10 @@ requests, in 2 x 50 GiB units. Thin encrypted volumes reserve
 OS disk: it fired for ap-southeast, eu-east, us-east and us-west (which had
 517 to 1,360 GiB of admission headroom) and stayed quiet for us-central at
 0 GiB, because its two 115 GiB OS disks read as two instances. The row now
-reads the admission headroom gauge, so it shares its unit with **Kura region
-admission cannot take an enterprise instance**, which fires at the same point
-(below 32 GiB). The live rule's execution error state moved from `KeepLast`
+reads the admission headroom gauge in 32 GiB units (below 32 GiB admission
+refuses a new enterprise instance). **Kura region admission cannot take a
+largest-plan instance** reads the same gauge in 543 GiB units since
+2026-11-19, so it fires first. The live rule's execution error state moved from `KeepLast`
 to `Alerting` with this change, matching this section.
 
 The "add a node" alert. It counts how many more instances of the largest
@@ -1525,7 +1526,7 @@ claim growth once the region's reservations reach 90% of its allocatable disk
 (`Tuist.Kura.Capacity` `@pressure_fraction`), summed over the region rather
 than per node, and it counts rows the cluster has not scheduled yet. A region
 therefore stops admitting while this row still reads one or more. That case is
-**Kura region admission cannot take an enterprise instance**, which reads the
+**Kura region admission cannot take a largest-plan instance**, which reads the
 server's own number. Air's archival window shortens once what is left under
 that line can no longer take a new enterprise instance
 (`Tuist.Kura.Capacity.under_pressure?/1`). This document gave the row a
@@ -1573,42 +1574,74 @@ join and the zero default exist to count: read against its occupied node alone
 the region reports 0 and fires. Staging and canary regions are out of scope, so
 a staging runner region past the disk pressure line does not fire.
 
-### Kura region admission cannot take an enterprise instance
+### Kura region admission cannot take a largest-plan instance
+
+A, in instances:
 
 ```promql
-max by (cluster, region) (
-  tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
-)
+floor((
+    max by (cluster, region) (tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production", region!~".+-runners"})
+    or
+    (
+      floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production", region!~".+-runners"}))
+      - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production", region!~".+-runners"})
+    )
+  ) / 543)
 or
-(
-  floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
-  - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
-)
+floor((
+    max by (cluster, region) (tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production", region=~".+-runners"})
+    or
+    (
+      floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production", region=~".+-runners"}))
+      - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production", region=~".+-runners"})
+    )
+  ) / 32)
 ```
 
-- Threshold: `< 32`, as a separate threshold expression on `A`, so the alert
-  value is the GiB admission can still place
+B, the same headroom in GiB for the summary: the inner `max ... or (...)`
+without the region split.
+
+- Threshold: `< 1` on `A`, so the alert value is the number of largest-plan
+  instances admission can still take
 - Pending period: 15 minutes
 - Severity: critical
-- Live: rule `cfyi8cxo4t4hsc`, titled `Kura - region admission cannot take an
-  enterprise instance`
+- Live: rule `cfyi8cxo4t4hsc`, titled `Kura - region admission cannot take a
+  largest-plan instance`
 - Production only (the `cluster` matchers). Folder `Alerts`, group `Cache`,
-  receiver `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**
-  (see the Adaptive Metrics note under **Recording rules for Kura regions**).
+  routed by the policy tree to `Slack #notifications 2`; **No Data: Normal**,
+  **Error: Alerting** (see the Adaptive Metrics note under **Recording rules
+  for Kura regions**).
 - Summary: `Kura region {{ $labels.region }} can admit
-  {{ $values.A.Value | printf "%.0f" }} GiB more in {{ $labels.cluster }},
-  less than one enterprise instance; free reservations or add a node`
-- Description: `Tuist.Kura.Admission refuses any instance whose reservation
-  (claim x 2 replicas) does not fit under 90% of the region's allocatable disk,
-  less what its instances reserve, each at the larger of what its pods request
-  and what its kura_servers row reserves. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
-  every enterprise claim growth; below 16 GiB, every new or returning instance
-  of any plan. A refused account stays on whatever lane it was on and raises
-  nothing else. The value is negative when reservations already sit above the
-  line. Check "Kura admission refusing instances" for what is being turned
-  down, then free reservations (archive instances that store nothing) or add a
-  node to the region's pool. Zero with the region's nodes Ready means the
-  server cannot read the cluster, which refuses everything as well.`
+  {{ $values.A.Value | printf "%.0f" }} more largest-plan instances
+  ({{ $values.B.Value | printf "%.0f" }} GiB of admission headroom) in
+  {{ $labels.cluster }}; free reservations or add a node`
+- Description: `Counts how many more instances at the largest plan claim
+  Tuist.Kura.Admission can still admit in the region: 256Gi
+  (Tuist.Kura.ClaimSizing ceiling for Pro and Enterprise) x 2 replicas on thin
+  volumes, 271.1 GiB of tuist.dev/kura-disk each, so 543 GiB per instance.
+  Runner regions (*-runners) hold runner caches, not plan-sized claims, and
+  keep the 32 GiB unit (one enterprise instance at its starting claim). B is
+  the raw headroom: 90% of the region's allocatable disk less the larger of
+  what its pods request and what its kura_servers rows reserve. It is a
+  regional total; a region can read 1 here while no single host can place a
+  256Gi volume, which "Kura region cannot place another instance" covers per
+  node. Below 32 GiB admission refuses new enterprise instances and
+  enterprise claim growth; below 16 GiB every new or returning instance.
+  Check "Kura - admission refusing instances" for what is being turned down,
+  then free reservations (archive instances that store nothing) or add a node
+  to the region's pool.`
+
+**Unit (2026-11-19).** The rule used to fire below 32 GiB, one enterprise
+instance at its starting claim. With regions at 500 to 1,400 GiB of headroom
+that left no lead time: claims grow to the 256Gi ceiling, and a region could
+stop fitting a grown account long before the 32 GiB line. It now counts in
+the largest claim an account can reach, so it asks "can this region still
+take our biggest tenant" with an absolute size that does not scale with the
+region. On 2026-11-19 it read eu-west 2, eu-east 2, us-east, us-central,
+us-west and sa-west 1, and ap-southeast 0 (523 GiB), which fired on the
+change. Change 543 with the `ClaimSizing` ceiling or the thin overhead in
+`Tuist.Kura.Capacity.thin_reservation_bytes/1`; change 32 with
+`@enterprise_storage_claim` in `Tuist.Kura.Regions`.
 
 The admission check, as opposed to the scheduler check in **Kura region cannot
 place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
@@ -1640,9 +1673,6 @@ not `sum`. The second operand is the same arithmetic without `desired`, from
 the occupancy gauges; it is what the rule reads until a server that emits the
 headroom gauge is deployed, and for any region the headroom gauge is missing
 from. It overstates headroom only while rows are waiting for pods.
-
-32 GiB is one enterprise instance at its starting claim. Change it with
-`@enterprise_storage_claim` in `Tuist.Kura.Regions`.
 
 **Admission buffer rollout (2026-10-27):** the code reduces the additional
 reserve from 15% to 10% of allocatable. On managed hosts, Kubernetes already
@@ -6073,7 +6103,7 @@ predict_linear(
   headroom {{ $values.A.Value | printf "%.0f" }} GiB)`
 - Description: `Subtracts three more days of the region's reserved-disk growth,
   extrapolated from the last three, from its capacity admission headroom (see
-  "Kura - region admission cannot take an enterprise instance"). Reserved disk
+  "Kura - region admission cannot take a largest-plan instance"). Reserved disk
   does not move when a box joins, leaves or is evacuated, so adding or
   retiring a box does not read as burn; private runner-cache regions, which
   report no reserved series, use the headroom trend instead. A box takes days
@@ -6086,7 +6116,7 @@ predict_linear(
   Background: infra/helm/k8s-monitoring/alerts.md, section 'Kura region
   admission headroom running out'.`
 
-The lead-time tier for **Kura region admission cannot take an enterprise
+The lead-time tier for **Kura region admission cannot take a largest-plan
 instance**. An absolute threshold does not give lead time here, because
 regions fill at very different rates: over the week to 2026-09-17 us-central
 lost about 95 GiB of headroom a day and us-west about 40, and ap-southeast
