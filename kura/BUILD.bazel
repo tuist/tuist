@@ -103,7 +103,15 @@ rust_junit_test(
     # rustc peaks near 4 GB compiling the crate as a test binary, which the default 4 GiB
     # remote-execution VM cannot hold. Ignored outside remote execution.
     exec_properties = {"tuist-memory-gb": "8"},
-    rustc_flags = _DENY_WARNINGS,
+    # The suite is wait-bound: about 90 s of test time but under 10 s of CPU, mostly timeouts and
+    # sleeps. libtest runs as many tests at once as there are CPUs, two in the default
+    # remote-execution VM, so the run took 45 s. Eight threads take it to about 13 s on two cores;
+    # sixteen made a timing-sensitive store test fail.
+    env = {"RUST_TEST_THREADS": "8"},
+    # Only this test binary skips rustc's crate-local ThinLTO, which took 55 s of the 150 s
+    # compile, the longest action in the build. Tests run just as fast without it, and the
+    # library and shipped binary keep the default.
+    rustc_flags = _DENY_WARNINGS + ["-Clto=off"],
     size = "medium",
     version = _KURA_VERSION,
     deps = all_crate_deps(normal_dev = True),

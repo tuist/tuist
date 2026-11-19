@@ -72,6 +72,20 @@ crate.annotation(
     ],
 )
 
+# rules_rust runs every Cargo build script with NUM_JOBS=1, so cc-rs compiles aws-lc's C one file at
+# a time and jemalloc's build runs `make -j1`. Both lie on the path to the test binary, and a
+# build script action gets two CPUs (the default remote-execution VM is 2 vCPUs), so let them use
+# both: on two cores this halves aws-lc-sys (52 s to 25 s) and tikv-jemalloc-sys (38 s to 20 s).
+crate.annotation(
+    crate = "aws-lc-sys",
+    build_script_env = {"NUM_JOBS": "2"},
+)
+
+crate.annotation(
+    crate = "tikv-jemalloc-sys",
+    build_script_env = {"NUM_JOBS": "2"},
+)
+
 # librocksdb-sys's build script compiles rocksdb's C++ with the LZ4 backend (#include <lz4.h>) and
 # reads the include dir from $DEP_LZ4_INCLUDE. rules_rs mis-propagates that path across crates,
 # leaving an unresolved `${out_dir}` token (hermeticbuild/rules_rs#163), so we set it ourselves:
