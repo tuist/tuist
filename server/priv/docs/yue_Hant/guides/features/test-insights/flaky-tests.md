@@ -7,7 +7,7 @@
 ---
 # 不穩定測試 {#flaky-tests}
 
-不穩定測試係指用同一份代碼多次運行時，會得出唔同結果（通過或失敗）嘅測試。佢哋會削弱你對測試套件嘅信任，亦浪費開發人員調查虛假失敗嘅時間。Tuist 會自動偵測不穩定測試，並幫你長期追蹤。如想了解團隊如何調查同遏制呢啲測試，請參閱 [不穩定測試](https://tuist.dev/solutions/flaky-tests)。如需與工具無關、解釋常見成因同點樣量度不穩定性嘅說明，請參閱 <.localized_link href="/references/concepts/flaky-test">乜嘢係不穩定測試？</.localized_link>。
+不穩定測試係指同一份代碼多次運行時會產生唔同結果（通過或失敗）嘅測試。佢哋會削弱你對測試套件嘅信任，並浪費開發人員調查誤報失敗嘅時間。Tuist 會自動偵測不穩定測試，並幫你長期追蹤。如想了解團隊如何調查同遏制呢啲問題，請參閱 [不穩定測試](https://tuist.dev/solutions/flaky-tests)。如需工具無關嘅常見成因解釋同衡量不穩定性嘅方法，請參閱 <.localized_link href="/references/concepts/flaky-test">乜嘢係不穩定測試？</.localized_link>。
 
 <.home_cards>
   <.home_card
@@ -16,7 +16,7 @@
     link="/guides/features/test-insights/flaky-tests/xcode"
 />
   <.home_card
-    title="Generated projects"
+    title="生成嘅專案"
     details="透過 tuist test 偵測、管理同隔離 Tuist 生成專案中嘅不穩定測試。"
     link="/guides/features/test-insights/flaky-tests/generated-xcode-project"
 />
@@ -41,8 +41,8 @@
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
-    title="Once"
-    details="透過匯報嘅重試嘗試同 CI 歷史記錄，調查不一致嘅測試結果。"
-    link="/guides/features/test-insights/flaky-tests/once"
+    title="Struo"
+    details="透過報告嘅重試嘗試同 CI 歷史記錄，調查不一致嘅測試結果。"
+    link="/guides/features/test-insights/flaky-tests/struo"
 />
 </.home_cards>

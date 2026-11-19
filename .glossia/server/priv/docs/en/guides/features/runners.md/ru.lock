@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "cb2a676a975274164f8d7de74ddd8f8c50f291b916f900ef12eba87c789d0ec0",
+  "hash": "8f3c9a065a0ccb86687e98ae98074882d00bea08996e4dbe9162618a96e2d238",
   "hash_tree": {
     "root": {
       "children": [
@@ -22,8 +22,8 @@
                 "## Network access {#network-access}": {
                   "content_hash": "58dbcc6af9ea31d8b85a64c4e3fd70c52b71ebbd99d4ac7065c85091984cb570"
                 },
-                "## Once graph actions {#once-graph-actions}": {
-                  "content_hash": "05ef56cb8e90e646c5ed770246d4fb085684b29d5fdd4b9639d3265d7dd0a4c9"
+                "## Struo graph actions {#struo-graph-actions}": {
+                  "content_hash": "5397948716cc38e0ca6ea071a0f0e02bfad823f07ba9e99bd29a0ad15ca5ef4a"
                 },
                 "## Why Tuist Runners {#why-tuist-runners}": {
                   "content_hash": "f0a2b324d20c0b97031def263c634647a3e31200a3ed3c3c823218ab4e5ab111"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "5615d3a538b997ba911b24bc5b54999ca6f8f2d3a2fcd915ae0f036f3141c846",
+          "hash": "847624681cb6305a49491b7ff620bac8daf994a7377b226e10908b09433f7fad",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners.md",
           "metadata": {
-            "content_hash": "be69836083506f7158a13e88c41c87fcf1c53a55e15b8a1e6140a593bc1b0d22"
+            "content_hash": "e9a2d25afb1d8eb004c5b0cebe3d2bf4bb550227c72d94ae0a6d42ca78022bcd"
           }
         },
         {
@@ -242,14 +242,14 @@
         }
       ],
       "details": {},
-      "hash": "cb2a676a975274164f8d7de74ddd8f8c50f291b916f900ef12eba87c789d0ec0",
+      "hash": "8f3c9a065a0ccb86687e98ae98074882d00bea08996e4dbe9162618a96e2d238",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "4429e2c7b7f9e5002207f7ad01dd7ffaec096ebf22a17feb0cd247678925191c",
+  "output_hash": "657be0ba16f6579b05dfc343f19a7575370e8102d2bb3acef305afd3f4a1e706",
   "output_path": "server/priv/docs/ru/guides/features/runners.md",
   "protection_state": "recorded",
   "provider": "",
@@ -270,8 +270,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8d4e08dcf051ab2b7e244b180b46d91e841207e7",
+  "source_commit_sha": "b300ad91dadb18860d63e5839846550fb69359a0",
   "source_path": "server/priv/docs/en/guides/features/runners.md",
-  "translated_at": "2026-11-18T22:21:25.027800Z",
-  "translation_session_id": "01a1f0be-0914-7938-a78a-2b2186aa9559"
+  "translated_at": "2026-11-19T08:34:58.935504Z",
+  "translation_session_id": "01a1f2ef-6f58-74ee-a3af-63aaf049c03e"
 }

@@ -435,6 +435,57 @@ spec:
           owner: root:root
           path: /opt/kata/share/defaults/kata-containers/config.d/50-tuist-sandbox-cgroup.toml
           permissions: "0644"
+        # Keep in sync with controllers/linux/kata_memory_high.go. Soft-limits
+        # exclusive-CPU Kata Pods (Guaranteed Pod slices holding QEMU) just
+        # below their memory.max, so virtiofsd's dirty page cache is reclaimed
+        # and throttled instead of the host OOM-killing QEMU.
+        - content: |
+            #!/bin/sh
+            # Usage: tuist-kata-memory-high [kubepods slice] [proc]
+            set -u
+            root=${1:-/sys/fs/cgroup/kubepods.slice}
+            proc=${2:-/proc}
+            headroom=268435456
+
+            for pod in "$root"/kubepods-pod*.slice; do
+              [ -d "$pod" ] || continue
+              max=$(cat "$pod/memory.max" 2>/dev/null) || continue
+              case $max in ''|*[!0-9]*) continue ;; esac
+              [ "$max" -gt "$headroom" ] || continue
+
+              vm=
+              for procs in "$pod"/*/cgroup.procs; do
+                [ -f "$procs" ] || continue
+                while read -r pid; do
+                  case $(cat "$proc/$pid/comm" 2>/dev/null) in qemu-system-*) vm=1; break ;; esac
+                done < "$procs"
+                [ -n "$vm" ] && break
+              done
+              [ -n "$vm" ] || continue
+
+              high=$((max - headroom))
+              [ "$(cat "$pod/memory.high" 2>/dev/null)" = "$high" ] && continue
+              echo "$high" > "$pod/memory.high" && echo "set $pod memory.high=$high (memory.max=$max)"
+            done
+          owner: root:root
+          path: /usr/local/sbin/tuist-kata-memory-high
+          permissions: "0755"
+        - content: |
+            [Unit]
+            Description=Soft-limit exclusive-CPU Kata runner Pods below their memory.max
+            After=containerd.service
+
+            [Service]
+            Type=simple
+            ExecStart=/bin/sh -c 'while :; do /usr/local/sbin/tuist-kata-memory-high; sleep 5; done'
+            Restart=always
+            RestartSec=5
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/tuist-kata-memory-high.service
+          permissions: "0644"
         # containerd's GitHub-released tarball does NOT ship a
         # systemd unit (the older cri-containerd-cni- bundle did,
         # the plain `containerd-` tarball does not). Without this,
@@ -582,6 +633,7 @@ spec:
         - systemctl daemon-reload
         - systemctl enable tuist-kata-shared-memory.service
         - systemctl start tuist-kata-shared-memory.service
+        - systemctl enable --now tuist-kata-memory-high.service
         - systemctl enable --now containerd
         # Reserve cpu0 and its hyperthread sibling for the host daemons and
         # pin system.slice to them. Which CPU is cpu0's sibling depends on

@@ -1,23 +1,25 @@
 ---
 {
   "title": "持續整合 (CI)",
-  "titleTemplate": ":title · Automate · Guides · Tuist",
+  "titleTemplate": ":title · 自動化 · 指南 · Tuist",
   "description": "學習如何在 CI 工作流程中使用 Tuist。"
 }
 ---
 # 持續整合 (CI) {#continuous-integration-ci}
 
-要在你的 [持續整合](https://en.wikipedia.org/wiki/Continuous_integration) 工作流程中執行 Tuist 指令，你需要在 CI 環境中安裝它。 
+要喺你嘅 [持續整合](https://en.wikipedia.org/wiki/Continuous_integration) 工作流程入面執行 Tuist 指令，你需要喺 CI 環境安裝佢。 
 
-驗證是可選的，但如果你想使用伺服器端功能（例如 <.localized_link href="/guides/features/cache">快取</.localized_link>），則必須進行驗證。要縮短 CI 執行時間並降低成本，請參閱 [緩慢的建構](https://tuist.dev/solutions/slow-builds) 和 [CI 成本](https://tuist.dev/solutions/ci-costs)。
+驗證係可選嘅，但如果你想使用伺服器端功能例如 <.localized_link href="/guides/features/cache">快取</.localized_link>，就必須進行驗證。要縮短 CI 運行時間同降低安裝 Tuist 後嘅成本，請參閱 [緩慢構建](https://tuist.dev/solutions/slow-builds) 同 [CI 成本](https://tuist.dev/solutions/ci-costs)。
 
-以下章節提供在不同 CI 平台上如何執行的範例。Once 透過其原生的 Tuist 提供者連接；它不需要 Tuist CLI。請參閱 [Once](#once) 了解該工作流程。
+以下章節提供咗喺唔同 CI 平台點樣做嘅例子。Struo 透過佢自己原生嘅 Tuist 提供者連接；佢唔需要 Tuist CLI。請參閱 [Struo](#struo) 了解嗰個工作流程。
 
-## Once {#once}
+## Struo {#struo}
 
-提交來自 <.localized_link href="/guides/get-started/once-project">開始使用 Once</.localized_link> 的提供者和快取綁定。使用 [Once 的安裝說明](https://buildonce.dev/docs/guide/getting-started) 在作業中安裝 Once，然後在執行可快取的工作之前進行驗證。
+<a id="once"></a>
 
-GitHub Actions、CircleCI 和 Bitrise 支援 Once 的無頭式 OpenID Connect 登入。按照 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 中的說明，將儲存庫連接到你的 Tuist 專案。在 GitHub Actions 上，授予 identity-token 權限：
+提交來自 <.localized_link href="/guides/get-started/struo-project">開始使用 Struo</.localized_link> 嘅提供者同快取綁定。使用 [Struo 嘅安裝說明](https://struo.run/docs/guide/getting-started) 喺工作中安裝 Struo，然後喺執行可快取工作之前進行驗證。
+
+GitHub Actions、CircleCI 同 Bitrise 支援 Struo 嘅無頭 OpenID Connect 登入。按照 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 中所述，將儲存庫連接到你嘅 Tuist 專案。喺 GitHub Actions 上，授予 identity-token 權限：
 
 ```yaml
 permissions:
@@ -30,23 +32,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v2
-      # Pin Once in your repository's mise.toml.
-      - run: once auth login --provider tuist --no-browser
-      - run: once build MyTarget
-      - run: once test
+      # Pin Struo in your repository's mise.toml.
+      - run: struo auth login --provider tuist --no-browser
+      - run: struo build MyTarget
+      - run: struo test
 ```
 
-選擇具有目標所需工具鏈的作業系統。將 `MyTarget` 替換為你的目標，並透過現有的工具安裝工作流程固定 Once。產生的工作階段會在作業期間重複用於快取存取、報告和成品發布。
+選擇一個擁有你目標所需工具鏈嘅作業系統。將 `MyTarget` 替換為你嘅目標，並透過你現有嘅工具安裝工作流程固定 Struo 版本。產生嘅會話會喺工作期間重用，用於快取存取、報告同產物發布。
 
-在其他提供者上，將 `TUIST_TOKEN` 設定為已授權執行你所需操作的 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>。將其儲存在 CI 秘密儲存區中，切勿儲存在 `once.toml` 或工作流程原始碼中。使用該權杖時不需要互動式登入步驟。
+喺其他提供者上，將 `TUIST_TOKEN` 設置為已授權執行你需要操作嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。將其儲存喺 CI 秘密儲存區，切勿儲存喺 `struo.toml` 或工作流程原始碼中。使用該令牌時不需要互動式登入步驟。
 
-對於多工作者套件，請遵循 <.localized_link href="/guides/features/test-sharding/once">Once 測試分片</.localized_link>。要發布應用程式，請新增明確的 <.localized_link href="/guides/features/previews/once">Once 預覽發布</.localized_link> 步驟。一般建構不會隱式發布預覽。
+對於多工作器套件，請遵循 <.localized_link href="/guides/features/test-sharding/struo">Struo 測試分片</.localized_link>。要發布應用程式，請添加明確嘅 <.localized_link href="/guides/features/previews/struo">Struo 預覽發布</.localized_link> 步驟。普通構建不會隱式發布預覽。
 
-## 範例 {#examples}
+## 例子 {#examples}
 
 ### GitHub Actions {#github-actions}
 
-在 [GitHub Actions](https://docs.github.com/en/actions) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 進行安全且無需秘密的驗證：
+喺 [GitHub Actions](https://docs.github.com/en/actions) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 進行安全、無需秘密嘅驗證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -139,18 +141,18 @@ jobs:
 :::
 
 > [!NOTE]
-> **OIDC 設定**
+> **OIDC 設置**
 >
-> 在使用 OIDC 驗證之前，你需要將 <.localized_link href="/guides/integrations/gitforge/github">你的 GitHub 儲存庫</.localized_link> 連接到你的 Tuist 專案。`permissions: id-token: write` 是 OIDC 運作所必需的。從 Tuist 4.218.0 開始，CLI 會在第一次請求時交換身分權杖，因此工作流程不需要 `tuist auth login` 步驟；在較早版本中，請在其他 Tuist 指令之前執行 `tuist auth login`。或者，你可以使用帶有 `TUIST_TOKEN` 秘密的 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>。
+> 喺使用 OIDC 驗證之前，你需要 <.localized_link href="/guides/integrations/gitforge/github">連接你嘅 GitHub 儲存庫</.localized_link> 到你嘅 Tuist 專案。`permissions: id-token: write` 係 OIDC 正常工作所必需嘅。從 Tuist 4.218.0 開始，CLI 會喺第一次請求時交換身份令牌，所以工作流程不需要 `tuist auth login` 步驟；喺較早版本，請喺其他 Tuist 指令之前運行 `tuist auth login`。或者，你可以使用帶有 `TUIST_TOKEN` 秘密嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 > [!TIP]
-> 我們建議在你的 Tuist 專案中使用 `mise use --pin` 以跨環境固定 Tuist 的版本。該指令會將 Tuist 的版本固定在你的 `mise.toml` 檔案中。
+> 我哋建議喺你嘅 Tuist 專案中使用 `mise use --pin` 來跨環境固定 Tuist 版本。該命令會喺你嘅 `mise.toml` 文件中固定 Tuist 版本。
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-在 [Xcode Cloud](https://developer.apple.com/xcode-cloud/) 中（它以 Xcode 專案為真實來源），你需要新增一個 [克隆後](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) 腳本來安裝 Tuist 並執行你需要的指令，例如 `tuist generate`：
+喺 [Xcode Cloud](https://developer.apple.com/xcode-cloud/) 中，佢使用 Xcode 專案作為事實來源，你需要添加一個 [克隆後](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) 腳本來安裝 Tuist 並運行你需要嘅指令，例如 `tuist generate`：
 
 ::: code-group
 
@@ -179,12 +181,12 @@ tuist generate
 > [!NOTE]
 > **驗證**
 >
-> 透過在 Xcode Cloud 工作流程設定中設定 `TUIST_TOKEN` 環境變數來使用 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>。
+> 透過喺你嘅 Xcode Cloud 工作流程設置中設置 `TUIST_TOKEN` 環境變量，使用 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 ### CircleCI {#circleci}
 
-在 [CircleCI](https://circleci.com) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 進行安全且無需秘密的驗證：
+喺 [CircleCI](https://circleci.com) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 進行安全、無需秘密嘅驗證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -235,12 +237,12 @@ jobs:
 > [!NOTE]
 > **驗證**
 >
-> 在使用 OIDC 驗證之前，你需要將 <.localized_link href="/guides/integrations/gitforge/github">你的 GitHub 儲存庫</.localized_link> 連接到你的 Tuist 專案。CircleCI OIDC 權杖包含你連接的 GitHub 儲存庫，Tuist 使用它來授權對你專案的存取。從 Tuist 4.218.0 開始，CLI 會在第一次請求時交換身分權杖，因此不需要 `tuist auth login` 步驟；在較早版本中，請在其他 Tuist 指令之前執行 `mise exec -- tuist auth login`。或者，你可以使用帶有 `TUIST_TOKEN` 環境變數的 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>。
+> 喺使用 OIDC 驗證之前，你需要 <.localized_link href="/guides/integrations/gitforge/github">連接你嘅 GitHub 儲存庫</.localized_link> 到你嘅 Tuist 專案。CircleCI OIDC 令牌包含你連接嘅 GitHub 儲存庫，Tuist 用佢來授權訪問你嘅專案。從 Tuist 4.218.0 開始，CLI 會喺第一次請求時交換身份令牌，所以不需要 `tuist auth login` 步驟；喺較早版本，請喺其他 Tuist 指令之前運行 `mise exec -- tuist auth login`。或者，你可以使用帶有 `TUIST_TOKEN` 環境變量嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 ### Bitrise {#bitrise}
 
-在 [Bitrise](https://bitrise.io) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 進行安全且無需秘密的驗證：
+喺 [Bitrise](https://bitrise.io) 上，你可以使用 <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC 驗證</.localized_link> 進行安全、無需秘密嘅驗證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -292,12 +294,12 @@ workflows:
 > [!NOTE]
 > **驗證**
 >
-> 在使用 OIDC 驗證之前，你需要將 <.localized_link href="/guides/integrations/gitforge/github">你的 GitHub 儲存庫</.localized_link> 連接到你的 Tuist 專案。Bitrise OIDC 權杖包含你連接的 GitHub 儲存庫，Tuist 使用它來授權對你專案的存取。從 Tuist 4.218.0 開始，CLI 會在第一次請求時交換身分權杖，因此不需要 `tuist auth login` 步驟；在較早版本中，請在其他 Tuist 指令之前執行 `mise exec -- tuist auth login`。或者，你可以使用帶有 `TUIST_TOKEN` 環境變數的 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>。
+> 喺使用 OIDC 驗證之前，你需要 <.localized_link href="/guides/integrations/gitforge/github">連接你嘅 GitHub 儲存庫</.localized_link> 到你嘅 Tuist 專案。Bitrise OIDC 令牌包含你連接嘅 GitHub 儲存庫，Tuist 用佢來授權訪問你嘅專案。從 Tuist 4.218.0 開始，CLI 會喺第一次請求時交換身份令牌，所以不需要 `tuist auth login` 步驟；喺較早版本，請喺其他 Tuist 指令之前運行 `mise exec -- tuist auth login`。或者，你可以使用帶有 `TUIST_TOKEN` 環境變量嘅 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>。
 
 
 ### Codemagic {#codemagic}
 
-在 [Codemagic](https://codemagic.io) 中，你可以在工作流程中新增一個額外步驟來安裝 Tuist：
+喺 [Codemagic](https://codemagic.io) 中，你可以喺你嘅工作流程中添加額外步驟來安裝 Tuist：
 
 ::: code-group
 ```yaml [Mise]
@@ -339,11 +341,11 @@ workflows:
 > [!NOTE]
 > **驗證**
 >
-> 建立一個 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link> 並將其新增為名為 `TUIST_TOKEN` 的秘密環境變數。
+> 創建一個 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link> 並將其添加為名為 `TUIST_TOKEN` 嘅秘密環境變量。
 
 ### Appcircle {#appcircle}
 
-在 [Appcircle](https://appcircle.io) 中，你可以使用內建的 [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) 和 [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) 工作流程步驟，或在 **Git Clone** 步驟之後新增一個 **自訂腳本** 步驟來自行安裝 Tuist：
+喺 [Appcircle](https://appcircle.io) 中，你可以使用內置嘅 [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) 同 [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) 工作流程步驟，或者喺 **Git Clone** 步驟之後添加一個 **自定義腳本** 步驟來自行安裝 Tuist：
 
 ::: code-group
 ```bash [Mise]
@@ -364,29 +366,29 @@ tuist setup cache
 > [!NOTE]
 > **工作流程步驟**
 >
-> Tuist Install 步驟會使用 Homebrew 安裝 Tuist 並執行 `tuist generate`。設定 **Tuist Version** 輸入以固定版本，然後新增一個 Tuist Commands 步驟來執行如 `tuist test` 或 `tuist build` 等指令。
+> Tuist Install 步驟會使用 Homebrew 安裝 Tuist 並運行 `tuist generate`。設置 **Tuist Version** 輸入以固定版本，然後添加一個 Tuist Commands 步驟來運行如 `tuist test` 或 `tuist build` 等指令。
 
 > [!NOTE]
 > **驗證**
 >
-> 建立一個 <.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>，將其作為名為 `TUIST_TOKEN` 的變數新增至 [環境變數群組](https://docs.appcircle.io/build/build-environment-variables)，並在您的建置組態中選取該群組。使用鎖定圖示將該變數標記為秘密。
+> 創建一個 <.localized_link href="/guides/server/authentication#account-tokens">帳戶令牌</.localized_link>，將其作為名為 `TUIST_TOKEN` 嘅變量添加到 [環境變量組](https://docs.appcircle.io/build/build-environment-variables) 中，並喺你嘅構建配置中選擇該組。使用鎖形圖標將該變量標記為秘密。
 
 ## xcodebuild 輸出格式化 {#xcodebuild-output-formatting}
 
-`tuist build`、`tuist test`、`tuist xcodebuild build` 和 `tuist xcodebuild test` 會使用來自 [xcbeautify](https://github.com/cpisciotta/xcbeautify) 的格式化工具來格式化 `xcodebuild` 的輸出，因此你無需自行將這些指令透過 xcbeautify 處理。在 GitHub Actions 中（透過 `GITHUB_ACTIONS` 環境變數偵測），Tuist 會使用 xcbeautify 的 GitHub Actions 渲染器，將編譯器警告、錯誤和測試失敗顯示為執行摘要和拉取請求中的註解。在其他情況下，它會使用終端機渲染器，除非輸出被導管傳輸或設定了 `NO_COLOR`，否則會顯示顏色。
+`tuist build`、`tuist test`、`tuist xcodebuild build` 同 `tuist xcodebuild test` 會使用來自 [xcbeautify](https://github.com/cpisciotta/xcbeautify) 嘅格式化工具來格式化 `xcodebuild` 嘅輸出，所以你唔需要自己將呢啲指令通過管道傳遞給 xcbeautify。喺 GitHub Actions 上（通過 `GITHUB_ACTIONS` 環境變量檢測），Tuist 會使用 xcbeautify 嘅 GitHub Actions 渲染器，將編譯器警告、錯誤同測試失敗作為註解顯示喺運行摘要同拉取請求中。喺其他地方，佢會使用終端渲染器，除非輸出被管道傳遞或設置咗 `NO_COLOR`，否則會顯示顏色。
 
-傳遞 `--verbose` 以列印 `xcodebuild` 的未格式化輸出，例如在建置失敗且沒有明確錯誤時。
+傳遞 `--verbose` 以打印 `xcodebuild` 嘅未格式化輸出，例如當構建失敗但沒有清晰錯誤時。
 
-如果工作直接呼叫 `xcodebuild` 而非透過 Tuist，請自行將其透過 xcbeautify 導管傳輸，並設定 `pipefail` 以使失敗的建置仍然導致該步驟失敗：
+如果作業直接調用 `xcodebuild` 而不是通過 Tuist，請自己將其通過管道傳遞給 xcbeautify，並設置 `pipefail`，以便失敗嘅構建仍然會使該步驟失敗：
 
 ```bash
 set -o pipefail
 xcodebuild test -scheme App | xcbeautify --renderer github-actions
 ```
 
-## 執行報告 {#run-report}
+## 運行報告 {#run-report}
 
-當 Tuist 上傳執行記錄時，其儀表板網址會列印到日誌中。若要在不擷取日誌的情況下取得這些網址——例如在工作失敗時將測試報告連結發佈到 Slack，或將執行記錄饋送至你自己的工具鏈——請將 `--run-report-path`（或設定 `TUIST_RUN_REPORT_PATH`）傳遞給 `tuist test`、`tuist xcodebuild test` 或 `tuist xcodebuild build`。一旦執行記錄上傳完成，Tuist 便會將 JSON 報告寫入該路徑：
+當 Tuist 上傳運行時，儀表板 URL 會打印到日誌中。要無需爬取日誌就獲取它們——例如當作業失敗時將測試報告鏈接發布到 Slack，或將運行輸入到你自己的工具中——請將 `--run-report-path`（或設置 `TUIST_RUN_REPORT_PATH`）傳遞給 `tuist test`、`tuist xcodebuild test` 或 `tuist xcodebuild build`。一旦運行上傳完成，Tuist 會將 JSON 報告寫入該路徑：
 
 ```json
 {
@@ -413,24 +415,24 @@ xcodebuild test -scheme App | xcbeautify --renderer github-actions
 }
 ```
 
-| 欄位 | 類型 | 說明 |
+| 字段 | 類型 | 描述 |
 | - | - | - |
-| `runId` | 字串 | 執行的唯一識別碼。 |
-| `status` | 字串 | `"success"` 或 `"failure"`。 |
-| `runURL` | 字串 | 該執行的儀表板網址。必定存在。 |
-| `testRunURL` | 字串？ | 測試執行的儀表板網址，當指令執行測試時存在。 |
-| `buildRunURL` | 字串？ | 建置執行的儀表板網址，當指令進行建置時存在。 |
-| `testRuns` | 陣列 | 每個 Scheme 的測試結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules` 和 `skippedTestModules`。測試計數為測試案例數量，而 `skippedTests` 計算結果套件報告為已跳過的案例數量。`skippedTestModules` 計算被 <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> 跳過的測試模組數量，且在未套用選擇性測試或該執行為測試分片時會被省略。 |
-| `buildRuns` | 陣列 | 每個 Scheme 的建置結果：`scheme`、`succeeded`、`durationInSeconds`。 |
+| `runId` | 字符串 | 運行嘅唯一標識符。 |
+| `status` | 字符串 | `"success"` 或 `"failure"`。 |
+| `runURL` | 字符串 | 運行嘅儀表板 URL。始終存在。 |
+| `testRunURL` | 字符串? | 測試運行嘅儀表板 URL，當指令運行測試時存在。 |
+| `buildRunURL` | 字符串? | 構建運行嘅儀表板 URL，當指令進行構建時存在。 |
+| `testRuns` | 數組 | 每個方案嘅測試結果：`scheme`、`succeeded`、`totalTests`、`skippedTests`、`ranTests`、`failedTestNames`、`ranTestModules` 同 `skippedTestModules`。測試計數係測試用例，而 `skippedTests` 計數結果包報告為跳過嘅那些。`skippedTestModules` 計數被 <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> 跳過嘅測試模塊，當選擇性測試不適用或運行係測試分片時則省略。 |
+| `buildRuns` | 數組 | 每個方案嘅構建結果：`scheme`、`succeeded`、`durationInSeconds`。 |
 
-`testRunURL` 和 `buildRunURL` 是獨立的：同時進行建置和測試的指令會寫入兩者，而日誌無法做到這一點——日誌每次執行只列印一個網址。
+`testRunURL` 同 `buildRunURL` 係獨立嘅：同時進行構建同測試嘅指令會寫入兩者，而日誌無法做到這一點——它們每次運行只打印一個 URL。
 
 > [!NOTE]
 > **報告寫入時機**
 >
-> 報告僅針對已上傳至伺服器的執行記錄寫入，這需要驗證並在 CI 上自動發生。路徑會在每次執行開始時清除，因此未產生報告的執行不會留下任何內容，而非留下先前執行的過時報告。
+> 報告僅寫入上傳到服務器嘅運行，這需要驗證並會喺 CI 上自動發生。路徑會喺每次運行開始時清除，因此沒有產生報告嘅運行不會留下任何內容，而不是留下之前運行嘅過時報告。
 
-在 GitLab CI 上，常見用法是透過 [`dotenv` 報告](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv) 向後續工作公開網址：
+喺 GitLab CI 上，常見用法係通過 [`dotenv` 報告](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv) 向後續作業公開 URL：
 
 ```yaml
 test:

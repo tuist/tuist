@@ -41,8 +41,8 @@
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
-    title="Once"
+    title="Struo"
     details="보고된 재시도 시도와 CI 기록을 통해 일관되지 않은 테스트 결과를 조사합니다."
-    link="/guides/features/test-insights/flaky-tests/once"
+    link="/guides/features/test-insights/flaky-tests/struo"
 />
 </.home_cards>

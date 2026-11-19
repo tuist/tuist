@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Test Analizleri",
+  "title": "Test İçgörüleri",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Test Analizleri ile Xcode, Gradle, Bazel, Elixir, Rust ve Once projelerindeki kararsız ve yavaş testleri tespit edin."
+  "description": "Tuist Test İçgörüleri ile Xcode, Gradle, Bazel, Elixir, Rust ve Struo projelerindeki kararsız ve yavaş testleri belirleyin."
 }
 ---
-# Test Analizleri {#test-insights}
+# Test İçgörüleri {#test-insights}
 
-Yavaş testleri belirleyerek, kararsız testleri takip ederek ve başarısız CI çalıştırmalarını hızlıca anlayarak test paketinizin sağlığını izlemek için Test Analizlerini kullanın. Şu anda Xcode, Gradle, Bazel, Elixir, Rust ve Once desteklenmektedir. Mevcut sonuçlar ve zamanlamalar runner’ınıza bağlıdır. Desteklenen derleme sistemlerinde testlerinizin hangi kodu yürüttüğünü takip etmek için <.localized_link href="/guides/features/test-code-coverage">Kod Kapsamı</.localized_link> bölümüne bakın. [yavaş testler](https://tuist.dev/solutions/slow-tests) ve [kararsız testler](https://tuist.dev/solutions/flaky-tests) hakkında rehberlik için çözüm kılavuzlarına bakın.
+Yavaş testleri belirleyerek, kararsız testleri takip ederek ve başarısız CI çalıştırmalarını hızla anlayarak test paketinizin sağlığını izlemek için Test İçgörüleri'ni kullanın. Şu anda Xcode, Gradle, Bazel, Elixir, Rust ve Struo desteklenmektedir. Mevcut sonuçlar ve zamanlamalar runner'ınıza bağlıdır. Desteklenen derleme sistemlerinde testlerinizin hangi kodu yürüttüğünü takip etmek için <.localized_link href="/guides/features/test-code-coverage">Kod Kapsamı</.localized_link> bölümüne bakın. [yavaş testler](https://tuist.dev/solutions/slow-tests) ve [kararsız testler](https://tuist.dev/solutions/flaky-tests) hakkında rehberlik için çözüm kılavuzlarına bakın.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Şema son işlemleri ve Tuist CLI kullanarak Xcode test analizlerini takip edin."
+    details="Şema son eylemlerini ve Tuist CLI'yı kullanarak Xcode test analizlerini takip edin."
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
@@ -22,7 +22,7 @@ Yavaş testleri belirleyerek, kararsız testleri takip ederek ve başarısız CI
 />
   <.home_card
     title="Bazel"
-    details="tuist bazel test komutuyla testleri çalıştırarak Bazel test analizlerini takip edin."
+    details="Testleri tuist bazel test komutuyla çalıştırarak Bazel test analizlerini takip edin."
     link="/guides/features/test-insights/bazel"
 />
   <.home_card
@@ -32,12 +32,12 @@ Yavaş testleri belirleyerek, kararsız testleri takip ederek ve başarısız CI
 />
   <.home_card
     title="Rust"
-    details="Alıştığınız test komutuyla Cargo test sonuçlarını, paket sürelerini ve doctest’leri takip edin."
+    details="Cargo test sonuçlarını, paket sürelerini ve dokümantasyon testlerini alışılmış test komutunuzla takip edin."
     link="/guides/features/test-insights/rust"
 />
   <.home_card
-    title="Once"
-    details="Once’un yerel entegrasyonu aracılığıyla bildirilen test hedeflerini, paketlerini, vakalarını, hatalarını ve yeniden deneme girişimlerini takip edin."
-    link="/guides/features/test-insights/once"
+    title="Struo"
+    details="Struo'nun yerel entegrasyonu aracılığıyla bildirilen test hedeflerini, paketlerini, durumlarını, hatalarını ve yeniden deneme girişimlerini takip edin."
+    link="/guides/features/test-insights/struo"
 />
 </.home_cards>
