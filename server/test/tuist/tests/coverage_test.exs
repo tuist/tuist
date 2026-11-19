@@ -609,6 +609,19 @@ defmodule Tuist.Tests.CoverageTest do
       )
     end
 
+    test "publish a re-run shard's upload in place of the one still pending", %{project: project, account: account} do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      sharded = %{shard_plan_id: shard_plan.id, shard_index: 1, xcode_coverage_partial: true}
+
+      {:ok, test} = create_test(project, account, Map.put(sharded, :xcode_coverage_storage_key, "first"))
+      {:ok, _rerun} = create_test(project, account, Map.put(sharded, :xcode_coverage_storage_key, "rerun"))
+
+      assert [%{args: %{"test_run_id" => test_run_id, "storage_key" => "rerun", "shard_index" => 1}}] =
+               all_enqueued(worker: PublishCoverageWorker)
+
+      assert test_run_id == test.id
+    end
+
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)
