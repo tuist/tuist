@@ -116,7 +116,8 @@ jobs:
           TAG: ${{ env.CONTROLLER_VERSION }}
           COMMIT_SHA: ${{ env.FORK_REF }}
           REPO_INFO: https://github.com/${{ env.FORK_REPOSITORY }}
-        run: build/build.sh
+        # The script is marked #!/bin/sh but uses bash's `set -o pipefail`.
+        run: bash build/build.sh
 
       - name: Build the controller
         if: steps.tags.outputs.controller_exists != 'true'
