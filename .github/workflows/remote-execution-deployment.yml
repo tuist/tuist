@@ -7,7 +7,9 @@ name: Remote Execution Deployment
 # while the environment's values file says `enabled: false`. Accounts pin the
 # template tag in their settings (see infra/sandbox-image/remote-execution.md).
 # Workers roll out OnDelete; an upgrade replaces gateways and never kills
-# running VMs.
+# running VMs. `replace_workers` (the canary leg of the cascade) then deletes
+# the workers not on the new spec, so canary runs the new images before
+# production; production workers are replaced by an operator after draining.
 
 on:
   workflow_dispatch:
@@ -29,6 +31,11 @@ on:
         description: Published sandboxd tag; omit to build from the commit
         required: false
         type: string
+      replace_workers:
+        description: Replace workers not on the new spec (fails their running actions; canary only)
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       environment:
@@ -43,6 +50,10 @@ on:
       sandboxd_image_tag:
         required: false
         type: string
+      replace_workers:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -108,8 +119,9 @@ jobs:
     needs: [guard, build-template, build-sandboxd]
     if: always() && needs.guard.result == 'success' && needs.guard.outputs.enabled == 'true' && (needs.build-template.result == 'success' || needs.build-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped')
     runs-on: ubuntu-latest
-    # Allow time for the gateway rollout, rollback and DNS publication.
-    timeout-minutes: 30
+    # Allow time for the gateway rollout, rollback, replacing workers and DNS
+    # publication.
+    timeout-minutes: 55
     environment:
       name: server-k8s-${{ inputs.environment }}
     env:
@@ -179,6 +191,50 @@ jobs:
             --set workers.tag="$SANDBOXD_IMAGE_TAG" \
             --force-conflicts \
             --atomic --timeout 20m --wait=legacy
+      # OnDelete leaves running workers on the old images. Replace them one at
+      # a time and wait for the new sandboxd to build the bazel template, so a
+      # broken image fails here instead of in production. Their in-flight
+      # actions fail and Bazel retries them; production never takes this path.
+      - name: Replace workers not on the new spec
+        if: inputs.replace_workers && inputs.environment != 'production'
+        run: |
+          set -euo pipefail
+          want_image="$(yq '.workers.image // "ghcr.io/tuist/sandboxd"' "$HELM_CHART_PATH/values.yaml"):$SANDBOXD_IMAGE_TAG"
+          stale=$(kubectl -n "$NAMESPACE" get pods -l "app=$HELM_RELEASE_NAME-workers" -o json | jq -r \
+            --arg image "$want_image" --arg tag "$TEMPLATE_IMAGE_TAG" '
+            .items[]
+            | select(.spec.containers[0].image != $image
+                or ([.spec.containers[0].env[] | select(.name == "TEMPLATE_TAG") | .value][0] != $tag))
+            | .metadata.name + " " + .spec.nodeName')
+          [ -n "$stale" ] || { echo "Every worker already runs $want_image with template $TEMPLATE_IMAGE_TAG"; exit 0; }
+          while read -r pod node; do
+            echo "Replacing $pod on $node"
+            kubectl -n "$NAMESPACE" delete pod "$pod" --wait=true --timeout=120s
+            new=""
+            for _ in $(seq 1 60); do
+              new=$(kubectl -n "$NAMESPACE" get pods -l "app=$HELM_RELEASE_NAME-workers" \
+                --field-selector "spec.nodeName=$node" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+              [ -n "$new" ] && [ "$new" != "$pod" ] && break
+              sleep 5
+            done
+            [ -n "$new" ] && [ "$new" != "$pod" ] || { echo "::error::No replacement worker on $node"; exit 1; }
+            kubectl -n "$NAMESPACE" wait --for=condition=Ready "pod/$new" --timeout=10m
+            # One `template ready` per prebuilt VM shape (PREBUILD_SHAPES).
+            for _ in $(seq 1 120); do
+              log=$(kubectl -n "$NAMESPACE" logs "$new" -c sandboxd 2>/dev/null || true)
+              if grep 'template build failed' <<< "$log" | grep -q "$TEMPLATE_IMAGE_TAG"; then
+                echo "::error::$new failed to build template $TEMPLATE_IMAGE_TAG"
+                grep 'template build failed' <<< "$log" | tail -5
+                exit 1
+              fi
+              ready=$(grep 'template ready' <<< "$log" | grep -c "$TEMPLATE_IMAGE_TAG" || true)
+              [ "$ready" -ge 2 ] && { echo "$new built its templates"; continue 2; }
+              sleep 5
+            done
+            echo "::error::$new did not report its templates ready within ten minutes"
+            kubectl -n "$NAMESPACE" logs "$new" -c sandboxd --tail=80 || true
+            exit 1
+          done <<< "$stale"
       # platform-external-dns publishes the gateway Ingress host to Cloudflare
       # (DNS-only) within about a minute of the Ingress existing.
       - name: Wait for the gateway's DNS record

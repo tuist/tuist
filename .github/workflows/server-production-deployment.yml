@@ -1856,6 +1856,27 @@ jobs:
           EXPECTED_MACOS_IMAGES: ${{ needs.canary.outputs.macos_runner_images }}
         run: .github/scripts/runners-acceptance/gate.sh
 
+  # Remote execution on canary - installs the RE release with this run's
+  # template and sandboxd images after the canary server and runners
+  # controller, and replaces canary's workers (OnDelete) so they run those
+  # images. Production waits on it, so an RE chart or image that cannot start
+  # stops here rather than in production.
+  remote-execution-canary:
+    name: Remote execution (canary)
+    needs: [check-releases, build-sandbox-template, build-sandboxd, canary]
+    if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/remote-execution-deployment.yml
+    with:
+      environment: canary
+      commit_sha: ${{ github.sha }}
+      template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
+      replace_workers: true
+    secrets: inherit
+
   # Production leg - standard path: canary ready + tests green. Promotes the
   # same image bytes tests ran against. Skipped on a hotfix. The
   # `always() && needs.*.result == 'success'` guard is required for the
@@ -1877,6 +1898,7 @@ jobs:
         backward-compatibility-acceptance,
         kura-canary-rollout-gate,
         runners-acceptance,
+        remote-execution-canary,
         tag-infra-releases,
       ]
     if: >-
@@ -1892,6 +1914,7 @@ jobs:
       needs.backward-compatibility-acceptance.result == 'success' &&
       needs.kura-canary-rollout-gate.result == 'success' &&
       needs.runners-acceptance.result == 'success' &&
+      needs.remote-execution-canary.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
     # See `canary` above: grant the callee's full permission union.
     permissions:
