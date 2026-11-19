@@ -50,6 +50,7 @@ msgstr "Wszystkie projekty"
 #: lib/tuist_web/live/once_cache_live.ex:171
 #: lib/tuist_web/live/once_overview_live.ex:109
 #: lib/tuist_web/live/once_runs_live.ex:419
+#: lib/tuist_web/live/remote_execution_live.ex:233
 #: lib/tuist_web/live/xcode_overview_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -109,7 +110,7 @@ msgstr "Średni czas buildu"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to build a project as reported from Xcode post actions."
-msgstr "Średni czas potrzebny na zbudowanie projektu, raportowany przez akcje post-build w Xcode."
+msgstr "Średni czas potrzebny na zbudowanie projektu, raportowany przez akcje po kompilacji w Xcode."
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:451
 #, elixir-autogen, elixir-format
@@ -124,7 +125,7 @@ msgstr "Czas buildu"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Build time saved"
-msgstr "Oszczędność czasu buildu"
+msgstr "Zaoszczędzony czas buildu"
 
 #: lib/tuist_web/live/bazel_builds_live.ex:10
 #: lib/tuist_web/live/bazel_overview_live.ex:316
@@ -183,7 +184,7 @@ msgstr "Skuteczność pamięci podręcznej"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
-msgstr "Skuteczność pamięci podręcznej to łączny wskaźnik trafień zarówno dla pamięci podręcznej modułów, jak i pamięci podręcznej Xcode. Pokazuje procent elementów możliwych do zapisania w pamięci podręcznej, które zostały pobrane z pamięci zamiast być ponownie kompilowane."
+msgstr "Skuteczność pamięci podręcznej to łączny wskaźnik trafień dla pamięci podręcznej modułów i pamięci podręcznej Xcode, pokazujący procent elementów możliwych do buforowania, które zostały pobrane z pamięci podręcznej zamiast być ponownie budowane."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:139
 #: lib/tuist_web/live/bazel_invocations_live.ex:250
@@ -205,6 +206,7 @@ msgstr "Skuteczność pamięci podręcznej to łączny wskaźnik trafień zarów
 #: lib/tuist_web/live/project_settings_live.html.heex:152
 #: lib/tuist_web/live/project_settings_live.html.heex:303
 #: lib/tuist_web/live/project_settings_live.html.heex:375
+#: lib/tuist_web/live/remote_execution_live.ex:214
 #: lib/tuist_web/live/xcode_overview_live.html.heex:79
 #: lib/tuist_web/live/xcode_overview_live.html.heex:694
 #: lib/tuist_web/live/xcode_overview_live.html.heex:890
@@ -336,7 +338,7 @@ msgstr "Ostatnie 40 uruchomień"
 #: lib/tuist_web/live/projects_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
-msgstr "Ostatnia interakcja %{time}"
+msgstr "Ostatnia interakcja: %{time}"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:614
 #, elixir-autogen, elixir-format
@@ -385,7 +387,7 @@ msgstr "Brak buildów"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:795
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
-msgstr "Brak paczek"
+msgstr "Brak bundle’ów"
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:624
 #, elixir-autogen, elixir-format
@@ -405,7 +407,7 @@ msgstr "Brak ostatnich buildów"
 msgid "Only organization members"
 msgstr "Tylko członkowie organizacji"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:189
+#: lib/tuist_web/live/bazel_invocation_live.ex:423
 #: lib/tuist_web/live/once_run_live.ex:267
 #: lib/tuist_web/live/overview_live.ex:31
 #, elixir-autogen, elixir-format
@@ -570,7 +572,7 @@ msgstr "Zobacz więcej"
 #: lib/tuist_web/live/projects_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "Nie masz uprawnień do wykonania tej czynności."
+msgstr "Nie masz uprawnień do wykonania tej akcji."
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:30
 #: lib/tuist_web/live/xcode_overview_live.ex:272
@@ -599,6 +601,7 @@ msgstr "od ostatniego roku"
 #: lib/tuist_web/live/once_overview_live.ex:149
 #: lib/tuist_web/live/once_overview_live.ex:376
 #: lib/tuist_web/live/once_runs_live.ex:405
+#: lib/tuist_web/live/remote_execution_live.ex:221
 #: lib/tuist_web/live/xcode_overview_live.html.heex:88
 #: lib/tuist_web/live/xcode_overview_live.html.heex:703
 #: lib/tuist_web/live/xcode_overview_live.html.heex:897
@@ -613,7 +616,7 @@ msgstr "Zastosuj"
 #: lib/tuist_web/live/xcode_overview_live.html.heex:881
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "Niestandardowy"
+msgstr "Niestandardowe"
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:37
 #: lib/tuist_web/live/cargo_overview_live.ex:180
@@ -672,7 +675,7 @@ msgstr "Kanał"
 #: lib/tuist_web/live/project_notifications_live.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Daily"
-msgstr "Codziennie"
+msgstr "Dziennie"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:258
 #, elixir-autogen, elixir-format
@@ -702,7 +705,7 @@ msgstr "Wyślij raport z testów"
 #: lib/tuist_web/live/project_notifications_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "Time"
-msgstr "Godzina"
+msgstr "Czas"
 
 #: lib/tuist_web/live/project_notifications_live.ex:679
 #, elixir-autogen, elixir-format
@@ -717,6 +720,7 @@ msgstr "Wybierz dni"
 #: lib/tuist_web/live/bazel_invocations_live.ex:842
 #: lib/tuist_web/live/once_runs_live.ex:1212
 #: lib/tuist_web/live/project_notifications_live.ex:737
+#: lib/tuist_web/live/remote_execution_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "Średnia"
@@ -768,7 +772,7 @@ msgstr "Czas trwania testów"
 #: lib/tuist_web/live/project_notifications_live.html.heex:852
 #, elixir-autogen, elixir-format
 msgid "Rolling window"
-msgstr "Okno przesuwne"
+msgstr "Okno ruchome"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:387
 #, elixir-autogen, elixir-format
@@ -812,7 +816,7 @@ msgstr "Powiadomienia"
 #: lib/tuist_web/live/project_notifications_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Repeat"
-msgstr "Powtórz"
+msgstr "Powtarzaj"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:50
 #, elixir-autogen, elixir-format
@@ -857,18 +861,18 @@ msgstr "Kanał Slacka"
 #: lib/tuist_web/live/project_notifications_live.ex:877
 #, elixir-autogen, elixir-format
 msgid "average"
-msgstr "średnia"
+msgstr "średni"
 
 #: lib/tuist_web/live/project_notifications_live.ex:862
 #, elixir-autogen, elixir-format
 msgid "build time"
-msgstr "czas kompilacji"
+msgstr "czas buildu"
 
 #: lib/tuist_web/live/project_notifications_live.ex:870
 #: lib/tuist_web/live/project_notifications_live.ex:872
 #, elixir-autogen, elixir-format
 msgid "builds"
-msgstr "kompilacje"
+msgstr "buildy"
 
 #: lib/tuist_web/live/project_notifications_live.ex:868
 #, elixir-autogen, elixir-format
@@ -919,7 +923,7 @@ msgstr "Aktualizuj"
 #: lib/tuist_web/live/project_notifications_live.html.heex:693
 #, elixir-autogen, elixir-format
 msgid "Update alert rule"
-msgstr "Zaktualizuj regułę alertu"
+msgstr "Aktualizuj regułę alertu"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:377
 #, elixir-autogen, elixir-format
@@ -954,20 +958,21 @@ msgstr "Automatyzacje"
 #: lib/tuist_web/live/projects_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "Build system"
-msgstr "System budowania"
+msgstr "System kompilacji"
 
 #: lib/tuist_web/live/create_project_live.ex:89
 #: lib/tuist_web/live/projects_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Select build system"
-msgstr "Wybierz system budowania"
+msgstr "Wybierz system kompilacji"
 
 #: lib/tuist_web/live/project_notifications_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
-msgstr "Powiadom, gdy <strong>%{size_label}</strong> najnowszego pakietu na gałęzi <strong>%{git_branch}</strong> wzrośnie o <strong>%{deviation}%</strong> w porównaniu do poprzedniego pakietu."
+msgstr "Alert, gdy <strong>%{size_label}</strong> najnowszego pakietu na gałęzi <strong>%{git_branch}</strong> wzrośnie o <strong>%{deviation}%</strong> w porównaniu z poprzednim pakietem."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:285
+#: lib/tuist_web/live/bazel_invocation_live.ex:304
+#: lib/tuist_web/live/bazel_invocation_live.ex:656
 #: lib/tuist_web/live/project_notifications_live.html.heex:500
 #: lib/tuist_web/live/project_notifications_live.html.heex:819
 #, elixir-autogen, elixir-format
@@ -977,7 +982,7 @@ msgstr "Gałąź"
 #: lib/tuist_web/live/project_notifications_live.ex:732
 #, elixir-autogen, elixir-format
 msgid "Bundle size"
-msgstr "Rozmiar pakietu"
+msgstr "Rozmiar paczki"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:462
 #: lib/tuist_web/live/project_notifications_live.ex:881
@@ -1004,17 +1009,17 @@ msgstr "%{scheme} %{unit}"
 #: lib/tuist_web/live/project_notifications_live.ex:792
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "Wyślij alert, gdy <strong>%{metric_category}</strong> z ostatnich <strong>%{rolling_window_size} %{current_unit}</strong> spadnie o <strong>%{deviation}%</strong> w porównaniu do poprzednich <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "Alert, gdy <strong>%{metric_category}</strong> z ostatnich <strong>%{rolling_window_size} %{current_unit}</strong> spadł o <strong>%{deviation}%</strong> w porównaniu do poprzednich <strong>%{rolling_window_size} %{unit}</strong>."
 
 #: lib/tuist_web/live/project_notifications_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "Wyślij alert, gdy <strong>%{metric_category}</strong> z ostatnich <strong>%{rolling_window_size} %{current_unit}</strong> wzrośnie o <strong>%{deviation}%</strong> w porównaniu do poprzednich <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "Alert, gdy <strong>%{metric_category}</strong> z ostatnich <strong>%{rolling_window_size} %{current_unit}</strong> wzrósł o <strong>%{deviation}%</strong> w porównaniu do poprzednich <strong>%{rolling_window_size} %{unit}</strong>."
 
 #: lib/tuist_web/live/project_notifications_live.ex:767
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
-msgstr "Wyślij alert, gdy <strong>%{size_label}</strong> najnowszego pakietu <strong>%{bundle_name}</strong> na gałęzi <strong>%{git_branch}</strong> wzrośnie o <strong>%{deviation}%</strong> w porównaniu do poprzedniego pakietu."
+msgstr "Alert, gdy <strong>%{size_label}</strong> najnowszej paczki <strong>%{bundle_name}</strong> na gałęzi <strong>%{git_branch}</strong> wzrósł o <strong>%{deviation}%</strong> w porównaniu do poprzedniej paczki."
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:544
 #: lib/tuist_web/live/project_notifications_live.html.heex:874
@@ -1053,7 +1058,7 @@ msgstr "Środowisko"
 #: lib/tuist_web/live/project_notifications_live.ex:858
 #, elixir-autogen, elixir-format
 msgid "local"
-msgstr "lokalny"
+msgstr "lokalne"
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:99
 #, elixir-autogen, elixir-format
@@ -1150,7 +1155,9 @@ msgstr "Organizacja"
 msgid "Select organization"
 msgstr "Wybierz organizację"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:616
+#: lib/tuist_web/live/bazel_invocation_live.ex:357
+#: lib/tuist_web/live/bazel_invocation_live.ex:495
+#: lib/tuist_web/live/bazel_invocation_live.ex:987
 #: lib/tuist_web/live/once_run_live.ex:416
 #: lib/tuist_web/live/once_run_live.ex:812
 #: lib/tuist_web/live/once_run_live.ex:955
@@ -1211,7 +1218,7 @@ msgstr "Warunek"
 #: lib/tuist_web/live/project_automations_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Continuously monitor tests and respond with automated actions."
-msgstr "Ciągle monitoruj testy i reaguj za pomocą zautomatyzowanych działań."
+msgstr "Ciągle monitoruj testy i reaguj za pomocą automatycznych działań."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:73
 #, elixir-autogen, elixir-format
@@ -1282,7 +1289,7 @@ msgstr "Szablon wiadomości"
 #: lib/tuist_web/live/project_automations_live.html.heex:1163
 #, elixir-autogen, elixir-format
 msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
-msgstr "Brak automatyzacji. Dodaj jedną, aby rozpocząć automatyczne zarządzanie stanem przypadków testowych na podstawie warunków."
+msgstr "Brak automatyzacji. Dodaj jedną, aby zacząć automatycznie zarządzać stanem przypadków testowych na podstawie warunków."
 
 #: lib/tuist_web/live/project_automation_live.html.heex:56
 #: lib/tuist_web/live/project_automations_live.html.heex:652
@@ -1304,12 +1311,12 @@ msgstr "Usuń etykietę: %{label}"
 #: lib/tuist_web/live/project_automations_live.html.heex:679
 #, elixir-autogen, elixir-format
 msgid "Run actions when the conditions no longer hold"
-msgstr "Uruchom akcje, gdy warunki przestaną być spełniane"
+msgstr "Uruchom akcje, gdy warunki przestaną być spełnione"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Run these actions for each test case that meets the condition"
-msgstr "Wykonaj te akcje dla każdego przypadku testowego spełniającego warunek"
+msgstr "Uruchom te akcje dla każdego przypadku testowego spełniającego warunek"
 
 #: lib/tuist_web/live/project_automations_live.ex:1009
 #: lib/tuist_web/live/project_automations_live.html.heex:467
@@ -1318,7 +1325,7 @@ msgstr "Wykonaj te akcje dla każdego przypadku testowego spełniającego warune
 #: lib/tuist_web/live/project_automations_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "Send Slack notification"
-msgstr "Wyślij powiadomienie Slack"
+msgstr "Wyślij powiadomienie na Slacka"
 
 #: lib/tuist_web/live/project_automations_live.ex:1028
 #, elixir-autogen, elixir-format
@@ -1341,7 +1348,7 @@ msgstr "Automatyzacje przypadków testowych"
 msgid "Trigger"
 msgstr "Wyzwalacz"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:795
+#: lib/tuist_web/live/bazel_invocation_live.ex:1166
 #: lib/tuist_web/live/once_run_live.ex:1351
 #: lib/tuist_web/live/once_run_live.ex:1353
 #: lib/tuist_web/live/project_automations_live.ex:951
@@ -1352,7 +1359,7 @@ msgstr "Wyzwalacz"
 #: lib/tuist_web/live/project_automations_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Unknown"
-msgstr "Nieznane"
+msgstr "Nieznany"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:462
 #: lib/tuist_web/live/project_automations_live.html.heex:715
@@ -1381,7 +1388,7 @@ msgstr "Bez wyzwalacza dla"
 #: lib/tuist_web/live/project_automations_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "e.g. Auto-quarantine flaky tests"
-msgstr "np. Automatyczna kwarantanna niestabilnych testów"
+msgstr "np. Automatyczne kwarantannowanie niestabilnych testów"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:583
 #: lib/tuist_web/live/project_automations_live.html.heex:999
@@ -1467,7 +1474,7 @@ msgstr "Gdy wskaźnik niestabilności %{symbol} %{threshold}% w okresie %{window
 #: lib/tuist_web/live/project_automations_live.ex:1055
 #, elixir-autogen, elixir-format
 msgid "When flaky runs %{symbol} %{threshold} over %{window}"
-msgstr "Gdy niestabilne uruchomienia %{symbol} %{threshold} w okresie %{window}"
+msgstr "Gdy liczba niestabilnych uruchomień %{symbol} %{threshold} w okresie %{window}"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:309
 #: lib/tuist_web/live/project_automations_live.html.heex:842
@@ -1485,19 +1492,19 @@ msgstr "Ostatnie dni"
 #: lib/tuist_web/live/project_automations_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Over"
-msgstr "W okresie"
+msgstr "Powyżej"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:282
 #: lib/tuist_web/live/project_automations_live.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Window"
-msgstr "Okres"
+msgstr "Okno"
 
 #: lib/tuist_web/live/project_automation_live.ex:315
 #: lib/tuist_web/live/project_automations_live.ex:1095
 #, elixir-autogen, elixir-format
 msgid "the last %{size} runs"
-msgstr "ostatnie %{size} uruchomień"
+msgstr "ostatnie %{size} uruchomienia"
 
 #: lib/tuist_web/live/project_automations_live.ex:1187
 #, elixir-autogen, elixir-format
@@ -1507,27 +1514,27 @@ msgstr "1–%{max}"
 #: lib/tuist_web/live/project_automations_live.ex:965
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is manually flagged as flaky."
-msgstr "Aktywuje się, gdy test zostanie ręcznie oznaczony jako niestabilny."
+msgstr "Uruchamiane, gdy test zostanie ręcznie oznaczony jako niestabilny."
 
 #: lib/tuist_web/live/project_automations_live.ex:974
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is muted (still runs, failures ignored)."
-msgstr "Uruchamia się, gdy test jest wyciszony (nadal działa, błędy są ignorowane)."
+msgstr "Uruchamiane, gdy test zostanie wyciszony (nadal działa, ale błędy są ignorowane)."
 
 #: lib/tuist_web/live/project_automations_live.ex:977
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is skipped entirely."
-msgstr "Uruchamia się, gdy test jest całkowicie pomijany."
+msgstr "Uruchamiane, gdy test zostanie całkowicie pominięty."
 
 #: lib/tuist_web/live/project_automations_live.ex:971
 #, elixir-autogen, elixir-format
 msgid "Fires when a test returns to the default enabled state."
-msgstr "Uruchamia się, gdy test wraca do domyślnego stanu włączonego."
+msgstr "Uruchamiane, gdy test powróci do domyślnego stanu włączonego."
 
 #: lib/tuist_web/live/project_automations_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Fires when the flaky flag is manually removed."
-msgstr "Uruchamia się, gdy flaga niestabilności zostanie ręcznie usunięta."
+msgstr "Uruchamia się, gdy flaga niestabilności jest ręcznie usuwana."
 
 #: lib/tuist_web/live/project_automations_live.ex:953
 #, elixir-autogen, elixir-format
@@ -1552,7 +1559,7 @@ msgstr "Stan zmieniony na Wyciszony"
 #: lib/tuist_web/live/project_automations_live.ex:960
 #, elixir-autogen, elixir-format
 msgid "State changed to Skipped"
-msgstr "Stan zmieniony na Pominięte"
+msgstr "Stan zmieniony na Pominięty"
 
 #: lib/tuist_web/live/project_automations_live.ex:950
 #: lib/tuist_web/live/project_automations_live.html.heex:171
@@ -1563,7 +1570,7 @@ msgstr "Test zaktualizowany"
 #: lib/tuist_web/live/project_automations_live.ex:954
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
-msgstr "Usunięto oznaczenie niestabilności"
+msgstr "Odznaczono jako niestabilny"
 
 #: lib/tuist_web/live/project_automations_live.ex:1082
 #, elixir-autogen, elixir-format
@@ -1614,7 +1621,7 @@ msgstr "Edytuj domyślną gałąź"
 #: lib/tuist_web/live/project_settings_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
-msgstr "Gałąź, którą Tuist traktuje jako bazę do analiz, raportów i porównań."
+msgstr "Gałąź, którą Tuist traktuje jako punkt odniesienia dla analityki, wniosków i porównań."
 
 #: lib/tuist_web/live/project_settings_live.ex:121
 #, elixir-autogen, elixir-format
@@ -1672,27 +1679,27 @@ msgstr "Nie znaleziono automatyzacji."
 #: lib/tuist_web/live/project_automation_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Automation renamed"
-msgstr "Automatyzacja zmieniona"
+msgstr "Nazwa automatyzacji zmieniona"
 
 #: lib/tuist_web/live/project_automation_live.ex:87
 #, elixir-autogen, elixir-format
 msgid "Automation updated"
-msgstr "Zaktualizowano automatyzację"
+msgstr "Automatyzacja zaktualizowana"
 
 #: lib/tuist_web/live/project_automation_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Cadence"
-msgstr "Częstotliwość"
+msgstr "Cykliczność"
 
 #: lib/tuist_web/live/project_automation_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Cadence changed"
-msgstr "Zmieniono częstotliwość"
+msgstr "Cykliczność zmieniona"
 
 #: lib/tuist_web/live/project_automation_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Condition changed"
-msgstr "Zmieniono warunek"
+msgstr "Warunek zmieniony"
 
 #: lib/tuist_web/live/project_automation_live.html.heex:70
 #, elixir-autogen, elixir-format
@@ -1734,7 +1741,7 @@ msgstr "Konfiguracja początkowa"
 #: lib/tuist_web/live/project_automation_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "No configuration changes recorded yet"
-msgstr "Brak zarejestrowanych zmian konfiguracji"
+msgstr "Nie odnotowano jeszcze zmian w konfiguracji"
 
 #: lib/tuist_web/live/project_automation_live.ex:151
 #, elixir-autogen, elixir-format
@@ -1759,12 +1766,12 @@ msgstr "Odzyskiwanie włączone"
 #: lib/tuist_web/live/project_automation_live.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Review changes to this automation and see who changed its configuration."
-msgstr "Przejrzyj zmiany w tej automatyzacji i sprawdź, kto zmienił jej konfigurację."
+msgstr "Przejrzyj zmiany w tej automatyzacji i zobacz, kto zmienił jej konfigurację."
 
 #: lib/tuist_web/live/project_automation_live.ex:144
 #, elixir-autogen, elixir-format
 msgid "Trigger actions changed"
-msgstr "Zmieniono akcje wyzwalające"
+msgstr "Zmieniono akcje wyzwalacza"
 
 #: lib/tuist_web/live/project_automation_live.ex:109
 #: lib/tuist_web/live/project_automation_live.ex:113
@@ -1796,7 +1803,7 @@ msgstr "Stosuj tylko do testów w tych stanach"
 #: lib/tuist_web/live/project_notifications_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
-msgstr "Powiadom, gdy <strong>%{metric_category}</strong> z ostatnich <strong>%{rolling_window_size} %{current_unit}</strong> na gałęzi <strong>%{git_branch}</strong> spadnie o <strong>%{deviation}%</strong> w porównaniu do poprzednich <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "Alert, gdy <strong>%{metric_category}</strong> z ostatnich <strong>%{rolling_window_size} %{current_unit}</strong> na gałęzi <strong>%{git_branch}</strong> spadnie o <strong>%{deviation}%</strong> w porównaniu do poprzednich <strong>%{rolling_window_size} %{unit}</strong>."
 
 #: lib/tuist_web/live/project_notifications_live.ex:727
 #, elixir-autogen, elixir-format
@@ -1822,7 +1829,7 @@ msgstr "Dodaj osobę zatwierdzającą"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Anyone"
-msgstr "Ktokolwiek"
+msgstr "Każdy"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:344
 #, elixir-autogen, elixir-format
@@ -1842,17 +1849,17 @@ msgstr "Osoby zatwierdzające"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "Choose who can accept a bundle size increase that exceeded a threshold."
-msgstr "Wybierz, kto może zaakceptować przekroczenie progu rozmiaru bundle’a."
+msgstr "Wybierz, kto może zaakceptować przekroczenie progu wzrostu rozmiaru pakietu."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
-msgstr "Najpierw podłącz aplikację Tuist GitHub do tego projektu, aby móc zweryfikować nazwę użytkownika w GitHubie."
+msgstr "Najpierw połącz aplikację Tuist GitHub z tym projektem, aby móc zweryfikować nazwę użytkownika w GitHubie."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Enter a valid GitHub username that isn't already on the list."
-msgstr "Wprowadź poprawną nazwę użytkownika GitHuba, której nie ma jeszcze na liście."
+msgstr "Wprowadź prawidłową nazwę użytkownika GitHub, której nie ma jeszcze na liście."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:587
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:630
@@ -1873,7 +1880,7 @@ msgstr "Brak akceptujących"
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:653
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
-msgstr "Nikt nie może zaakceptować zwiększenia rozmiaru, dopóki nie dodasz nazwy użytkownika GitHub"
+msgstr "Nikt nie może zaakceptować zwiększenia rozmiaru, dopóki nie zostanie dodana nazwa użytkownika GitHub"
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:348
 #, elixir-autogen, elixir-format
@@ -1889,12 +1896,12 @@ msgstr "Wybrani użytkownicy GitHub"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "The approver could not be added."
-msgstr "Nie udało się dodać osoby zatwierdzającej."
+msgstr "Nie udało się dodać osoby akceptującej."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
-msgstr "Ta osoba może zaakceptować przekroczenie progu wzrostu rozmiaru pakietu na podstawie wyniku check run w pull requeście."
+msgstr "Ta osoba może zaakceptować przekroczenie progu wzrostu rozmiaru pakietu na podstawie wyniku sprawdzenia w żądaniu ściągnięcia."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:528
 #, elixir-autogen, elixir-format
@@ -1904,17 +1911,17 @@ msgstr "Kto może zaakceptować"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach GitHub to check that username. Try again in a moment."
-msgstr "Nie udało się połączyć z GitHubem, aby zweryfikować nazwę użytkownika. Spróbuj ponownie za chwilę."
+msgstr "Nie udało się połączyć z GitHubem, aby sprawdzić tę nazwę użytkownika. Spróbuj ponownie za chwilę."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:321
 #, elixir-autogen, elixir-format
 msgid "That is not a valid GitHub username."
-msgstr "To nie jest poprawna nazwa użytkownika GitHub."
+msgstr "To nie jest prawidłowa nazwa użytkownika GitHub."
 
 #: lib/tuist_web/live/project_automations_live.ex:1068
 #, elixir-autogen, elixir-format
 msgid "When test reliability on the default branch %{symbol} %{threshold}% over %{window}"
-msgstr "Gdy wiarygodność testów na domyślnej gałęzi %{symbol} %{threshold}% w okresie %{window}"
+msgstr "Gdy niezawodność testów na domyślnej gałęzi %{symbol} %{threshold}% w okresie %{window}"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:437
 #: lib/tuist_web/live/bazel_cache_live.ex:466
@@ -1926,9 +1933,9 @@ msgstr "Gdy wiarygodność testów na domyślnej gałęzi %{symbol} %{threshold}
 #: lib/tuist_web/live/once_cache_live.ex:683
 #, elixir-autogen, elixir-format
 msgid "Action cache hit rate"
-msgstr "Wskaźnik trafień w cache akcji"
+msgstr "Wskaźnik trafień w pamięci podręcznej akcji"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:487
+#: lib/tuist_web/live/bazel_invocation_live.ex:858
 #: lib/tuist_web/live/once_run_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups"
@@ -1937,6 +1944,7 @@ msgstr "Wyszukiwania w pamięci podręcznej akcji"
 #: lib/tuist_web/live/bazel_cache_live.ex:492
 #: lib/tuist_web/live/bazel_invocations_live.ex:589
 #: lib/tuist_web/live/bazel_invocations_live.ex:1017
+#: lib/tuist_web/live/remote_execution_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Command"
 msgstr "Polecenie"
@@ -1947,10 +1955,12 @@ msgid "Completed Bazel commands in the retained data window."
 msgstr "Ukończone polecenia Bazel w zachowanym oknie danych."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:507
+#: lib/tuist_web/live/bazel_invocation_live.ex:548
 #: lib/tuist_web/live/bazel_invocations_live.ex:612
 #: lib/tuist_web/live/once_cache_live.ex:561
 #: lib/tuist_web/live/once_run_live.ex:464
 #: lib/tuist_web/live/once_runs_live.ex:936
+#: lib/tuist_web/live/remote_execution_live.ex:533
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr "Czas trwania"
@@ -1961,6 +1971,8 @@ msgstr "Czas trwania"
 #: lib/tuist_web/live/once_run_live.ex:1346
 #: lib/tuist_web/live/once_runs_live.ex:898
 #: lib/tuist_web/live/once_runs_live.ex:1362
+#: lib/tuist_web/live/remote_execution_live.ex:526
+#: lib/tuist_web/live/remote_execution_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "Niepowodzenie"
@@ -1970,7 +1982,8 @@ msgstr "Niepowodzenie"
 msgid "Invocation success rate"
 msgstr "Wskaźnik powodzenia wywołań"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:58
+#: lib/tuist_web/live/bazel_invocation_live.ex:62
+#: lib/tuist_web/live/bazel_invocation_live.ex:90
 #: lib/tuist_web/live/bazel_invocations_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Invocations"
@@ -1979,9 +1992,9 @@ msgstr "Wywołania"
 #: lib/tuist_web/live/bazel_invocations_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "No cache lookups"
-msgstr "Brak wyszukiwań w pamięci podręcznej"
+msgstr "Brak zapytań do pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:807
+#: lib/tuist_web/live/bazel_invocation_live.ex:1178
 #: lib/tuist_web/live/bazel_invocations_live.ex:597
 #: lib/tuist_web/live/bazel_invocations_live.ex:1002
 #: lib/tuist_web/live/once_run_live.ex:438
@@ -1989,6 +2002,8 @@ msgstr "Brak wyszukiwań w pamięci podręcznej"
 #: lib/tuist_web/live/once_run_live.ex:1221
 #: lib/tuist_web/live/once_runs_live.ex:887
 #: lib/tuist_web/live/once_runs_live.ex:1357
+#: lib/tuist_web/live/remote_execution_live.ex:512
+#: lib/tuist_web/live/remote_execution_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
@@ -1996,20 +2011,22 @@ msgstr "Status"
 #: lib/tuist_web/live/bazel_invocations_live.ex:604
 #: lib/tuist_web/live/bazel_invocations_live.ex:1006
 #: lib/tuist_web/live/once_run_live.ex:1345
+#: lib/tuist_web/live/remote_execution_live.ex:525
+#: lib/tuist_web/live/remote_execution_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Succeeded"
-msgstr "Udało się"
+msgstr "Powodzenie"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:300
 #: lib/tuist_web/live/once_runs_live.ex:454
 #, elixir-autogen, elixir-format
 msgid "The share of completed commands with a zero exit code."
-msgstr "Odsetek zakończonych poleceń z zerowym kodem wyjścia."
+msgstr "Udział zakończonych poleceń z kodem wyjścia zero."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "A square image that represents the project. PNG, JPEG, or WebP up to 2 MB."
-msgstr "Kwadratowy obraz reprezentujący projekt. PNG, JPEG lub WebP o rozmiarze do 2 MB."
+msgstr "Kwadratowy obraz reprezentujący projekt. PNG, JPEG lub WebP do 2 MB."
 
 #: lib/tuist_web/live/project_settings_live.html.heex:218
 #, elixir-autogen, elixir-format
@@ -2024,12 +2041,12 @@ msgstr "Wybierz plik"
 #: lib/tuist_web/live/project_settings_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Current project logo"
-msgstr "Obecne logo projektu"
+msgstr "Aktualne logo projektu"
 
 #: lib/tuist_web/live/project_settings_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Logo must be 2 MB or smaller."
-msgstr "Logo musi mieć rozmiar nie większy niż 2 MB."
+msgstr "Logo musi mieć rozmiar 2 MB lub mniejszy."
 
 #: lib/tuist_web/live/project_settings_live.ex:202
 #: lib/tuist_web/live/project_settings_live.ex:248
@@ -2082,9 +2099,9 @@ msgstr "Wybierz logo przed przesłaniem."
 msgid "The selected file couldn't be uploaded."
 msgstr "Nie udało się przesłać wybranego pliku."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:802
-#: lib/tuist_web/live/bazel_invocation_live.ex:821
-#: lib/tuist_web/live/bazel_invocation_live.ex:867
+#: lib/tuist_web/live/bazel_invocation_live.ex:1173
+#: lib/tuist_web/live/bazel_invocation_live.ex:1192
+#: lib/tuist_web/live/bazel_invocation_live.ex:1238
 #: lib/tuist_web/live/once_run_live.ex:921
 #: lib/tuist_web/live/once_run_live.ex:1019
 #: lib/tuist_web/live/once_run_live.ex:1042
@@ -2103,34 +2120,34 @@ msgstr "Nie udało się usunąć logo. Spróbuj ponownie."
 msgid "We couldn't save the logo. Please try again."
 msgstr "Nie udało się zapisać logo. Spróbuj ponownie."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:793
+#: lib/tuist_web/live/bazel_invocation_live.ex:1164
 #, elixir-autogen, elixir-format
 msgid "Action cache lookup"
 msgstr "Wyszukiwanie w pamięci podręcznej akcji"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:386
+#: lib/tuist_web/live/bazel_invocation_live.ex:757
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups that did not find a result in the remote cache."
 msgstr "Liczba wyszukiwań w pamięci podręcznej akcji, które nie znalazły wyniku w zdalnej pamięci podręcznej."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:374
+#: lib/tuist_web/live/bazel_invocation_live.ex:745
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups that found a result in the remote cache."
 msgstr "Liczba wyszukiwań w pamięci podręcznej akcji, które znalazły wynik w zdalnej pamięci podręcznej."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:479
+#: lib/tuist_web/live/bazel_invocation_live.ex:850
 #: lib/tuist_web/live/once_run_live.ex:650
 #, elixir-autogen, elixir-format
 msgid "Action cache lookups:"
 msgstr "Wyszukiwania w pamięci podręcznej akcji:"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:372
+#: lib/tuist_web/live/bazel_invocation_live.ex:743
 #: lib/tuist_web/live/once_run_live.ex:539
 #, elixir-autogen, elixir-format
 msgid "Action hits"
 msgstr "Trafienia akcji"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:384
+#: lib/tuist_web/live/bazel_invocation_live.ex:755
 #: lib/tuist_web/live/once_run_live.ex:551
 #, elixir-autogen, elixir-format
 msgid "Action misses"
@@ -2141,17 +2158,17 @@ msgstr "Nietrafienia akcji"
 msgid "Average invocation duration"
 msgstr "Średni czas wywołania"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#: lib/tuist_web/live/bazel_invocation_live.ex:931
 #: lib/tuist_web/live/once_run_live.ex:732
 #, elixir-autogen, elixir-format
 msgid "Average throughput for downloaded content objects."
-msgstr "Średnia przepustowość pobieranych obiektów zawartości."
+msgstr "Średnia przepustowość pobieranych obiektów."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:574
+#: lib/tuist_web/live/bazel_invocation_live.ex:945
 #: lib/tuist_web/live/once_run_live.ex:743
 #, elixir-autogen, elixir-format
 msgid "Average throughput for uploaded content objects."
-msgstr "Średnia przepustowość przesyłanych obiektów zawartości."
+msgstr "Średnia przepustowość przesyłanych obiektów."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:724
 #: lib/tuist_web/live/once_runs_live.ex:1106
@@ -2165,40 +2182,40 @@ msgstr "Średni czas buildu"
 msgid "Avg. cache hit rate"
 msgstr "Średni wskaźnik trafień w pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:525
+#: lib/tuist_web/live/bazel_invocation_live.ex:896
 #: lib/tuist_web/live/once_run_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
-msgstr "Śr. opóźnienie odczytu kluczy pamięci podręcznej"
+msgstr "Średnie opóźnienie odczytu kluczy pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:542
+#: lib/tuist_web/live/bazel_invocation_live.ex:913
 #: lib/tuist_web/live/once_run_live.ex:712
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
-msgstr "Śr. opóźnienie zapisu kluczy pamięci podręcznej"
+msgstr "Średnie opóźnienie zapisu kluczy pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:200
-#: lib/tuist_web/live/bazel_invocation_live.ex:445
+#: lib/tuist_web/live/bazel_invocation_live.ex:434
+#: lib/tuist_web/live/bazel_invocation_live.ex:816
 #, elixir-autogen, elixir-format
 msgid "Bazel Cache"
-msgstr "Pamięć podręczna Bazel"
+msgstr "Bazel Cache"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1011
+#: lib/tuist_web/live/bazel_invocation_live.ex:1382
 #, elixir-autogen, elixir-format
 msgid "Bazel invocation"
-msgstr "Wywołanie Bazela"
+msgstr "Wywołanie Bazel"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:69
+#: lib/tuist_web/live/bazel_invocation_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Bazel invocation not found."
-msgstr "Nie znaleziono wywołania Bazela."
+msgstr "Nie znaleziono wywołania Bazel."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:314
+#: lib/tuist_web/live/bazel_invocation_live.ex:685
 #: lib/tuist_web/live/bazel_invocations_live.ex:431
 #: lib/tuist_web/live/bazel_invocations_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "Bazel version"
-msgstr "Wersja Bazela"
+msgstr "Wersja Bazel"
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:10
 #: lib/tuist_web/live/bazel_build_runs_live.ex:10
@@ -2207,13 +2224,13 @@ msgstr "Wersja Bazela"
 #: lib/tuist_web/live/once_runs_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "Uruchomienia buildów"
+msgstr "Uruchomienia kompilacji"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:967
-#: lib/tuist_web/live/bazel_invocation_live.ex:970
+#: lib/tuist_web/live/bazel_invocation_live.ex:1338
+#: lib/tuist_web/live/bazel_invocation_live.ex:1341
 #, elixir-autogen, elixir-format
 msgid "Build failed (exit code 1)"
-msgstr "Build nie powiódł się (kod wyjścia 1)"
+msgstr "Kompilacja nie powiodła się (kod wyjścia 1)"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:715
 #: lib/tuist_web/live/bazel_invocations_live.ex:820
@@ -2221,9 +2238,9 @@ msgstr "Build nie powiódł się (kod wyjścia 1)"
 #: lib/tuist_web/live/once_runs_live.ex:1190
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
-msgstr "Wskaźnik pomyślnych buildów"
+msgstr "Wskaźnik powodzenia kompilacji"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:365
+#: lib/tuist_web/live/bazel_invocation_live.ex:736
 #: lib/tuist_web/live/once_run_live.ex:532
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
@@ -2235,7 +2252,7 @@ msgstr "Podsumowanie pamięci podręcznej"
 msgid "Cache downloads"
 msgstr "Pobrania z pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:654
+#: lib/tuist_web/live/bazel_invocation_live.ex:1025
 #: lib/tuist_web/live/once_run_live.ex:849
 #, elixir-autogen, elixir-format
 msgid "Cache key"
@@ -2265,20 +2282,21 @@ msgstr "Przepustowość pamięci podręcznej"
 #: lib/tuist_web/live/once_cache_live.ex:805
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "Wysyłki do pamięci podręcznej"
+msgstr "Przesyłanie do pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:434
+#: lib/tuist_web/live/bazel_invocation_live.ex:805
 #: lib/tuist_web/live/once_run_live.ex:601
 #, elixir-autogen, elixir-format
 msgid "Cacheable Actions"
 msgstr "Akcje możliwe do zapisania w pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:978
+#: lib/tuist_web/live/bazel_invocation_live.ex:1349
 #, elixir-autogen, elixir-format
 msgid "Command-line problem (exit code 2)"
 msgstr "Problem wiersza poleceń (kod wyjścia 2)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:293
+#: lib/tuist_web/live/bazel_invocation_live.ex:312
+#: lib/tuist_web/live/bazel_invocation_live.ex:664
 #: lib/tuist_web/live/once_run_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "Commit"
@@ -2296,27 +2314,27 @@ msgstr "Ukończone polecenia"
 msgid "Completed commands with a nonzero exit code."
 msgstr "Ukończone polecenia z niezerowym kodem wyjścia."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:439
+#: lib/tuist_web/live/bazel_invocation_live.ex:810
 #: lib/tuist_web/live/once_run_live.ex:606
 #, elixir-autogen, elixir-format
 msgid "Content Objects"
 msgstr "Obiekty zawartości"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:513
+#: lib/tuist_web/live/bazel_invocation_live.ex:884
 #: lib/tuist_web/live/once_run_live.ex:684
 #, elixir-autogen, elixir-format
 msgid "Content objects"
 msgstr "Obiekty zawartości"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:502
+#: lib/tuist_web/live/bazel_invocation_live.ex:873
 #: lib/tuist_web/live/once_run_live.ex:673
 #, elixir-autogen, elixir-format
 msgid "Content objects:"
 msgstr "Obiekty zawartości:"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:801
-#: lib/tuist_web/live/bazel_invocation_live.ex:819
-#: lib/tuist_web/live/bazel_invocation_live.ex:855
+#: lib/tuist_web/live/bazel_invocation_live.ex:1172
+#: lib/tuist_web/live/bazel_invocation_live.ex:1190
+#: lib/tuist_web/live/bazel_invocation_live.ex:1226
 #: lib/tuist_web/live/once_run_live.ex:922
 #: lib/tuist_web/live/once_run_live.ex:1010
 #: lib/tuist_web/live/once_run_live.ex:1041
@@ -2326,13 +2344,13 @@ msgstr "Pobierz"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:338
 #: lib/tuist_web/live/bazel_cache_live.ex:680
-#: lib/tuist_web/live/bazel_invocation_live.ex:558
+#: lib/tuist_web/live/bazel_invocation_live.ex:929
 #: lib/tuist_web/live/once_cache_live.ex:357
 #: lib/tuist_web/live/once_cache_live.ex:740
 #: lib/tuist_web/live/once_run_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Download throughput"
-msgstr "Przepustwość pobierania"
+msgstr "Przepustowość pobierania"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:501
 #: lib/tuist_web/live/bazel_cache_live.ex:634
@@ -2349,12 +2367,12 @@ msgstr "Pobrane"
 msgid "Downloads"
 msgstr "Pobrania"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:983
+#: lib/tuist_web/live/bazel_invocation_live.ex:1354
 #, elixir-autogen, elixir-format
 msgid "External environment failure (exit code 32)"
 msgstr "Błąd środowiska zewnętrznego (kod wyjścia 32)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1003
+#: lib/tuist_web/live/bazel_invocation_live.ex:1374
 #, elixir-autogen, elixir-format
 msgid "Failed (exit code %{code})"
 msgstr "Niepowodzenie (kod wyjścia %{code})"
@@ -2364,16 +2382,17 @@ msgstr "Niepowodzenie (kod wyjścia %{code})"
 msgid "Failed invocations"
 msgstr "Nieudane wywołania"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:604
+#: lib/tuist_web/live/bazel_invocation_live.ex:975
 #: lib/tuist_web/live/bazel_invocations_live.ex:554
 #: lib/tuist_web/live/once_run_live.ex:404
 #: lib/tuist_web/live/once_run_live.ex:770
 #: lib/tuist_web/live/once_runs_live.ex:860
+#: lib/tuist_web/live/remote_execution_live.ex:470
 #, elixir-autogen, elixir-format
 msgid "Filter"
-msgstr "Filtruj"
+msgstr "Filtr"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:806
+#: lib/tuist_web/live/bazel_invocation_live.ex:1177
 #: lib/tuist_web/live/once_run_live.ex:456
 #: lib/tuist_web/live/once_run_live.ex:971
 #: lib/tuist_web/live/once_run_live.ex:1037
@@ -2384,49 +2403,50 @@ msgid "Hit"
 msgstr "Trafienie"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:498
-#: lib/tuist_web/live/bazel_invocation_live.ex:396
+#: lib/tuist_web/live/bazel_invocation_live.ex:767
 #: lib/tuist_web/live/once_cache_live.ex:552
 #: lib/tuist_web/live/once_run_live.ex:563
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr "Wskaźnik trafień"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:991
+#: lib/tuist_web/live/bazel_invocation_live.ex:1362
 #, elixir-autogen, elixir-format
 msgid "Internal Bazel error (exit code 37)"
 msgstr "Wewnętrzny błąd Bazel (kod wyjścia 37)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:980
+#: lib/tuist_web/live/bazel_invocation_live.ex:1351
 #, elixir-autogen, elixir-format
 msgid "Interrupted (exit code 8)"
 msgstr "Przerwano (kod wyjścia 8)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:301
+#: lib/tuist_web/live/bazel_invocation_live.ex:320
+#: lib/tuist_web/live/bazel_invocation_live.ex:672
 #, elixir-autogen, elixir-format
 msgid "Invocation ID"
 msgstr "ID wywołania"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:625
+#: lib/tuist_web/live/bazel_invocation_live.ex:996
 #: lib/tuist_web/live/once_run_live.ex:829
 #, elixir-autogen, elixir-format
 msgid "Key"
 msgstr "Klucz"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:673
+#: lib/tuist_web/live/bazel_invocation_live.ex:1044
 #: lib/tuist_web/live/once_run_live.ex:868
 #, elixir-autogen, elixir-format
 msgid "Latency"
 msgstr "Opóźnienie"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:988
+#: lib/tuist_web/live/bazel_invocation_live.ex:1359
 #, elixir-autogen, elixir-format
 msgid "Local environment failure (exit code 36)"
 msgstr "Błąd środowiska lokalnego (kod wyjścia 36)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:804
-#: lib/tuist_web/live/bazel_invocation_live.ex:812
-#: lib/tuist_web/live/bazel_invocation_live.ex:820
-#: lib/tuist_web/live/bazel_invocation_live.ex:841
+#: lib/tuist_web/live/bazel_invocation_live.ex:1175
+#: lib/tuist_web/live/bazel_invocation_live.ex:1183
+#: lib/tuist_web/live/bazel_invocation_live.ex:1191
+#: lib/tuist_web/live/bazel_invocation_live.ex:1212
 #: lib/tuist_web/live/once_run_live.ex:972
 #: lib/tuist_web/live/once_run_live.ex:989
 #: lib/tuist_web/live/once_run_live.ex:1135
@@ -2469,7 +2489,7 @@ msgstr "Brak wywołań Bazel w tym okresie"
 msgid "No Bazel invocations match the current filters."
 msgstr "Żadne wywołania Bazel nie pasują do obecnych filtrów."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:778
+#: lib/tuist_web/live/bazel_invocation_live.ex:1149
 #, elixir-autogen, elixir-format
 msgid "No action cache requests were observed for this invocation."
 msgstr "Dla tego wywołania nie zaobserwowano żadnych żądań pamięci podręcznej akcji."
@@ -2499,25 +2519,25 @@ msgstr "Brak obserwacji pamięci podręcznej w wybranym okresie"
 msgid "No cache observations yet"
 msgstr "Brak obserwacji pamięci podręcznej"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:775
+#: lib/tuist_web/live/bazel_invocation_live.ex:1146
 #, elixir-autogen, elixir-format
 msgid "No content object transfers were observed for this invocation."
-msgstr "Nie zaobserwowano transferów obiektów zawartości dla tego wywołania."
+msgstr "Nie zaobserwowano żadnych transferów obiektów zawartości dla tego wywołania."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:538
-#: lib/tuist_web/live/bazel_invocation_live.ex:552
-#: lib/tuist_web/live/bazel_invocation_live.ex:568
-#: lib/tuist_web/live/bazel_invocation_live.ex:582
+#: lib/tuist_web/live/bazel_invocation_live.ex:909
+#: lib/tuist_web/live/bazel_invocation_live.ex:923
+#: lib/tuist_web/live/bazel_invocation_live.ex:939
+#: lib/tuist_web/live/bazel_invocation_live.ex:953
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "Brak danych"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:797
+#: lib/tuist_web/live/bazel_invocation_live.ex:1168
 #, elixir-autogen, elixir-format
 msgid "No digest"
 msgstr "Brak podsumowania"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:693
+#: lib/tuist_web/live/bazel_invocation_live.ex:1064
 #, elixir-autogen, elixir-format
 msgid "No matching cache requests"
 msgstr "Brak pasujących żądań pamięci podręcznej"
@@ -2525,20 +2545,20 @@ msgstr "Brak pasujących żądań pamięci podręcznej"
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:70
 #, elixir-autogen, elixir-format
 msgid "No targets reported"
-msgstr "Brak zgłoszonych celów"
+msgstr "Nie zgłoszono celów"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:976
+#: lib/tuist_web/live/bazel_invocation_live.ex:1347
 #, elixir-autogen, elixir-format
 msgid "No tests found (exit code 4)"
 msgstr "Nie znaleziono testów (kod wyjścia 4)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:684
+#: lib/tuist_web/live/bazel_invocation_live.ex:1055
 #: lib/tuist_web/live/once_run_live.ex:874
 #, elixir-autogen, elixir-format
 msgid "Observed"
 msgstr "Zaobserwowano"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:985
+#: lib/tuist_web/live/bazel_invocation_live.ex:1356
 #, elixir-autogen, elixir-format
 msgid "Out of memory (exit code 33)"
 msgstr "Brak pamięci (kod wyjścia 33)"
@@ -2553,67 +2573,70 @@ msgstr "Brak pamięci (kod wyjścia 33)"
 msgid "Read latency"
 msgstr "Opóźnienie odczytu"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:803
-#: lib/tuist_web/live/bazel_invocation_live.ex:811
-#: lib/tuist_web/live/bazel_invocation_live.ex:832
+#: lib/tuist_web/live/bazel_invocation_live.ex:1174
+#: lib/tuist_web/live/bazel_invocation_live.ex:1182
+#: lib/tuist_web/live/bazel_invocation_live.ex:1203
 #: lib/tuist_web/live/once_run_live.ex:980
 #, elixir-autogen, elixir-format
 msgid "Remote"
-msgstr "Zdalne"
+msgstr "Zdalny"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:997
+#: lib/tuist_web/live/bazel_invocation_live.ex:1368
 #, elixir-autogen, elixir-format
 msgid "Remote cache entry evicted (exit code 39)"
-msgstr "Wpis w zdalnej pamięci podręcznej usunięty (kod wyjścia 39)"
+msgstr "Usunięto wpis zdalnej pamięci podręcznej (kod wyjścia 39)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:281
+#: lib/tuist_web/live/bazel_invocation_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "Repository"
 msgstr "Repozytorium"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:994
+#: lib/tuist_web/live/bazel_invocation_live.ex:1365
 #, elixir-autogen, elixir-format
 msgid "Result publishing failed (exit code 38)"
-msgstr "Publikowanie wyników nie powiodło się (kod wyjścia 38)"
+msgstr "Nie udało się opublikować wyniku (kod wyjścia 38)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1000
+#: lib/tuist_web/live/bazel_invocation_live.ex:1371
 #, elixir-autogen, elixir-format
 msgid "Result publishing failed (exit code 45)"
-msgstr "Publikowanie wyników nie powiodło się (kod wyjścia 45)"
+msgstr "Nie udało się opublikować wyniku (kod wyjścia 45)"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:667
+#: lib/tuist_web/live/bazel_invocation_live.ex:1038
 #: lib/tuist_web/live/once_run_live.ex:864
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr "Rozmiar"
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:268
+#: lib/tuist_web/live/bazel_invocation_live.ex:639
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr "Rozpoczęto"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:805
-#: lib/tuist_web/live/bazel_invocation_live.ex:813
+#: lib/tuist_web/live/bazel_invocation_live.ex:1176
+#: lib/tuist_web/live/bazel_invocation_live.ex:1184
 #: lib/tuist_web/live/once_run_live.ex:973
 #: lib/tuist_web/live/once_run_live.ex:1136
 #, elixir-autogen, elixir-format
 msgid "Stored"
 msgstr "Przechowywane"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:645
+#: lib/tuist_web/live/bazel_invocation_live.ex:1016
 #: lib/tuist_web/live/once_run_live.ex:842
 #, elixir-autogen, elixir-format
 msgid "Target"
 msgstr "Cel"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:489
-#: lib/tuist_web/live/bazel_invocation_live.ex:275
+#: lib/tuist_web/live/bazel_invocation_live.ex:296
+#: lib/tuist_web/live/bazel_invocation_live.ex:646
 #: lib/tuist_web/live/bazel_invocations_live.ex:582
+#: lib/tuist_web/live/remote_execution_live.ex:746
 #, elixir-autogen, elixir-format
 msgid "Targets"
 msgstr "Cele"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:973
+#: lib/tuist_web/live/bazel_invocation_live.ex:1344
 #, elixir-autogen, elixir-format
 msgid "Tests failed or timed out (exit code 3)"
 msgstr "Testy nieudane lub przekroczyły limit czasu (kod wyjścia 3)"
@@ -2621,47 +2644,47 @@ msgstr "Testy nieudane lub przekroczyły limit czasu (kod wyjścia 3)"
 #: lib/tuist_web/live/bazel_cache_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "The average time Tuist's remote cache spent serving reads and writes during the selected period."
-msgstr "Średni czas, jaki zdalna pamięć podręczna Tuist poświęciła na obsługę odczytów i zapisów w wybranym okresie."
+msgstr "Średni czas, jaki zdalna pamięć podręczna Tuist poświęcała na obsługę odczytów i zapisów w wybranym okresie."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:194
 #, elixir-autogen, elixir-format
 msgid "The bytes returned from and accepted by Tuist's remote cache during the selected period."
-msgstr "Liczba bajtów zwróconych i przyjętych przez zdalną pamięć podrzeczną Tuist w wybranym okresie."
+msgstr "Liczba bajtów zwróconych z i zaakceptowanych przez zdalną pamięć podręczną Tuist w wybranym okresie."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:335
 #, elixir-autogen, elixir-format
 msgid "The duration of completed Bazel commands, with average and percentile views."
-msgstr "Czas trwania zakończonych poleceń Bazel z widokiem średniej i percentyli."
+msgstr "Czas trwania ukończonych poleceń Bazel, z widokiem średniej i percentyli."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:398
+#: lib/tuist_web/live/bazel_invocation_live.ex:769
 #, elixir-autogen, elixir-format
 msgid "The percentage of action cache lookups that found a result in the remote cache."
-msgstr "Procent wyszukiwań w pamięci podręcznej akcji, które znalazły wynik w zdalnej pamięci podręcznej."
+msgstr "Odsetek zapytań do pamięci podręcznej akcji, które znalazły wynik w zdalnej pamięci podręcznej."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "The percentage of action-cache lookups served from Tuist's remote cache, measured per invocation."
-msgstr "Procent wyszukiwań w pamięci podręcznej akcji obsłużonych przez zdalną pamięć podręczną Tuist, mierzony na wywołanie."
+msgstr "Odsetek zapytań do pamięci podręcznej akcji obsłużonych przez zdalną pamięć podręczną Tuist, mierzony na wywołanie."
 
 #: lib/tuist_web/live/bazel_overview_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "The share of action-cache lookups served from Tuist's remote cache."
-msgstr "Udział wyszukiwań w pamięci podręcznej akcji obsłużonych przez zdalną pamięć podręczną Tuist."
+msgstr "Udział zapytań do pamięci podręcznej akcji obsłużonych przez zdalną pamięć podręczną Tuist."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:772
+#: lib/tuist_web/live/bazel_invocation_live.ex:1143
 #, elixir-autogen, elixir-format
 msgid "This invocation did not use a remote cache."
 msgstr "To wywołanie nie korzystało ze zdalnej pamięci podręcznej."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:527
+#: lib/tuist_web/live/bazel_invocation_live.ex:898
 #, elixir-autogen, elixir-format
 msgid "Time to read action cache keys, including both remote hits and misses."
-msgstr "Czas odczytu kluczy pamięci podręcznej akcji, obejmujący zarówno trafienia, jak i nietrafienia."
+msgstr "Czas odczytu kluczy pamięci podręcznej akcji, obejmujący zarówno trafienia, jak i nietrafienia zdalne."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:544
+#: lib/tuist_web/live/bazel_invocation_live.ex:915
 #, elixir-autogen, elixir-format
 msgid "Time to write action results to the remote cache."
-msgstr "Czas zapisywania wyników działań do zdalnej pamięci podręcznej."
+msgstr "Czas zapisu wyników akcji w zdalnej pamięci podręcznej."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:714
 #: lib/tuist_web/live/once_runs_live.ex:430
@@ -2677,16 +2700,16 @@ msgstr "Łączna liczba wywołań"
 #: lib/tuist_web/live/bazel_cache_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "Transferred remote-cache bytes divided by measured request time. Requests without a measured duration are excluded."
-msgstr "Liczba bajtów przesłanych do zdalnej pamięci podręcznej podzielona przez zmierzony czas żądania. Żądania bez zmierzonego czasu trwania są pomijane."
+msgstr "Bajty przesłane do zdalnej pamięci podręcznej podzielone przez zmierzony czas żądania. Żądania bez zmierzonego czasu trwania są wykluczane."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:694
+#: lib/tuist_web/live/bazel_invocation_live.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Try changing or clearing your filters."
 msgstr "Spróbuj zmienić lub wyczyścić filtry."
 
 #: lib/tuist_web/live/bazel_cache_live.ex:348
 #: lib/tuist_web/live/bazel_cache_live.ex:686
-#: lib/tuist_web/live/bazel_invocation_live.ex:572
+#: lib/tuist_web/live/bazel_invocation_live.ex:943
 #: lib/tuist_web/live/once_cache_live.ex:367
 #: lib/tuist_web/live/once_cache_live.ex:746
 #: lib/tuist_web/live/once_run_live.ex:741
@@ -2729,7 +2752,7 @@ msgstr "Wskaźnik trafień w pamięci podręcznej akcji p50"
 #: lib/tuist_web/live/once_runs_live.ex:1105
 #, elixir-autogen, elixir-format
 msgid "p50 build duration"
-msgstr "Czas trwania buildu p50"
+msgstr "Czas trwania kompilacji p50"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:727
 #, elixir-autogen, elixir-format
@@ -2740,7 +2763,7 @@ msgstr "Czas trwania wywołania p50"
 #: lib/tuist_web/live/once_cache_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "p90 action cache hit rate"
-msgstr "Wskaźnik trafień w pamięci podręcznej akcji p90"
+msgstr "Wskaźnik trafień w pamięć podręczną akcji p90"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:722
 #: lib/tuist_web/live/once_runs_live.ex:1104
@@ -2757,24 +2780,24 @@ msgstr "Czas trwania wywołania p90"
 #: lib/tuist_web/live/once_cache_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "p99 action cache hit rate"
-msgstr "Wskaźnik trafień w pamięci podręcznej akcji p99"
+msgstr "Wskaźnik trafień w pamięć podręczną akcji p99"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:721
 #: lib/tuist_web/live/once_runs_live.ex:1103
 #, elixir-autogen, elixir-format
 msgid "p99 build duration"
-msgstr "Czas trwania budowania (p99)"
+msgstr "Czas trwania buildu p99"
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "p99 invocation duration"
-msgstr "Czas trwania wywołania (p99)"
+msgstr "Czas trwania wywołania p99"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:743
 #: lib/tuist_web/live/once_cache_live.ex:812
 #, elixir-autogen, elixir-format
 msgid "Cache download throughput"
-msgstr "Przepustwość pobierania z pamięci podręcznej"
+msgstr "Przepustowość pobierania z pamięci podręcznej"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:219
 #: lib/tuist_web/live/bazel_cache_live.ex:739
@@ -2782,13 +2805,13 @@ msgstr "Przepustwość pobierania z pamięci podręcznej"
 #: lib/tuist_web/live/once_cache_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Cache transfer"
-msgstr "Transfer pamięci podręcznej"
+msgstr "Przenoszenie pamięci podręcznej"
 
 #: lib/tuist_web/live/bazel_cache_live.ex:744
 #: lib/tuist_web/live/once_cache_live.ex:814
 #, elixir-autogen, elixir-format
 msgid "Cache upload throughput"
-msgstr "Przepustwość wysyłania do pamięci podręcznej"
+msgstr "Przepustowość przesyłania do pamięci podręcznej"
 
 #: lib/tuist_web/live/bazel_overview_live.ex:691
 #, elixir-autogen, elixir-format
@@ -2799,6 +2822,7 @@ msgstr "Brak buildów w wybranym okresie"
 #: lib/tuist_web/live/bazel_invocations_live.ex:632
 #: lib/tuist_web/live/once_cache_live.ex:567
 #: lib/tuist_web/live/once_runs_live.ex:947
+#: lib/tuist_web/live/remote_execution_live.ex:581
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr "Uruchomiono o"
@@ -2819,6 +2843,7 @@ msgid "The average duration of Bazel build invocations."
 msgstr "Średni czas trwania wywołań kompilacji Bazel."
 
 #: lib/tuist_web/live/bazel_invocations_live.ex:575
+#: lib/tuist_web/live/remote_execution_live.ex:505
 #, elixir-autogen, elixir-format
 msgid "Invocation"
 msgstr "Wywołanie"
@@ -2827,29 +2852,29 @@ msgstr "Wywołanie"
 #: lib/tuist_web/live/project_automations_live.html.heex:934
 #, elixir-autogen, elixir-format
 msgid "Skips the entire target, including healthy tests."
-msgstr "Pomija cały target, w tym stabilne testy."
+msgstr "Pomija cały cel, w tym testy przechodzące pomyślnie."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:408
+#: lib/tuist_web/live/bazel_invocation_live.ex:779
 #: lib/tuist_web/live/once_run_live.ex:575
 #, elixir-autogen, elixir-format
 msgid "Content downloaded"
 msgstr "Pobrane dane"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:420
+#: lib/tuist_web/live/bazel_invocation_live.ex:791
 #: lib/tuist_web/live/once_run_live.ex:587
 #, elixir-autogen, elixir-format
 msgid "Content uploaded"
 msgstr "Wysłane dane"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:410
+#: lib/tuist_web/live/bazel_invocation_live.ex:781
 #, elixir-autogen, elixir-format
 msgid "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
-msgstr "Całkowity rozmiar artefaktów buildu pobranych ze zdalnej pamięci podręcznej. Nie obejmuje odpytań o cache akcji, które zwracają metadane zamiast wyników."
+msgstr "Łączny rozmiar artefaktów buildu pobranych ze zdalnej pamięci podręcznej. Nie obejmuje zapytań do pamięci podręcznej akcji, które zwracają metadane zamiast artefaktów."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:422
+#: lib/tuist_web/live/bazel_invocation_live.ex:793
 #, elixir-autogen, elixir-format
 msgid "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
-msgstr "Całkowity rozmiar artefaktów buildu wysłanych do zdalnej pamięci podręcznej. Nie obejmuje zapisów w cache akcji, które przechowują metadane zamiast wyników."
+msgstr "Łączny rozmiar artefaktów buildu wysłanych do zdalnej pamięci podręcznej. Nie obejmuje zapisów w pamięci podręcznej akcji, które przechowują metadane zamiast artefaktów."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1110
 #, elixir-autogen, elixir-format
@@ -2859,7 +2884,7 @@ msgstr "Akcje dla istniejących dopasowań są w toku. Zapisz z odznaczoną tą 
 #: lib/tuist_web/live/project_automations_live.ex:766
 #, elixir-autogen, elixir-format
 msgid "After %{window} without a trigger: %{actions}."
-msgstr "Po %{window} bez wyzwolenia: %{actions}."
+msgstr "Po %{window} bez wyzwalacza: %{actions}."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1071
 #, elixir-autogen, elixir-format
@@ -2869,12 +2894,12 @@ msgstr "Zastosuj do istniejących dopasowań"
 #: lib/tuist_web/live/project_automations_live.html.heex:1098
 #, elixir-autogen, elixir-format
 msgid "Complete a valid condition to see matching tests."
-msgstr "Uzupełnij poprawny warunek, aby zobaczyć pasujące testy."
+msgstr "Wypełnij poprawny warunek, aby zobaczyć pasujące testy."
 
 #: lib/tuist_web/live/project_automations_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Complete a valid condition."
-msgstr "Uzupełnij poprawny warunek."
+msgstr "Wypełnij poprawny warunek."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1091
 #, elixir-autogen, elixir-format
@@ -2884,7 +2909,7 @@ msgstr "Liczenie pasujących testów…"
 #: lib/tuist_web/live/project_automations_live.html.heex:1136
 #, elixir-autogen, elixir-format
 msgid "Create and apply actions"
-msgstr "Utwórz i zastosuj akcje"
+msgstr "Tworzenie i stosowanie akcji"
 
 #: lib/tuist_web/live/project_automations_live.ex:748
 #, elixir-autogen, elixir-format
@@ -2909,20 +2934,20 @@ msgstr "Odzyskiwanie jest wyłączone."
 #: lib/tuist_web/live/project_automation_live.ex:297
 #, elixir-autogen, elixir-format
 msgid "Requested actions for existing matches"
-msgstr "Żądane akcje dla istniejących dopasowań"
+msgstr "Żądane działania dla istniejących dopasowań"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1135
 #, elixir-autogen, elixir-format
 msgid "Save and apply actions"
-msgstr "Zapisz i zastosuj akcje"
+msgstr "Zapisz i zastosuj działania"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1084
 #, elixir-autogen, elixir-format
 msgid "Select to also run them once after saving for %{count} test that currently matches."
 msgid_plural "Select to also run them once after saving for %{count} tests that currently match."
-msgstr[0] "Zaznacz, aby uruchomić je również raz po zapisaniu dla %{count} przypadku testowego, który obecnie pasuje."
-msgstr[1] "Zaznacz, aby uruchomić je również raz po zapisaniu dla %{count} przypadków testowych, które obecnie pasują."
-msgstr[2] "Zaznacz, aby uruchomić je również raz po zapisaniu dla %{count} przypadków testowych, które obecnie pasują."
+msgstr[0] "Wybierz, aby uruchomić je również raz po zapisaniu dla %{count} testu, który obecnie pasuje."
+msgstr[1] "Wybierz, aby uruchomić je również raz po zapisaniu dla %{count} testów, które obecnie pasują."
+msgstr[2] "Wybierz, aby uruchomić je również raz po zapisaniu dla %{count} testów, które obecnie pasują."
 
 #: lib/tuist_web/live/project_automations_live.html.heex:391
 #, elixir-autogen, elixir-format
@@ -2937,12 +2962,12 @@ msgstr "np. 30d"
 #: lib/tuist_web/live/project_automations_live.html.heex:1077
 #, elixir-autogen, elixir-format
 msgid "By default, actions run only when a test starts matching the condition. Tests that currently match won't get them unless they recover and then match again."
-msgstr "Domyślnie akcje są uruchamiane tylko wtedy, gdy test zacznie spełniać warunek. Testy, które obecnie spełniają warunek, nie zostaną objęte tymi akcjami, chyba że przestaną go spełniać, a następnie ponownie zaczną."
+msgstr "Domyślnie działania są uruchamiane tylko wtedy, gdy test zacznie pasować do warunku. Testy, które obecnie pasują, nie zostaną nimi objęte, chyba że przestaną pasować, a następnie ponownie zaczną."
 
 #: lib/tuist_web/live/once_run_live.ex:1338
 #, elixir-autogen, elixir-format
 msgid "Action %{index}"
-msgstr "Akcja %{index}"
+msgstr "Działanie %{index}"
 
 #: lib/tuist_web/live/once_run_live.ex:553
 #, elixir-autogen, elixir-format
@@ -2952,7 +2977,7 @@ msgstr "Akcje, które musiały zostać wykonane, ponieważ pamięć podręczna O
 #: lib/tuist_web/live/once_run_live.ex:541
 #, elixir-autogen, elixir-format
 msgid "Actions that replayed from the Once cache instead of executing."
-msgstr "Akcje odtworzone z pamięci podręcznej Once zamiast być wykonywane."
+msgstr "Akcje odtworzone z pamięci podręcznej Once zamiast wykonywania."
 
 #: lib/tuist_web/live/once_run_live.ex:782
 #, elixir-autogen, elixir-format
@@ -2972,7 +2997,7 @@ msgstr "Build"
 #: lib/tuist_web/live/once_run_live.ex:935
 #, elixir-autogen, elixir-format
 msgid "Build script"
-msgstr "Skrypt kompilacji"
+msgstr "Skrypt budowania"
 
 #: lib/tuist_web/live/once_run_live.ex:449
 #: lib/tuist_web/live/once_run_live.ex:924
@@ -2995,7 +3020,7 @@ msgstr "Anulowano"
 #: lib/tuist_web/live/once_runs_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "Completed once commands in the selected period."
-msgstr "Ukończono raz polecenia w wybranym okresie."
+msgstr "Wykonano raz polecenia w wybranym okresie."
 
 #: lib/tuist_web/live/once_run_live.ex:356
 #, elixir-autogen, elixir-format
@@ -3010,7 +3035,7 @@ msgstr "Zakończono"
 #: lib/tuist_web/live/once_run_live.ex:565
 #, elixir-autogen, elixir-format
 msgid "Fraction of the run's actions that replayed from the cache."
-msgstr "Ułamek akcji uruchomienia odtworzonych z pamięci podręcznej."
+msgstr "Ułamek akcji z uruchomienia, które zostały odtworzone z pamięci podręcznej."
 
 #: lib/tuist_web/live/once_run_live.ex:1343
 #, elixir-autogen, elixir-format
@@ -3034,7 +3059,7 @@ msgstr "Błąd infrastruktury"
 #: lib/tuist_web/live/once_run_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Kind"
-msgstr "Typ"
+msgstr "Rodzaj"
 
 #: lib/tuist_web/live/once_run_live.ex:457
 #: lib/tuist_web/live/once_run_live.ex:1235
@@ -3045,12 +3070,12 @@ msgstr "Nietrafienie"
 #: lib/tuist_web/live/once_run_live.ex:1243
 #, elixir-autogen, elixir-format
 msgid "No actions match your search or filters"
-msgstr "Brak akcji pasujących do wyszukiwania lub filtrów"
+msgstr "Brak działań pasujących do wyszukiwania lub filtrów"
 
 #: lib/tuist_web/live/once_run_live.ex:1247
 #, elixir-autogen, elixir-format
 msgid "No actions recorded"
-msgstr "Brak zarejestrowanych akcji"
+msgstr "Brak zarejestrowanych działań"
 
 #: lib/tuist_web/live/once_cache_live.ex:826
 #, elixir-autogen, elixir-format
@@ -3075,17 +3100,17 @@ msgstr "Brak zgłoszonych transferów zawartości"
 #: lib/tuist_web/live/once_runs_live.ex:1115
 #, elixir-autogen, elixir-format
 msgid "No once builds have been received yet."
-msgstr "Nie otrzymano jeszcze żadnych kompilacji Once."
+msgstr "Nie otrzymano jeszcze żadnych buildów Once."
 
 #: lib/tuist_web/live/once_runs_live.ex:1112
 #, elixir-autogen, elixir-format
 msgid "No once builds in the selected period."
-msgstr "Brak kompilacji Once w wybranym okresie."
+msgstr "Brak buildów Once w wybranym okresie."
 
 #: lib/tuist_web/live/once_runs_live.ex:1109
 #, elixir-autogen, elixir-format
 msgid "No once builds match the current filters."
-msgstr "Brak kompilacji Once pasujących do obecnych filtrów."
+msgstr "Żadne buildy Once nie pasują do obecnych filtrów."
 
 #: lib/tuist_web/live/once_runs_live.ex:617
 #: lib/tuist_web/live/once_runs_live.ex:810
@@ -3102,17 +3127,17 @@ msgstr "Pamięć podręczna Once"
 #: lib/tuist_web/live/once_run_live.ex:1260
 #, elixir-autogen, elixir-format
 msgid "Once build"
-msgstr "Jednorazowy build"
+msgstr "Build Once"
 
 #: lib/tuist_web/live/once_run_live.ex:1262
 #, elixir-autogen, elixir-format
 msgid "Once run"
-msgstr "Jednorazowe uruchomienie"
+msgstr "Uruchomienie Once"
 
 #: lib/tuist_web/live/once_run_live.ex:1261
 #, elixir-autogen, elixir-format
 msgid "Once test"
-msgstr "Jednorazowy test"
+msgstr "Test Once"
 
 #: lib/tuist_web/live/once_cache_live.ex:398
 #: lib/tuist_web/live/once_run_live.ex:380
@@ -3138,7 +3163,7 @@ msgstr "Ponownie użyte"
 #: lib/tuist_web/live/once_runs_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Run"
-msgstr "Uruchom"
+msgstr "Uruchomienie"
 
 #: lib/tuist_web/live/once_run_live.ex:371
 #, elixir-autogen, elixir-format
@@ -3170,32 +3195,32 @@ msgstr "Uruchomienia testów"
 #: lib/tuist_web/live/once_cache_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "The average time Once's remote cache spent serving reads and writes during the selected period."
-msgstr "Średni czas, jaki zdalna pamięć podręczna Once poświęcała na obsługę odczytów i zapisów w wybranym okresie."
+msgstr "Średni czas, jaki zdalna pamięć podręczna Once poświęciła na obsługę odczytów i zapisów w wybranym okresie."
 
 #: lib/tuist_web/live/once_cache_live.ex:213
 #, elixir-autogen, elixir-format
 msgid "The bytes returned from and accepted by Once's remote cache during the selected period."
-msgstr "Liczba bajtów zwróconych i przyjętych przez zdalną pamięć podręczną Once w wybranym okresie."
+msgstr "Liczba bajtów zwróconych z i przyjętych przez zdalną pamięć podręczną Once w wybranym okresie."
 
 #: lib/tuist_web/live/once_runs_live.ex:514
 #, elixir-autogen, elixir-format
 msgid "The duration of completed once commands, with average and percentile views."
-msgstr "Czas trwania ukończonych poleceń once z widokiem średniej i percentyli."
+msgstr "Czas trwania ukończonych poleceń once, z widokiem średniej i percentyli."
 
 #: lib/tuist_web/live/once_cache_live.ex:182
 #, elixir-autogen, elixir-format
 msgid "The percentage of action-cache lookups served from Once's remote cache, measured per run."
-msgstr "Procent odwołań do pamięci podręcznej akcji obsłużonych przez zdalną pamięć podręczną Once, mierzony na uruchomienie."
+msgstr "Procent wyszukiwań w pamięci podręcznej akcji obsłużonych ze zdalnej pamięci podręcznej Once, mierzony na uruchomienie."
 
 #: lib/tuist_web/live/once_run_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "Time Once spent reading action cache keys, including hits and misses."
-msgstr "Czas, jaki Once poświęcił na odczytywanie kluczy pamięci podręcznej akcji, w tym trafień i nietrafień."
+msgstr "Czas poświęcony przez Once na odczytywanie kluczy pamięci podręcznej akcji, w tym trafień i nietrafień."
 
 #: lib/tuist_web/live/once_run_live.ex:714
 #, elixir-autogen, elixir-format
 msgid "Time Once spent writing action results back into the cache."
-msgstr "Czas, jaki Once poświęcił na zapisywanie wyników akcji z powrotem w pamięci podręcznej."
+msgstr "Czas poświęcony przez Once na zapisywanie wyników akcji z powrotem do pamięci podręcznej."
 
 #: lib/tuist_web/live/once_run_live.ex:1349
 #, elixir-autogen, elixir-format
@@ -3210,12 +3235,12 @@ msgstr "Łączna liczba bajtów przeniesionych z pamięci podręcznej Once do te
 #: lib/tuist_web/live/once_run_live.ex:589
 #, elixir-autogen, elixir-format
 msgid "Total bytes this run stored back into the Once cache."
-msgstr "Łączna liczba bajtów zapisanych z powrotem w pamięci podręcznej Once podczas tego uruchomienia."
+msgstr "Łączna liczba bajtów zapisanych z powrotem do pamięci podręcznej One w tym uruchomieniu."
 
 #: lib/tuist_web/live/once_cache_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "Transferred remote-cache bytes divided by measured request time."
-msgstr "Liczba bajtów przesłanych z zdalnej pamięci podręcznej podzielona przez zmierzony czas żądania."
+msgstr "Liczba bajtów przesłanych do zdalnej pamięci podręcznej podzielona przez zmierzony czas żądania."
 
 #: lib/tuist_web/live/once_run_live.ex:1249
 #, elixir-autogen, elixir-format
@@ -3230,7 +3255,7 @@ msgstr "[ukryte]"
 #: lib/tuist_web/live/once_overview_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "No cache activity yet"
-msgstr "Brak aktywności pamięci podręcznej"
+msgstr "Brak aktywności w pamięci podręcznej"
 
 #: lib/tuist_web/live/once_overview_live.ex:317
 #, elixir-autogen, elixir-format
@@ -3240,7 +3265,7 @@ msgstr "Brak uruchomień testów"
 #: lib/tuist_web/live/once_overview_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "The average duration of Once build runs."
-msgstr "Średni czas trwania pojedynczych uruchomień buildów."
+msgstr "Średni czas trwania uruchomień buildów w Once."
 
 #: lib/tuist_web/live/once_overview_live.ex:200
 #, elixir-autogen, elixir-format
@@ -3251,12 +3276,12 @@ msgstr "Średni czas trwania pojedynczych uruchomień testów."
 #: lib/tuist_web/live/once_runs_live.ex:586
 #, elixir-autogen, elixir-format
 msgid "The 1,000 run limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent runs."
-msgstr "Osiągnięto limit 1000 uruchomień, dane są uwzględniane tylko do %{date}. Spróbuj zawęzić zakres dat, aby zobaczyć nowsze uruchomienia."
+msgstr "Osiągnięto limit 1000 uruchomień, dane są uwzględniane tylko do %{date}. Zawęż zakres dat, aby zobaczyć nowsze uruchomienia."
 
 #: lib/tuist_web/live/once_overview_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "The share of cacheable actions resolved from cache rather than being rerun."
-msgstr "Udział działań możliwych do zapisania w pamięci podręcznej, które zostały rozwiązane z pamięci podręcznej zamiast być ponownie uruchamiane."
+msgstr "Udział akcji możliwych do zapisania w pamięci podręcznej, które zostały obsłużone z pamięci podręcznej zamiast być ponownie uruchamiane."
 
 #: lib/tuist_web/live/once_run_live.ex:790
 #, elixir-autogen, elixir-format
@@ -3271,7 +3296,7 @@ msgstr "Przerwane"
 #: lib/tuist_web/live/mix_overview_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Average time it takes to complete a mix compile run during the selected period."
-msgstr "Średni czas ukończenia mieszanego uruchomienia kompilacji w wybranym okresie."
+msgstr "Średni czas potrzebny na ukończenie kompilacji mix w wybranym okresie."
 
 #: lib/tuist_web/live/cargo_overview_live.html.heex:109
 #: lib/tuist_web/live/mix_overview_live.html.heex:240
@@ -3300,17 +3325,17 @@ msgstr "Rozmiar bezwzględny (MB)"
 #: lib/tuist_web/live/project_bundle_settings_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
-msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszej paczki na gałęzi <strong>%{baseline_branch}</strong>."
+msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszego pakietu na gałęzi <strong>%{baseline_branch}</strong>."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
-msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> elementu <strong>%{bundle_name}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszej paczki na gałęzi <strong>%{baseline_branch}</strong>."
+msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> pakietu <strong>%{bundle_name}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszego pakietu na gałęzi <strong>%{baseline_branch}</strong>."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "Enter a valid size threshold."
-msgstr "Wprowadź prawidłowy próg rozmiaru."
+msgstr "Wprowadź poprawny próg rozmiaru."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:476
 #, elixir-autogen, elixir-format
@@ -3342,15 +3367,15 @@ msgstr "Pliki źródłowe"
 #: lib/tuist_web/live/once_run_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Search actions, targets or files..."
-msgstr "Szukaj akcji, celów lub plików..."
+msgstr "Wyszukaj akcje, cele lub pliki..."
 
 #: lib/tuist_web/live/once_run_live.ex:1322
 #, elixir-autogen, elixir-format
 msgid "%{display_count} more file"
 msgid_plural "%{display_count} more files"
-msgstr[0] "%{display_count} więcej plików"
-msgstr[1] "%{display_count} więcej plików"
-msgstr[2] "%{display_count} więcej plików"
+msgstr[0] "%{display_count} dodatkowy plik"
+msgstr[1] "%{display_count} dodatkowe pliki"
+msgstr[2] "%{display_count} dodatkowe pliki"
 
 #: lib/tuist_web/live/cargo_overview_live.html.heex:26
 #, elixir-autogen, elixir-format
@@ -3376,7 +3401,7 @@ msgstr "Integracje"
 #: lib/tuist_web/live/project_integrations_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Post and update Tuist run reports on pull or merge requests. Uploads and CI job summaries are unaffected."
-msgstr "Publikuj i aktualizuj raporty z uruchomień Tuist w pull requestach lub żądaniach scalenia. Przesyłane pliki i podsumowania zadań CI pozostają bez zmian."
+msgstr "Publikuj i aktualizuj raporty z uruchomień Tuist w pull requestach lub żądaniach scalania. Przesyłanie plików i podsumowania zadań CI pozostają bez zmian."
 
 #: lib/tuist_web/live/project_integrations_live.html.heex:52
 #, elixir-autogen, elixir-format
@@ -3391,7 +3416,7 @@ msgstr "Po %{window} %{without_matches}: %{actions}."
 #: lib/tuist_web/live/project_automations_live.ex:867
 #, elixir-autogen, elixir-format
 msgid "Condition clears"
-msgstr "Warunek zostaje wyczyszczony"
+msgstr "Warunek zostaje spełniony"
 
 #: lib/tuist_web/live/project_automation_live.ex:66
 #, elixir-autogen, elixir-format
@@ -3416,7 +3441,7 @@ msgstr "Brak nowych niestabilnych uruchomień"
 #: lib/tuist_web/live/project_automations_live.html.heex:749
 #, elixir-autogen, elixir-format
 msgid "Recover when"
-msgstr "Przywróć, gdy"
+msgstr "Odzyskaj, gdy"
 
 #: lib/tuist_web/live/project_automations_live.ex:860
 #, elixir-autogen, elixir-format
@@ -3431,12 +3456,12 @@ msgstr "bez nowego niestabilnego uruchomienia"
 #: lib/tuist_web/live/overview_live.ex:17
 #, elixir-autogen, elixir-format
 msgid "%{project} build and test insights · Tuist"
-msgstr "%{project} — statystyki buildów i testów · Tuist"
+msgstr "Statystyki buildów i testów %{project} · Tuist"
 
 #: lib/tuist_web/live/overview_live.ex:23
 #, elixir-autogen, elixir-format
 msgid "Build times and test results for %{project}, tracked with Tuist's build and test insights."
-msgstr "Czasy kompilacji i wyniki testów dla %{project}, monitorowane dzięki statystykom buildów i testów w Tuist."
+msgstr "Czasy buildów i wyniki testów dla %{project}, śledzone za pomocą statystyk buildów i testów Tuist."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:417
 #: lib/tuist_web/live/project_bundle_settings_live.ex:434
@@ -3460,7 +3485,7 @@ msgstr "Zmień kanał"
 #: lib/tuist_web/live/project_notifications_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Configure scheduled report"
-msgstr "Skonfiguruj raport cykliczny"
+msgstr "Konfiguruj raport cykliczny"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:189
 #, elixir-autogen, elixir-format
@@ -3476,12 +3501,12 @@ msgstr "Edytuj"
 #: lib/tuist_web/live/project_notifications_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Filter report bundles"
-msgstr "Filtruj pakiety raportów"
+msgstr "Filtruj pakiety raportu"
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Included in reports"
-msgstr "Uwzględnione w raportach"
+msgstr "Uwzględniane w raportach"
 
 #: lib/tuist_web/live/project_notifications_live.ex:690
 #, elixir-autogen, elixir-format
@@ -3491,7 +3516,7 @@ msgstr "Nie zaplanowano"
 #: lib/tuist_web/live/project_notifications_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Only bundles with the selected tag are included in the report's bundle size section. Select All bundles to include every bundle."
-msgstr "Do sekcji rozmiaru pakietu w raporcie trafiają tylko pakiety z wybranym tagiem. Wybierz Wszystkie pakiety, aby uwzględnić każdy."
+msgstr "Do sekcji rozmiaru pakietu w raporcie trafiają tylko pakiety z wybranym tagiem. Wybierz Wszystkie pakiety, aby uwzględnić każdy z nich."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:428
 #: lib/tuist_web/live/project_notifications_live.html.heex:132
@@ -3503,22 +3528,22 @@ msgstr "Wyszukaj tagi"
 #: lib/tuist_web/live/project_notifications_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Search tags..."
-msgstr "Wyszukaj tagi..."
+msgstr "Szukaj tagów..."
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness is the share of the tests in scope that test selection skipped, across the period's test runs."
-msgstr "Skuteczność selektywnego testowania to udział testów w zakresie, które zostały pominięte przez wybór testów, we wszystkich uruchomieniach testów w danym okresie."
+msgstr "Skuteczność testów selektywnych to odsetek przypadków testowych w zakresie, które zostały pominięte przez wybór testów we wszystkich uruchomieniach testów w danym okresie."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:549
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>."
-msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> bundle’ów <strong>%{bundle_name}</strong> oznaczonych tagiem <strong>%{tag}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszego bundle’a oznaczonego tagiem <strong>%{tag}</strong> na gałęzi <strong>%{baseline_branch}</strong>."
+msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> pakietów <strong>%{bundle_name}</strong> oznaczonych tagiem <strong>%{tag}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszego pakietu oznaczonego tagiem <strong>%{tag}</strong> na gałęzi <strong>%{baseline_branch}</strong>."
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:542
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>."
-msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> bundle’ów oznaczonych tagiem <strong>%{tag}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszego bundle’a oznaczonego tagiem <strong>%{tag}</strong> na gałęzi <strong>%{baseline_branch}</strong>."
+msgstr "Blokuj PR-y, gdy <strong>%{size_label}</strong> pakietów oznaczonych tagiem <strong>%{tag}</strong> wzrośnie o więcej niż <strong>%{deviation}</strong> w porównaniu do najnowszego pakietu oznaczonego tagiem <strong>%{tag}</strong> na gałęzi <strong>%{baseline_branch}</strong>."
 
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:225
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:290

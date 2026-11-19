@@ -14,17 +14,17 @@ msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
-msgstr "ყველა ლოგის ჩანაწერი მომსახურების სახელით შერჩეულ პერიოდში, ცხრილის ძებნის მიუხედავად. დიაგრამა აჩვენებს ჩანაწერებს ინტერვალების მიხედვით."
+msgstr "ყველა ლოგის ჩანაწერი სერვისის სახელით შერჩეულ პერიოდში, ცხრილის ძებნისგან დამოუკიდებლად. დიაგრამა აჩვენებს ჩანაწერებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
-msgstr "ყველა დაფიქსირებული სპანი შერჩეულ პერიოდში, არა განცალკევებული ტრეისები. დიაგრამა აჩვენებს სპანებს ინტერვალების მიხედვით."
+msgstr "ყველა დაფიქსირებული სპანი შერჩეულ პერიოდში, არა უნიკალური ტრეისები. დიაგრამა აჩვენებს სპანებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
-msgstr "სპანების ხანგრძლივობის მიახლოებითი 95-ე პროცენტილი მთელ შერჩეულ პერიოდზე, მილიწამებში. დიაგრამა აჩვენებს პროცენტილს ინტერვალების მიხედვით."
+msgstr "სპანების ხანგრძლივობის მიახლოებითი 95-ე პროცენტილი მთელ შერჩეულ პერიოდში, მილიწამებში. დიაგრამა აჩვენებს პროცენტილს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
@@ -39,7 +39,7 @@ msgstr "ხანგრძლივობა (მწმ)"
 #: lib/tuist_web/live/pulse_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
-msgstr "თითოეული წერტილი წარმოადგენს p95 სპანის ხანგრძლივობას ერთი ინტერვალისთვის და არა ცალკეულ სპანს."
+msgstr "ყოველი წერტილი წარმოადგენს ერთი ინტერვალის p95 სპანის ხანგრძლივობას და არა ინდივიდუალურ სპანს."
 
 #: lib/tuist_web/live/pulse_live.ex:965
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "შეცდომის ლოგები"
 #: lib/tuist_web/live/pulse_live.ex:999
 #, elixir-autogen, elixir-format
 msgid "Error spans"
-msgstr "შეცდომების დიაპაზონები"
+msgstr "შეცდომის სპანები"
 
 #: lib/tuist_web/live/pulse_live.ex:935
 #, elixir-autogen, elixir-format
@@ -102,12 +102,12 @@ msgstr "ლოგის ჩანაწერები"
 #: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
-msgstr "ჩანაწერები, რომლებიც არჩეულ პერიოდში შეფასებულია როგორც error ან fatal. დიაგრამა აჩვენებს ჩანაწერების რაოდენობას ინტერვალების მიხედვით."
+msgstr "არჩეულ პერიოდში შეცდომად ან კრიტიკულად მონიშნული ლოგის ჩანაწერები. დიაგრამაზე ნაჩვენებია ჩანაწერების რაოდენობა თითოეულ ინტერვალში."
 
 #: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
-msgstr "ჩანაწერები, რომლებიც არჩეულ პერიოდში შეფასებულია როგორც warn ან warning. დიაგრამა აჩვენებს ჩანაწერების რაოდენობას ინტერვალების მიხედვით."
+msgstr "არჩეულ პერიოდში გაფრთხილებად მონიშნული ლოგის ჩანაწერები. დიაგრამაზე ნაჩვენებია ჩანაწერების რაოდენობა თითოეულ ინტერვალში."
 
 #: lib/tuist_web/live/pulse_live.ex:906
 #, elixir-autogen, elixir-format
@@ -138,7 +138,7 @@ msgstr "ამ პერიოდში გაზომვები არ ა�
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "ტელემეტრია ამ მოთხოვნასა და დროის დიაპაზონში არ შეესაბამება."
+msgstr "ამ მოთხოვნასა და დროის დიაპაზონში ტელემეტრია არ არის."
 
 #: lib/tuist_web/live/pulse_live.ex:257
 #, elixir-autogen, elixir-format
@@ -148,27 +148,27 @@ msgstr "პერიოდი:"
 #: lib/tuist_web/live/pulse_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
-msgstr "Pulse-მა ვერ შეასრულა ეს მოთხოვნა. შეცვალეთ მოთხოვნა ან განაახლეთ გვერდი ხელახლა სცადეთ."
+msgstr "Pulse-მა ვერ შეასრულა ეს მოთხოვნა. შეცვალეთ მოთხოვნა ან განაახლეთ გვერდი ხელახლა სცადოთ."
 
 #: lib/tuist_web/live/pulse_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
-msgstr "ანგარიშგების სამიზნეები"
+msgstr "მონაცემთა წყაროები"
 
 #: lib/tuist_web/live/pulse_live.ex:251
 #, elixir-autogen, elixir-format
 msgid "Resume live"
-msgstr "პირდაპირი ეთერის განახლება"
+msgstr "განაახლე რეალურ დროში"
 
 #: lib/tuist_web/live/pulse_live.ex:799
 #, elixir-autogen, elixir-format
 msgid "Root span"
-msgstr "ძირითადი სპანი"
+msgstr "ფესვური სპანი"
 
 #: lib/tuist_web/live/pulse_live.ex:442
 #, elixir-autogen, elixir-format
 msgid "Run query"
-msgstr "მოთხოვნის შესრულება"
+msgstr "მოთხოვნის გაშვება"
 
 #: lib/tuist_web/live/pulse_live.ex:388
 #, elixir-autogen, elixir-format
@@ -178,7 +178,7 @@ msgstr "ტელემეტრიის ძიება"
 #: lib/tuist_web/live/pulse_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "ძიება..."
+msgstr "ძებნა..."
 
 #: lib/tuist_web/live/pulse_live.ex:522
 #: lib/tuist_web/live/pulse_live.ex:798
@@ -192,12 +192,12 @@ msgstr "სერვისი"
 #: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "Spans"
-msgstr "Spans"
+msgstr "სპანები"
 
 #: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
-msgstr "Spans შეცდომის სტატუსით შერჩეულ პერიოდში. დიაგრამა აჩვენებს spans-ებს ინტერვალებით."
+msgstr "სპანები შეცდომის სტატუსით შერჩეულ პერიოდში. დიაგრამა აჩვენებს სპანების რაოდენობას ინტერვალებში."
 
 #: lib/tuist_web/live/pulse_live.ex:797
 #, elixir-autogen, elixir-format
@@ -207,17 +207,17 @@ msgstr "დაწყებული (UTC)"
 #: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
-msgstr "პერიოდის ბოლოს up = 0-ს აცხადებენ სამიზნეები. გამოტოვებული ნიმუშები არ ითვლება არაჯანსაღად."
+msgstr "მიზნები, რომლებიც პერიოდის ბოლოს აცხადებენ up = 0-ს. გამოტოვებული ნიმუშები არ ითვლება ჯანმრთელად."
 
 #: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
-msgstr "პერიოდის ბოლოს up = 1-ს აცხადებენ სამიზნეები."
+msgstr "მიზნები, რომლებიც პერიოდის ბოლოს აცხადებენ up = 1-ს."
 
 #: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
-msgstr "სამიზნეები, რომლებსაც პერიოდის ბოლოს აქვთ up ნიმუში. გრაფიკი აჩვენებს სამიზნეების რაოდენობას დროთა განმავლობაში."
+msgstr "მიზნები up ნიმუშით პერიოდის ბოლოს. დიაგრამა აჩვენებს მიზნების რაოდენობას დროის განმავლობაში."
 
 #: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
@@ -232,7 +232,7 @@ msgstr "ტელემეტრია მიუწვდომელია"
 #: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
-msgstr "Pulse კავშირი არ არის კონფიგურირებული. დაუკავშირდით თქვენს ადმინისტრატორს."
+msgstr "Pulse-თან კავშირი არ არის კონფიგურირებული. დაუკავშირდით ადმინისტრატორს."
 
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
@@ -256,17 +256,17 @@ msgstr "Trace ID"
 #: lib/tuist_web/live/pulse_live.ex:907
 #, elixir-autogen, elixir-format
 msgid "Traces"
-msgstr "Trace-ები"
+msgstr "ტრეისები"
 
 #: lib/tuist_web/live/pulse_live.ex:941
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
-msgstr "არასტაბილური სამიზნეები"
+msgstr "არაჯანსაღი სამიზნეები"
 
 #: lib/tuist_web/live/pulse_live.ex:975
 #, elixir-autogen, elixir-format
 msgid "Warning logs"
-msgstr "გაფრთხილების ჟურნალები"
+msgstr "გაფრთხილების ლოგები"
 
 #: lib/tuist_web/live/pulse_live.ex:1009
 #, elixir-autogen, elixir-format
@@ -360,12 +360,12 @@ msgstr "გარე"
 #: lib/tuist_web/live/pulse_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "First seen"
-msgstr "პირველად გამოჩნდა"
+msgstr "პირველად ნანახი"
 
 #: lib/tuist_web/live/pulse_error_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "First seen in this period"
-msgstr "პირველად გამოჩნდა ამ პერიოდში"
+msgstr "ამ პერიოდში პირველად ნანახი"
 
 #: lib/tuist_web/live/pulse_error_live.ex:413
 #, elixir-autogen, elixir-format
@@ -376,14 +376,14 @@ msgstr "აპლიკაციაში"
 #: lib/tuist_web/live/pulse_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Issue"
-msgstr "საჩივარი"
+msgstr "შეცდომა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:202
 #: lib/tuist_web/live/pulse_live.ex:759
 #: lib/tuist_web/live/pulse_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Last seen"
-msgstr "ბოლოს ნანახია"
+msgstr "ბოლოს ნანახი"
 
 #: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
@@ -393,19 +393,19 @@ msgstr "უახლესი მოვლენა"
 #: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
-msgstr "გამონაკლისები არ დაფიქსირებულა"
+msgstr "გამონაკლისი არ არის ჩაწერილი"
 
 #: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
-msgstr "სტეკის კადრები არ დაფიქსირებულა"
+msgstr "სტეკის კადრები არ ჩაწერილა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:158
 #: lib/tuist_web/live/pulse_error_live.ex:211
 #: lib/tuist_web/live/pulse_error_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Occurrences"
-msgstr "გამოვლენები"
+msgstr "შემთხვევები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
@@ -417,7 +417,7 @@ msgstr "გამოშვება"
 #: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
-msgstr "Stack trace"
+msgstr "სტეკის ტრასა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:457
 #, elixir-autogen, elixir-format
@@ -432,12 +432,12 @@ msgstr "დაზარალებული სერვისები"
 #: lib/tuist_web/live/pulse_error_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Back to issue"
-msgstr "დაბრუნება პრობლემაზე"
+msgstr "უკან პრობლემაზე"
 
 #: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
-msgstr "განსხვავებული დასახელებული სერვისები Sentry-ის მოვლენებით შერჩეულ პერიოდში. დიაგრამა აჩვენებს დაზარალებულ სერვისებს თითოეული ინტერვალისთვის."
+msgstr "Sentry-ის მოვლენების მქონე განსხვავებული სახელიანი სერვისები შერჩეულ პერიოდში. გრაფიკი აჩვენებს დაზარალებულ სერვისებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_error_live.ex:42
 #: lib/tuist_web/live/pulse_error_live.ex:95
@@ -449,7 +449,7 @@ msgstr "შეცდომის დეტალები"
 #: lib/tuist_web/live/pulse_error_live.ex:99
 #, elixir-autogen, elixir-format
 msgid "Error details unavailable"
-msgstr "შეცდომის დეტალები მიუწვდომელია"
+msgstr "შეცდომის დეტალები ხელმიუწვდომელია"
 
 #: lib/tuist_web/live/pulse_error_live.ex:111
 #, elixir-autogen, elixir-format
@@ -459,17 +459,17 @@ msgstr "მოვლენის დეტალები"
 #: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Events over the selected period"
-msgstr "მოვლენები შერჩეულ პერიოდში"
+msgstr "მოვლენები არჩეულ პერიოდში"
 
 #: lib/tuist_web/live/pulse_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Fatal events"
-msgstr "ფატალური მოვლენები"
+msgstr "კრიტიკული მოვლენები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "No occurrences in this period"
-msgstr "ამ პერიოდში შემთხვევები არ არის"
+msgstr "ამ პერიოდში გამოვლინებები არ ფიქსირდება"
 
 #: lib/tuist_web/live/pulse_error_live.ex:182
 #: lib/tuist_web/live/pulse_live.ex:731
@@ -480,7 +480,7 @@ msgstr "არ არის ჩაწერილი"
 #: lib/tuist_web/live/pulse_error_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Occurrence pages"
-msgstr "გამოვლენის გვერდები"
+msgstr "გამოვლინების გვერდები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:190
 #, elixir-autogen, elixir-format
@@ -490,17 +490,17 @@ msgstr "პლატფორმა"
 #: lib/tuist_web/live/pulse_error_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
-msgstr "Pulse-მა ვერ ჩატვირთა ეს დეტალები. დაბრუნდით შეცდომებში და სცადეთ ხელახლა."
+msgstr "Pulse-ს ამ დეტალების ჩატვირთვა ვერ შეძლო. დაუბრუნდით შეცდომებს და სცადეთ ხელახლა."
 
 #: lib/tuist_web/live/pulse_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
-msgstr "Sentry-ის მოვლენები შერჩეულ პერიოდში, დაჯგუფებული პრობლემების გარეშე. დიაგრამა აჩვენებს მოვლენებს ინტერვალებით."
+msgstr "Sentry-ის ღონისძიებები შერჩეულ პერიოდში, დაჯგუფებული პრობლემების გარეშე. გრაფიკი აჩვენებს ღონისძიებებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
-msgstr "Sentry-ის მოვლენები, რომლებიც შერჩეულ პერიოდში fatal-ად მონიშნულია. დიაგრამა აჩვენებს მოვლენებს ინტერვალებით."
+msgstr "Sentry-ის ღონისძიებები, რომლებიც შერჩეულ პერიოდში fatal-ად მონიშნულია. გრაფიკი აჩვენებს ღონისძიებებს ინტერვალების მიხედვით."
 
 #: lib/tuist_web/live/pulse_error_live.ex:137
 #, elixir-autogen, elixir-format
@@ -510,7 +510,7 @@ msgstr "Span ID"
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
-msgstr "ეს პრობლემა ან მოვლენა არსებულ პერიოდში ვერ მოიძებნა."
+msgstr "ეს პრობლემა ან ღონისძიება შერჩეულ პერიოდში არ მოიძებნა."
 
 #: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
@@ -520,17 +520,17 @@ msgstr "ტრენდი"
 #: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
-msgstr "მოვლენის ნახვა"
+msgstr "ღონისძიების ნახვა"
 
 #: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
-msgstr "ეს მოვლენა შეიცავს შეტყობინებას და არა გამონაკლისს."
+msgstr "ამ მოვლენამ ჩაიწერა შეტყობინება, არა გამონაკლისი."
 
 #: lib/tuist_web/live/pulse_error_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Breadcrumbs"
-msgstr "ნავიგაციის ჯაჭვი"
+msgstr "ნავიგაციის ბილიკები"
 
 #: lib/tuist_web/live/pulse_error_live.ex:570
 #, elixir-autogen, elixir-format
@@ -555,10 +555,10 @@ msgstr "ვერსია"
 #: lib/tuist_web/live/pulse_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
-msgstr "მიუწვდომელი"
+msgstr "მიუწვდომელია"
 
 #: lib/tuist_web/live/pulse_live.ex:753
 #, elixir-autogen, elixir-format
 msgid "Seen in %{count} environment"
 msgid_plural "Seen in %{count} environments"
-msgstr[0] "ნაპოვნია %{count} გარემოში"
+msgstr[0] "ნანახია %{count} გარემოში"

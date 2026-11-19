@@ -14,17 +14,17 @@ msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
-msgstr "선택한 기간 동안 테이블 검색과 무관하게 서비스 이름이 포함된 모든 로그 항목입니다. 차트는 구간별 항목 수를 보여줍니다."
+msgstr "선택한 기간 동안 서비스 이름이 있는 모든 로그 항목(테이블 검색과 무관). 차트는 구간별 항목 수를 표시합니다."
 
 #: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
-msgstr "선택한 기간 동안 기록된 모든 스팬으로, 고유 추적(traces) 수가 아닙니다. 차트는 구간별 스팬 수를 보여줍니다."
+msgstr "선택한 기간 동안 기록된 모든 스팬(고유 트레이스가 아님). 차트는 구간별 스팬 수를 표시합니다."
 
 #: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
-msgstr "선택한 전체 기간 동안의 스팬 지속 시간 근사 95백분위수(밀리초)입니다. 차트는 구간별 백분위수를 보여줍니다."
+msgstr "선택한 전체 기간 동안 스팬 지속 시간의 대략적인 95백분위수(밀리초 단위). 차트는 구간별 백분위수를 표시합니다."
 
 #: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
@@ -39,7 +39,7 @@ msgstr "지속 시간(ms)"
 #: lib/tuist_web/live/pulse_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
-msgstr "각 지점은 개별 스팬이 아닌 한 구간의 p95 스팬 지속 시간을 나타냅니다."
+msgstr "각 점은 개별 스팬이 아닌 한 구간의 p95 스팬 지속 시간입니다."
 
 #: lib/tuist_web/live/pulse_live.ex:965
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "오류 로그"
 #: lib/tuist_web/live/pulse_live.ex:999
 #, elixir-autogen, elixir-format
 msgid "Error spans"
-msgstr "오류 범위"
+msgstr "오류 스팬"
 
 #: lib/tuist_web/live/pulse_live.ex:935
 #, elixir-autogen, elixir-format
@@ -92,7 +92,7 @@ msgstr "최신 값"
 #: lib/tuist_web/live/pulse_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Level"
-msgstr "수준"
+msgstr "레벨"
 
 #: lib/tuist_web/live/pulse_live.ex:955
 #, elixir-autogen, elixir-format
@@ -102,12 +102,12 @@ msgstr "로그 항목"
 #: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
-msgstr "선택한 기간 동안 오류 또는 치명적(fatal)으로 표시된 로그 항목입니다. 차트는 간격당 항목 수를 보여줍니다."
+msgstr "선택한 기간 동안 오류 또는 치명적(fatal)으로 표시된 로그 항목입니다. 차트는 구간별 항목 수를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
-msgstr "선택한 기간 동안 경고(warn/warning)로 표시된 로그 항목입니다. 차트는 간격당 항목 수를 보여줍니다."
+msgstr "선택한 기간 동안 경고(warn/warning)로 표시된 로그 항목입니다. 차트는 구간별 항목 수를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_live.ex:906
 #, elixir-autogen, elixir-format
@@ -123,22 +123,22 @@ msgstr "메시지"
 #: lib/tuist_web/live/pulse_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Metric"
-msgstr "지표"
+msgstr "메트릭"
 
 #: lib/tuist_web/live/pulse_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "Metrics"
-msgstr "지표"
+msgstr "메트릭"
 
 #: lib/tuist_web/live/pulse_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "No measurements in this period"
-msgstr "이 기간의 측정값 없음"
+msgstr "이 기간에는 측정값이 없습니다"
 
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "이 쿼리와 시간 범위에 일치하는 텔레메트리 데이터가 없습니다."
+msgstr "이 쿼리와 시간 범위와 일치하는 텔레메트리가 없습니다."
 
 #: lib/tuist_web/live/pulse_live.ex:257
 #, elixir-autogen, elixir-format
@@ -148,7 +148,7 @@ msgstr "기간:"
 #: lib/tuist_web/live/pulse_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
-msgstr "Pulse가 이 쿼리를 완료하지 못했습니다. 쿼리를 조정하거나 새로고침하여 다시 시도하세요."
+msgstr "Pulse에서 이 쿼리를 완료할 수 없습니다. 쿼리를 조정하거나 새로 고침하여 다시 시도하세요."
 
 #: lib/tuist_web/live/pulse_live.ex:925
 #, elixir-autogen, elixir-format
@@ -197,27 +197,27 @@ msgstr "스팬"
 #: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
-msgstr "선택한 기간 중 오류 상태인 스팬. 차트는 구간별 스팬을 보여줍니다."
+msgstr "선택한 기간 동안 오류 상태인 스팬입니다. 차트는 구간별 스팬 수를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
-msgstr "시작 시간(UTC)"
+msgstr "시작 시간 (UTC)"
 
 #: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
-msgstr "기간 종료 시점의 업(up) 보고가 0인 대상. 누락된 샘플은 비정상 상태로 간주되지 않습니다."
+msgstr "기간 종료 시점에 up = 0으로 보고된 대상입니다. 누락된 샘플은 비정상 상태로 간주되지 않습니다."
 
 #: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
-msgstr "기간 종료 시점의 업(up) 보고가 1인 대상."
+msgstr "기간 종료 시점에 up = 1로 보고된 대상입니다."
 
 #: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
-msgstr "기간 종료 시점에 업(up) 샘플이 있는 대상. 차트는 시간에 따른 대상 수를 보여줍니다."
+msgstr "기간 종료 시점에 up 샘플이 있는 대상입니다. 차트는 시간에 따른 대상 수를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
@@ -227,7 +227,7 @@ msgstr "텔레메트리 페이지"
 #: lib/tuist_web/live/pulse_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Telemetry unavailable"
-msgstr "텔레메트리 사용 불가"
+msgstr "텔레메트리를 사용할 수 없음"
 
 #: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
@@ -237,14 +237,14 @@ msgstr "Pulse 연결이 구성되지 않았습니다. 관리자에게 문의하�
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
-msgstr "이 쿼리는 결과 제한을 초과합니다. 시간 범위나 네이티브 쿼리를 좁힌 후 다시 시도하세요."
+msgstr "이 쿼리는 결과 제한을 초과합니다. 시간 범위 또는 네이티브 쿼리를 좁히고 다시 시도하세요."
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
 #: lib/tuist_web/live/pulse_error_live.ex:258
 #: lib/tuist_web/live/pulse_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Time (UTC)"
-msgstr "시간 (UTC)"
+msgstr "시간(UTC)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:132
 #: lib/tuist_web/live/pulse_live.ex:801
@@ -261,7 +261,7 @@ msgstr "추적"
 #: lib/tuist_web/live/pulse_live.ex:941
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
-msgstr "상태 불량 타겟"
+msgstr "정상이지 않은 대상"
 
 #: lib/tuist_web/live/pulse_live.ex:975
 #, elixir-autogen, elixir-format
@@ -360,12 +360,12 @@ msgstr "외부"
 #: lib/tuist_web/live/pulse_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "First seen"
-msgstr "최초 발견"
+msgstr "최초 감지"
 
 #: lib/tuist_web/live/pulse_error_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "First seen in this period"
-msgstr "이번 기간 최초 발견"
+msgstr "이번 기간 최초 감지"
 
 #: lib/tuist_web/live/pulse_error_live.ex:413
 #, elixir-autogen, elixir-format
@@ -383,12 +383,12 @@ msgstr "이슈"
 #: lib/tuist_web/live/pulse_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Last seen"
-msgstr "마지막 확인 시간"
+msgstr "마지막 감지"
 
 #: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Latest event"
-msgstr "최신 이벤트"
+msgstr "최근 이벤트"
 
 #: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
@@ -398,7 +398,7 @@ msgstr "기록된 예외 없음"
 #: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
-msgstr "기록된 스택 프레임 없음"
+msgstr "스택 프레임이 기록되지 않았습니다"
 
 #: lib/tuist_web/live/pulse_error_live.ex:158
 #: lib/tuist_web/live/pulse_error_live.ex:211
@@ -437,7 +437,7 @@ msgstr "이슈로 돌아가기"
 #: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
-msgstr "선택한 기간 동안 Sentry 이벤트가 발생한 고유 명명 서비스 수입니다. 차트는 구간별 영향을 받은 서비스를 보여줍니다."
+msgstr "선택한 기간 동안 Sentry 이벤트가 발생한 고유 명명 서비스입니다. 차트는 간격별 영향받은 서비스를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_error_live.ex:42
 #: lib/tuist_web/live/pulse_error_live.ex:95
@@ -464,12 +464,12 @@ msgstr "선택한 기간 동안의 이벤트"
 #: lib/tuist_web/live/pulse_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Fatal events"
-msgstr "치명적 이벤트"
+msgstr "치명적 오류"
 
 #: lib/tuist_web/live/pulse_error_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "No occurrences in this period"
-msgstr "이 기간의 발생 건수 없음"
+msgstr "해당 기간에 발생한 건수 없음"
 
 #: lib/tuist_web/live/pulse_error_live.ex:182
 #: lib/tuist_web/live/pulse_live.ex:731
@@ -490,32 +490,32 @@ msgstr "플랫폼"
 #: lib/tuist_web/live/pulse_error_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
-msgstr "Pulse에서 이 세부 정보를 불러올 수 없습니다. 오류 페이지로 돌아가서 다시 시도하세요."
+msgstr "Pulse에서 이 세부 정보를 로드할 수 없습니다. 오류 페이지로 돌아가서 다시 시도하세요."
 
 #: lib/tuist_web/live/pulse_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
-msgstr "선택한 기간의 Sentry 이벤트(그룹화된 이슈 제외). 차트는 구간별 이벤트를 보여줍니다."
+msgstr "선택한 기간의 Sentry 이벤트(그룹화된 이슈 제외)입니다. 차트는 구간별 이벤트 수를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
-msgstr "선택한 기간 중 치명적(fatal)으로 라벨링된 Sentry 이벤트. 차트는 구간별 이벤트를 보여줍니다."
+msgstr "선택한 기간 중 치명적(fatal)으로 라벨링된 Sentry 이벤트입니다. 차트는 구간별 이벤트 수를 보여줍니다."
 
 #: lib/tuist_web/live/pulse_error_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Span ID"
-msgstr "스팬 ID"
+msgstr "Span ID"
 
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
-msgstr "선택한 기간에 해당 이슈 또는 이벤트가 없습니다."
+msgstr "선택한 기간에 이 이슈 또는 이벤트를 찾을 수 없습니다."
 
 #: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
 msgid "Trend"
-msgstr "트렌드"
+msgstr "추세"
 
 #: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
@@ -530,7 +530,7 @@ msgstr "이 이벤트는 예외가 아닌 메시지를 기록했습니다."
 #: lib/tuist_web/live/pulse_error_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Breadcrumbs"
-msgstr "이동 경로"
+msgstr "브레드크럼"
 
 #: lib/tuist_web/live/pulse_error_live.ex:570
 #, elixir-autogen, elixir-format
