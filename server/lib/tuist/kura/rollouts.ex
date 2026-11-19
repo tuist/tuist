@@ -292,6 +292,52 @@ defmodule Tuist.Kura.Rollouts do
     end)
   end
 
+  @doc """
+  The rollout's scoped servers that have not converged on its target, with
+  their account, observed image and latest deployment: the servers that
+  hold a wave open and, once the deadline passes, the reason it paused.
+  Returns `{servers, total}`, at most `limit` servers ordered by wave.
+  """
+  def unconverged_servers(%Rollout{id: id}, limit \\ 50) do
+    scope = where(RolloutServer, [rs], rs.kura_rollout_id == ^id and is_nil(rs.converged_at))
+
+    servers =
+      scope
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> join(:left, [_rs, s], a in assoc(s, :account))
+      |> join(:left, [rs], d in assoc(rs, :deployment))
+      |> order_by([rs, s], asc: rs.wave, asc: s.region, asc: s.id)
+      |> limit(^limit)
+      |> select([rs, s, a, d], %{
+        server_id: s.id,
+        account_id: s.account_id,
+        account_handle: a.name,
+        region: s.region,
+        wave: rs.wave,
+        attempt: rs.attempt,
+        held_reason: rs.held_reason,
+        status: s.status,
+        observed_image_tag: s.observed_image_tag,
+        last_observed_at: s.last_observed_at,
+        last_ready_at: s.last_ready_at,
+        drain_started_at: s.drain_started_at,
+        deployment: %{
+          status: d.status,
+          image_tag: d.image_tag,
+          error_message: d.error_message,
+          started_at: d.started_at,
+          finished_at: d.finished_at
+        }
+      })
+      |> Repo.all()
+      |> Enum.map(fn
+        %{deployment: %{status: nil}} = server -> %{server | deployment: nil}
+        server -> server
+      end)
+
+    {servers, Repo.aggregate(scope, :count)}
+  end
+
   @doc "Whether a rollout of this tag has ever completed in this environment."
   def previously_completed?(image_tag) when is_binary(image_tag) do
     Rollout
