@@ -94,14 +94,14 @@ jq -e '
   any(.[]; .kind == "NetworkPolicy" and any(.spec.egress[]?;
     .to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "observability" and .ports == [{protocol:"TCP",port:4318}]))
 ' "$work/production.json" >/dev/null
-# Production publishes the in-cluster endpoint and buckets but no placements
-# yet, admits only its three client namespaces, and lets the service user read
+# Production publishes the in-cluster endpoint and buckets and takes new
+# placements from Garage, admits only its three client namespaces, and lets the service user read
 # drive space for archive admission.
 jq -e '
   any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and
     (.spec.target.template.data["targets.json"] | fromjson | .["rustfs-gra-production-v1"] |
       .private_endpoint == "http://rustfs-s3.rustfs-production.svc.cluster.local:9000" and
-      .private_network_ready == false and .archive_bucket == "sandbox-archives" and
+      .private_network_ready == true and .archive_bucket == "sandbox-archives" and
       .archive_capacity == "rustfs" and .actions_cache_bucket == "actions-cache" and
       .actions_cache_bytes == 500000000000)) and
   any(.[]; .kind == "NetworkPolicy" and .metadata.name == "rustfs-store" and

@@ -12,7 +12,10 @@ target:
   id: gra-production-v1
   site: gra
   enabled: true
-  privateNetworkReady: true
+  # RustFS (infra/helm/shard-storage-rustfs) takes every new placement. The
+  # target stays published so existing shards, Actions cache entries and
+  # sandbox archives remain readable until they expire or move.
+  privateNetworkReady: false
 storage:
   # The PVC (and the XFS quota the provisioner set from it) was created at
   # 3Ti and cannot be resized. The host quota is lowered by hand to hand space
