@@ -27,6 +27,13 @@ type Signals struct {
 	// floors of pools not in use are funded most used first. An older
 	// server omits it and it decodes as 0, which leaves recency to decide.
 	HoursWithJobs int32 `json:"hours_with_jobs"`
+	// ColdJobs is how many of the pool's jobs of the last two weeks arrived
+	// with another of its jobs in the 30 s before them: the jobs one warm
+	// runner does not cover, which boot cold unless the learned floor above
+	// it is funded. 0 when the pool had no job in the last day. Warm floors
+	// are funded most cold jobs first. An older server omits it and it
+	// decodes as 0, which leaves HoursWithJobs to decide, as before.
+	ColdJobs int32 `json:"cold_jobs"`
 	// PreferredNodes holds one Node per oldest queued job, in queue order: a
 	// host that holds the custom cache volumes the job is predicted to attach
 	// and has cache disk room for them. A Node repeats once per job it fits.

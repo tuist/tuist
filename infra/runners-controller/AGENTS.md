@@ -107,7 +107,7 @@ cancellable and leaves the reserve intact. See
   arrive, and the scale-down cooldown damps the reap.
 
   - Keep byte allocation and `capByShape` warm priorities aligned: baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. All warm stock yields to real load.
-  - Fund each warm tier whole in `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors frequently used pools over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
+  - Fund each warm tier whole in `cold_jobs` (the pool's jobs of the last two weeks that arrived within 30 s of another, which one warm runner does not cover), `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors the pools whose fan-outs a floor serves over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
   - Split only speculative p95 headroom proportionally to cost; grant whole Pods left by rounding to the largest targets, then by name (`grantRemainder`). Do not raise learned caps to hide an unfunded warm budget.
 
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown

@@ -1947,6 +1947,38 @@ defmodule Tuist.RunnersTest do
       assert %{queued: ^headroom, withheld: 2} = Runners.scaling_signals_for_fleet(fleet)
     end
 
+    # Warm runners past what the pool's accounts can claim hold seats that
+    # other pools' bursts need: on 2026-11-18 internal-only pools at their
+    # account's limit outranked 27.1 and its customer fan-outs booted cold.
+    test "caps the learned warm floor at what the pool's accounts can still claim" do
+      account = account_fixture()
+      fleet = "macos-signal-learned-capped"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+      start = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      rows =
+        for i <- 0..(headroom + 2) do
+          enqueued_at = DateTime.add(start, i, :second)
+
+          %{
+            workflow_job_id: 92_000 + i,
+            account_id: account.id,
+            fleet_name: fleet,
+            repository: "acme/app",
+            status: "completed",
+            conclusion: "success",
+            enqueued_at: enqueued_at,
+            updated_at: enqueued_at
+          }
+        end
+
+      Tuist.IngestRepo.insert_all(Tuist.Runners.Job, rows)
+
+      assert Tuist.Runners.LearnedWarmFloors.for_fleet(fleet) == headroom + 3
+      assert %{learned_warm_floor: ^headroom} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
     # A burst of Air sign-ups past the Air fleet share must not size pools
     # for jobs admission will refuse, which would preempt paid warm capacity.
     test "withholds Air accounts' jobs past the Air fleet share" do
@@ -2033,14 +2065,14 @@ defmodule Tuist.RunnersTest do
       created.(:linux, 16_384, 5)
       created.(:darwin, 24_576, 2 * 24 * 60)
 
-      assert %{hours_with_jobs: 2, p95_concurrent_last_hour: 1, queued: 0} =
+      assert %{hours_with_jobs: 2, cold_jobs: 2, p95_concurrent_last_hour: 1, queued: 0} =
                Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm")
 
-      assert %{hours_with_jobs: 1, p95_concurrent_last_hour: 0} =
+      assert %{hours_with_jobs: 1, cold_jobs: 1, p95_concurrent_last_hour: 0} =
                Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-16gb")
 
       # Its last create is older than a day, so it is not in use at all.
-      assert %{hours_with_jobs: 0, p95_concurrent_last_hour: 0} =
+      assert %{hours_with_jobs: 0, cold_jobs: 0, p95_concurrent_last_hour: 0} =
                Runners.scaling_signals_for_fleet("tuist-tuist-runner-pool-macos-sandbox-warm-24gb")
     end
 

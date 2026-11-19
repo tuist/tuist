@@ -114,6 +114,7 @@ func executionDemand(workers []executionWorker, floor int32, slot int64) (scalin
 		Target:           target,
 		// Funded first among warm stock: remote actions serve CI jobs
 		// that already hold runners.
+		ColdJobs:      math.MaxInt32,
 		HoursWithJobs: math.MaxInt32,
 	}, int64(held) * slot
 }

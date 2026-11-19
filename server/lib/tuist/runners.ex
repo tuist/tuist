@@ -684,13 +684,19 @@ defmodule Tuist.Runners do
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
     * `learned_warm_floor` — the burst this fleet's jobs arrive in, or 0
-      when it had no job in the last day (`LearnedWarmFloors`). The
-      controller keeps up to that many runners idle above load, capped per
-      pool by `maxLearnedWarmPoolFloor`.
+      when it had no job in the last day (`LearnedWarmFloors`), capped at
+      the jobs the accounts that ran on it in the last 14 days can still
+      claim under their concurrency limits. The controller keeps up to
+      that many runners idle above load, capped per pool by
+      `maxLearnedWarmPoolFloor`.
+    * `cold_jobs` — how many of this fleet's jobs of the last 14 days
+      arrived with another of its jobs in the 30 s before them, the jobs
+      one warm runner does not cover, or 0 when it had no job in the last
+      day (`LearnedWarmFloors`). The controller funds warm floors on a full
+      fleet most cold jobs first.
     * `hours_with_jobs` — how many hours of the last 14 days had one of
       this fleet's jobs, or 0 when it had no job in the last day
-      (`LearnedWarmFloors`). The controller funds idle pools' floors on a
-      full fleet in this order, most used first.
+      (`LearnedWarmFloors`). Breaks ties between equal `cold_jobs`.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -717,12 +723,35 @@ defmodule Tuist.Runners do
         queued: queued,
         withheld: withheld,
         p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
-        learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
+        learned_warm_floor: claimable_learned_warm_floor(fleet_name),
         hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
+        cold_jobs: LearnedWarmFloors.cold_jobs(fleet_name),
         preferred_nodes: preferred_nodes(fleet_name)
       },
       macos_sandbox_warm_signals(fleet_name)
     )
+  end
+
+  # Warm runners beyond what the pool's accounts can claim go unused while
+  # they hold seats: on 2026-11-18 the internal-only 27.0 and 27.2 pools
+  # kept their learned floors while their one account sat at its limit, and
+  # outranked 27.1, whose customer bursts then booted cold. Headroom is
+  # account-wide, so an account using several pools counts in each of them.
+  defp claimable_learned_warm_floor(fleet_name) do
+    with floor when floor > 0 <- LearnedWarmFloors.for_fleet(fleet_name),
+         {:ok, resources} <- Catalog.resources_for_fleet(fleet_name) do
+      claimable =
+        fleet_name
+        |> LearnedWarmFloors.account_ids()
+        |> Concurrency.headroom_jobs_by_account(resources)
+        |> Map.values()
+        |> Enum.sum()
+
+      min(floor, claimable)
+    else
+      0 -> 0
+      {:error, _reason} -> LearnedWarmFloors.for_fleet(fleet_name)
+    end
   end
 
   # A warm macOS sandbox pool runs no job; its usage is the sandbox creates

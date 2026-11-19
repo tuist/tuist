@@ -41,9 +41,13 @@ type PoolDemand struct {
 	// in the last hour. It earns a baseline before learned bursts.
 	InUse bool
 
+	// ColdJobs is `Signals.ColdJobs`: the pool's jobs of the last two weeks
+	// that a single warm runner would not have covered. Each warm tier is
+	// funded most cold jobs first.
+	ColdJobs int32
+
 	// HoursWithJobs is `Signals.HoursWithJobs`: how many hours of the last
-	// two weeks had one of the pool's jobs. Each warm tier is funded most
-	// used first.
+	// two weeks had one of the pool's jobs. Breaks ColdJobs ties.
 	HoursWithJobs int32
 
 	// LastDemandAt is the pool's `status.lastDemandAt`: when it last had
@@ -82,7 +86,7 @@ type PoolDemand struct {
 //  2. Warm stock — a baseline (the explicit minimum, or one above load
 //     for pools in use), then remaining learned spare for active pools,
 //     recently used quiet pools, and finally idle pools. Each sub-tier
-//     funds pools whole in usage, recency and name order, concentrating
+//     funds pools whole in cold-job, usage, recency and name order, concentrating
 //     useful bursts rather than splitting capacity proportionally.
 //     Withheld-only work does not earn active burst priority.
 //  3. Headroom — the p95 warm buffer (`Target` above warm stock). Also
@@ -242,13 +246,22 @@ func AllocateCompute(pools []PoolDemand, fleetCapacity int64, shapeCaps map[stri
 	return out
 }
 
-// moreUsed ranks warm stock: the pool with jobs in more
-// hours of the last two weeks first, then the one used more recently.
-// Recency alone let a nightly-only pool that finished its last job minutes
-// after a pool used every working hour hold the rack's seats until the
-// next job of either (2026-11-13: 26.3 with jobs in 34 hours took all of
-// 27.1's, with jobs in 249).
+// moreUsed ranks warm stock: the pool whose warm seats would have saved the
+// most cold boots in the last two weeks first, then the one with jobs in more
+// hours, then the one used more recently.
+//
+// Hours with jobs alone measured how often a pool sees work, not how many of
+// its jobs a warm floor serves. On 2026-11-18 the 26.6 pool (jobs in 270
+// hours, 360 jobs past the first of their burst) and the internal-only 27.0
+// pool (261 hours) were funded before 27.1 (231 hours, 2159 such jobs, all
+// customers'), and 27.1's 7 to 12 job fan-outs booted cold. Recency alone let
+// a nightly-only pool that finished its last job minutes after a pool used
+// every working hour hold the rack's seats until the next job of either
+// (2026-11-13: 26.3 took all of 27.1's).
 func moreUsed(a, b PoolDemand) bool {
+	if a.ColdJobs != b.ColdJobs {
+		return a.ColdJobs > b.ColdJobs
+	}
 	if a.HoursWithJobs != b.HoursWithJobs {
 		return a.HoursWithJobs > b.HoursWithJobs
 	}
