@@ -39,6 +39,33 @@ defmodule Tuist.Shards.StorageTest do
     assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == "gra-v1"
   end
 
+  test "a Linux runner's plan goes to a public store's private endpoint once it is ready", ctx do
+    public =
+      Map.merge(ctx.config, %{
+        "access" => "public",
+        "endpoint" => "https://s3.example.com",
+        "region" => "us-east-1",
+        "private_endpoint" => "http://rustfs-s3.rustfs.svc.cluster.local:9000"
+      })
+
+    stub(Environment, :shard_storage_targets, fn -> %{"rustfs-v1" => public} end)
+
+    expect(Storage, :available?, fn %S3Target{id: "rustfs-v1", config: %{host: host}} ->
+      assert host == "rustfs-s3.rustfs.svc.cluster.local"
+      true
+    end)
+
+    assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == "rustfs-v1"
+
+    # Never through the public host, and not before the store is ready.
+    reject(&Storage.available?/1)
+
+    for config <- [Map.delete(public, "private_endpoint"), %{public | "private_network_ready" => false}] do
+      stub(Environment, :shard_storage_targets, fn -> %{"rustfs-v1" => config} end)
+      assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == ""
+    end
+  end
+
   test "fails back before persistence when readiness fails", ctx do
     expect(Storage, :available?, fn _ -> false end)
     assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == ""

@@ -332,7 +332,7 @@ defmodule Tuist.Runners.ActionsCache do
   defp stores do
     for {id, %{"actions_cache_bucket" => bucket} = config} <- Environment.shard_storage_targets(),
         is_binary(bucket) and bucket != "",
-        {:ok, target} <- [ShardStorage.s3_target(id, Map.put(config, "bucket", bucket))],
+        {:ok, target} <- [ShardStorage.in_cluster_target(id, Map.put(config, "bucket", bucket))],
         into: %{},
         do: {id, {config, target}}
   end

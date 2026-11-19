@@ -32,10 +32,10 @@ defmodule Tuist.Shards.Storage do
       |> Enum.sort_by(&elem(&1, 0))
       |> Enum.find_value(fn {id, config} ->
         with true <- is_map(config),
-             true <- Map.get(config, "access", "private") == "private",
+             true <- Map.get(config, "access", "private") == "private" or is_binary(config["private_endpoint"]),
              true <- config["enabled"] == true and config["private_network_ready"] == true,
              true <- config["site"] == site,
-             {:ok, target} <- s3_target(id, config),
+             {:ok, target} <- in_cluster_target(id, config),
              true <- Storage.available?(target) do
           id
         else
@@ -90,11 +90,7 @@ defmodule Tuist.Shards.Storage do
 
     case {config["access"], CacheGrant.linux_site(grant, account.id)} do
       {"public", {:ok, ^site}} ->
-        if config["private_network_ready"] == true and is_binary(config["private_endpoint"]) do
-          s3_target(id, config |> Map.put("endpoint", config["private_endpoint"]) |> Map.put("access", "private"))
-        else
-          {:ok, actor}
-        end
+        if config["private_network_ready"] == true, do: in_cluster_target(id, config), else: {:ok, actor}
 
       {"public", _} ->
         {:ok, actor}
@@ -106,6 +102,19 @@ defmodule Tuist.Shards.Storage do
         {:error, :shard_storage_unavailable}
     end
   end
+
+  @doc """
+  The S3 target for callers on the store's private network: a public store's
+  `private_endpoint` when it publishes one, otherwise its only endpoint. The
+  Actions cache and sandbox archive buckets are only reachable there, so their
+  existing objects stay readable while new placements still wait for
+  `private_network_ready`.
+  """
+  def in_cluster_target(id, %{"access" => "public", "private_endpoint" => endpoint} = config) when is_binary(endpoint) do
+    s3_target(id, Map.merge(config, %{"endpoint" => endpoint, "access" => "private"}))
+  end
+
+  def in_cluster_target(id, config), do: s3_target(id, config)
 
   @doc """
   The S3 target a storage target configuration describes: its endpoint,

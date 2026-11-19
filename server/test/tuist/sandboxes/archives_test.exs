@@ -2228,6 +2228,59 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       end
     end
 
+    test "a RustFS store admits by its signed storage info over the private endpoint", %{account: account} do
+      store =
+        @store
+        |> Map.delete("archive_capacity_urls")
+        |> Map.merge(%{
+          "access" => "public",
+          "endpoint" => "https://s3.tuist.dev",
+          "private_endpoint" => "http://rustfs-s3.rustfs-production.svc.cluster.local:9000",
+          "region" => "us-east-1",
+          "archive_capacity" => "rustfs"
+        })
+
+      stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => store} end)
+      stub(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _actor -> :ok end)
+      stub(Storage, :object_exists?, fn _key, _actor -> true end)
+      stub(Nodes, :call, fn "node-a", op, _args, _opts -> if op == "delete", do: {:ok, %{}}, else: archive_result() end)
+
+      # The same worst case as the Garage boundary test above.
+      uncompressed = 11 * @gib + 576 * 1024 * 1024 + 4 * @gib + 64 * 1024 * 1024
+      required = uncompressed + div(uncompressed, 100) + @gib
+
+      storage_info = fn disks ->
+        fn url, opts ->
+          assert url == "http://rustfs-s3.rustfs-production.svc.cluster.local:9000/rustfs/admin/v3/storageinfo"
+          headers = Map.new(opts[:headers])
+          assert headers["Authorization"] =~ "AWS4-HMAC-SHA256 Credential=GK0123/"
+          assert headers["host"] == "rustfs-s3.rustfs-production.svc.cluster.local:9000"
+          {:ok, %Req.Response{status: 200, body: %{"info" => %{"disks" => disks}}}}
+        end
+      end
+
+      for {disks, expected} <- [
+            {[%{"availspace" => 200 * @gib}, %{"availspace" => required}], "gra-v1"},
+            {[%{"availspace" => 200 * @gib}, %{"availspace" => required - 1}], nil},
+            {[], nil},
+            {[%{"availspace" => "lots"}], nil}
+          ] do
+        stub(Req, :get, storage_info.(disks))
+
+        stub(Storage, :multipart_start, fn _key, actor ->
+          if expected do
+            assert %S3Target{id: "gra-v1", config: %{host: "rustfs-s3.rustfs-production.svc.cluster.local"}} = actor
+          else
+            assert %Account{} = actor
+          end
+
+          {:ok, "upload-1"}
+        end)
+
+        assert {:ok, %{archive_store: ^expected}} = Archives.archive(paused_orb(account, workspace_gb: 7))
+      end
+    end
+
     test "a replicated store falls back when any replica is full", %{account: account} do
       store = Map.put(@store, "archive_capacity_urls", ["http://replica-0/metrics", "http://replica-1/metrics"])
       stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => store} end)
