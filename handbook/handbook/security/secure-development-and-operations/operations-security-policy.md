@@ -8,7 +8,7 @@
 # Operations security policy
 
 - **Policy owner:** Pedro Piñera Buendía
-- **Effective date:** Nov 16, 2026
+- **Effective date:** Nov 19, 2026
 
 ## Purpose
 
@@ -45,7 +45,7 @@ Changes to the organization, business processes, information processing faciliti
     - Implementation and Deployment: Execute changes in alignment with the planned deployment schedule. Production software is deployed through documented GitHub Actions workflows. Changes to the hosted server are deployed from `main` first to a canary environment, then through acceptance checks, and then to production, unless an authorized emergency or hotfix change is explicitly marked to go directly to production.
     - Emergency Management: Remediation: If changes fail or present unexpected issues, they shall be reverted. Failed Helm releases are configured to roll back automatically. A previous known-good image or chart revision can be redeployed through the Server Deployment workflow.
     - Documentation Maintenance: Ensure that the ticketing systems or the code repository platform keeps record of changes, commits and deployments.
-    - Monitoring and alerting after deployment: Production systems emit application and infrastructure metrics and error events. Application errors are captured with Sentry and ingested into Tuist's telemetry pipeline. Kubernetes and application metrics are collected by the Kubernetes monitoring chart and evaluated as Grafana-managed alert rules, which route through Grafana IRM to Slack and the public status page.
+    - Monitoring and alerting after deployment: Production systems emit application and infrastructure metrics and error events. Application errors are sent to Tuist's self-hosted Atlas and Pulse error ingest. Kubernetes and application metrics are collected by the Kubernetes monitoring chart and evaluated as Grafana-managed alert rules, which route through Grafana IRM to Slack and the public status page.
 
 4. Continuity and Consistency:
     - Ensure that the ICT continuity plans, response, and recovery procedures are updated to remain appropriate and consistent with the changes made.
@@ -244,6 +244,7 @@ Any known violations of this policy should be reported to the IT Manager. Violat
 
 | Version | Date | Description | Author | Approver |
 | --- | --- | --- | --- | --- |
+| 3.1 | Nov 19, 2026 | Application errors are sent to Tuist's self-hosted Atlas and Pulse error ingest. | Pedro Piñera Buendía | Pending approval |
 | 3.0 | Nov 16, 2026 | Documented that engineers may merge directly to main; the same deterministic checks run in the controlled development environment and again in CI; plus agent review, compensating deployment, rollback, and monitoring controls. Changes to main are traceable through git history and CI results. Failed CI checks on main are investigated and remediated. Peer review is not a required control | Pedro Piñera Buendía | Pending approval |
 | 2.0 | Dec 11, 2025 | Version 2.0 | Pedro Piñera Buendía | Pedro Piñera Buendía |
 | 1.0 | Oct 16, 2024 | Version 1.0 | Pedro Piñera Buendía | Pedro Piñera Buendía |
