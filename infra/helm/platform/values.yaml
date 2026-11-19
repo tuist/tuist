@@ -793,7 +793,7 @@ cacheDNS:
     solverItem: ""
 
 # external-dns for the luft.work zone (templates/luft-dns.yaml), kept apart from
-# the tuist.dev instance. Enable only on the cluster that runs infra/helm/luft-web.
+# the tuist.dev instance. Enable only on the cluster that runs infra/helm/luft-server.
 luftDNS:
   enabled: false
   ownerId: ""

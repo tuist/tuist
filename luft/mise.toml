@@ -101,10 +101,10 @@ run = "struo artifact publish LuftAndroid --track internal"
 
 [tasks."build:web"]
 depends = ["prepare:native"]
-description = "Build the web edge's static site (core wasm, bindings and Vite bundle) into .struo/out/LuftWeb/dist"
+description = "Build the web edge's static site (core wasm, bindings and Vite bundle) into .struo/out/LuftWeb/dist, which the luft-server image serves"
 run = "struo build LuftWeb"
 
 [tasks."dev:web"]
 depends = ["prepare:native"]
-description = "Serve the web edge with Vite's dev server against Struo's core bindings; rerun after core changes"
+description = "Serve the web edge with Vite's dev server (port 5173) against Struo's core bindings, behind luft-server's mix phx.server; rerun after core changes"
 run = ["struo build LuftCoreBindings", "npm --prefix web ci --no-audit --no-fund", "npm --prefix web run dev"]
