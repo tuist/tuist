@@ -552,6 +552,13 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
       http_options: [
         log_protocol_errors: :verbose
       ],
+      # Bandit rejects requests with more than 50 headers by default (431).
+      # Cloudflare and ingress-nginx add about 26 forwarding headers, and
+      # Chromium sends the client hints tuist.dev requests via Accept-CH, so a
+      # plain form POST from Chrome went over the limit.
+      http_1_options: [
+        max_header_count: 60
+      ],
       thousand_island_options: [
         read_timeout: to_timeout(second: 15),
         shutdown_timeout: to_timeout(second: 15)
