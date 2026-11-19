@@ -1432,6 +1432,13 @@ label_replace(sum by (cluster, region) (
   * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "memory", "", "")
 or
+label_replace(floor(sum by (cluster, region) (
+  floor((max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_kura_disk"})
+         - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_kura_disk"})
+            or max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_kura_disk"}) * 0)) / 20535312384)
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
+) / 2), "constraint", "disk", "", "")
+or
 label_replace(
   floor(max by (cluster, region) (tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}) / 32),
   "constraint", "disk", "", "")
@@ -1460,10 +1467,13 @@ label_replace(sum by (cluster, region) (
 - Description: `Counts how many more two-replica enterprise instances the
   region can place, per placement constraint: "ceiling" is the
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
-  "memory" is the native memory request against allocatable, "disk" is the
-  server's admission headroom (tuist_kura_capacity_admission_headroom_gibibytes,
-  what Tuist.Kura.Admission decides with) in units of one enterprise instance
-  at its starting claim (16Gi x 2 = 32 GiB), "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
+  "memory" is the native memory request against allocatable, "disk" is each
+  thin node's free tuist.dev/kura-disk (allocatable less pod requests) in
+  replicas of one enterprise instance at its starting claim (16Gi thin =
+  19584 MiB per replica), summed over the region and halved for two replicas,
+  which may sit on different nodes; regions without tuist.dev/kura-disk
+  (runner caches) fall back to the admission headroom in 32 GiB units,
+  "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
   replica) against the box's advertised budget. Zero means the
   scheduler will decline the next provisioning in this region. Add a node to
   the region; for memory a smaller ceiling profile also works, for disk so
@@ -1477,10 +1487,20 @@ requests, in 2 x 50 GiB units. Thin encrypted volumes reserve
 OS disk: it fired for ap-southeast, eu-east, us-east and us-west (which had
 517 to 1,360 GiB of admission headroom) and stayed quiet for us-central at
 0 GiB, because its two 115 GiB OS disks read as two instances. The row now
-reads the admission headroom gauge in 32 GiB units (below 32 GiB admission
-refuses a new enterprise instance). **Kura region admission cannot take a
-largest-plan instance** reads the same gauge in 543 GiB units since
-2026-11-19, so it fires first. The live rule's execution error state moved from `KeepLast`
+read the admission headroom gauge in 32 GiB units until 2026-11-19, which
+is a regional total: it could not see a region whose free disk is split
+across hosts too small for a volume (kura-bird-eu-west-1's standby sat
+Pending 33 hours that way, on a region with 1,300 GiB free). It now reads
+each thin node's free `tuist.dev/kura-disk`, as the scheduler does, in
+replicas of a 16Gi thin volume (19584 MiB), and halves the region's sum for
+two replicas, since an account's replicas may sit on different hosts.
+Regions with no `tuist.dev/kura-disk` (runner caches) keep the regional
+32 GiB reading. On 2026-11-19 it read ap-southeast 14, sa-west 13, us-west
+23, us-central 30, us-east 31, eu-west 32, eu-east 37. The same per-node
+reading in 256Gi units (271.1 GiB per replica) was ap-southeast, sa-west,
+us-east and us-west 0, eu-west, eu-east and us-central 1: no region has a
+tenant that size, so that unit is not alerted on; **Kura region admission
+cannot take a largest-plan instance** watches it regionally, as a warning. The live rule's execution error state moved from `KeepLast`
 to `Alerting` with this change, matching this section.
 
 The "add a node" alert. It counts how many more instances of the largest
