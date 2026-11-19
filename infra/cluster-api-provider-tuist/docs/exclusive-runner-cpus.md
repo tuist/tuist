@@ -172,14 +172,6 @@ config is always rendered for the kubelet a node runs: the drift loop uses the
 Node's reported kubelet version, and nodes below v1.36 render and hash exactly
 as before.
 
-virtiofsd's dirty host page cache for the guest's file writes is charged to the
-same cgroup and can still fill what is left, so every Kata host runs
-`tuist-kata-memory-high` (`controllers/linux/kata_memory_high.go`). It sets
-`memory.high` 256 MiB below `memory.max` on every Guaranteed Pod slice holding
-QEMU, so the kernel reclaims and throttles the Pod's writes instead of
-OOM-killing QEMU. A host-wide `vm.dirty_bytes` cap did the same job but
-throttled every writer on the host and was reverted.
-
 ### Moving a fleet to v1.36
 
 The control plane must already be on v1.36 (a kubelet cannot be newer than its
