@@ -264,7 +264,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     reject(&Nodes.call/4)
 
     assert {:error, :sandbox_concurrency_limit} = Sandboxes.create_sandbox(account, %{platform: :darwin})
-    assert Concurrency.usage(account.id) == %{vcpus: 0, memory_mb: 0}
+    assert Concurrency.usage(account.id) == %{vcpus: 0.0, memory_mb: 0}
   end
 
   test "resident and evicted resumes acquire the account quota again", %{node: node} do
@@ -296,7 +296,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
       held |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
       assert {:ok, %{state: :resuming}} = Capacity.admit(paused)
-      assert Concurrency.usage(account.id) == %{vcpus: 8, memory_mb: 8192}
+      assert Concurrency.usage(account.id) == %{vcpus: 8.0, memory_mb: 8192}
       paused |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
     end
   end
@@ -312,7 +312,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
       assert {:error, {:host_busy, :ci}} = Sandboxes.resume(paused)
       assert %{state: :paused, resident: true, error_message: nil} = Repo.reload!(paused)
-      assert Concurrency.usage(paused.account_id) == %{vcpus: 0, memory_mb: 0}
+      assert Concurrency.usage(paused.account_id) == %{vcpus: 0.0, memory_mb: 0}
 
       assert :ok =
                Sandboxes.reconcile_node_report(node.name, %{

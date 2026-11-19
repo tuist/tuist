@@ -99,7 +99,7 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
   test "limits are independent of other accounts and cannot be changed in account settings" do
     account = account_fixture()
     sandbox_fixture(account: account_fixture(), vcpus: 8, memory_mb: 16_384)
-    assert Concurrency.usage(account.id) == %{vcpus: 0, memory_mb: 0}
+    assert Concurrency.usage(account.id) == %{vcpus: 0.0, memory_mb: 0}
     changeset = Account.update_changeset(account, %{sandbox_vcpus_limit: 999, sandbox_memory_gb_limit: 999})
     refute Map.has_key?(changeset.changes, :sandbox_vcpus_limit)
     refute Map.has_key?(changeset.changes, :sandbox_memory_gb_limit)
