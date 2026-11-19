@@ -14,7 +14,8 @@ import (
 )
 
 // rollingServer answers each attempt with the next behavior: "close" drops the
-// connection without a response, like a server pod shutting down, and a status
+// connection without a response, like a server pod shutting down, "truncate"
+// answers 200 and drops the connection partway through the body, and a status
 // code answers with it.
 type rollingServer struct {
 	*httptest.Server
@@ -38,6 +39,14 @@ func newRollingServer(t *testing.T, behaviors ...string) *rollingServer {
 				t.Error(err)
 				return
 			}
+			conn.Close()
+		case "truncate":
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n{\"gener")
 			conn.Close()
 		case "200":
 			io.WriteString(w, `{"generation":7}`)
@@ -80,6 +89,24 @@ func TestServerRequestSurvivesAConnectionTheServerClosed(t *testing.T) {
 	}
 	if attempts := s.attempts(); len(attempts) != 2 || attempts[1] != `{"pod_uid":"u"}` {
 		t.Fatalf("attempts %q; the retry did not resend the body", attempts)
+	}
+}
+
+func TestServerRequestSurvivesABodyCutShort(t *testing.T) {
+	s := newRollingServer(t, "truncate", "200")
+
+	response, err := DoServer(s.Client(), post(t, context.Background(), s.URL), nil)
+
+	if err != nil {
+		t.Fatal("a body cut short failed the request:", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil || response.StatusCode != 200 || string(body) != `{"generation":7}` {
+		t.Fatal(response.StatusCode, string(body), err)
+	}
+	if len(s.attempts()) != 2 {
+		t.Fatal(s.attempts())
 	}
 }
 
