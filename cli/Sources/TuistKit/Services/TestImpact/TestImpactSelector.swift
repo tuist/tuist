@@ -206,8 +206,8 @@ actor TestImpactSelector {
     // swiftlint:enable function_body_length
 
     /// Uploads the commits and branch heads the server's graph lacks, so the baseline request finds the
-    /// checkout's commit, or on a pull request's merge checkout both its parents, in the graph: the
-    /// history `GitHistoryService` collects is the commit `gitInfo` reports, never the merge commit.
+    /// checkout's commit, the merge commit on a pull request's merge checkout, in the graph with its
+    /// parents: the history `GitHistoryService` collects is the commit `gitInfo` reports.
     /// The collection and the upload are kept per process under the repository's top level, the
     /// directory the report reads the history from too, so the report sends nothing again. A failed
     /// upload only warns, as the report's does, and is retried when the run is reported.
