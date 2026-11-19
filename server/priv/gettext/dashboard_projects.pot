@@ -720,7 +720,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocations_live.ex:842
 #: lib/tuist_web/live/once_runs_live.ex:1212
 #: lib/tuist_web/live/project_notifications_live.ex:737
-#: lib/tuist_web/live/remote_execution_live.ex:880
+#: lib/tuist_web/live/remote_execution_live.ex:877
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr ""

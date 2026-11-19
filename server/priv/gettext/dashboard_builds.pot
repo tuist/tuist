@@ -2490,6 +2490,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocation_live.ex:446
 #: lib/tuist_web/live/build_entity_live.ex:625
 #: lib/tuist_web/live/remote_execution_live.ex:245
+#: lib/tuist_web/live/remote_execution_live.ex:847
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr ""
@@ -3508,7 +3509,6 @@ msgid "Started at"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:365
-#: lib/tuist_web/live/remote_execution_live.ex:830
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
 msgstr ""
@@ -3535,12 +3535,8 @@ msgstr ""
 msgid "Running"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:371
-#, elixir-autogen, elixir-format
-msgid "Time in status"
-msgstr ""
-
 #: lib/tuist_web/live/remote_execution_live.ex:265
+#: lib/tuist_web/live/remote_execution_live.ex:857
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr ""
@@ -3594,4 +3590,9 @@ msgstr ""
 #: lib/tuist_web/live/remote_execution_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Couldn't load"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:371
+#, elixir-autogen, elixir-format
+msgid "Waiting / running for"
 msgstr ""

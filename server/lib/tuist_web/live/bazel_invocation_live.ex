@@ -368,7 +368,7 @@ defmodule TuistWeb.BazelInvocationLive do
                       )
                     } />
                   </:col>
-                  <:col :let={row} label={dgettext("dashboard_builds", "Time in status")}>
+                  <:col :let={row} label={dgettext("dashboard_builds", "Waiting / running for")}>
                     <.text_cell
                       label={
                         DateFormatter.format_duration_from_milliseconds(

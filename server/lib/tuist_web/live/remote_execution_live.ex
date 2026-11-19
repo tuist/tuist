@@ -826,9 +826,6 @@ defmodule TuistWeb.RemoteExecutionLive do
   defp running_actions(%{running: running, queued: queued}),
     do: dgettext("dashboard_builds", "%{running} running · %{queued} queued", running: running, queued: queued)
 
-  defp shape_label(%{vcpus: vcpus, memory_gb: memory_gb}),
-    do: dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB", vcpus: vcpus, memory: memory_gb)
-
   defp usage_chart_options(usage, widget) do
     format = if widget == "executions", do: "{value}", else: "fn:formatMilliseconds"
 
@@ -841,25 +838,25 @@ defmodule TuistWeb.RemoteExecutionLive do
     }
   end
 
-  # One line per machine shape the period ran, smallest first.
-  defp usage_chart_series(usage, widget) do
-    key = if widget == "executions", do: :executions, else: :execution_ms
-
-    usage.shapes
-    |> Enum.with_index()
-    |> Enum.map(fn {shape, index} ->
+  defp usage_chart_series(usage, "executions"),
+    do: [
       line(
         usage.dates,
-        Enum.map(shape.series, &Map.fetch!(&1, key)),
-        Enum.at(
-          ~w(var:noora-chart-primary var:noora-chart-secondary var:noora-chart-tertiary),
-          index,
-          "var:noora-chart-quaternary"
-        ),
-        shape_label(shape)
+        Enum.map(usage.series, & &1.executions),
+        "var:noora-chart-primary",
+        dgettext("dashboard_builds", "Executions")
       )
-    end)
-  end
+    ]
+
+  defp usage_chart_series(usage, _execution_time),
+    do: [
+      line(
+        usage.dates,
+        Enum.map(usage.series, & &1.execution_ms),
+        "var:noora-chart-primary",
+        dgettext("dashboard_builds", "Total execution time")
+      )
+    ]
 
   defp has_data?(series, widget), do: Enum.any?(series[String.to_existing_atom(widget)].avg, &is_number/1)
 

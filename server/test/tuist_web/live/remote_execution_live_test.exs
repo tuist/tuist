@@ -99,7 +99,7 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     assert has_element?(view, "#remote-execution-duration", "250ms")
   end
 
-  test "running invocations lead the table with their remote actions and usage charts the ledger per machine shape", %{
+  test "running invocations lead the table with their remote actions and usage charts the ledger", %{
     conn: conn,
     project: project,
     path: path
@@ -169,6 +169,9 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     assert has_element?(view, "#remote-execution-executions", "2")
     assert has_element?(view, "#remote-execution-execution-time", "1m 4s")
     assert has_element?(view, "#remote-execution-usage-chart")
+    # One line for the project, not one per machine shape.
+    assert has_element?(view, "#remote-execution-usage-chart [data-part=data]", "Executions")
+    refute has_element?(view, "#remote-execution-usage-chart [data-part=data]", "vCPU")
     view |> element("[phx-value-widget=execution-time]") |> render_click()
     assert has_element?(view, "[data-selected][phx-value-widget=execution-time]")
     refute has_element?(view, "[data-selected][phx-value-widget=executions]")
