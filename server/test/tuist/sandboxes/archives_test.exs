@@ -1217,6 +1217,31 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
     end
 
+    test "a warm restore avoids nodes still loading another restore's memory", %{account: account} do
+      memory = %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5", "node" => "node-d"}
+      loading = Map.put(memory, "loading_since", DateTime.to_iso8601(DateTime.utc_now()))
+      restored = [account: account, amp_orb_id: nil, archived_at: hours_ago(1)]
+
+      # Booting from its archive on node-c, its memory still loading on
+      # node-e; node-f's has loaded, and node-g's report went missing long ago.
+      sandbox_fixture(restored ++ [state: :creating, node_name: "node-c", archive_memory: memory])
+      sandbox_fixture(restored ++ [state: :running, node_name: "node-e", archive_memory: loading])
+      sandbox_fixture(restored ++ [state: :running, node_name: "node-f", archive_memory: Map.put(memory, "loaded", true)])
+
+      stale = sandbox_fixture(restored ++ [state: :running, node_name: "node-g", archive_memory: loading])
+      Repo.update_all(from(s in Sandbox, where: s.id == ^stale.id), set: [updated_at: hours_ago(1)])
+
+      archived_orb(account, archive_memory: memory)
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+
+      expect(Capacity, :place, fn _placed, _warm, [avoid: avoid] ->
+        assert Enum.sort(avoid) == ["node-c", "node-d", "node-e"]
+        {:error, :no_capacity}
+      end)
+
+      assert {:error, _reason} = AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+    end
+
     test "an archive with memory cold boots elsewhere when no node of its kind is connected", %{account: account} do
       sandbox =
         archived_orb(account, archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})
