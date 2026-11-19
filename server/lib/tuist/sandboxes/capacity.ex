@@ -130,20 +130,24 @@ defmodule Tuist.Sandboxes.Capacity do
       )
       when is_integer(memory) and memory >= 0 and is_integer(free) and free >= 0 and is_boolean(reclaim) do
     # Controllers that predate the compute allocator's remote execution
-    # pool send no warm target, and controllers before CPU grants send no
-    # `cpu_free_milli`; their nodes' daemons keep their CPU request.
+    # pool send no warm target, controllers before CPU grants send no
+    # `cpu_free_milli` (their nodes' daemons keep their CPU request), and
+    # controllers before reclaimable CPU send no `cpu_reclaimable_milli`.
     warm = Map.get(params, "warm_bytes", 0)
     cpu_free = params["cpu_free_milli"]
+    cpu_reclaimable = Map.get(params, "cpu_reclaimable_milli", 0)
 
     with true <- is_integer(warm) and warm >= 0,
          true <- valid_name?(name),
          true <- valid_name?(pod),
          true <- is_nil(cpu_free) or (is_integer(cpu_free) and cpu_free >= 0),
+         true <- is_integer(cpu_reclaimable) and cpu_reclaimable >= 0,
          {:ok, timestamp} <- allocation_timestamp(observed) do
       store_allocation(name, pod, timestamp, %{
         allocation_memory_bytes: memory,
         allocation_free_bytes: free,
         allocation_cpu_free_milli: cpu_free,
+        allocation_cpu_reclaimable_milli: cpu_reclaimable,
         allocation_reclaim: reclaim,
         allocation_warm_bytes: warm
       })
@@ -1524,12 +1528,17 @@ defmodule Tuist.Sandboxes.Capacity do
   node's CPU out of exclusive-CPU runners and weighs the guests against the
   shared pool's other Pods when it is contended.
 
-  A shrink always goes ahead. A growth only goes into CPU the
-  runners-controller's fresh grant reports no Pod requests: the kubelet
-  defers a resize that does not fit, and a deferred resize holds up the
-  Pod's memory growths with it. A node without a grant row is not shared
-  with CI and grows freely. What does not fit now is retried on the next
-  sync, run on every grant (`reconcile_allocation/1`) and every minute.
+  A shrink always goes ahead. A growth goes, from the CPU the kubelet has
+  allocated the daemon, into CPU the runners-controller's fresh grant
+  reports no Pod requests or idle warm runners hold, the way a memory
+  growth takes their memory: the kubelet defers the part idle runners hold
+  until the controller retires them, and runners with a job are never
+  touched. A deferred resize holds up the Pod's memory growths with it, so
+  a request the next grant cannot fund (a runner claimed a job first) is
+  lowered to what fits. A node without a grant row is not shared with CI
+  and grows freely. What does not fit now is retried on the next sync, run
+  on every grant (`reconcile_allocation/1`) and every minute; a request is
+  only cached once the kubelet has applied it.
   """
   def sync_cpu(%{name: node_name} = node) do
     if cpu_elastic?(node), do: timed(node_name, :cpu, fn -> do_sync_cpu(node) end), else: :unchanged
@@ -1571,8 +1580,8 @@ defmodule Tuist.Sandboxes.Capacity do
            pod_name,
            &cpu_target(desired, &1, room)
          ) do
-      {:ok, milli} ->
-        KeyValueStore.put(cache_key, milli, ttl: @cpu_request_cache_ttl)
+      {:ok, milli, applied?} ->
+        if applied?, do: KeyValueStore.put(cache_key, milli, ttl: @cpu_request_cache_ttl)
         {:ok, milli}
 
       {:error, reason} ->
@@ -1604,8 +1613,8 @@ defmodule Tuist.Sandboxes.Capacity do
   on a node whose daemon runs each VM in its own cgroup (hello
   `cpu_guarantees`) and can resize its CPU request, room for its guarantee
   under the daemon's CPU ceiling and, on a node shared with CI, that much
-  CPU no other Pod requests in the fresh grant, so `sync_cpu/1` can raise the
-  request right away. A node without both, or whose controller reports no
+  CPU no other Pod requests or idle warm runners hold in the fresh grant, so
+  `sync_cpu/1` can raise the request. A node without both, or whose controller reports no
   free CPU, still takes sandboxes guaranteed only their memory's CPU, as
   before guarantees were held, but not a picked guarantee. macOS sandboxes and
   remote execution VMs are placed on their shape. Run under the node's lock
@@ -1645,12 +1654,13 @@ defmodule Tuist.Sandboxes.Capacity do
            pod_name: pod,
            allocation_reclaim: false,
            allocation_observed_at: %DateTime{} = at,
-           allocation_cpu_free_milli: free
+           allocation_cpu_free_milli: free,
+           allocation_cpu_reclaimable_milli: reclaimable
          },
          %{elastic: %{pod_name: pod}}
        )
        when is_integer(free) do
-    if fresh_allocation?(at), do: free, else: 0
+    if fresh_allocation?(at), do: free + (reclaimable || 0), else: 0
   end
 
   defp cpu_room(%SandboxNode{}, _node), do: 0

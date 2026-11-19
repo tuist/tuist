@@ -740,15 +740,33 @@ defmodule Tuist.SandboxesTest do
       assert idle in 15_000..15_100 and new_process in 15_000..15_100 and gap in 30_000..30_100
 
       # A pause ends the run, so the next one starts its metering over. The
-      # report adopts a pause once the last running report has settled.
+      # report adopts a pause once the last running report has settled, and
+      # bills the time since the last report up to the CPU reading the node
+      # took at the pause: 7 s used in 10 s, above the floor's 5 s.
       Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
-        set: [updated_at: DateTime.add(DateTime.utc_now(:second), -60, :second)]
+        set: [
+          updated_at: DateTime.add(DateTime.utc_now(:second), -60, :second),
+          metered_at: DateTime.add(DateTime.utc_now(), -10, :second)
+        ]
       )
 
-      assert :ok =
-               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused"}]})
-
+      paused = %{"sandboxes" => [%{"id" => sandbox.id, "state" => "paused", "cpu_ms" => 9_000}]}
+      assert :ok = Sandboxes.reconcile_node_report("node-a", paused)
       assert %Sandbox{state: :paused, metered_cpu_ms: nil, metered_at: nil} = Repo.reload!(sandbox)
+
+      # The paused sandbox keeps reporting that reading; it is billed once.
+      assert :ok = Sandboxes.reconcile_node_report("node-a", paused)
+
+      usage =
+        ClickHouseRepo.all(
+          from(u in UsageEvent,
+            where: u.sandbox_id == ^sandbox.id,
+            order_by: u.inserted_at,
+            select: %{used: u.used_cpu_ms, billed: u.billed_cpu_ms}
+          )
+        )
+
+      assert [%{used: 7_000, billed: 7_000}] = Enum.drop(usage, 5)
     end
 
     test "queues a pause for a running Orb whose guest has been quiet for ten minutes" do

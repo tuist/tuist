@@ -199,16 +199,20 @@ defmodule Tuist.Sandboxes.AllocationTest do
       cpu_node = put_in(node, [:elastic, :cpu_floor_milli], 250)
       cpu_node = put_in(cpu_node, [:elastic, :cpu_ceiling_milli], 8000)
 
-      # The Pod's CPU request and how often it was read, as the stubbed
-      # resize reads and writes them.
-      pod = start_supervised!({Agent, fn -> %{milli: 250, reads: 0} end})
+      # The Pod's CPU request, what the kubelet allocated (it applies a
+      # request at the next read unless `defer` holds it) and how often it
+      # was read, as the stubbed resize reads and writes them.
+      pod = start_supervised!({Agent, fn -> %{milli: 250, allocated: 250, defer: false, reads: 0} end})
 
       stub(KubernetesClient, :resize_sandbox_daemon_cpu, fn _namespace, pod_name, target ->
         assert pod_name == cpu_node.elastic.pod_name
 
-        Agent.get_and_update(pod, fn %{milli: milli, reads: reads} ->
-          milli = target.(milli)
-          {{:ok, milli}, %{milli: milli, reads: reads + 1}}
+        Agent.get_and_update(pod, fn %{milli: requested, defer: defer, reads: reads} = state ->
+          allocated = if defer, do: state.allocated, else: requested
+          milli = target.(allocated)
+
+          {{:ok, milli, milli == allocated and milli == requested},
+           %{state | milli: milli, allocated: allocated, reads: reads + 1}}
         end)
       end)
 
@@ -236,7 +240,9 @@ defmodule Tuist.Sandboxes.AllocationTest do
       assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 5000}))
       assert {:ok, 2750} = Capacity.sync_cpu(node)
 
-      # Unchanged guarantees read nothing from Kubernetes.
+      # Once the kubelet has applied it, unchanged guarantees read nothing
+      # from Kubernetes.
+      assert {:ok, 2750} = Capacity.sync_cpu(node)
       reads = Agent.get(pod, & &1.reads)
       assert :unchanged = Capacity.sync_cpu(node)
       assert Agent.get(pod, & &1.reads) == reads
@@ -245,6 +251,36 @@ defmodule Tuist.Sandboxes.AllocationTest do
       running |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
       assert :ok = Capacity.update_allocation(grant(node, %{"reclaim" => true, "cpu_free_milli" => 0}))
       assert {:ok, 2250} = Capacity.sync_cpu(node)
+    end
+
+    test "grows into idle warm runners' CPU, and lowers a deferred growth the grant stops funding", %{
+      cpu_node: node,
+      pod: pod
+    } do
+      # 250m floor + 2000m (8 GiB) + 500m (2 GiB) is 2750m.
+      sandbox_fixture(node_name: node.name, state: :running, vcpus: 4, memory_mb: 8192)
+      sandbox_fixture(node_name: node.name, state: :running, vcpus: 1, memory_mb: 2048)
+
+      # No CPU is free, but an idle warm runner holds 4250m: the growth is
+      # asked for, and the kubelet defers it until the runner is retired.
+      Agent.update(pod, &%{&1 | defer: true})
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 0, "cpu_reclaimable_milli" => 4250}))
+      assert {:ok, 2750} = Capacity.sync_cpu(node)
+
+      # A pending growth is not cached: every sync reads it again.
+      reads = Agent.get(pod, & &1.reads)
+      assert {:ok, 2750} = Capacity.sync_cpu(node)
+      assert Agent.get(pod, & &1.reads) == reads + 1
+
+      # The runner claimed a job before it was retired: the request goes
+      # back to what the kubelet allocated, so it stops holding up the
+      # daemon's memory growths.
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 0, "cpu_reclaimable_milli" => 0}))
+      assert {:ok, 250} = Capacity.sync_cpu(node)
+
+      # Some CPU frees up: it grows by that much.
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 1000, "cpu_reclaimable_milli" => 0}))
+      assert {:ok, 1250} = Capacity.sync_cpu(node)
     end
 
     test "stays within the ceiling, and a node not shared with CI grows freely", %{cpu_node: node} do
@@ -286,6 +322,10 @@ defmodule Tuist.Sandboxes.AllocationTest do
       assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 2000}))
       assert Capacity.cpu_room?(guarded, picked)
 
+      # CPU idle warm runners hold counts too: they give it up.
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 500, "cpu_reclaimable_milli" => 1500}))
+      assert Capacity.cpu_room?(guarded, picked)
+
       # Past the ceiling no grant helps: 6250m + 2000m is over 8000m, while
       # 6250m + 1000m still fits.
       sandbox_fixture(node_name: node.name, state: :running, guaranteed_cpu_milli: 2000)
@@ -295,6 +335,11 @@ defmodule Tuist.Sandboxes.AllocationTest do
 
       # The daemon's request follows the guarantees, up to the ceiling.
       assert {:ok, 6250} = Capacity.sync_cpu(node)
+    end
+
+    test "rejects a negative reclaimable CPU grant", %{cpu_node: node} do
+      assert {:error, :invalid_allocation} =
+               Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 0, "cpu_reclaimable_milli" => -1}))
     end
 
     test "rejects a negative free CPU grant", %{cpu_node: node} do

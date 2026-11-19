@@ -17,6 +17,7 @@ defmodule Tuist.Sandboxes.SandboxNode do
     field :allocation_memory_bytes, :integer
     field :allocation_free_bytes, :integer
     field :allocation_cpu_free_milli, :integer
+    field :allocation_cpu_reclaimable_milli, :integer
     field :allocation_reclaim, :boolean, default: true
     field :allocation_warm_bytes, :integer
 
@@ -34,6 +35,7 @@ defmodule Tuist.Sandboxes.SandboxNode do
       :allocation_memory_bytes,
       :allocation_free_bytes,
       :allocation_cpu_free_milli,
+      :allocation_cpu_reclaimable_milli,
       :allocation_reclaim,
       :allocation_warm_bytes
     ])
