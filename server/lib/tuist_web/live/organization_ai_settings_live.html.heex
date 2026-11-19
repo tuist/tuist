@@ -15,14 +15,34 @@
       )}</span>
     </div>
     <div data-part="button-container">
-      <.button
+      <.dropdown
         :if={@claude_linking_available and not claude_linked?(@configuration)}
-        id="link-claude-organization"
-        href={~p"/integrations/claude/start?#{[account_id: @selected_account.id]}"}
-        label={dgettext("dashboard_account", "Link Claude organization")}
-        variant="secondary"
-      />
+        id="add-ai-provider-dropdown"
+        label={dgettext("dashboard_account", "Add provider")}
+      >
+        <.dropdown_item
+          id="link-claude-organization"
+          value="claude"
+          size="large"
+          href={~p"/integrations/claude/start?#{[account_id: @selected_account.id]}"}
+          label={dgettext("dashboard_account", "Claude organization")}
+          description={
+            dgettext("dashboard_account", "Anthropic bills your Claude organization directly")
+          }
+        />
+        <.dropdown_item
+          id="add-ai-connection"
+          value="api_key"
+          size="large"
+          on_click="add-connection"
+          label={dgettext("dashboard_account", "API key")}
+          description={
+            dgettext("dashboard_account", "Use your organization's key for any provider")
+          }
+        />
+      </.dropdown>
       <.button
+        :if={not @claude_linking_available or claude_linked?(@configuration)}
         id="add-ai-connection"
         label={dgettext("dashboard_account", "Add provider")}
         variant="secondary"

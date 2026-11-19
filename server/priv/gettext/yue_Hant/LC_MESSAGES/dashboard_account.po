@@ -110,10 +110,10 @@ msgstr "帳單電郵"
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:447
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:545
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:659
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:764
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:467
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:565
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:679
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:784
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -198,7 +198,7 @@ msgstr "目前方案"
 #: lib/tuist/billing.ex:94
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:391
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:411
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -509,10 +509,10 @@ msgstr "最受歡迎"
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
 #: lib/tuist_web/live/create_organization_live.ex:66
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:54
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:407
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:500
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:160
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:427
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:520
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -629,8 +629,8 @@ msgstr "地區"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:695
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:776
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:796
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "移除"
@@ -694,10 +694,10 @@ msgid "Role"
 msgstr "角色"
 
 #: lib/tuist_web/live/members_live.ex:212
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:234
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:458
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:556
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:670
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:254
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "儲存"
@@ -1074,11 +1074,11 @@ msgid "Okta domain"
 msgstr "Okta 網域"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:143
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:376
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:382
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:506
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:513
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:396
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:402
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:526
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "提供者"
@@ -3458,47 +3458,49 @@ msgstr "快取卷宗儲存空間"
 msgid "Cache volume storage:"
 msgstr "快取卷宗儲存空間："
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:57
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:416
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:77
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "API base URL"
 msgstr "API 基礎 URL"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:431
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:38
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr "API 金鑰"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:185
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Add a model to make it available to organization workflows."
 msgstr "新增模型以使其可供組織工作流程使用。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:180
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Add a provider before adding a model."
 msgstr "新增模型前請先新增供應商。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Add a provider to get started."
 msgstr "新增供應商以開始使用。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:128
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:555
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:148
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:497
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Add model"
 msgstr "新增模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:27
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:457
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:21
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:47
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:370
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Add provider"
 msgstr "新增供應商"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:120
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Add the models your organization can use, then choose a default model below."
 msgstr "新增貴組織可用的模型，然後在下方選擇預設模型。"
@@ -3508,7 +3510,7 @@ msgstr "新增貴組織可用的模型，然後在下方選擇預設模型。"
 msgid "Check the provider details and enter a valid API key. Changing the provider or API base URL requires entering the key again."
 msgstr "檢查供應商詳情並輸入有效的 API 金鑰。變更供應商或 API 基礎 URL 時需要重新輸入金鑰。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:515
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Choose a provider"
 msgstr "選擇供應商"
@@ -3518,20 +3520,20 @@ msgstr "選擇供應商"
 msgid "Create sandboxes and run commands in them."
 msgstr "建立沙盒並在當中執行指令。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:198
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:221
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:218
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Default model"
 msgstr "預設模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:155
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:175
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Edit model"
 msgstr "編輯模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:351
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Edit provider"
 msgstr "編輯供應商"
@@ -3541,36 +3543,36 @@ msgstr "編輯供應商"
 msgid "Enter a name and model ID, and select a provider. The model ID must be unique for the provider."
 msgstr "輸入名稱和模型 ID，並選擇供應商。模型 ID 對於該供應商必須是唯一的。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:215
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:282
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:634
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:641
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:235
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:302
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:654
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Model"
 msgstr "模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:146
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:527
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:166
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "Model ID"
 msgstr "模型 ID"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:119
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Models"
 msgstr "模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:223
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "No default model"
 msgstr "沒有預設模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "No models yet"
 msgstr "尚未有模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:109
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "No providers yet"
 msgstr "尚未有提供者"
@@ -3580,27 +3582,27 @@ msgstr "尚未有提供者"
 msgid "Providers"
 msgstr "提供者"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:418
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
 msgstr "OpenAI 相容 API 的公開 HTTPS 端點。請包含任何 /v1 前綴；請求會附加 /chat/completions。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:692
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:712
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}?"
 msgstr "要移除 %{name} 嗎？"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Remove model"
 msgstr "移除模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Remove provider"
 msgstr "移除提供者"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Requests already sent may finish."
 msgstr "已發送的請求可能會完成。"
@@ -3610,7 +3612,7 @@ msgstr "已發送的請求可能會完成。"
 msgid "Sandboxes write"
 msgstr "沙盒寫入"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:433
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:453
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
 msgstr "已加密儲存。留空以保留目前的金鑰，除非你更改供應商或 API 基礎 URL。變更會影響所有使用此供應商的模型。"
@@ -3620,7 +3622,7 @@ msgstr "已加密儲存。留空以保留目前的金鑰，除非你更改供應
 msgid "That model is no longer available. Choose another model."
 msgstr "該模型已不再可用。請選擇另一個模型。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:529
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "The model ID from your provider, including any account or model prefix."
 msgstr "來自供應商的模型 ID，包括任何帳戶或模型前綴。"
@@ -3705,12 +3707,7 @@ msgstr "Claude 目前無法使用。請稍後再嘗試連結。"
 msgid "Connect AI providers using your organization's API keys, or link your Claude organization so Anthropic bills it directly. Each provider can be used by multiple models."
 msgstr "使用你組織的 API 金鑰連接 AI 供應商，或連結你的 Claude 組織以便 Anthropic 直接計費。每個供應商可供多個模型使用。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "Link Claude organization"
-msgstr "連結 Claude 組織"
-
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:60
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Linked Claude organization"
 msgstr "已連結 Claude 組織"
@@ -3720,7 +3717,7 @@ msgstr "已連結 Claude 組織"
 msgid "Linked your Claude organization."
 msgstr "已連結你的 Claude 組織。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Manage spend limit"
 msgstr "管理支出上限"
@@ -3735,8 +3732,8 @@ msgstr "該 Claude 組織已連結至另一個 Tuist 組織。請先於該處解
 msgid "The Claude linking request is invalid or has expired."
 msgstr "Claude 連結請求無效或已過期。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:775
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:114
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:795
 #, elixir-autogen, elixir-format
 msgid "Unlink"
 msgstr "解除連結"
@@ -3751,41 +3748,41 @@ msgstr "你已無權連結 Claude 組織。"
 msgid "Your Claude organization wasn't linked. Linking needs an Admin or Billing role in a Claude organization that pays Anthropic directly."
 msgstr "你的 Claude 組織尚未連結。進行連結需要在直接向 Anthropic 付款的 Claude 組織中具備管理員或帳單角色。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:684
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Unlink your Claude organization?"
 msgstr "要解除連結你的 Claude 組織嗎？"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:321
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Add a model before adding a route."
 msgstr "新增路由前，請先新增模型。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:251
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:669
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:271
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:596
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:689
 #, elixir-autogen, elixir-format
 msgid "Add route"
 msgstr "新增路由"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:735
 #, elixir-autogen, elixir-format
 msgid "Anthropic stops billing your Claude organization for Tuist, and models using it are removed, along with their task routes. If one is the default, tasks without a route stop sending requests until you select another."
 msgstr "Anthropic 會停止就 Tuist 向你的 Claude 組織計費，並移除相關模型及其任務路由。如果某個路由設為預設，則沒有路由的任務將停止發送請求，直到你選擇另一個路由為止。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:276
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:604
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:617
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "類別"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:643
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:663
 #, elixir-autogen, elixir-format
 msgid "Choose a model"
 msgstr "選擇模型"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Choose a task"
 msgstr "選擇任務"
@@ -3795,18 +3792,18 @@ msgstr "選擇任務"
 msgid "Choose a task and a model. Each task can have only one route."
 msgstr "選擇任務和模型。每個任務只能有一個路由。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:199
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Choose the model for organization AI tasks without a task route. Without a default, only routed tasks send requests. Personal AI subscriptions are not affected."
 msgstr "為沒有任務路由的組織 AI 任務選擇模型。如果沒有預設值，只有已設定路由的任務才會發送請求。個人 AI 訂閱不受影響。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:577
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:316
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Edit route"
 msgstr "編輯路由"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:330
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Every task uses the default model."
 msgstr "所有任務都使用預設模型。"
@@ -3821,64 +3818,79 @@ msgstr "將相關觀察分組"
 msgid "Name and explain symptoms"
 msgstr "命名並解釋症狀"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:265
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "No default model is selected, so tasks without a route don't send requests."
 msgstr "未選擇預設模型，因此沒有路由的任務不會發送請求。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:734
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "No default model is selected, so this task stops sending requests until you add a route or select a default."
 msgstr "未選擇預設模型，因此此任務會停止發送請求，直到你新增路由或選擇預設模型為止。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:317
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "No task routes yet"
 msgstr "尚無任務路由"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:304
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Remove route"
 msgstr "移除路由"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:687
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:707
 #, elixir-autogen, elixir-format
 msgid "Remove the route for %{name}?"
 msgstr "要移除 %{name} 的路由嗎？"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Send a specific task to a different model. Tasks without a route use the default model."
 msgstr "將特定任務傳送至其他模型。沒有路由的任務會使用預設模型。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:279
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:615
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:622
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:299
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:635
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "任務"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:242
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Task routing"
 msgstr "任務路由"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:740
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:760
 #, elixir-autogen, elixir-format
 msgid "This task uses the default model instead."
 msgstr "此任務改用預設模型。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Add a route or select a default model to send requests."
 msgstr "新增路由或選取預設模型以傳送請求。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:728
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:748
 #, elixir-autogen, elixir-format
 msgid "This deletes the stored key, all models using this provider and their task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one. Revoke the key at the provider to revoke access there."
 msgstr "這會刪除已儲存的密鑰、使用此供應器的所有模型及其任務路由。這些任務會回退至預設模型；如果沒有預設模型，則這些任務及其他沒有路由的任務會停止傳送請求，直到你選取一個為止。請在供應器處撤銷密鑰以撤銷該處的存取權限。"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:746
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:766
 #, elixir-autogen, elixir-format
 msgid "This removes the configured model, not its provider, and its task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one."
 msgstr "這會移除已設定的模型（而非其供應器）及其任務路由。這些任務會回退至預設模型；如果沒有預設模型，則這些任務及其他沒有路由的任務會停止傳送請求，直到你選取一個為止。"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Anthropic bills your Claude organization directly"
+msgstr "Anthropic 會直接向你嘅 Claude 組織收費"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Claude organization"
+msgstr "Claude 組織"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Use your organization's key for any provider"
+msgstr "使用你組織嘅金鑰連接任何供應商"

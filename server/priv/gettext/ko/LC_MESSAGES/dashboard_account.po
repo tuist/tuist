@@ -110,10 +110,10 @@ msgstr "결제 이메일"
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:447
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:545
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:659
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:764
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:467
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:565
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:679
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:784
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -198,7 +198,7 @@ msgstr "현재 플랜"
 #: lib/tuist/billing.ex:94
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:391
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:411
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -509,10 +509,10 @@ msgstr "가장 인기 있는"
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
 #: lib/tuist_web/live/create_organization_live.ex:66
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:54
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:407
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:500
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:160
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:427
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:520
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -629,8 +629,8 @@ msgstr "리전"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:695
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:776
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:796
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "제거"
@@ -694,10 +694,10 @@ msgid "Role"
 msgstr "역할"
 
 #: lib/tuist_web/live/members_live.ex:212
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:234
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:458
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:556
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:670
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:254
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "저장"
@@ -1074,11 +1074,11 @@ msgid "Okta domain"
 msgstr "Okta 도메인"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:143
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:376
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:382
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:506
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:513
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:396
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:402
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:526
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "제공자"
@@ -3454,47 +3454,49 @@ msgstr "캐시 볼륨 스토리지"
 msgid "Cache volume storage:"
 msgstr "캐시 볼륨 스토리지:"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:57
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:416
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:77
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "API base URL"
 msgstr "API 기본 URL"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:431
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:38
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr "API 키"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:185
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Add a model to make it available to organization workflows."
 msgstr "모델을 추가하여 조직 워크플로에서 사용할 수 있도록 합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:180
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Add a provider before adding a model."
 msgstr "모델을 추가하기 전에 공급자를 추가하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Add a provider to get started."
 msgstr "시작하려면 공급자를 추가하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:128
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:555
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:148
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:497
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Add model"
 msgstr "모델 추가"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:27
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:457
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:21
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:47
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:370
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Add provider"
 msgstr "공급자 추가"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:120
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Add the models your organization can use, then choose a default model below."
 msgstr "조직에서 사용할 수 있는 모델을 추가한 후 아래에서 기본 모델을 선택하세요."
@@ -3504,7 +3506,7 @@ msgstr "조직에서 사용할 수 있는 모델을 추가한 후 아래에서 �
 msgid "Check the provider details and enter a valid API key. Changing the provider or API base URL requires entering the key again."
 msgstr "공급자 세부 정보를 확인하고 유효한 API 키를 입력하세요. 공급자 또는 API 기본 URL을 변경하면 키를 다시 입력해야 합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:515
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Choose a provider"
 msgstr "공급자 선택"
@@ -3514,20 +3516,20 @@ msgstr "공급자 선택"
 msgid "Create sandboxes and run commands in them."
 msgstr "샌드박스를 생성하고 그 안에서 명령어를 실행하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:198
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:221
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:218
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Default model"
 msgstr "기본 모델"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:155
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:175
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Edit model"
 msgstr "모델 편집"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:351
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Edit provider"
 msgstr "제공자 편집"
@@ -3537,36 +3539,36 @@ msgstr "제공자 편집"
 msgid "Enter a name and model ID, and select a provider. The model ID must be unique for the provider."
 msgstr "이름과 모델 ID를 입력하고 제공자를 선택하세요. 모델 ID는 제공자별로 고유해야 합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:215
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:282
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:634
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:641
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:235
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:302
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:654
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Model"
 msgstr "모델"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:146
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:527
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:166
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "Model ID"
 msgstr "모델 ID"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:119
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Models"
 msgstr "모델"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:223
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "No default model"
 msgstr "기본 모델 없음"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "No models yet"
 msgstr "모델이 아직 없습니다"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:109
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "No providers yet"
 msgstr "프로바이더가 아직 없습니다"
@@ -3576,27 +3578,27 @@ msgstr "프로바이더가 아직 없습니다"
 msgid "Providers"
 msgstr "프로바이더"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:418
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
 msgstr "OpenAI 호환 API를 위한 공개 HTTPS 엔드포인트입니다. /v1 접두사를 포함하세요. 요청 시 /chat/completions가 추가됩니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:692
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:712
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}?"
 msgstr "%{name}을 제거하시겠습니까?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Remove model"
 msgstr "모델 제거"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Remove provider"
 msgstr "프로바이더 제거"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Requests already sent may finish."
 msgstr "이미 전송된 요청은 완료될 수 있습니다."
@@ -3606,7 +3608,7 @@ msgstr "이미 전송된 요청은 완료될 수 있습니다."
 msgid "Sandboxes write"
 msgstr "샌드박스 작성"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:433
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:453
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
 msgstr "암호화되어 저장됩니다. 제공자나 API 기본 URL을 변경하지 않는 한 현재 키를 유지하려면 비워 두세요. 변경 사항은 이 제공자를 사용하는 모든 모델에 적용됩니다."
@@ -3616,7 +3618,7 @@ msgstr "암호화되어 저장됩니다. 제공자나 API 기본 URL을 변경�
 msgid "That model is no longer available. Choose another model."
 msgstr "해당 모델은 더 이상 사용할 수 없습니다. 다른 모델을 선택하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:529
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "The model ID from your provider, including any account or model prefix."
 msgstr "계정 또는 모델 접두사를 포함한 제공자의 모델 ID입니다."
@@ -3701,12 +3703,7 @@ msgstr "Claude를 현재 사용할 수 없습니다. 나중에 다시 연결을 
 msgid "Connect AI providers using your organization's API keys, or link your Claude organization so Anthropic bills it directly. Each provider can be used by multiple models."
 msgstr "조직의 API 키를 사용해 AI 제공업체를 연결하거나, Claude 조직을 연결해 Anthropic이 직접 청구하도록 설정하세요. 각 제공업체는 여러 모델에서 사용할 수 있습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "Link Claude organization"
-msgstr "Claude 조직 연결"
-
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:60
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Linked Claude organization"
 msgstr "연결된 Claude 조직"
@@ -3716,7 +3713,7 @@ msgstr "연결된 Claude 조직"
 msgid "Linked your Claude organization."
 msgstr "Claude 조직을 연결했습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Manage spend limit"
 msgstr "지출 한도 관리"
@@ -3731,8 +3728,8 @@ msgstr "해당 Claude 조직은 이미 다른 Tuist 조직에 연결되어 있�
 msgid "The Claude linking request is invalid or has expired."
 msgstr "Claude 연결 요청이 유효하지 않거나 만료되었습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:775
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:114
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:795
 #, elixir-autogen, elixir-format
 msgid "Unlink"
 msgstr "연결 해제"
@@ -3747,41 +3744,41 @@ msgstr "더 이상 Claude 조직을 연결할 권한이 없습니다."
 msgid "Your Claude organization wasn't linked. Linking needs an Admin or Billing role in a Claude organization that pays Anthropic directly."
 msgstr "Claude 조직을 연결하려면 Anthropic에 직접 결제하는 Claude 조직에서 관리자 또는 청구 역할이 필요합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:684
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Unlink your Claude organization?"
 msgstr "Claude 조직 연결을 해제하시겠습니까?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:321
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Add a model before adding a route."
 msgstr "라우트를 추가하기 전에 모델을 추가하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:251
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:669
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:271
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:596
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:689
 #, elixir-autogen, elixir-format
 msgid "Add route"
 msgstr "라우트 추가"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:735
 #, elixir-autogen, elixir-format
 msgid "Anthropic stops billing your Claude organization for Tuist, and models using it are removed, along with their task routes. If one is the default, tasks without a route stop sending requests until you select another."
 msgstr "Anthropic는 Tuist에 대한 Claude 조직의 과금을 중단하며, 이를 사용하는 모델과 해당 작업 라우트가 제거됩니다. 기본값으로 설정된 경우 다른 라우트를 선택할 때까지 라우트가 없는 작업은 요청을 보내지 않습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:276
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:604
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:617
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "카테고리"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:643
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:663
 #, elixir-autogen, elixir-format
 msgid "Choose a model"
 msgstr "모델 선택"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Choose a task"
 msgstr "작업 선택"
@@ -3791,18 +3788,18 @@ msgstr "작업 선택"
 msgid "Choose a task and a model. Each task can have only one route."
 msgstr "작업과 모델을 선택하세요. 각 작업에는 하나의 라우트만 할당할 수 있습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:199
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Choose the model for organization AI tasks without a task route. Without a default, only routed tasks send requests. Personal AI subscriptions are not affected."
 msgstr "작업 라우트가 없는 조직 AI 작업을 위한 모델을 선택하세요. 기본값이 없으면 라우팅된 작업만 요청을 보냅니다. 개인 AI 구독에는 영향을 주지 않습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:577
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:316
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Edit route"
 msgstr "라우트 편집"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:330
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Every task uses the default model."
 msgstr "모든 작업은 기본 모델을 사용합니다."
@@ -3817,64 +3814,79 @@ msgstr "관련된 관찰 항목 그룹화"
 msgid "Name and explain symptoms"
 msgstr "증상 이름 지정 및 설명"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:265
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "No default model is selected, so tasks without a route don't send requests."
 msgstr "기본 모델이 선택되지 않았으므로, 라우트가 없는 작업은 요청을 보내지 않습니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:734
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "No default model is selected, so this task stops sending requests until you add a route or select a default."
 msgstr "기본 모델이 선택되지 않았으므로, 라우트를 추가하거나 기본값을 선택할 때까지 이 작업은 요청 보내기를 중단합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:317
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "No task routes yet"
 msgstr "작업 라우트 없음"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:304
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Remove route"
 msgstr "라우트 제거"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:687
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:707
 #, elixir-autogen, elixir-format
 msgid "Remove the route for %{name}?"
 msgstr "%{name}의 라우트를 제거하시겠습니까?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Send a specific task to a different model. Tasks without a route use the default model."
 msgstr "특정 작업을 다른 모델로 보냅니다. 라우트가 없는 작업은 기본 모델을 사용합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:279
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:615
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:622
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:299
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:635
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "작업"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:242
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Task routing"
 msgstr "작업 라우팅"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:740
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:760
 #, elixir-autogen, elixir-format
 msgid "This task uses the default model instead."
 msgstr "이 작업은 대신 기본 모델을 사용합니다."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Add a route or select a default model to send requests."
 msgstr "요청을 보내려면 라우트를 추가하거나 기본 모델을 선택하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:728
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:748
 #, elixir-autogen, elixir-format
 msgid "This deletes the stored key, all models using this provider and their task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one. Revoke the key at the provider to revoke access there."
 msgstr "저장된 키, 이 공급자를 사용하는 모든 모델 및 해당 작업 라우트가 삭제됩니다. 이러한 작업은 기본 모델로 대체되며, 기본 모델이 남아 있지 않으면 라우트가 없는 다른 작업과 함께 요청 전송을 중단합니다. 해당 공급자에서의 액세스를 취소하려면 공급자에서 키를 폐기하세요."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:746
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:766
 #, elixir-autogen, elixir-format
 msgid "This removes the configured model, not its provider, and its task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one."
 msgstr "구성된 모델과 해당 작업 라우트가 제거되지만, 공급자는 제거되지 않습니다. 이러한 작업은 기본 모델로 대체되며, 기본 모델이 남아 있지 않으면 라우트가 없는 다른 작업과 함께 요청 전송을 중단합니다."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Anthropic bills your Claude organization directly"
+msgstr "Anthropic이 Claude 조직에 직접 청구합니다"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Claude organization"
+msgstr "Claude 조직"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Use your organization's key for any provider"
+msgstr "모든 제공업체에 조직의 키를 사용하세요"

@@ -137,7 +137,7 @@ msgstr "沙盒 ID"
 msgid "Sandbox deleted."
 msgstr "沙盒已删除。"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:42
+#: lib/tuist_web/components/dashboard_navigation.ex:43
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
@@ -170,22 +170,22 @@ msgstr "运行该沙盒的机器报告了错误。"
 #: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The machine running this sandbox is unreachable. Please retry."
-msgstr "运行此沙盒的机器无法访问。请重试。"
+msgstr "无法访问运行此沙盒的机器。请重试。"
 
 #: lib/tuist_web/live/sandbox_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "The sandbox changed state in the meantime. Please retry."
-msgstr "沙盒在此期间状态已变更，请重试。"
+msgstr "沙盒状态在此期间已更改。请重试。"
 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "The sandbox is busy with an agent task and was not paused."
-msgstr "沙盒正在执行代理任务，无法暂停。"
+msgstr "沙盒正忙于代理任务，未暂停。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "沙盒将停止并丢弃其磁盘，未推送的工作将丢失。"
+msgstr "沙盒将停止并丢弃其磁盘。未推送的工作将丢失。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -195,7 +195,7 @@ msgstr "此沙盒失败"
 #: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "This sandbox was deleted."
-msgstr "此沙盒已被删除。"
+msgstr "此沙盒已删除。"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
 #: lib/tuist_web/live/sandbox_live.html.heex:109
@@ -246,7 +246,7 @@ msgstr "自定义"
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "沙盒在暂停、归档、删除或失败前的运行时长。"
+msgstr "沙盒在暂停、归档、删除或失败之前的运行时长。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -286,12 +286,12 @@ msgstr "峰值 vCPU"
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "在所选时间窗口内启动的沙箱代理。"
+msgstr "所选时间窗口内启动的沙盒代理。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "已创建沙箱"
+msgstr "创建的沙盒数"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
@@ -336,12 +336,12 @@ msgstr "自昨天以来"
 #: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
-msgstr "Tuist 启动沙盒所需的时间，无论是从模板、项目快照还是通过从归档恢复。不包括设置时间。"
+msgstr "Tuist 启动沙盒所需的时间，无论是从模板、项目快照还是从归档恢复。不包括设置时间。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "在从模板启动的 Amp Orb 中，项目的 .agents/setup 所需的时间。从项目快照启动的 Orb 会跳过此步骤，因此这里体现的是你自己的设置工作量。"
+msgstr "你的项目的 .agents/setup 在从模板启动的 Amp Orb 中所需的时间。从项目快照启动的 Orb 会跳过此步骤，因此这里体现的是你自己的设置工作。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -401,14 +401,14 @@ msgstr "上一页"
 #: lib/tuist_web/live/sandboxes_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
-msgstr "最近的沙盒"
+msgstr "最近沙盒"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "查看更多"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:45
+#: lib/tuist_web/components/dashboard_navigation.ex:46
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12
@@ -455,7 +455,7 @@ msgstr "归档"
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "归档已开始。沙盒磁盘上传完成后将显示为已归档。"
+msgstr "归档已开始。磁盘上传完成后，沙盒将显示为已归档状态。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format

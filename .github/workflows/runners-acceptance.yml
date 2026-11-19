@@ -365,7 +365,9 @@ jobs:
       - name: Workspace and action mounts
         run: |
           set -euo pipefail
-          test -f /__w/_actions/actions/checkout/v4/dist/index.js
+          # The runner stores an action under the ref it was pinned to (a tag
+          # or a commit SHA), so match any ref.
+          compgen -G '/__w/_actions/actions/checkout/*/dist/index.js' > /dev/null
           test -f "$GITHUB_WORKSPACE/.github/scripts/runners-acceptance/linux-runtime.sh"
           test -n "${TUIST_CACHE_ENDPOINT:-}"
       - name: Write environment file

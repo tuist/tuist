@@ -110,10 +110,10 @@ msgstr "E-mail de faturamento"
 #: lib/tuist_web/live/members_live.ex:204
 #: lib/tuist_web/live/members_live.ex:252
 #: lib/tuist_web/live/members_live.ex:512
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:447
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:545
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:659
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:764
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:467
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:565
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:679
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:784
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -198,7 +198,7 @@ msgstr "Plano atual"
 #: lib/tuist/billing.ex:94
 #: lib/tuist_web/live/billing_live.ex:483
 #: lib/tuist_web/live/billing_live.html.heex:181
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:391
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:411
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Custom"
@@ -509,10 +509,10 @@ msgstr "Mais Popular"
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
 #: lib/tuist_web/live/create_organization_live.ex:66
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:54
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:407
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:500
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:160
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:427
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:520
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -629,8 +629,8 @@ msgstr "Região"
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:695
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:776
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:796
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "Remover"
@@ -694,10 +694,10 @@ msgid "Role"
 msgstr "Função"
 
 #: lib/tuist_web/live/members_live.ex:212
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:234
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:458
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:556
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:670
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:254
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Salvar"
@@ -1074,11 +1074,11 @@ msgid "Okta domain"
 msgstr "Domínio do Okta"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:260
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:143
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:376
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:382
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:506
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:513
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:396
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:402
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:526
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr "Fornecedor"
@@ -3458,47 +3458,49 @@ msgstr "Armazenamento de volume de cache"
 msgid "Cache volume storage:"
 msgstr "Armazenamento de volume de cache:"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:57
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:416
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:77
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "API base URL"
 msgstr "URL base da API"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:431
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:38
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr "Chave de API"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:185
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Add a model to make it available to organization workflows."
 msgstr "Adicione um modelo para torná-lo disponível nos fluxos de trabalho da organização."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:180
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Add a provider before adding a model."
 msgstr "Adicione um provedor antes de adicionar um modelo."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:110
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Add a provider to get started."
 msgstr "Adicione um provedor para começar."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:128
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:555
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:148
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:497
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Add model"
 msgstr "Adicionar modelo"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:27
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:457
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:21
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:47
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:370
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Add provider"
 msgstr "Adicionar provedor"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:120
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Add the models your organization can use, then choose a default model below."
 msgstr "Adicione os modelos que sua organização pode usar e escolha um modelo padrão abaixo."
@@ -3508,7 +3510,7 @@ msgstr "Adicione os modelos que sua organização pode usar e escolha um modelo 
 msgid "Check the provider details and enter a valid API key. Changing the provider or API base URL requires entering the key again."
 msgstr "Verifique os detalhes do provedor e insira uma chave de API válida. Alterar o provedor ou a URL base da API exige informar a chave novamente."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:515
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Choose a provider"
 msgstr "Escolha um provedor"
@@ -3518,20 +3520,20 @@ msgstr "Escolha um provedor"
 msgid "Create sandboxes and run commands in them."
 msgstr "Crie sandboxes e execute comandos nelas."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:198
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:221
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:218
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Default model"
 msgstr "Modelo padrão"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:155
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:478
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:175
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "Edit model"
 msgstr "Editar modelo"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:74
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:351
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Edit provider"
 msgstr "Editar provedor"
@@ -3541,36 +3543,36 @@ msgstr "Editar provedor"
 msgid "Enter a name and model ID, and select a provider. The model ID must be unique for the provider."
 msgstr "Insira um nome e um ID de modelo, e selecione um provedor. O ID do modelo deve ser único para o provedor."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:215
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:282
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:634
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:641
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:235
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:302
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:654
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Model"
 msgstr "Modelo"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:146
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:527
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:166
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "Model ID"
 msgstr "ID do modelo"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:119
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Models"
 msgstr "Modelos"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:223
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "No default model"
 msgstr "Nenhum modelo padrão"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:176
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "No models yet"
 msgstr "Nenhum modelo ainda"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:109
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "No providers yet"
 msgstr "Nenhum provedor ainda"
@@ -3580,27 +3582,27 @@ msgstr "Nenhum provedor ainda"
 msgid "Providers"
 msgstr "Provedores"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:418
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "Public HTTPS endpoint for an OpenAI-compatible API. Include any /v1 prefix; requests append /chat/completions."
 msgstr "Endpoint HTTPS público para uma API compatível com OpenAI. Inclua qualquer prefixo /v1; as requisições adicionam /chat/completions."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:692
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:712
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}?"
 msgstr "Remover %{name}?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:163
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Remove model"
 msgstr "Remover modelo"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:95
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Remove provider"
 msgstr "Remover provedor"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Requests already sent may finish."
 msgstr "Requisições já enviadas podem ser concluídas."
@@ -3610,7 +3612,7 @@ msgstr "Requisições já enviadas podem ser concluídas."
 msgid "Sandboxes write"
 msgstr "Os sandboxes escrevem"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:433
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:453
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted. Leave blank to keep the current key, unless changing the provider or API base URL. Changes affect all models using this provider."
 msgstr "Armazenado de forma criptografada. Deixe em branco para manter a chave atual, a menos que esteja alterando o provedor ou a URL base da API. As alterações afetam todos os modelos que usam este provedor."
@@ -3620,7 +3622,7 @@ msgstr "Armazenado de forma criptografada. Deixe em branco para manter a chave a
 msgid "That model is no longer available. Choose another model."
 msgstr "Esse modelo não está mais disponível. Escolha outro modelo."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:529
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "The model ID from your provider, including any account or model prefix."
 msgstr "O ID do modelo do seu provedor, incluindo qualquer prefixo de conta ou modelo."
@@ -3705,12 +3707,7 @@ msgstr "O Claude está indisponível no momento. Tente vincular novamente mais t
 msgid "Connect AI providers using your organization's API keys, or link your Claude organization so Anthropic bills it directly. Each provider can be used by multiple models."
 msgstr "Conecte provedores de IA usando as chaves de API da sua organização ou vincule sua organização do Claude para que a Anthropic fature diretamente. Cada provedor pode ser usado por vários modelos."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "Link Claude organization"
-msgstr "Vincular organização do Claude"
-
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:60
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Linked Claude organization"
 msgstr "Organização do Claude vinculada"
@@ -3720,7 +3717,7 @@ msgstr "Organização do Claude vinculada"
 msgid "Linked your Claude organization."
 msgstr "Sua organização do Claude foi vinculada."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:83
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Manage spend limit"
 msgstr "Gerenciar limite de gastos"
@@ -3735,8 +3732,8 @@ msgstr "Essa organização do Claude já está vinculada a outra organização d
 msgid "The Claude linking request is invalid or has expired."
 msgstr "A solicitação de vinculação do Claude é inválida ou expirou."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:94
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:775
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:114
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:795
 #, elixir-autogen, elixir-format
 msgid "Unlink"
 msgstr "Desvincular"
@@ -3751,41 +3748,41 @@ msgstr "Você não tem mais permissão para vincular uma organização do Claude
 msgid "Your Claude organization wasn't linked. Linking needs an Admin or Billing role in a Claude organization that pays Anthropic directly."
 msgstr "Sua organização do Claude não foi vinculada. A vinculação exige uma função de Administrador ou Faturamento em uma organização do Claude que pague diretamente à Anthropic."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:684
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Unlink your Claude organization?"
 msgstr "Desvincular sua organização do Claude?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:321
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "Add a model before adding a route."
 msgstr "Adicione um modelo antes de adicionar uma rota."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:251
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:576
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:669
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:271
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:596
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:689
 #, elixir-autogen, elixir-format
 msgid "Add route"
 msgstr "Adicionar rota"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:715
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:735
 #, elixir-autogen, elixir-format
 msgid "Anthropic stops billing your Claude organization for Tuist, and models using it are removed, along with their task routes. If one is the default, tasks without a route stop sending requests until you select another."
 msgstr "A Anthropic interrompe a cobrança da sua organização Claude pelo Tuist, e os modelos que o utilizam são removidos, juntamente com as suas rotas de tarefas. Se um deles for o padrão, as tarefas sem rota deixam de enviar pedidos até que selecione outro."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:276
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:604
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:617
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr "Categoria"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:643
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:663
 #, elixir-autogen, elixir-format
 msgid "Choose a model"
 msgstr "Escolher um modelo"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:624
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Choose a task"
 msgstr "Escolher uma tarefa"
@@ -3795,18 +3792,18 @@ msgstr "Escolher uma tarefa"
 msgid "Choose a task and a model. Each task can have only one route."
 msgstr "Escolha uma tarefa e um modelo. Cada tarefa pode ter apenas uma rota."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:199
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Choose the model for organization AI tasks without a task route. Without a default, only routed tasks send requests. Personal AI subscriptions are not affected."
 msgstr "Escolha o modelo para as tarefas de IA da organização sem rota de tarefa. Sem um padrão, apenas as tarefas roteadas enviam pedidos. As subscrições pessoais de IA não são afetadas."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:296
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:577
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:316
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Edit route"
 msgstr "Editar rota"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:330
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Every task uses the default model."
 msgstr "Todas as tarefas usam o modelo padrão."
@@ -3821,64 +3818,79 @@ msgstr "Agrupar observações relacionadas"
 msgid "Name and explain symptoms"
 msgstr "Nomear e explicar sintomas"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:265
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "No default model is selected, so tasks without a route don't send requests."
 msgstr "Nenhum modelo padrão está selecionado, então tarefas sem rota não enviam solicitações."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:734
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "No default model is selected, so this task stops sending requests until you add a route or select a default."
 msgstr "Nenhum modelo padrão está selecionado, então esta tarefa para de enviar solicitações até que você adicione uma rota ou selecione um padrão."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:317
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "No task routes yet"
 msgstr "Nenhuma rota de tarefa ainda"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:304
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Remove route"
 msgstr "Remover rota"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:687
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:707
 #, elixir-autogen, elixir-format
 msgid "Remove the route for %{name}?"
 msgstr "Remover a rota para %{name}?"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:243
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Send a specific task to a different model. Tasks without a route use the default model."
 msgstr "Envie uma tarefa específica para um modelo diferente. Tarefas sem rota usam o modelo padrão."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:279
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:615
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:622
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:299
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:635
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "Tarefa"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:242
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Task routing"
 msgstr "Roteamento de tarefas"
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:740
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:760
 #, elixir-autogen, elixir-format
 msgid "This task uses the default model instead."
 msgstr "Esta tarefa usa o modelo padrão."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:324
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:344
 #, elixir-autogen, elixir-format
 msgid "Add a route or select a default model to send requests."
 msgstr "Adicione uma rota ou selecione um modelo padrão para enviar solicitações."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:728
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:748
 #, elixir-autogen, elixir-format
 msgid "This deletes the stored key, all models using this provider and their task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one. Revoke the key at the provider to revoke access there."
 msgstr "Isso exclui a chave armazenada, todos os modelos que usam este provedor e suas rotas de tarefas. Essas tarefas recorrem ao modelo padrão e, se não houver nenhum padrão restante, elas e outras tarefas sem rota param de enviar solicitações até que você selecione uma. Revogue a chave no provedor para revogar o acesso lá."
 
-#: lib/tuist_web/live/organization_ai_settings_live.html.heex:746
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:766
 #, elixir-autogen, elixir-format
 msgid "This removes the configured model, not its provider, and its task routes. Those tasks fall back to the default model, and if no default remains, they and other tasks without a route stop sending requests until you select one."
 msgstr "Isso remove o modelo configurado, não seu provedor, e suas rotas de tarefas. Essas tarefas recorrem ao modelo padrão e, se não houver nenhum padrão restante, elas e outras tarefas sem rota param de enviar solicitações até que você selecione uma."
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Anthropic bills your Claude organization directly"
+msgstr "A Anthropic fatura diretamente a sua organização Claude"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Claude organization"
+msgstr "Organização Claude"
+
+#: lib/tuist_web/live/organization_ai_settings_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Use your organization's key for any provider"
+msgstr "Use a chave da sua organização para qualquer provedor"
