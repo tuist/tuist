@@ -2252,6 +2252,36 @@ defmodule Tuist.Environment do
     get([:oauth, :private_key], secrets)
   end
 
+  @doc """
+  RSA private key (PEM) that signs OpenID Connect ID tokens. Without it the
+  server is no OpenID Provider: discovery answers 404 and no relying party
+  client is registered.
+  """
+  def oidc_signing_key(secrets \\ secrets()) do
+    get([:oidc, :signing_key], secrets)
+  end
+
+  @doc """
+  The Luft server (`luft.work`), a confidential OpenID Connect relying
+  party. Configured on the deployment that Luft signs people in to. The ID
+  must be a UUID: Boruta stores client IDs as `binary_id`.
+  """
+  def luft_server_oauth_client_id(secrets \\ secrets()) do
+    get([:luft_server, :oauth_client_id], secrets)
+  end
+
+  def luft_server_oauth_client_secret(secrets \\ secrets()) do
+    get([:luft_server, :oauth_client_secret], secrets)
+  end
+
+  @doc "Comma-separated exact redirect URIs of the Luft server."
+  def luft_server_oauth_redirect_uris(secrets \\ secrets()) do
+    case get([:luft_server, :oauth_redirect_uris], secrets) do
+      value when is_binary(value) -> value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+      _ -> []
+    end
+  end
+
   def oauth_configured?(secrets \\ secrets()) do
     oauth_client_id(secrets) != nil and
       oauth_client_secret(secrets) != nil and

@@ -2,8 +2,9 @@
 # caching. Cloudflare's default cacheable extensions include .js and
 # .css but not .wasm, so without this rule the Luft core (~2 MB gzipped)
 # would be fetched from the cluster on every load. The edge TTL follows
-# the origin, where nginx sends `max-age=31536000, immutable` for
-# /assets/ and `no-cache` for index.html (see luft/web/nginx.conf).
+# the origin, where the Luft server sends `max-age=31536000, immutable`
+# for /assets/ and `no-cache` for the HTML shell (LuftServerWeb.Endpoint's
+# Plug.Static and LuftServerWeb.WebController).
 #
 # Created in read_only and activated after the site went live on
 # 2026-11-18, when /assets/*.wasm was still served cf-cache-status DYNAMIC.

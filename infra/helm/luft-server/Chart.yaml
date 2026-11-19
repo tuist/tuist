@@ -1,0 +1,6 @@
+apiVersion: v2
+name: luft-server
+description: Standalone Helm chart for the Luft server (luft.work/api and luft.work/auth), a Phoenix app that signs people in with Tuist over OpenID Connect.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

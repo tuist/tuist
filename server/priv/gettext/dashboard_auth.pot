@@ -1355,7 +1355,7 @@ msgstr ""
 msgid "Continue only if you just started signing in to %{client} yourself."
 msgstr ""
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:146
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:194
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client} · Tuist"
 msgstr ""

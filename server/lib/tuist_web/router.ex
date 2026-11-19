@@ -874,6 +874,7 @@ defmodule TuistWeb.Router do
     get "/struo", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
     get "/tuist.json", WellKnownController, :tuist_discovery, metadata: %{robots_txt: false}
+    get "/openid-configuration", Oauth.OpenidController, :openid_configuration, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -1629,6 +1630,9 @@ defmodule TuistWeb.Router do
     post "/token", TokenController, :token
     post "/revoke", TokenController, :revoke
     post "/register", RegistrationController, :register
+    get "/jwks", OpenidController, :jwks
+    get "/userinfo", OpenidController, :userinfo
+    post "/userinfo", OpenidController, :userinfo
   end
 
   scope "/oauth/callback", TuistWeb.Oauth do

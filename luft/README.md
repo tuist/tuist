@@ -41,15 +41,15 @@ Mise runs `prepare-native.py` before graph loading. When invoking Struo directly
 
 ## Web edge
 
-`web/` is the browser edge served at `luft.work` (chart: `../infra/helm/luft-web/`). It follows the same split as the native edges: the core runs as wasm in a Web Worker, because its host calls are synchronous and browsers allow synchronous XHR and OPFS file handles only in workers, and TypeScript renders what it reports. Struo builds it in three cacheable steps: `LuftCoreWasm` compiles `crates/web` (thin `wasm_bindgen` exports over the core) for `wasm32-unknown-unknown`, `LuftCoreBindings` runs the wasm-bindgen CLI, and `LuftWeb` runs `npm ci` and `vite build` (`modules/web.star`). `crates/web` enables the browser backends for `getrandom` and `sqlite-wasm-rs`; the core itself stays free of `wasm-bindgen`.
+`web/` is the browser edge served at `luft.work` by the Luft server (`../luft-server/`), which carries its build in its release. It follows the same split as the native edges: the core runs as wasm in a Web Worker, because its host calls are synchronous and browsers allow synchronous XHR and OPFS file handles only in workers, and TypeScript renders what it reports. Struo builds it in three cacheable steps: `LuftCoreWasm` compiles `crates/web` (thin `wasm_bindgen` exports over the core) for `wasm32-unknown-unknown`, `LuftCoreBindings` runs the wasm-bindgen CLI, and `LuftWeb` runs `npm ci` and `vite build` (`modules/web.star`). `crates/web` enables the browser backends for `getrandom` and `sqlite-wasm-rs`; the core itself stays free of `wasm-bindgen`.
 
 ```sh
 rustup target add wasm32-unknown-unknown
-mise run dev:web     # Vite dev server; rerun after core changes
-mise run build:web   # .struo/out/LuftWeb/dist, which the luft-web image serves
+mise run dev:web     # Vite dev server on 5173; rerun after core changes
+mise run build:web   # .struo/out/LuftWeb/dist, which the luft-server image serves
 ```
 
-The wasm-bindgen CLI in `mise.toml` must match the `wasm-bindgen` crate in `Cargo.lock`. `.github/workflows/luft-web-deployment.yml` builds the site on pull requests and deploys it from `main`; `luft.yml` ignores `web/`.
+The wasm-bindgen CLI in `mise.toml` must match the `wasm-bindgen` crate in `Cargo.lock`. Open the app through the Luft server, not Vite: `mix phx.server` in `../luft-server/` runs `mise run dev:web` as a watcher and serves the app on `http://localhost:4200`, proxying Vite, so the session cookie and API are same-origin as in production. `.github/workflows/luft-server-deployment.yml` builds the site on pull requests and deploys it with the server from `main`; `luft.yml` ignores `web/`.
 
 ## Native profiles, authentication and sessions
 

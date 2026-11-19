@@ -3,7 +3,8 @@ defmodule Tuist.OAuth.Clients do
   Custom OAuth clients adapter for Boruta that supports both:
 
   - a static environment-configured client used by Tuist,
-  - Luft's static client, whose ID is the same on every server, and
+  - Luft's static client, whose ID is the same on every server,
+  - the Luft server's confidential OpenID Connect client, when configured, and
   - dynamically registered clients persisted by Boruta Ecto.
   """
 
@@ -12,12 +13,20 @@ defmodule Tuist.OAuth.Clients do
 
   alias Boruta.Ecto.Clients, as: EctoClients
   alias Boruta.Oauth.Client
+  alias Boruta.Oauth.Client.Crypto
   alias Boruta.Oauth.Clients
+  alias Boruta.Oauth.Scope
   alias Tuist.Environment
 
   @authorization_code_ttl 300
   @luft_client_id "6653b77b-b787-4eb2-b955-8380ea5f1478"
   @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
+  # The OpenID Connect scopes (OIDC Core 5.4).
+  @oidc_scopes ["openid", "profile", "email"]
+  @organizations_write_scope "account:organizations:write"
+  # Everything the Luft server may request: who the person is, and creating
+  # organizations for them. Listing their organizations needs no scope.
+  @luft_server_scopes @oidc_scopes ++ [@organizations_write_scope]
 
   @impl Clients
   def get_client(client_id) do
@@ -42,6 +51,31 @@ defmodule Tuist.OAuth.Clients do
   """
   def luft_client_id, do: @luft_client_id
 
+  @doc """
+  The Luft server's client ID (`luft.work`), or `nil` when this deployment
+  is not configured as its OpenID Provider. It is a confidential client: it
+  authenticates to the token endpoint with its secret and gets ID tokens
+  signed with `Environment.oidc_signing_key/0`. Unlike the apps, it is not
+  first-party: its access tokens hold only the scopes it was granted
+  (`luft_server_scopes/0`), because it keeps refresh tokens for everyone who
+  signs in (RFC 9700 2.3).
+  """
+  def luft_server_client_id do
+    case luft_server_client() do
+      %Client{id: id} -> id
+      nil -> nil
+    end
+  end
+
+  @doc "The OpenID Connect scopes this provider supports."
+  def oidc_scopes, do: @oidc_scopes
+
+  @doc "The scopes the Luft server may request."
+  def luft_server_scopes, do: @luft_server_scopes
+
+  @doc "The scope that lets an OAuth client create organizations for the user."
+  def organizations_write_scope, do: @organizations_write_scope
+
   @impl Clients
   def public! do
     (%Client{} = client) = tuist_oauth_client()
@@ -51,8 +85,13 @@ defmodule Tuist.OAuth.Clients do
   @impl Clients
   def authorized_scopes(%Client{id: client_id} = client) do
     case static_client(client_id) do
-      %Client{} -> []
-      nil -> EctoClients.authorized_scopes(client)
+      %Client{} = static ->
+        if static.id == luft_server_client_id(),
+          do: Enum.map(@luft_server_scopes, &%Scope{name: &1}),
+          else: []
+
+      nil ->
+        EctoClients.authorized_scopes(client)
     end
   end
 
@@ -85,6 +124,27 @@ defmodule Tuist.OAuth.Clients do
     Enum.uniq_by(tuist_client_jwk ++ EctoClients.list_clients_jwk(), fn {_client, jwk} -> jwk["kid"] end)
   end
 
+  @doc """
+  The public keys ID tokens are signed with, as a JWK Set (RFC 7517), for the
+  provider's `jwks_uri`. Only the OpenID Connect signing key: Boruta's
+  `list_clients_jwk/0` also returns the keys clients authenticate with.
+  """
+  def oidc_jwks do
+    keys =
+      case luft_server_client() do
+        %Client{private_key: private_key} ->
+          {_fields, public} = private_key |> JOSE.JWK.from_pem() |> JOSE.JWK.to_public_map()
+          # The same `kid` Boruta puts in the ID token's header.
+          kid = Crypto.kid_from_private_key(private_key)
+          [Map.merge(public, %{"kid" => kid, "use" => "sig", "alg" => "RS256"})]
+
+        nil ->
+          []
+      end
+
+    %{"keys" => keys}
+  end
+
   @impl Boruta.Openid.Clients
   # Boruta refreshes a key by fetching the client's `jwks_uri` with an
   # unguarded HTTP GET whenever a client assertion fails to verify, so a stored
@@ -93,7 +153,7 @@ defmodule Tuist.OAuth.Clients do
 
   defp static_client(client_id) when is_binary(client_id) do
     Enum.find(
-      [kura_introspection_client(), tuist_oauth_client(), luft_client()],
+      [kura_introspection_client(), tuist_oauth_client(), luft_client(), luft_server_client()],
       &match?(%Client{id: ^client_id}, &1)
     )
   end
@@ -177,6 +237,41 @@ defmodule Tuist.OAuth.Clients do
     }
   end
 
+  defp luft_server_client do
+    with id when is_binary(id) <- Environment.luft_server_oauth_client_id(),
+         secret when is_binary(secret) <- Environment.luft_server_oauth_client_secret(),
+         [_ | _] = redirect_uris <- Environment.luft_server_oauth_redirect_uris(),
+         private_key when is_binary(private_key) <- Environment.oidc_signing_key() do
+      %Client{
+        id: id,
+        secret: secret,
+        name: "Luft",
+        access_token_ttl: 3_600,
+        authorization_code_ttl: @authorization_code_ttl,
+        refresh_token_ttl: 2_592_000,
+        id_token_ttl: 3_600,
+        id_token_signature_alg: "RS256",
+        # Exact HTTPS callbacks (OAuth 2.0 Security BCP, RFC 9700 4.1).
+        redirect_uris: redirect_uris,
+        # Only the scopes `authorized_scopes/1` lists: `luft_server_scopes/0`.
+        authorize_scope: true,
+        supported_grant_types: @supported_grant_types,
+        # Confidential, and PKCE all the same (RFC 9700 2.1.1).
+        pkce: true,
+        public_refresh_token: false,
+        public_revoke: false,
+        confidential: true,
+        token_endpoint_auth_methods: ["client_secret_basic", "client_secret_post"],
+        private_key: private_key,
+        # Ecto clients get this default from their schema; static ones must name it.
+        signatures_adapter: "Elixir.Boruta.Internal.Signatures",
+        enforce_dpop: false
+      }
+    else
+      _ -> nil
+    end
+  end
+
   defp kura_introspection_client do
     if Environment.kura_control_plane_configured?() do
       %Client{
@@ -195,7 +290,7 @@ defmodule Tuist.OAuth.Clients do
 
   defp to_client_jwk(%Client{private_key: private_key}) when is_binary(private_key) do
     jwk = JOSE.JWK.from_pem(private_key)
-    Map.put(jwk, "kid", Boruta.Oauth.Client.Crypto.kid_from_private_key(private_key))
+    Map.put(jwk, "kid", Crypto.kid_from_private_key(private_key))
   end
 
   defp to_client_jwk(_), do: nil

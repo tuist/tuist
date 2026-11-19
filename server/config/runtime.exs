@@ -1085,6 +1085,10 @@ cache_token_signing_jwk =
     pem -> Tuist.CacheGuardian.signing_jwk!(pem)
   end
 
+# ID tokens carry Boruta's issuer as `iss`, which must equal the `issuer` the
+# OpenID Provider metadata advertises (OpenID Connect Discovery 1.0, section 3).
+config :boruta, Boruta.Oauth, issuer: Tuist.Environment.app_url([route_type: :app], secrets)
+
 config :tuist, Tuist.CacheGuardian,
   issuer: "tuist",
   allowed_algos: ["ES256"],

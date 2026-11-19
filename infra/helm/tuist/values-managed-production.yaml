@@ -124,6 +124,10 @@ server:
       enabled: true
     fcm:
       enabled: true
+    # Luft (luft.work) runs only against production, where the OIDC_PROVIDER
+    # and LUFT_SERVER items live in tuist-k8s-production.
+    luftServerOidc:
+      enabled: true
     entirePluginKey:
       enabled: true
     atlasEmail:

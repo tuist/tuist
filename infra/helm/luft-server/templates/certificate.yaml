@@ -1,0 +1,19 @@
+{{- if .Values.certificate.enabled }}
+{{- $host := required "ingress.host is required when certificate.enabled is true" .Values.ingress.host -}}
+{{- $secretName := required "ingress.tlsSecretName is required when certificate.enabled is true" .Values.ingress.tlsSecretName -}}
+{{- $issuerName := required "certificate.issuerRef.name is required when certificate.enabled is true" .Values.certificate.issuerRef.name -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "luft-server.fullname" . }}-tls
+  labels:
+    {{- include "luft-server.labels" . | nindent 4 }}
+spec:
+  secretName: {{ $secretName | quote }}
+  dnsNames:
+    - {{ $host | quote }}
+  issuerRef:
+    group: {{ .Values.certificate.issuerRef.group | quote }}
+    kind: {{ .Values.certificate.issuerRef.kind | quote }}
+    name: {{ $issuerName | quote }}
+{{- end }}

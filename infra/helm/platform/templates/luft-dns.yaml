@@ -65,7 +65,7 @@ spec:
           args:
             - --provider=cloudflare
             - --source=ingress
-            # Only the Luft web edge's ingresses publish under luft.work.
+            # Only the Luft server's ingress (namespace luft) publishes under luft.work.
             - --namespace={{ $dns.namespace }}
             - --domain-filter=luft.work
             - --registry=txt

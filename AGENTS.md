@@ -24,6 +24,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [gradle/](gradle/AGENTS.md) | Gradle plugin |
 | [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
 | [luft/](luft/AGENTS.md) | Luft, the Rust-core client built alongside the companion apps |
+| [luft-server/](luft-server/AGENTS.md) | Luft's API at `luft.work/api`, an OpenID Connect relying party of Tuist |
 | [noora/](noora/AGENTS.md) | Phoenix component library and Storybook, documented at `tuist.dev/noora` |
 | [slack/](slack/AGENTS.md) | Public Slack invitation app |
 | [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
@@ -59,7 +60,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 Use conventional commits with the affected subsystem as scope, for example
 `fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
 `android`, `server`, `atlas`, `codebase-search`, `cache`, `registry`, `code`,
-`slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
+`slack`, `pulse`, `kura`, `luft-server`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
 `grafana-datasource`, `docs`, and `handbook`.
 
 PR descriptions must explain what changed, why, the root cause for fixes, relevant

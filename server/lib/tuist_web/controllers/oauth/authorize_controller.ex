@@ -9,6 +9,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   alias Boruta.Oauth.AuthorizeResponse
   alias Boruta.Oauth.Error
   alias Boruta.Oauth.ResourceOwner
+  alias Boruta.Oauth.Scope
   alias Tuist.Accounts.UserToken
   alias Tuist.OAuth.Clients
   alias TuistWeb.Errors.BadRequestError
@@ -42,12 +43,24 @@ defmodule TuistWeb.Oauth.AuthorizeController do
         # sign-ins act as the signed-in user, so each one needs the person to
         # approve it on the page `preauthorize_success/2` renders, which posts
         # back here with the same query.
-        if query["client_id"] == Clients.luft_client_id() do
-          conn
-          |> put_private(:oauth_consent, {consent(conn), resource_owner})
-          |> Oauth.preauthorize(resource_owner, __MODULE__)
-        else
-          Oauth.authorize(conn, resource_owner, __MODULE__)
+        #
+        # The Luft server is a confidential client with fixed HTTPS
+        # redirects, so it needs no consent page, but it goes through the same
+        # preauthorization: Boruta lets any client have the scopes marked
+        # public, and only `Clients.luft_server_scopes/0` are the Luft server's.
+        cond do
+          query["client_id"] == Clients.luft_client_id() ->
+            conn
+            |> put_private(:oauth_consent, {consent(conn), resource_owner, []})
+            |> Oauth.preauthorize(resource_owner, __MODULE__)
+
+          is_binary(query["client_id"]) and query["client_id"] == Clients.luft_server_client_id() ->
+            conn
+            |> put_private(:oauth_consent, {:allow, resource_owner, Clients.luft_server_scopes()})
+            |> Oauth.preauthorize(resource_owner, __MODULE__)
+
+          true ->
+            Oauth.authorize(conn, resource_owner, __MODULE__)
         end
 
       _ ->
@@ -56,6 +69,21 @@ defmodule TuistWeb.Oauth.AuthorizeController do
           error: :unsupported_response_type,
           error_description: "Only the code response type is supported."
         })
+    end
+  end
+
+  # Initiating User Registration via OpenID Connect 1.0: a relying party asks
+  # with `prompt=create` to have a person sign up rather than sign in. The
+  # authorization resumes when registration signs them in. A signed-in person
+  # already has an account, so the clause above just authorizes.
+  def authorize(%Plug.Conn{query_params: %{"prompt" => prompt}} = conn, _params) when is_binary(prompt) do
+    if "create" in String.split(prompt, " ", trim: true) do
+      conn
+      |> put_session(:user_return_to, current_path(conn))
+      |> redirect(to: ~p"/users/register")
+      |> halt()
+    else
+      redirect_to_login(conn)
     end
   end
 
@@ -121,21 +149,41 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   end
 
   @impl AuthorizeApplication
-  # Only Luft's requests are preauthorized, so Boruta has validated the
-  # client, redirect URI and PKCE challenge before any of these redirect.
-  def preauthorize_success(conn, %AuthorizationSuccess{scope: scope} = authorization) when scope not in [nil, ""] do
-    redirect_error(conn, authorization, :invalid_scope, "Luft requests no scopes.")
+  # Only Luft's and the Luft server's requests are preauthorized, so Boruta
+  # has validated the client, redirect URI and PKCE challenge before any of
+  # these redirect.
+  def preauthorize_success(
+        %Plug.Conn{private: %{oauth_consent: {consent, resource_owner, allowed_scopes}}} = conn,
+        %AuthorizationSuccess{client: client} = authorization
+      ) do
+    scopes = Scope.split(authorization.scope)
+
+    cond do
+      scopes -- allowed_scopes != [] ->
+        description =
+          if allowed_scopes == [],
+            do: "Luft requests no scopes.",
+            else: "Only these scopes can be requested: #{Enum.join(allowed_scopes, " ")}."
+
+        redirect_error(conn, authorization, :invalid_scope, description)
+
+      # Tokens with no scope get `TokenGenerator`'s default user scopes, so a
+      # client limited to scopes must name them, starting with `openid`.
+      allowed_scopes != [] and "openid" not in scopes ->
+        redirect_error(conn, authorization, :invalid_scope, "The openid scope is required.")
+
+      consent == :deny ->
+        redirect_error(conn, authorization, :access_denied, "The sign-in was cancelled.")
+
+      consent == :allow ->
+        Oauth.authorize(conn, resource_owner, __MODULE__)
+
+      true ->
+        render_consent(conn, client)
+    end
   end
 
-  def preauthorize_success(%Plug.Conn{private: %{oauth_consent: {:deny, _}}} = conn, authorization) do
-    redirect_error(conn, authorization, :access_denied, "The sign-in was cancelled.")
-  end
-
-  def preauthorize_success(%Plug.Conn{private: %{oauth_consent: {:allow, resource_owner}}} = conn, _authorization) do
-    Oauth.authorize(conn, resource_owner, __MODULE__)
-  end
-
-  def preauthorize_success(conn, %AuthorizationSuccess{client: client}) do
+  defp render_consent(conn, client) do
     conn
     |> put_resp_header("cache-control", "no-store")
     |> put_view(TuistWeb.Oauth.AuthorizeHTML)
