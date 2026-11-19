@@ -102,7 +102,7 @@ rust_junit_test(
     edition = "2024",
     # rustc peaks near 4 GB compiling the crate as a test binary, which the default 4 GiB
     # remote-execution VM cannot hold. Ignored outside remote execution.
-    exec_properties = {"tuist-memory-gb": "8"},
+    exec_properties = {"tuist-memory-gb": "16"},
     # The suite is wait-bound: about 90 s of test time but under 10 s of CPU, mostly timeouts and
     # sleeps. libtest runs as many tests at once as there are CPUs, two in the default
     # remote-execution VM, so the run took 45 s. Eight threads take it to about 13 s on two cores;
