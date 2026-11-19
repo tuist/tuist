@@ -37,6 +37,10 @@ unsafeSharedDisks: false
 nodeSelector:
   node.cluster.x-k8s.io/pool: general
 tolerations: []
+# OTLP HTTP endpoint that receives RustFS's own metrics, such as drive
+# capacity (rustfs_cluster_drive_*), which back the capacity alerts. Empty
+# exports nothing. Traces, logs and profiles are never exported.
+metricsEndpoint: ""
 resources:
   requests:
     cpu: 500m

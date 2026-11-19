@@ -169,6 +169,8 @@ jobs:
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
       - name: Test runner host disk alert
         run: bash infra/helm/k8s-monitoring/test-runner-host-disk-alert.sh
+      - name: Test RustFS capacity alerts
+        run: bash infra/helm/k8s-monitoring/test-rustfs-capacity-alerts.sh
       - name: Test runner VM host-OOM alert
         run: python3 infra/helm/k8s-monitoring/test-runner-vm-oom-alert.py
       - name: Test runner queue time alert

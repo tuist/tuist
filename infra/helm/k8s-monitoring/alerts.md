@@ -2526,6 +2526,65 @@ Validation and triage:
   instance. Monitor several one-minute evaluations. No exporter interruption
   or deliberate disk fill is needed to test the query's failure cases.
 
+### RustFS drive free space
+
+Rules **RustFS drive free space low** (`rustfs-drive-free-low`, warning,
+A < 0.15 for **15m**) and **RustFS drive almost full**
+(`rustfs-drive-free-critical`, critical, A < 0.05 for **5m**), folder `Alerts`,
+group **RustFS**, production Pulse metrics only, **No Data: OK**, **Error: Keep
+last state**. The separately provisioned payload is
+[`rustfs-capacity-alert-rules.json`](rustfs-capacity-alert-rules.json); Helm
+does not install it.
+
+```promql
+min by (cluster, server, drive) (rustfs_cluster_drive_free_bytes)
+  / max by (cluster, server, drive) (rustfs_cluster_drive_total_bytes)
+```
+
+RustFS has no Prometheus scrape endpoint. It pushes these gauges over OTLP
+HTTP to the alloy receiver when the `shard-storage-rustfs` chart sets
+`metricsEndpoint` (production GRA does), with traces, logs and profiles turned
+off. A drive's total is its volume's XFS project quota on the shard storage
+host, not the host disk, so `node_filesystem_*` on `/data` cannot replace it.
+
+Why it matters: once a drive is full RustFS answers 503 to uploads and to
+deletes, so every account routed to the store fails shard uploads and the
+server's cleanup cannot free space through the S3 API. This happened on the
+staging store during the soak. Triage:
+
+- Check that the server's shard cleanup is running and that the `shards`
+  bucket still carries its 31-day expiry (the `rustfs-setup` CronJob reapplies
+  it hourly).
+- Compare growth with the number of accounts the `public_shard_storage` flag
+  routes to the store. Stop enrolling accounts before growing anything.
+- To grow the drive, raise its XFS project limit with `xfs_quota` under a
+  production elevation, the way the chart README lowers Garage's; the
+  `scw-local-nvme` provisioner sets a quota only when it creates a volume.
+  Never delete objects by hand from the drive directory.
+
+### RustFS drive metrics missing
+
+Rule **RustFS drive metrics missing** (`rustfs-drive-metrics-missing`,
+warning, A > 0 for **15m**), same folder and group. It fires when a `rustfs`
+StatefulSet has replicas but no `rustfs_cluster_drive_total_bytes` reaches
+Pulse, which leaves the free-space rules blind behind **No Data: OK**.
+
+```promql
+max by (cluster, namespace) (
+  kube_statefulset_replicas{statefulset="rustfs", namespace=~"rustfs-.*"}
+) unless on (cluster) max by (cluster) (rustfs_cluster_drive_total_bytes)
+```
+
+A store scaled to zero returns 0 and stays quiet. Matching is per cluster, so
+a second RustFS store in the same cluster would hide a silent one; revisit the
+join when that happens. Check the store NetworkPolicy's egress to
+`observability:4318`, the pod's `RUSTFS_OBS_*` environment, and the
+receiver's otelcol pipeline to `pulse_metrics`.
+
+Validation: run `bash infra/helm/k8s-monitoring/test-rustfs-capacity-alerts.sh`
+with jq and promtool on PATH. It covers both thresholds at their boundaries,
+both pending periods, the missing-metrics guard, and a scaled-down store.
+
 ### Runner host PN VLAN missing
 
 ```promql

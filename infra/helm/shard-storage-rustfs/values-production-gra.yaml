@@ -32,6 +32,7 @@ resources:
     ephemeral-storage: 1000G
   limits:
     memory: 8Gi
+metricsEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics
 gateway:
   replicas: 1
   buckets: [shards]

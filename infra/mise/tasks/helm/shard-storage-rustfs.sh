@@ -83,11 +83,26 @@ jq -e '
     (.spec.target.template.data["targets.json"] | fromjson | .["rustfs-gra-production-v1"] |
       .access == "public" and .endpoint == "https://s3.tuist.dev" and .bucket == "shards" and .site == "gra")) and
   any(.[]; .kind == "CronJob" and .spec.jobTemplate.spec.template.metadata.labels == {app:"rustfs",component:"setup"}) and
-  any(.[]; .kind == "Ingress" and .spec.rules[0].host == "s3.tuist.dev")
+  any(.[]; .kind == "Ingress" and .spec.rules[0].host == "s3.tuist.dev") and
+  any(.[]; .kind == "StatefulSet" and
+    ([.spec.template.spec.containers[0].env[] | select(.name | startswith("RUSTFS_OBS_")) | {(.name): .value}] | add) == {
+      RUSTFS_OBS_METRIC_ENDPOINT: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics",
+      RUSTFS_OBS_SERVICE_NAME: "rustfs",
+      RUSTFS_OBS_TRACES_EXPORT_ENABLED: "false",
+      RUSTFS_OBS_LOGS_EXPORT_ENABLED: "false",
+      RUSTFS_OBS_PROFILING_EXPORT_ENABLED: "false"}) and
+  any(.[]; .kind == "NetworkPolicy" and any(.spec.egress[]?;
+    .to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "observability" and .ports == [{protocol:"TCP",port:4318}]))
 ' "$work/production.json" >/dev/null
+# Without metricsEndpoint, nothing is exported and no egress opens.
+helm template rustfs "$chart" -n rustfs-staging --set enabled=true |
+  yq -o json -I0 'select(.kind != null)' | jq -s . >"$work/no-metrics.json"
+jq -e 'all(.[] | select(.kind == "StatefulSet") | .spec.template.spec.containers[0].env[]; (.name | startswith("RUSTFS_OBS_")) | not) and
+  all(.[] | select(.kind == "NetworkPolicy") | .spec.egress[]?.to[]?; .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] != "observability")
+' "$work/no-metrics.json" >/dev/null
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set target.id=x >/dev/null 2>&1; then
   echo 'FAIL: target published without generated credentials and a public host' >&2; exit 1
 fi
-echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target'
+echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics'
 echo 'PASS: single-member OVH performance variant: one member, eight drives, EC:4, kura-eu-west ingress'
 echo 'PASS: disabled defaults, isolation, eight volumes, four hosts, EC:4, retained PVCs, streaming gateway and restricted services'
