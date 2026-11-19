@@ -31,14 +31,15 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Görüntüler" },
       "implicit-dependencies": { "text": "Örtük bağımlılıklar" },
       "iphone-app": { "text": "iPhone uygulaması" },
       "macos-app": { "text": "macOS uygulaması" },
       "new-project": { "text": "Yeni proje" },
-      "once": { "text": "Bir kez" },
+      "once": { "text": "Once" },
       "once-cache": { "text": "Once önbelleği" },
       "once-project": { "text": "Once projesi" },
-      "once-remote-execution": { "text": "Once uzaktan yürütme" },
+      "once-remote-execution": { "text": "Once uzak yürütme" },
       "origin": { "text": "Kaynak" },
       "profiles": { "text": "Profiller" },
       "project-description": { "text": "Proje açıklaması" },
@@ -69,7 +70,7 @@
         "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
       },
       "cta": {
-        "text": "Katkıda bulunun"
+        "text": "Katkıda bulun"
       }
     }
   },
@@ -293,9 +294,6 @@
         },
         "status": {
           "text": "Durum"
-        },
-        "metrics-dashboard": {
-          "text": "Metrik panosu"
         }
       }
     },
@@ -339,7 +337,7 @@
           }
         },
         "install-tuist": {
-          "text": "Tuist Kurulumu"
+          "text": "Tuist'i Kurun"
         },
         "tuist": {
           "text": "Tuist",
@@ -353,7 +351,7 @@
           "text": "Hızlı başlangıç",
           "items": {
             "install-tuist": {
-              "text": "Tuist Kurulumu"
+              "text": "Tuist'i Kurun"
             },
             "get-started": {
               "text": "Başlangıç"
@@ -564,7 +562,7 @@
               "text": "MCP"
             },
             "skills": {
-              "text": "Beceriler"
+              "text": "Yetenekler"
             }
           }
         },
@@ -575,7 +573,7 @@
               "text": "Sürekli entegrasyon"
             },
             "http-proxy": {
-              "text": "HTTP proxy"
+              "text": "HTTP vekil sunucusu"
             },
             "sso": {
               "text": "SSO"
@@ -584,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git forjları",
+              "text": "Git platformları",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -606,7 +604,7 @@
               "text": "Ağ"
             },
             "self-hosting": {
-              "text": "Kendi kendine barındırma",
+              "text": "Kendi sunucunuzda barındırma",
               "items": {
                 "server": {
                   "text": "Sunucu"

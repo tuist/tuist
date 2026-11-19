@@ -851,7 +851,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
             :for={breadcrumb_item <- breadcrumb.items}
-            id={"#{@id}-#{breadcrumb_item.value}"}
+            id={"#{@id}-#{index}-item-#{breadcrumb_item.value}"}
             value={breadcrumb_item.value}
             label={breadcrumb_item.label}
             selected={breadcrumb_item.selected}
@@ -864,7 +864,7 @@ defmodule TuistWeb.AppLayoutComponents do
           <:footer :if={Map.get(breadcrumb, :footer_items)}>
             <.breadcrumb_item
               :for={breadcrumb_item <- breadcrumb.footer_items}
-              id={"#{@id}-#{breadcrumb_item.value}"}
+              id={"#{@id}-#{index}-footer-#{breadcrumb_item.value}"}
               value={breadcrumb_item.value}
               label={breadcrumb_item.label}
               selected={breadcrumb_item.selected}

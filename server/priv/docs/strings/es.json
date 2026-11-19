@@ -4,11 +4,11 @@
       "builds": { "text": "Compilaciones" },
       "tests": { "text": "Tests" },
       "compute": { "text": "Cómputo" },
-      "bundles": { "text": "Paquetes" },
+      "bundles": { "text": "Bundles" },
       "other-features": { "text": "Otras funcionalidades" }
     },
     "items": {
-      "agentic-coding": { "text": "Programación con agentes" },
+      "agentic-coding": { "text": "Programación con agentes de IA" },
       "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Imágenes" },
       "implicit-dependencies": { "text": "Dependencias implícitas" },
       "iphone-app": { "text": "App para iPhone" },
       "macos-app": { "text": "App para macOS" },
@@ -45,19 +46,19 @@
       "release": { "text": "Lanzamiento" },
       "release-calendar": { "text": "Calendario de lanzamientos" },
       "release-channels": { "text": "Canales de lanzamiento" },
-      "run-previews": { "text": "Ejecutar previsualizaciones" },
+      "run-previews": { "text": "Previews en ejecución" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Caché de Rust" },
       "rust-project": { "text": "Proyecto de Rust" },
       "sandboxes": { "text": "Sandboxes" },
       "scim-provisioning": { "text": "Aprovisionamiento SCIM" },
       "server-api": { "text": "API del servidor" },
-      "single-sign-on": { "text": "Inicio de sesión único" },
-      "supported-types": { "text": "Tipos compatibles" },
+      "single-sign-on": { "text": "Inicio de sesión único (SSO)" },
+      "supported-types": { "text": "Tipos admitidos" },
       "webhooks": { "text": "Webhooks" },
       "xcodegen-project": { "text": "Proyecto de XcodeGen" },
       "xcodeproj-integration": { "text": "Integración con Xcodeproj" },
-      "ufeatures-architecture": { "text": "Arquitectura uFeatures" }
+      "ufeatures-architecture": { "text": "Arquitectura de uFeatures" }
     }
   },
   "aside": {
@@ -66,7 +67,7 @@
         "text": "Idiomas 🌍"
       },
       "description": {
-        "text": "Puedes ayudar a Tuist a admitir más idiomas o mejorar la guía lingüística de esta página."
+        "text": "Puedes ayudar a Tuist a admitir más idiomas o mejorar las guías lingüísticas de esta página."
       },
       "cta": {
         "text": "Contribuir"
@@ -96,8 +97,8 @@
           "remove-favorite-search-button-title": "Eliminar de favoritos"
         },
         "error-screen": {
-          "title-text": "No se han podido recuperar los resultados",
-          "help-text": "Es posible que necesites comprobar tu conexión de red"
+          "title-text": "No se pueden recuperar los resultados",
+          "help-text": "Es posible que debas comprobar tu conexión de red"
         },
         "footer": {
           "select-text": "Seleccionar",
@@ -109,7 +110,7 @@
           "no-results-text": "No se han encontrado resultados relevantes",
           "suggested-query-text": "Prueba a buscar",
           "report-missing-results-text": "¿Crees que esta consulta debería tener resultados?",
-          "report-missing-results-link-text": "Haz clic para dar tu opinión"
+          "report-missing-results-link-text": "Haz clic para enviar comentarios"
         }
       }
     }
@@ -155,7 +156,7 @@
               "text": "Directorios"
             },
             "shell-completions": {
-              "text": "Completado del shell"
+              "text": "Completado de shell"
             }
           }
         },
@@ -246,13 +247,13 @@
           "text": "Idiomas"
         },
         "releases": {
-          "text": "Lanzamientos"
+          "text": "Versiones"
         },
         "cli": {
           "text": "CLI",
           "items": {
             "logging": {
-              "text": "Registros"
+              "text": "Registro de eventos"
             }
           }
         }
@@ -293,9 +294,6 @@
         },
         "status": {
           "text": "Estado"
-        },
-        "metrics-dashboard": {
-          "text": "Panel de métricas"
         }
       }
     },
@@ -345,7 +343,7 @@
           "text": "Tuist",
           "items": {
             "about": {
-              "text": "Sobre Tuist"
+              "text": "Acerca de Tuist"
             }
           }
         },
@@ -384,7 +382,7 @@
                       "text": "Crear un nuevo proyecto"
                     },
                     "swift-package": {
-                      "text": "Probar con un paquete Swift"
+                      "text": "Probar con un paquete de Swift"
                     },
                     "migrate": {
                       "text": "Migrar",
@@ -393,7 +391,7 @@
                           "text": "Un proyecto de Xcode"
                         },
                         "swift-package": {
-                          "text": "Un paquete Swift"
+                          "text": "Un paquete de Swift"
                         },
                         "xcodegen-project": {
                           "text": "Un proyecto de XcodeGen"
@@ -418,7 +416,7 @@
                   "text": "Dependencias"
                 },
                 "code-sharing": {
-                  "text": "Compartir código"
+                  "text": "Compartición de código"
                 },
                 "synthesized-files": {
                   "text": "Archivos sintetizados"
@@ -492,7 +490,7 @@
                   "text": "Integración basada en XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Paquete Swift"
+                  "text": "Paquete de Swift"
                 },
                 "continuous-integration": {
                   "text": "Integración continua"
@@ -558,7 +556,7 @@
           }
         },
         "agentic-coding": {
-          "text": "Programación con agentes",
+          "text": "Programación con agentes de IA",
           "items": {
             "mcp": {
               "text": "MCP"
@@ -584,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Forjas Git",
+              "text": "Forjas de Git",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -625,7 +623,7 @@
           "text": "Compartir",
           "items": {
             "previews": {
-              "text": "Previsualizaciones"
+              "text": "Previews"
             }
           }
         }

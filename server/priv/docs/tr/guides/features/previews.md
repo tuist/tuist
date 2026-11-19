@@ -1,17 +1,17 @@
 ---
 {
-  "title": "Previews",
+  "title": "Önizlemeler",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "Mobil uygulamaları, masaüstü uygulamalarını ve komut satırı araçlarını Tuist Previews ile paylaşın; böylece ekip arkadaşlarınız yerel olarak yeniden derlemeye gerek kalmadan bir derlemeyi deneyebilir."
+  "description": "Mobil uygulamaları, masaüstü uygulamalarını ve komut satırı araçlarını Tuist Önizlemeler ile paylaşın; böylece ekip arkadaşlarınız bir derlemeyi yerel olarak yeniden derlemeden deneyebilir."
 }
 ---
 # Önizlemeler {#previews}
 
-Tuist Önizlemeleri, ekip arkadaşlarınızın mobil uygulamaları, masaüstü uygulamalarını ve komut satırı araçlarını yerel olarak yeniden derlemeden denemesine olanak tanır. Bir derlemeyi Tuist projenize yayınlayın, ardından önizleme bağlantısını paylaşın.
+Tuist Önizlemeleri, ekip arkadaşlarınızın mobil uygulamaları, masaüstü uygulamalarını ve komut satırı araçlarını yerel olarak yeniden derlemeden denemesine olanak tanır. Bir yapıyı Tuist projenize yayınlayın, ardından önizleme bağlantısını paylaşın.
 
-## Neleri önizleyebilirsiniz {#what-you-can-preview}
+## Neyi önizleyebilirsiniz {#what-you-can-preview}
 
-- **Mobil uygulamalar:** Android APK'ları ve Apple uygulama paketleri veya IPA'lar. Desteklenen cihazlar, simülatörler ve imzalama gereksinimleri yayınlama iş akışına bağlıdır.
+- **Mobil uygulamalar:** Android APK'ları ve Apple uygulama paketleri veya IPA dosyaları. Desteklenen cihazlar, simülatörler ve imzalama gereksinimleri yayınlama iş akışına bağlıdır.
 - **Masaüstü uygulamaları:** macOS uygulama paketleri.
 - **Komut satırı araçları:** tek başına veya bağımlılıklarıyla birlikte paketlenmiş macOS veya Linux çalıştırılabilir dosyaları.
 
@@ -34,7 +34,7 @@ Kurulum ve yayınlama komutları için derleme sisteminizi seçin:
   />
   <.home_card
     title="Bazel"
-    details="Android uygulamalarını, Apple uygulamalarını ve eşlik eden Bazel kurallarıyla komut satırı araçlarını paylaşın."
+    details="Eşlik eden Bazel kurallarıyla Android uygulamalarını, Apple uygulamalarını ve komut satırı araçlarını paylaşın."
     link="/guides/features/previews/bazel"
   />
   <.home_card
@@ -44,11 +44,11 @@ Kurulum ve yayınlama komutları için derleme sisteminizi seçin:
   />
 </.home_cards>
 
-Zaten desteklenen bir derlemeniz varsa, bunu bir derleme sistemi entegrasyonu olmadan yayınlamak için <.localized_link href="/cli/share">`tuist share`</.localized_link> kullanın. Paketleme ve imzalama gereksinimleri yine de geçerlidir.
+Zaten desteklenen bir derlemeniz varsa, bunu bir derleme sistemi entegrasyonu olmadan yayınlamak için <.localized_link href="/cli/share">`tuist share`</.localized_link> kullanın. Paketleme ve imzalama gereksinimleri hala geçerlidir.
 
 ## Bir önizlemeyi çalıştır {#run-a-preview}
 
-Alıcıların, önizlemeyi üreten derleme sistemine ihtiyacı yoktur. Uygun bir derlemeye nasıl erişeceğinizi seçin:
+Alıcıların, önizlemeyi üreten derleme sistemine ihtiyacı yoktur. Uyumlu bir derlemeye nasıl erişeceğinizi seçin:
 
 <.home_cards>
   <.home_card
@@ -74,11 +74,11 @@ Alıcıların, önizlemeyi üreten derleme sistemine ihtiyacı yoktur. Uygun bir
 
 ## İzler {#tracks}
 
-İzler, önizlemeleri adlandırılmış gruplara ayırır; örneğin dahili test kullanıcıları için `beta` veya otomatik derlemeler için `nightly`. İş akışınız için yayınlama komutuyla bir iz belirtin; izler ilk kullanıldığında tembel olarak oluşturulur. Bunları önizlemeleri amaca göre gruplandırmak ve Tuist panosunda önizlemeleri filtrelemek için kullanın.
+İzler, önizlemeleri adlandırılmış gruplar halinde düzenler; örneğin dahili test kullanıcıları için `beta` veya otomatik derlemeler için `nightly`. İş akışınız için yayınlama komutuyla bir iz belirtin; izler ilk kullanıldığında tembel olarak oluşturulur. Bunları önizlemeleri amaca göre gruplandırmak ve Tuist kontrol panelinde önizlemeleri filtrelemek için kullanın.
 
 ## README rozeti {#readme-badge}
 
-En son önizlemeye işaret eden bir rozeti deposunuzun `README` dosyasına ekleyin:
+En son önizlemeye işaret eden bir rozeti deponuzun `README` dosyasına ekleyin:
 
 [![Tuist Önizlemesi](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 

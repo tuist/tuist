@@ -11,298 +11,299 @@
 msgid ""
 msgstr "Language: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/pulse_live.ex:877
+#: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
 msgstr "選択した期間内のサービス名を含むすべてのログエントリ（テーブル検索とは無関係）。チャートは間隔ごとのエントリ数を表示します。"
 
-#: lib/tuist_web/live/pulse_live.ex:911
+#: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
 msgstr "選択した期間内に記録されたすべてのスパン（個別のトレースではありません）。チャートは間隔ごとのスパン数を表示します。"
 
-#: lib/tuist_web/live/pulse_live.ex:931
+#: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
 msgstr "選択した期間全体におけるスパン継続時間の近似95パーセンタイル（ミリ秒単位）。チャートは間隔ごとのパーセンタイルを表示します。"
 
-#: lib/tuist_web/live/pulse_live.ex:976
+#: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
 msgid "Check your query and time range, then try again."
 msgstr "クエリと時間範囲を確認してから、もう一度お試しください。"
 
-#: lib/tuist_web/live/pulse_live.ex:729
+#: lib/tuist_web/live/pulse_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Duration (ms)"
 msgstr "継続時間 (ms)"
 
-#: lib/tuist_web/live/pulse_live.ex:309
+#: lib/tuist_web/live/pulse_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
 msgstr "各ポイントは、個々のスパンではなく、1つの時間間隔におけるp95スパン継続時間を表します。"
 
-#: lib/tuist_web/live/pulse_live.ex:884
+#: lib/tuist_web/live/pulse_live.ex:965
 #, elixir-autogen, elixir-format
 msgid "Error logs"
 msgstr "エラーログ"
 
-#: lib/tuist_web/live/pulse_live.ex:918
+#: lib/tuist_web/live/pulse_live.ex:999
 #, elixir-autogen, elixir-format
 msgid "Error spans"
 msgstr "エラーのスパン"
 
-#: lib/tuist_web/live/pulse_live.ex:854
+#: lib/tuist_web/live/pulse_live.ex:935
 #, elixir-autogen, elixir-format
 msgid "Healthy targets"
 msgstr "正常なターゲット"
 
-#: lib/tuist_web/live/pulse_live.ex:720
+#: lib/tuist_web/live/pulse_live.ex:791
 #, elixir-autogen, elixir-format
 msgid "Labels"
 msgstr "ラベル"
 
-#: lib/tuist_web/live/pulse_live.ex:835
+#: lib/tuist_web/live/pulse_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "Last 15 minutes"
 msgstr "過去15分"
 
-#: lib/tuist_web/live/pulse_live.ex:837
+#: lib/tuist_web/live/pulse_live.ex:918
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "過去24時間"
 
-#: lib/tuist_web/live/pulse_live.ex:836
+#: lib/tuist_web/live/pulse_live.ex:917
 #, elixir-autogen, elixir-format
 msgid "Last 6 hours"
 msgstr "過去6時間"
 
-#: lib/tuist_web/live/pulse_live.ex:838
+#: lib/tuist_web/live/pulse_live.ex:919
 #, elixir-autogen, elixir-format
 msgid "Last hour"
 msgstr "過去1時間"
 
-#: lib/tuist_web/live/pulse_live.ex:721
+#: lib/tuist_web/live/pulse_live.ex:792
 #, elixir-autogen, elixir-format
 msgid "Latest value"
 msgstr "最新の値"
 
 #: lib/tuist_web/live/pulse_error_live.ex:173
 #: lib/tuist_web/live/pulse_error_live.ex:261
-#: lib/tuist_web/live/pulse_live.ex:746
-#: lib/tuist_web/live/pulse_live.ex:753
+#: lib/tuist_web/live/pulse_live.ex:817
+#: lib/tuist_web/live/pulse_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Level"
 msgstr "レベル"
 
-#: lib/tuist_web/live/pulse_live.ex:874
+#: lib/tuist_web/live/pulse_live.ex:955
 #, elixir-autogen, elixir-format
 msgid "Log entries"
 msgstr "ログエントリ"
 
-#: lib/tuist_web/live/pulse_live.ex:887
+#: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
 msgstr "選択した期間中にエラーまたは致命的としてラベル付けされたログエントリ。グラフは間隔ごとのエントリ数を示します。"
 
-#: lib/tuist_web/live/pulse_live.ex:897
+#: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
 msgstr "選択した期間中に警告としてラベル付けされたログエントリ。グラフは間隔ごとのエントリ数を示します。"
 
-#: lib/tuist_web/live/pulse_live.ex:825
+#: lib/tuist_web/live/pulse_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "ログ"
 
 #: lib/tuist_web/live/pulse_error_live.ex:355
-#: lib/tuist_web/live/pulse_live.ex:747
+#: lib/tuist_web/live/pulse_live.ex:818
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr "メッセージ"
 
-#: lib/tuist_web/live/pulse_live.ex:719
+#: lib/tuist_web/live/pulse_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr "メトリック"
 
-#: lib/tuist_web/live/pulse_live.ex:824
+#: lib/tuist_web/live/pulse_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "メトリクス"
 
-#: lib/tuist_web/live/pulse_live.ex:324
+#: lib/tuist_web/live/pulse_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "No measurements in this period"
 msgstr "この期間の測定値はありません"
 
-#: lib/tuist_web/live/pulse_live.ex:436
+#: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
 msgstr "このクエリと時間範囲に一致するテレメトリはありません。"
 
-#: lib/tuist_web/live/pulse_live.ex:243
+#: lib/tuist_web/live/pulse_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "Period:"
 msgstr "期間:"
 
-#: lib/tuist_web/live/pulse_live.ex:986
+#: lib/tuist_web/live/pulse_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
 msgstr "Pulseはこのクエリを完了できませんでした。クエリを調整するか、再読み込みして再試行してください。"
 
-#: lib/tuist_web/live/pulse_live.ex:844
+#: lib/tuist_web/live/pulse_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
 msgstr "レポート対象"
 
-#: lib/tuist_web/live/pulse_live.ex:237
+#: lib/tuist_web/live/pulse_live.ex:251
 #, elixir-autogen, elixir-format
 msgid "Resume live"
 msgstr "ライブ再開"
 
-#: lib/tuist_web/live/pulse_live.ex:728
+#: lib/tuist_web/live/pulse_live.ex:799
 #, elixir-autogen, elixir-format
 msgid "Root span"
 msgstr "ルートスパン"
 
-#: lib/tuist_web/live/pulse_live.ex:413
+#: lib/tuist_web/live/pulse_live.ex:442
 #, elixir-autogen, elixir-format
 msgid "Run query"
 msgstr "クエリを実行"
 
-#: lib/tuist_web/live/pulse_live.ex:359
+#: lib/tuist_web/live/pulse_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
 msgstr "テレメトリを検索"
 
-#: lib/tuist_web/live/pulse_live.ex:358
+#: lib/tuist_web/live/pulse_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "検索..."
 
-#: lib/tuist_web/live/pulse_live.ex:727
-#: lib/tuist_web/live/pulse_live.ex:736
-#: lib/tuist_web/live/pulse_live.ex:745
-#: lib/tuist_web/live/pulse_live.ex:753
+#: lib/tuist_web/live/pulse_live.ex:522
+#: lib/tuist_web/live/pulse_live.ex:798
+#: lib/tuist_web/live/pulse_live.ex:807
+#: lib/tuist_web/live/pulse_live.ex:816
+#: lib/tuist_web/live/pulse_live.ex:831
 #, elixir-autogen, elixir-format
 msgid "Service"
 msgstr "サービス"
 
-#: lib/tuist_web/live/pulse_live.ex:908
+#: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "Spans"
 msgstr "スパン"
 
-#: lib/tuist_web/live/pulse_live.ex:921
+#: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
 msgstr "選択した期間中にエラー状態のスパン数。グラフは区間ごとのスパン数を示しています。"
 
-#: lib/tuist_web/live/pulse_live.ex:726
+#: lib/tuist_web/live/pulse_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
 msgstr "開始時刻 (UTC)"
 
-#: lib/tuist_web/live/pulse_live.ex:863
+#: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
 msgstr "期間終了時に up = 0 を報告したターゲット。欠損サンプルは異常とはカウントされません。"
 
-#: lib/tuist_web/live/pulse_live.ex:856
+#: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
 msgstr "期間終了時に up = 1 を報告したターゲット。"
 
-#: lib/tuist_web/live/pulse_live.ex:847
+#: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
 msgstr "期間終了時に up サンプルがあるターゲット。チャートには時間の経過に伴うターゲット数が表示されます。"
 
-#: lib/tuist_web/live/pulse_live.ex:545
+#: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "Telemetry pages"
 msgstr "テレメトリページ"
 
-#: lib/tuist_web/live/pulse_live.ex:420
+#: lib/tuist_web/live/pulse_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Telemetry unavailable"
 msgstr "テレメトリを利用できません"
 
-#: lib/tuist_web/live/pulse_live.ex:973
+#: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
 msgstr "Pulse の接続が設定されていません。管理者に問い合わせてください。"
 
-#: lib/tuist_web/live/pulse_live.ex:980
+#: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
 msgstr "このクエリは結果の上限を超えています。時間範囲またはネイティブクエリを絞り込んで、もう一度お試しください。"
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
 #: lib/tuist_web/live/pulse_error_live.ex:258
-#: lib/tuist_web/live/pulse_live.ex:744
+#: lib/tuist_web/live/pulse_live.ex:815
 #, elixir-autogen, elixir-format
 msgid "Time (UTC)"
 msgstr "時刻 (UTC)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:132
-#: lib/tuist_web/live/pulse_live.ex:730
-#: lib/tuist_web/live/pulse_live.ex:748
+#: lib/tuist_web/live/pulse_live.ex:801
+#: lib/tuist_web/live/pulse_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Trace ID"
 msgstr "トレースID"
 
-#: lib/tuist_web/live/pulse_live.ex:826
+#: lib/tuist_web/live/pulse_live.ex:907
 #, elixir-autogen, elixir-format
 msgid "Traces"
 msgstr "トレース"
 
-#: lib/tuist_web/live/pulse_live.ex:860
+#: lib/tuist_web/live/pulse_live.ex:941
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
 msgstr "正常でないターゲット"
 
-#: lib/tuist_web/live/pulse_live.ex:894
+#: lib/tuist_web/live/pulse_live.ex:975
 #, elixir-autogen, elixir-format
 msgid "Warning logs"
 msgstr "警告ログ"
 
-#: lib/tuist_web/live/pulse_live.ex:928
+#: lib/tuist_web/live/pulse_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
 msgstr "p95スパン期間"
 
-#: lib/tuist_web/live/pulse_live.ex:596
+#: lib/tuist_web/live/pulse_live.ex:651
 #, elixir-autogen, elixir-format
 msgid "vs previous 15 minutes"
 msgstr "前の15分と比較"
 
-#: lib/tuist_web/live/pulse_live.ex:598
+#: lib/tuist_web/live/pulse_live.ex:653
 #, elixir-autogen, elixir-format
 msgid "vs previous 24 hours"
 msgstr "前の24時間と比較"
 
-#: lib/tuist_web/live/pulse_live.ex:597
+#: lib/tuist_web/live/pulse_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "vs previous 6 hours"
 msgstr "前の6時間と比較"
 
-#: lib/tuist_web/live/pulse_live.ex:599
+#: lib/tuist_web/live/pulse_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "vs previous hour"
 msgstr "前の1時間と比較"
 
-#: lib/tuist_web/live/pulse_live.ex:829
+#: lib/tuist_web/live/pulse_live.ex:910
 #, elixir-autogen, elixir-format
 msgid "Text search (* for all)"
 msgstr "テキスト検索（*ですべて）"
 
-#: lib/tuist_web/live/pulse_error_live.ex:552
+#: lib/tuist_web/live/pulse_error_live.ex:548
 #, elixir-autogen, elixir-format
 msgid "Additional data"
 msgstr "追加データ"
 
-#: lib/tuist_web/live/pulse_error_live.ex:477
+#: lib/tuist_web/live/pulse_error_live.ex:473
 #, elixir-autogen, elixir-format
 msgid "Contexts"
 msgstr "コンテキスト"
@@ -310,17 +311,19 @@ msgstr "コンテキスト"
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:267
 #: lib/tuist_web/live/pulse_error_live.ex:376
+#: lib/tuist_web/live/pulse_live.ex:528
+#: lib/tuist_web/live/pulse_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "環境"
 
-#: lib/tuist_web/live/pulse_live.ex:942
+#: lib/tuist_web/live/pulse_live.ex:1023
 #, elixir-autogen, elixir-format
 msgid "Error events"
 msgstr "エラーイベント"
 
 #: lib/tuist_web/live/pulse_error_live.ex:87
-#: lib/tuist_web/live/pulse_live.ex:827
+#: lib/tuist_web/live/pulse_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "エラー"
@@ -332,8 +335,8 @@ msgid "Event ID"
 msgstr "イベントID"
 
 #: lib/tuist_web/live/pulse_error_live.ex:220
-#: lib/tuist_web/live/pulse_live.ex:531
-#: lib/tuist_web/live/pulse_live.ex:737
+#: lib/tuist_web/live/pulse_live.ex:574
+#: lib/tuist_web/live/pulse_live.ex:808
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "イベント"
@@ -348,13 +351,13 @@ msgstr "この期間のイベント"
 msgid "Exception"
 msgstr "例外"
 
-#: lib/tuist_web/live/pulse_error_live.ex:417
+#: lib/tuist_web/live/pulse_error_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "外部"
 
-#: lib/tuist_web/live/pulse_live.ex:689
-#: lib/tuist_web/live/pulse_live.ex:738
+#: lib/tuist_web/live/pulse_live.ex:760
+#: lib/tuist_web/live/pulse_live.ex:809
 #, elixir-autogen, elixir-format
 msgid "First seen"
 msgstr "初回検出"
@@ -364,20 +367,20 @@ msgstr "初回検出"
 msgid "First seen in this period"
 msgstr "この期間での初回検出"
 
-#: lib/tuist_web/live/pulse_error_live.ex:416
+#: lib/tuist_web/live/pulse_error_live.ex:413
 #, elixir-autogen, elixir-format
 msgid "In app"
 msgstr "アプリ内"
 
-#: lib/tuist_web/live/pulse_live.ex:466
-#: lib/tuist_web/live/pulse_live.ex:735
+#: lib/tuist_web/live/pulse_live.ex:495
+#: lib/tuist_web/live/pulse_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Issue"
 msgstr "課題"
 
 #: lib/tuist_web/live/pulse_error_live.ex:202
-#: lib/tuist_web/live/pulse_live.ex:688
-#: lib/tuist_web/live/pulse_live.ex:739
+#: lib/tuist_web/live/pulse_live.ex:759
+#: lib/tuist_web/live/pulse_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Last seen"
 msgstr "最終確認"
@@ -392,7 +395,7 @@ msgstr "最新のイベント"
 msgid "No exception recorded"
 msgstr "例外は記録されていません"
 
-#: lib/tuist_web/live/pulse_error_live.ex:399
+#: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
 msgstr "スタックフレームは記録されていません"
@@ -416,12 +419,12 @@ msgstr "リリース"
 msgid "Stack trace"
 msgstr "スタックトレース"
 
-#: lib/tuist_web/live/pulse_error_live.ex:461
+#: lib/tuist_web/live/pulse_error_live.ex:457
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "タグ"
 
-#: lib/tuist_web/live/pulse_live.ex:962
+#: lib/tuist_web/live/pulse_live.ex:1043
 #, elixir-autogen, elixir-format
 msgid "Affected services"
 msgstr "影響を受けたサービス"
@@ -431,7 +434,7 @@ msgstr "影響を受けたサービス"
 msgid "Back to issue"
 msgstr "イシューに戻る"
 
-#: lib/tuist_web/live/pulse_live.ex:965
+#: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
 msgstr "選択した期間内にSentryイベントが発生した、名前が一意のサービス。グラフは、各時間間隔ごとに影響を受けたサービスを示しています。"
@@ -453,12 +456,12 @@ msgstr "エラーの詳細は利用できません"
 msgid "Event details"
 msgstr "イベントの詳細"
 
-#: lib/tuist_web/live/pulse_live.ex:507
+#: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Events over the selected period"
 msgstr "選択した期間のイベント"
 
-#: lib/tuist_web/live/pulse_live.ex:952
+#: lib/tuist_web/live/pulse_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Fatal events"
 msgstr "致命的なイベント"
@@ -469,7 +472,7 @@ msgid "No occurrences in this period"
 msgstr "この期間の発生件数はありません"
 
 #: lib/tuist_web/live/pulse_error_live.ex:182
-#: lib/tuist_web/live/pulse_live.ex:676
+#: lib/tuist_web/live/pulse_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "記録なし"
@@ -484,17 +487,17 @@ msgstr "発生ページ"
 msgid "Platform"
 msgstr "プラットフォーム"
 
-#: lib/tuist_web/live/pulse_error_live.ex:699
+#: lib/tuist_web/live/pulse_error_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "Pulse はこれらの詳細を読み込めませんでした。エラーページに戻って再試行してください。"
 
-#: lib/tuist_web/live/pulse_live.ex:945
+#: lib/tuist_web/live/pulse_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
 msgstr "選択した期間の Sentry イベント数（グループ化された問題ではありません）。グラフは区間ごとのイベント数を示しています。"
 
-#: lib/tuist_web/live/pulse_live.ex:955
+#: lib/tuist_web/live/pulse_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
 msgstr "選択した期間中に fatal とラベル付けされた Sentry イベント数。グラフは区間ごとのイベント数を示しています。"
@@ -504,12 +507,12 @@ msgstr "選択した期間中に fatal とラベル付けされた Sentry イベ
 msgid "Span ID"
 msgstr "スパン ID"
 
-#: lib/tuist_web/live/pulse_error_live.ex:696
+#: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "選択した期間中にこの問題またはイベントは見つかりませんでした。"
 
-#: lib/tuist_web/live/pulse_live.ex:504
+#: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
 msgid "Trend"
 msgstr "傾向"
@@ -524,27 +527,38 @@ msgstr "イベントを表示"
 msgid "This event recorded a message, not an exception."
 msgstr "このイベントは例外ではなく、メッセージを記録しました。"
 
-#: lib/tuist_web/live/pulse_error_live.ex:528
+#: lib/tuist_web/live/pulse_error_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Breadcrumbs"
 msgstr "パンくずリスト"
 
-#: lib/tuist_web/live/pulse_error_live.ex:574
+#: lib/tuist_web/live/pulse_error_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr "名前"
 
-#: lib/tuist_web/live/pulse_error_live.ex:510
+#: lib/tuist_web/live/pulse_error_live.ex:506
 #, elixir-autogen, elixir-format
 msgid "Request"
 msgstr "リクエスト"
 
-#: lib/tuist_web/live/pulse_error_live.ex:568
+#: lib/tuist_web/live/pulse_error_live.ex:564
 #, elixir-autogen, elixir-format
 msgid "SDK"
 msgstr "SDK"
 
-#: lib/tuist_web/live/pulse_error_live.ex:578
+#: lib/tuist_web/live/pulse_error_live.ex:574
 #, elixir-autogen, elixir-format
 msgid "Version"
 msgstr "バージョン"
+
+#: lib/tuist_web/live/pulse_live.ex:293
+#, elixir-autogen, elixir-format
+msgid "Unavailable"
+msgstr "利用できません"
+
+#: lib/tuist_web/live/pulse_live.ex:753
+#, elixir-autogen, elixir-format
+msgid "Seen in %{count} environment"
+msgid_plural "Seen in %{count} environments"
+msgstr[0] "%{count}個の環境で確認済み"

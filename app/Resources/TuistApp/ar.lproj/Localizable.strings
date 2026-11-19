@@ -50,10 +50,10 @@
 "Cancel" = "إلغاء";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
-"Check for updates" = "التحقق من التحديثات";
+"Check for updates" = "التحقق من وجود تحديثات";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Commit SHA" = "SHA الالتزام";
+"Commit SHA" = "تجزئة الالتزام (Commit SHA)";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "متصل";
@@ -71,10 +71,10 @@
 "Could not find app bundle in the downloaded archive" = "لم يتم العثور على حزمة التطبيق في الأرشيف الذي تم تنزيله";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "تعذر تثبيت التطبيق لـ %@ لأنه لا يتضمن أي إصدارات صالحة للتطبيق.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "لم نتمكن من تثبيت التطبيق لـ %@ لأنه لا يتضمن أي إصدارات صالحة للتطبيق.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "تعذر تثبيت التطبيق لـ %@. منصة %@ هي %@ والتطبيق يتضمن المنصات التالية فقط: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "لم نتمكن من تثبيت التطبيق لـ %@. منصة %@ هي %@ والتطبيق يتضمن فقط المنصات التالية: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "تاريخ الإنشاء";
@@ -119,10 +119,10 @@
 "Finished" = "تم الانتهاء";
 
 /* TuistProfile/ProfileView.swift */
-"Get help" = "الحصول على المساعدة";
+"Get help" = "احصل على المساعدة";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "تثبيت أحدث المعاينات بنقرة واحدة.";
+"Install latest previews with one click." = "ثبّت أحدث المعاينات بنقرة واحدة.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "فشل التثبيت";
@@ -134,10 +134,10 @@
 "Installed %@@%@" = "تم تثبيت %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "جارٍ تثبيت المعاينة";
+"Installing preview" = "جاري تثبيت المعاينة";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "تم استلام عنوان URL غير صالح لرد الاتصال";
+"Invalid callback URL received" = "تم استلام رابط رد اتصال غير صالح";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid response format" = "تنسيق الاستجابة غير صالح";
@@ -167,7 +167,7 @@
 "No previews found" = "لم يتم العثور على معاينات";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "لا توجد معاينات تطابق عوامل التصفية الخاصة بك";
+"No previews match your filters" = "لا توجد معاينات تطابق الفلاتر الخاصة بك";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "موافق";
@@ -191,10 +191,10 @@
 "Profile" = "الملف الشخصي";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "اسحب لأسفل لتحديث المعاينات.";
+"Pull down to refresh your previews." = "اسحب للأسفل لتحديث المعاينات.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "اسحب لأسفل لتحديث مشاريعك.";
+"Pull down to refresh your projects." = "اسحب للأسفل لتحديث المشاريع.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "إنهاء Tuist";
@@ -212,7 +212,7 @@
 "Search" = "بحث";
 
 /* TuistOnboarding/SelfHostedServerAlert.swift */
-"Self-hosted" = "مستضاف ذاتيًا";
+"Self-hosted" = "استضافة ذاتية";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "Self-hosted server" = "خادم مستضاف ذاتيًا";
@@ -263,16 +263,16 @@
 "The preview %@ does not have a package name set." = "لا تحتوي المعاينة %@ على اسم حزمة مُعيّن.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "رابط التعميق للمعاينة %@ غير صالح.";
+"The preview deeplink %@ is invalid." = "رابط التعميق الخاص بالمعاينة %@ غير صالح.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
 "The server returned a preview page that did not advance. Update your server or try again." = "أعاد الخادم صفحة معاينة لم تتقدم. حدّث خادمك أو حاول مرة أخرى.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "لا يدعم هذا الخادم تصفية المعاينات حسب المسار. حدّث خادم Tuist المستضاف ذاتيًا، أو اختر جميع المسارات.";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "لا يدعم هذا الخادم تصفية المعاينات حسب المسار. حدّث خادم Tuist المستضاف ذاتيًا، أو اختر كل المسارات.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "لا يدعم هذا الخادم البحث في المعاينات. حدّث خادم Tuist المستضاف ذاتيًا، أو امسح البحث.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "لا يدعم هذا الخادم البحث في المعاينات. حدّث خادم Tuist المستضاف ذاتيًا، أو امسح عملية البحث.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "لا يدعم هذا الخادم تسجيل الدخول من تطبيق Tuist. اطلب من المسؤول تحديثه.";
@@ -281,7 +281,7 @@
 "To run a preview, you must have a simulator selected." = "لتشغيل معاينة، يجب أن يكون لديك محاكي محدد.";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Token exchange failed with status code: %lld" = "فشل تبادل الرمز المميز برمز الحالة: %lld";
+"Token exchange failed with status code: %lld" = "فشل تبادل الرمز المميز مع رمز الحالة: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Track" = "المسار";
@@ -318,16 +318,16 @@
 "Accounts" = "الحسابات";
 "Close" = "إغلاق";
 "Design preview · Sample accounts" = "معاينة التصميم · حسابات نموذجية";
-"Design preview · Sample builds" = "معاينة التصميم · إصدارات نموذجية";
+"Design preview · Sample builds" = "معاينة التصميم · عمليات بناء نموذجية";
 "Design preview · Sample data" = "معاينة التصميم · بيانات نموذجية";
 "Done" = "تم";
-"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "تؤدي دعوة %@ إلى مشاركة جميع الرسائل الحالية ونتائج الأدوات والردود المستقبلية. لا يرسل هذا الإصدار التجريبي أي دعوات أو إشعارات.";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "دعوة %@ تشارك جميع الرسائل الحالية، ونتائج الأدوات، والردود المستقبلية. لا يرسل هذا الإصدار التجريبي أي دعوات أو إشعارات.";
 "Latest builds" = "أحدث الإصدارات";
 "Layout preview" = "معاينة التخطيط";
 "No account is signed in. These screens use sample data." = "لم يتم تسجيل الدخول إلى أي حساب. تستخدم هذه الشاشات بيانات نموذجية.";
 "Previous builds" = "الإصدارات السابقة";
 "Search projects" = "البحث في المشاريع";
-"Select project" = "تحديد المشروع";
+"Select project" = "اختيار المشروع";
 "Sign out of Tuist?" = "تسجيل الخروج من Tuist؟";
 "Switch account" = "تبديل الحساب";
 "Tool actions" = "إجراءات الأداة";
@@ -335,9 +335,9 @@
 
 /* TuistApp/TuistApp.swift */
 "OK" = "موافق";
-"Unable to open link" = "غير قادر على فتح الرابط";
-"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "ينتمي هذا الرابط إلى خادم Tuist مختلف. سجّل الدخول إلى ذلك الخادم وافتح الرابط مرة أخرى.";
-"This link belongs to a different organization. Switch organizations and open the link again." = "ينتمي هذا الرابط إلى مؤسسة مختلفة. بدّل المؤسسات وافتح الرابط مرة أخرى.";
+"Unable to open link" = "لا يمكن فتح الرابط";
+"This link belongs to a different Tuist server. Sign in to that server and open the link again." = "ينتمي هذا الرابط إلى خادم Tuist مختلف. سجّل الدخول إلى ذلك الخادم ثم افتح الرابط مرة أخرى.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "ينتمي هذا الرابط إلى مؤسسة مختلفة. بدّل المؤسسات ثم افتح الرابط مرة أخرى.";
 "This navigation link is invalid or unsupported." = "رابط التنقل هذا غير صالح أو غير مدعوم.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
@@ -348,4 +348,7 @@
 "Switch profile?" = "هل تريد تبديل الملف الشخصي؟";
 "Open screens will be closed." = "سيتم إغلاق الشاشات المفتوحة.";
 "View profile" = "عرض الملف الشخصي";
-"Your saved profiles could not be updated. Please try again." = "تعذر تحديث ملفاتك الشخصية المحفوظة. يرجى المحاولة مرة أخرى.";
+"Your saved profiles could not be updated. Please try again." = "لم نتمكن من تحديث ملفاتك الشخصية المحفوظة. يرجى المحاولة مرة أخرى.";
+
+"This Mac" = "هذا الـ Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "لا يمكن تشغيل أي من إصدارات macOS الخاصة بهذه المعاينة على معالج هذا الـ Mac.";

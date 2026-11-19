@@ -10,4 +10,4 @@ Depende de cuánto tardó el caso de test en la primera pasada:
 | Hasta 5 min | 2 |
 | Más de 5 min | No se reejecuta |
 
-La pasada se detiene al alcanzar los 200 casos de test o los 10 minutos, lo que ocurra primero, e indica qué límite se ha alcanzado.
+La ejecución se detiene al alcanzar los 200 casos de test o los 10 minutos, lo que ocurra primero, e indica qué límite se ha alcanzado.

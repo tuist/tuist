@@ -31,6 +31,7 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "이미지" },
       "implicit-dependencies": { "text": "암시적 의존성" },
       "iphone-app": { "text": "iPhone 앱" },
       "macos-app": { "text": "macOS 앱" },
@@ -52,9 +53,9 @@
       "sandboxes": { "text": "샌드박스" },
       "scim-provisioning": { "text": "SCIM 프로비저닝" },
       "server-api": { "text": "서버 API" },
-      "single-sign-on": { "text": "Single Sign-On" },
+      "single-sign-on": { "text": "싱글 사인온" },
       "supported-types": { "text": "지원 유형" },
-      "webhooks": { "text": "Webhooks" },
+      "webhooks": { "text": "웹훅" },
       "xcodegen-project": { "text": "XcodeGen 프로젝트" },
       "xcodeproj-integration": { "text": "Xcodeproj 통합" },
       "ufeatures-architecture": { "text": "uFeatures 아키텍처" }
@@ -91,9 +92,9 @@
           "recent-searches-title": "검색 기록",
           "no-recent-searches-text": "검색 기록 없음",
           "save-recent-search-button-title": "검색 기록에 저장",
-          "remove-recent-search-button-title": "검색 기록에서 제거",
+          "remove-recent-search-button-title": "검색 기록에서 삭제",
           "favorite-searches-title": "즐겨찾기",
-          "remove-favorite-search-button-title": "즐겨찾기에서 제거"
+          "remove-favorite-search-button-title": "즐겨찾기에서 삭제"
         },
         "error-screen": {
           "title-text": "결과를 가져올 수 없습니다",
@@ -109,7 +110,7 @@
           "no-results-text": "관련 결과를 찾을 수 없습니다",
           "suggested-query-text": "다음 쿼리를 시도해 보세요",
           "report-missing-results-text": "이 쿼리에 결과가 있어야 한다고 생각하시나요?",
-          "report-missing-results-link-text": "피드백 보내기"
+          "report-missing-results-link-text": "피드백 제출"
         }
       }
     }
@@ -137,7 +138,7 @@
           "text": "기여자"
         },
         "changelog": {
-          "text": "변경 내역"
+          "text": "변경 로그"
         }
       }
     }
@@ -201,7 +202,7 @@
           }
         },
         "configuration": {
-          "text": "설정",
+          "text": "구성",
           "items": {
             "tuist-toml": {
               "text": "tuist.toml"
@@ -293,9 +294,6 @@
         },
         "status": {
           "text": "상태"
-        },
-        "metrics-dashboard": {
-          "text": "메트릭 대시보드"
         }
       }
     },
@@ -384,7 +382,7 @@
                       "text": "새 프로젝트 만들기"
                     },
                     "swift-package": {
-                      "text": "Swift Package로 시도하기"
+                      "text": "Swift 패키지로 시도하기"
                     },
                     "migrate": {
                       "text": "마이그레이션",
@@ -421,10 +419,10 @@
                   "text": "코드 공유"
                 },
                 "synthesized-files": {
-                  "text": "합성 파일"
+                  "text": "생성된 파일"
                 },
                 "dynamic-configuration": {
-                  "text": "동적 설정"
+                  "text": "동적 구성"
                 },
                 "templates": {
                   "text": "템플릿"
@@ -447,7 +445,7 @@
                   "text": "편의성의 비용"
                 },
                 "tma-architecture": {
-                  "text": "모듈형 아키텍처"
+                  "text": "모듈식 아키텍처"
                 },
                 "metadata-tags": {
                   "text": "메타데이터 태그"

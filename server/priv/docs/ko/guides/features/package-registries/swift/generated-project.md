@@ -5,9 +5,9 @@
   "description": "Xcode 패키지 통합이 적용된 생성된 Xcode 프로젝트에서 Tuist Registry를 사용하는 방법을 알아보세요."
 }
 ---
-# Xcode 패키지 통합을 사용한 프로젝트 생성 {#generated-project-with-xcode-based-integration}
+# Xcode 패키지 통합으로 생성된 프로젝트 {#generated-project-with-xcode-based-integration}
 
-Tuist 프로젝트에서 패키지에 <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</.localized_link>을 사용하는 경우, 패키지를 추가할 때 URL 대신 레지스트리 식별자를 사용해야 합니다:
+Tuist Projects에서 패키지를 <.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode의 기본 통합</.localized_link> 방식으로 사용하는 경우, 패키지를 추가할 때 URL 대신 레지스트리 식별자를 사용해야 합니다:
 ```swift
 import ProjectDescription
 

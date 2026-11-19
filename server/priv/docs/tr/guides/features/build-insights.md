@@ -1,13 +1,13 @@
 ---
 {
-  "title": "Derleme İçgörileri",
+  "title": "Derleme İçgörüler",
   "titleTemplate": ":title · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist Derleme İçgörileri ile Xcode, Gradle, Bazel, Elixir, Rust ve Once projelerinin derleme performansını takip edin."
+  "description": "Tuist Derleme İçgörüler ile Xcode, Gradle, Bazel, Elixir, Rust ve Once projelerinin derleme performansını takip edin."
 }
 ---
-# Derleme Analizleri {#build-insights}
+# Derleme İçgörüleri {#build-insights}
 
-Yerel ve CI derleme performansını izlemek için Derleme Analizlerini kullanın. Şu anda Xcode, Gradle, Bazel, Elixir, Rust ve Once desteklenmektedir. Yavaş derlemeler ve artan CI maliyetlerinin adım adım incelenmesi için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) ve [CI maliyetleri](https://tuist.dev/solutions/ci-costs) bölümlerine bakın.
+Yerel ve CI derleme performansını izlemek için Derleme İçgörülerini kullanın. Şu anda Xcode, Gradle, Bazel, Elixir, Rust ve Once'ı destekler. Yavaş derlemeler ve artan CI maliyetleri hakkında adım adım inceleme için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) ve [CI maliyetleri](https://tuist.dev/solutions/ci-costs) sayfalarına bakın.
 
 <.home_cards>
   <.home_card
@@ -17,7 +17,7 @@ Yerel ve CI derleme performansını izlemek için Derleme Analizlerini kullanın
 />
   <.home_card
     title="Oluşturulan projeler"
-    details="Özel şemalara sahip Tuist tarafından oluşturulan projelerde derleme analizlerini takip edin."
+    details="Özel şemalara sahip Tuist tarafından oluşturulan projelerde derleme içgörülerini takip edin."
     link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card
@@ -42,7 +42,7 @@ Yerel ve CI derleme performansını izlemek için Derleme Analizlerini kullanın
 />
   <.home_card
     title="Once"
-    details="Çalıştırmaları canlı olarak izleyin ve graf eylemlerini, süreleri, hataları ve önbellek kararlarını inceleyin."
+    details="Çalıştırmaları canlı olarak izleyin ve grafik eylemlerini, süreleri, hataları ve önbellek kararlarını inceleyin."
     link="/guides/features/build-insights/once"
 />
 </.home_cards>

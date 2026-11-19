@@ -7,6 +7,31 @@ defmodule TuistWeb.Components.LayoutComponentsTest do
   alias TuistWeb.LayoutComponents
   alias TuistWeb.Router
 
+  test "breadcrumb IDs stay unique with numeric and repeated menu values" do
+    item = %{value: "1", label: "Project", selected: true, href: "/account/project"}
+
+    breadcrumbs = [
+      %{label: "Account", items: [item], footer_items: [item]},
+      %{label: "Project", items: [item], footer_items: [item]}
+    ]
+
+    html =
+      Enum.map_join(["headerbar-breadcrumbs", "mobile-headerbar-breadcrumbs"], fn id ->
+        render_component(&TuistWeb.AppLayoutComponents.headerbar_breadcrumbs/1, %{
+          id: id,
+          breadcrumbs: breadcrumbs
+        })
+      end)
+
+    document = Floki.parse_fragment!(html)
+    ids = Floki.attribute(document, "[id]", "id")
+
+    assert ids != []
+    assert length(ids) == length(Enum.uniq(ids))
+    assert length(Floki.find(document, "[role=menuitem][data-selected]")) == 8
+    assert Floki.attribute(document, "[role=menuitem]", "href") == List.duplicate(item.href, 8)
+  end
+
   test "serves fingerprinted favicon URLs emitted by verified routes" do
     directory = Path.join(System.tmp_dir!(), "tuist-favicon-#{System.unique_integer([:positive])}")
     filename = "favicon-deadbeef.ico"

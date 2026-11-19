@@ -2,10 +2,10 @@
 "%@ simulator" = "%@ 시뮬레이터";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 새로 고침 토큰이 없습니다";
+"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 리프레시 토큰이 없습니다";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All" = "모두";
+"All" = "전체";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "All tracks" = "모든 트랙";
@@ -29,7 +29,7 @@
 "Apple Sign In failed" = "Apple 로그인 실패";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "Apps in";
+"Apps in" = "앱 위치";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Are you sure you want to delete this preview? This action cannot be undone." = "이 프리뷰를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.";
@@ -95,13 +95,13 @@
 "Delete account" = "계정 삭제";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "프리뷰 삭제";
+"Delete preview" = "미리보기 삭제";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "세부 정보";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Devices" = "기기";
+"Devices" = "디바이스";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Disconnected" = "연결 끊김";
@@ -110,7 +110,7 @@
 "Email" = "이메일";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "인증 정보, 쿼리 또는 프래그먼트 없이 유효한 HTTPS 서버 URL을 입력하세요.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "인증 정보, 쿼리 또는 프래그먼트가 없는 유효한 HTTPS 서버 URL을 입력하세요.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "오류";
@@ -119,10 +119,10 @@
 "Finished" = "완료";
 
 /* TuistProfile/ProfileView.swift */
-"Get help" = "도움말 받기";
+"Get help" = "도움 받기";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "한 번의 클릭으로 최신 프리뷰를 설치하세요.";
+"Install latest previews with one click." = "최신 미리보기를 한 번의 클릭으로 설치하세요.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "설치 실패";
@@ -134,10 +134,10 @@
 "Installed %@@%@" = "%@@%@ 설치됨";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "프리뷰 설치 중";
+"Installing preview" = "미리보기 설치 중";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "잘못된 콜백 URL을 받았습니다";
+"Invalid callback URL received" = "잘못된 콜백 URL을 수신했습니다";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid response format" = "잘못된 응답 형식";
@@ -155,7 +155,7 @@
 "Logged out" = "로그아웃됨";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "인증에 Apple 자격 증명이 누락되었습니다";
+"Missing Apple credentials from authorization" = "인증에 Apple 자격 증명이 없습니다";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "프리뷰 없음";
@@ -173,7 +173,7 @@
 "Ok" = "확인";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Other devices" = "기타 기기";
+"Other devices" = "다른 기기";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Pin" = "고정";
@@ -185,16 +185,16 @@
 "Previews: %lld" = "미리보기: %lld";
 
 /* TuistProfile/ProfileView.swift */
-"Privacy Policy" = "개인정보 처리방침";
+"Privacy Policy" = "개인정보 보호정책";
 
 /* TuistApp/TuistApp.swift */
 "Profile" = "프로필";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "미리보기를 새로고침하려면 아래로 당기세요.";
+"Pull down to refresh your previews." = "미리보기를 새로 고치려면 아래로 당기세요.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "프로젝트를 새로고침하려면 아래로 당기세요.";
+"Pull down to refresh your projects." = "프로젝트를 새로 고치려면 아래로 당기세요.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "Tuist 종료";
@@ -224,7 +224,7 @@
 "Sign in" = "로그인";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 액세스하고 팀과 협업하려면\n로그인하세요";
+"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 액세스하고\n팀과 협업하려면 로그인하세요";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "프리뷰를 실행하려면 로그인하세요";
@@ -263,16 +263,16 @@
 "The preview %@ does not have a package name set." = "미리보기 %@에 패키지 이름이 설정되어 있지 않습니다.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "미리보기 딥 링크 %@이(가) 잘못되었습니다.";
+"The preview deeplink %@ is invalid." = "미리보기 딥 링크 %@가 유효하지 않습니다.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "서버에서 진행되지 않은 미리보기 페이지를 반환했습니다. 서버를 업데이트하거나 다시 시도하세요.";
+"The server returned a preview page that did not advance. Update your server or try again." = "서버에서 진행되지 않는 미리보기 페이지를 반환했습니다. 서버를 업데이트하거나 다시 시도하세요.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "이 서버는 트랙별로 미리보기를 필터링하는 기능을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 모든 트랙을 선택하세요.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "이 서버는 미리보기 검색 기능을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 검색어를 지우세요.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "이 서버는 미리보기 검색을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 검색어를 지우세요.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "이 서버는 Tuist 앱에서의 로그인을 지원하지 않습니다. 관리자에게 서버 업데이트를 요청하세요.";
@@ -305,7 +305,7 @@
 "Update your self-hosted Tuist server to select a track." = "트랙을 선택하려면 자체 호스팅 Tuist 서버를 업데이트하세요.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
-"Use the root address of your Tuist server" = "Tuist 서버의 루트 주소를 사용하세요";
+"Use the root address of your Tuist server" = "Tuist 서버의 루트 주소를 사용하세요.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "Welcome to Tuist" = "Tuist에 오신 것을 환영합니다";
@@ -321,7 +321,7 @@
 "Design preview · Sample builds" = "디자인 미리보기 · 샘플 빌드";
 "Design preview · Sample data" = "디자인 미리보기 · 샘플 데이터";
 "Done" = "완료";
-"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@ 초대는 기존 메시지, 도구 결과 및 향후 답장을 모두 공유합니다. 이 미리보기는 초대나 알림을 보내지 않습니다.";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@을 초대하면 기존 모든 메시지, 도구 결과 및 향후 답변이 공유됩니다. 이 미리보기에서는 초대장이나 알림을 보내지 않습니다.";
 "Latest builds" = "최신 빌드";
 "Layout preview" = "레이아웃 미리보기";
 "No account is signed in. These screens use sample data." = "로그인된 계정이 없습니다. 이 화면은 샘플 데이터를 사용합니다.";
@@ -346,6 +346,9 @@
 "Add profile" = "프로필 추가";
 "Switch profile" = "프로필 전환";
 "Switch profile?" = "프로필을 전환하시겠습니까?";
-"Open screens will be closed." = "열려 있는 화면이 닫힙니다.";
+"Open screens will be closed." = "열려 있던 화면이 닫힙니다.";
 "View profile" = "프로필 보기";
 "Your saved profiles could not be updated. Please try again." = "저장된 프로필을 업데이트할 수 없습니다. 다시 시도해 주세요.";
+
+"This Mac" = "이 Mac";
+"None of this preview's macOS builds can run on this Mac's processor." = "이 미리보기의 macOS 빌드는 이 Mac의 프로세서에서 실행할 수 없습니다.";

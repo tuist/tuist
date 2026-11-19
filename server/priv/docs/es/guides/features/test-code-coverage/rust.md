@@ -2,30 +2,32 @@
 {
   "title": "Cobertura de código en Rust",
   "titleTemplate": ":title · Cobertura de código · Funcionalidades · Guías · Tuist",
-  "description": "Sube la cobertura por líneas de los tests de Cargo de tu proyecto en Rust y haz seguimiento por archivo, por paquete y por commit."
+  "description": "Sube la cobertura de líneas de los tests de Cargo de tu proyecto en Rust y haz seguimiento por archivo, por paquete y por commit."
 }
 ---
 # Cobertura de código en Rust {#rust-code-coverage}
 
-La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist mide la cobertura por línea de cada ejecución de `cargo test` con la cobertura basada en el código fuente de LLVM y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada paquete y cada archivo. La página **Cobertura de código** del panel la muestra por commit y como tendencia para cada rama.
+La cobertura de código te indica qué líneas de tu código ejecutaron tus tests. Tuist mide la cobertura por línea de cada ejecución de `cargo test` con la cobertura basada en el código fuente de LLVM y consolida las ejecuciones de un commit en una única cifra, para el proyecto, cada paquete y cada archivo. La página **Cobertura de código** del panel muestra esta información por commit y como tendencia para cada rama.
 
 > [!IMPORTANT]
 > **Requisitos**
 >
 > - Sigue la <.localized_link href="/guides/get-started/rust-project">configuración del proyecto Rust</.localized_link>
-> - Las herramientas LLVM de tu cadena de herramientas de Rust (`llvm-tools`). Tuist las instala en una cadena de herramientas gestionada por rustup.
+> - Las herramientas LLVM de tu toolchain de Rust (`llvm-tools`). Tuist las instala en una toolchain gestionada por rustup.
 > - Tu proyecto en un repositorio Git
 
 ## Configuración {#setup}
 
 ### Activar la cobertura {#turn-coverage-on}
 
-Añade esto al `tuist.toml` en la raíz de tu repositorio:
+Añade esto al `Cargo.toml` raíz del workspace:
 
 ```toml
-[test_insights.coverage]
+[workspace.metadata.tuist.test_insights.coverage]
 upload = true
 ```
+
+Si configuras Tuist en un `tuist.toml` en su lugar, añade `[test_insights.coverage]` con `upload = true` allí.
 
 Luego ejecuta tus tests como de costumbre:
 
@@ -33,23 +35,23 @@ Luego ejecuta tus tests como de costumbre:
 tuist cargo test --workspace
 ```
 
-Tuist compila los crates de tu repositorio con `-C instrument-coverage`, ejecuta los tests y sube su cobertura junto con los resultados de los tests de la ejecución. La salida y el código de salida de tus tests no cambian. Para anular la configuración en una sola ejecución, establece `TUIST_COVERAGE_UPLOAD=1` o `TUIST_COVERAGE_UPLOAD=0` .
+Tuist compila los crates de tu repositorio con `-C instrument-coverage`, ejecuta los tests y sube su cobertura junto con los resultados de los tests de la ejecución. La salida y el código de salida de tus tests no cambian. Para anular la configuración para una sola ejecución, establece `TUIST_COVERAGE_UPLOAD=1` o `TUIST_COVERAGE_UPLOAD=0` .
 
 La cobertura depende del historial de Git que Tuist sube con cada ejecución que la recopila, lo que sitúa el commit en su rama. Una ejecución fuera de un repositorio Git sube sus resultados de tests, pero no la cobertura.
 
 ### Ejecuciones fragmentadas {#sharded-runs}
 
-Cuando <.localized_link href="/guides/features/test-sharding/rust">fragmentas tus tests</.localized_link>, cada fragmento que se ejecuta con la cobertura activada informa de la cobertura de sus propios objetivos, y Tuist fusiona los fragmentos de una ejecución en una única cifra. Un fragmento ejecuta parte del conjunto de tests a propósito, por lo que no hace que la cobertura del commit sea incompleta.
+Cuando <.localized_link href="/guides/features/test-sharding/rust">fragmentas tus tests</.localized_link>, cada fragmento que se ejecuta con la cobertura activada informa de la cobertura de sus propios objetivos, y Tuist fusiona los fragmentos de una ejecución en una única cifra. Un fragmento ejecuta parte de la suite a propósito, por lo que no hace que la cobertura del commit sea incompleta.
 
-### Completa cada commit en CI {#complete-each-commit}
+### Completar cada commit en CI {#complete-each-commit}
 
-La cobertura de un commit suele provenir de varios trabajos: uno por fragmento o por conjunto de funcionalidades. Tuist no puede saber cuándo ha informado el último de ellos, así que debes indicárselo. Una vez que haya terminado cada trabajo de test para un commit, ejecuta esto en un trabajo que dependa de todos ellos:
+La cobertura de un commit suele provenir de varios jobs: uno por fragmento o por conjunto de funcionalidades. Tuist no puede saber cuándo ha informado el último de ellos, así que debes indicárselo. Una vez que haya terminado cada job de test para un commit, ejecuta esto en un job que dependa de todos ellos:
 
 ```sh
 tuist cargo coverage-complete
 ```
 
-El comando lee el commit desde el checkout, o el que tu proveedor de CI informa en una pull request; pasa `--commit <sha>` para indicar otro. Hasta que un commit esté completo, su cobertura aparece como **En progreso** y queda fuera de la tendencia de su rama.
+El comando lee el commit desde el `HEAD` del checkout, el commit sobre el que se ejecutaron tus tests; pasa `--commit <sha>` para indicar otro distinto. Hasta que un commit esté completo, su cobertura aparece como **En progreso** y queda fuera de la tendencia de su rama.
 
 ## Cómo funciona {#how-it-works}
 
@@ -60,7 +62,7 @@ El comando lee el commit desde el checkout, o el que tu proveedor de CI informa 
 - **Funciones.** Cada línea pertenece a la función que comienza más cerca por encima de ella. Una función genérica cuenta una vez, independientemente de cuántos tipos se hayan instanciado con ella.
 - Los **doctests** se ejecutan como de costumbre, pero no se miden.
 
-Tuist también registra qué código ejecutó cada binario de test, para la selección de tests basada en la cobertura más adelante. `cargo test` ejecuta los tests de un binario en un solo proceso, por lo que ese registro pertenece al binario en su conjunto, no a sus tests individuales.
+Tuist también registra qué código ejecutó cada binario de test, para la selección de tests basada en la cobertura posteriormente. `cargo test` ejecuta los tests de un binario en un solo proceso, por lo que ese registro pertenece al binario en su conjunto, no a sus tests individuales.
 
 ### Tests omitidos {#skipped-tests}
 
@@ -68,7 +70,7 @@ Cuando los propios argumentos de una ejecución dejan tests fuera, como un filtr
 
 Algunos tests se omiten a propósito y no hacen que un commit sea incompleto:
 
-- **Tests que <.localized_link href="/guides/features/test-insights/flaky-tests/rust">la cuarentena</.localized_link> omite.** Se dejan fuera como si se hubieran eliminado, por lo que las líneas que solo ellos cubrieron se cuentan como no cubiertas.
+- **Tests que omite la <.localized_link href="/guides/features/test-insights/flaky-tests/rust">cuarentena</.localized_link>.** Se dejan fuera como si se hubieran eliminado, por lo que las líneas que solo ellos cubrieron cuentan como no cubiertas.
 - **Los objetivos de los otros fragmentos**, cuando fragmentas tus tests.
 - **Tests ignorados** (`#[ignore]`), que no se ejecutan por defecto.
 
@@ -81,19 +83,19 @@ Cada commit en el panel tiene un estado:
 | En progreso | Las ejecuciones han informado de la cobertura, pero `tuist cargo coverage-complete` aún no se ha ejecutado para el commit. |
 | Completo | Se ejecutó cada test de las ejecuciones del commit, o se dejó fuera a propósito. |
 | Incompleto | No se pudo determinar parte de la cobertura, por lo que la cifra es un límite inferior. |
-| No medido | Ninguna ejecución informó de la cobertura para el commit. |
+| No medido | Ninguna ejecución informó de cobertura para el commit. |
 
 La tendencia de una rama solo incluye commits completos.
 
 ## Impacto en el rendimiento {#performance-impact}
 
-El código instrumentado se ejecuta un poco más lento. Tuist instrumenta solo los crates de tu repositorio: las dependencias se compilan exactamente igual que en tus compilaciones habituales y siguen obteniéndose de la caché. Tuist mantiene ambas variantes de tus propios crates en el directorio de destino, por lo que cambiar entre ejecuciones con y sin cobertura no los recompila a menos que su código haya cambiado.
+El código instrumentado se ejecuta un poco más lento. Tuist instrumenta solo los crates de tu repositorio: las dependencias se compilan exactamente igual que en tus compilaciones habituales y siguen proveniendo de la caché. Tuist mantiene ambas variantes de tus propios crates en el directorio de destino, por lo que cambiar entre ejecuciones con y sin cobertura no los recompila a menos que su código haya cambiado.
 
 ## Limitaciones {#limitations}
 
-- **`rustc-wrapper` personalizado con `rustflags` específicos del objetivo.** Cuando tu proyecto configura su propio `rustc-wrapper`, Tuist añade `-C instrument-coverage` a `build.rustflags` de Cargo en su lugar. Una entrada `target.<triple>.rustflags` en un archivo de configuración de Cargo las reemplaza, así que añade la bandera allí tú mismo. Una ejecución cuyos tests no generaron cobertura lo indica.
-- **Ejecutores de objetivo configurados.** Tuist inicia los binarios de test a través de su propio ejecutor. Un `target.<triple>.runner` en un archivo de configuración de Cargo toma su lugar: la cobertura de la ejecución sigue subiéndose, pero Tuist no puede determinar qué binario de test ejecutó qué. Un ejecutor establecido mediante la variable de entorno `CARGO_TARGET_<TRIPLE>_RUNNER` sigue funcionando.
-- **Sin cobertura desde pull requests de forks.** La cobertura solo se sube mediante ejecuciones que se autentican con Tuist, y la CI suele retener los secretos y tokens de identidad de las pull requests abiertas desde forks.
+- **`rustc-wrapper` personalizado con `rustflags` específicos del objetivo.** Cuando tu proyecto configura su propio `rustc-wrapper`, Tuist añade `-C instrument-coverage` a `build.rustflags` de Cargo en su lugar. Una entrada `target.<triple>.rustflags` en un archivo de configuración de Cargo los reemplaza, así que añade la bandera allí tú mismo. Una ejecución cuyos tests no escribieron cobertura lo indica.
+- **Ejecutores de objetivos configurados.** Tuist inicia los binarios de test a través de un ejecutor propio. Un `target.<triple>.runner` en un archivo de configuración de Cargo toma su lugar: la cobertura de la ejecución sigue siendo subida, pero Tuist no puede saber qué binario de test ejecutó qué. Un ejecutor configurado mediante la variable de entorno `CARGO_TARGET_<TRIPLE>_RUNNER` sigue funcionando.
+- **Sin cobertura desde pull requests de forks.** La cobertura se sube solo mediante ejecuciones que se autentican con Tuist, y la CI suele retener los secretos y tokens de identidad de las pull requests abiertas desde forks.
 
 ## Consulta de cobertura {#querying}
 

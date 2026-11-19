@@ -31,11 +31,12 @@
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
+      "images": { "text": "Образы" },
       "implicit-dependencies": { "text": "Неявные зависимости" },
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
       "new-project": { "text": "Новый проект" },
-      "once": { "text": "Once" },
+      "once": { "text": "Один раз" },
       "once-cache": { "text": "Кэш Once" },
       "once-project": { "text": "Проект Once" },
       "once-remote-execution": { "text": "Удалённое выполнение Once" },
@@ -48,7 +49,7 @@
       "run-previews": { "text": "Запуск превью" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
-      "rust-project": { "text": "Проект на Rust" },
+      "rust-project": { "text": "Проект Rust" },
       "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
       "server-api": { "text": "API сервера" },
@@ -66,7 +67,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist поддержать больше языков или улучшить рекомендации по переводу для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить рекомендации по локализации для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -77,8 +78,8 @@
     "placeholder": "Поиск",
     "translations": {
       "button": {
-        "button-text": "Искать в документации",
-        "button-aria-label": "Искать в документации"
+        "button-text": "Поиск в документации",
+        "button-aria-label": "Поиск в документации"
       },
       "modal": {
         "search-box": {
@@ -106,9 +107,9 @@
           "search-by-text": "Поисковый провайдер"
         },
         "no-results-screen": {
-          "no-results-text": "Релевантных результатов не найдено",
+          "no-results-text": "Релевантные результаты не найдены",
           "suggested-query-text": "Попробуйте другой запрос",
-          "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
+          "report-missing-results-text": "Считаете, что этот запрос должен давать результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
       }
@@ -125,7 +126,7 @@
       "text": "Сервер"
     },
     "tutorials": {
-      "text": "Обучение"
+      "text": "Туториалы"
     },
     "resources": {
       "text": "Ресурсы",
@@ -278,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальная установка",
+          "text": "Локальное развертывание",
           "items": {
             "install": {
               "text": "Установка"
@@ -293,14 +294,11 @@
         },
         "status": {
           "text": "Статус"
-        },
-        "metrics-dashboard": {
-          "text": "Панель метрик"
         }
       }
     },
     "tutorials": {
-      "text": "Обучение",
+      "text": "Туториалы",
       "items": {
         "xcode": {
           "text": "Xcode",
@@ -393,7 +391,7 @@
                           "text": "Проект Xcode"
                         },
                         "swift-package": {
-                          "text": "Swift-пакет"
+                          "text": "Пакет Swift"
                         },
                         "xcodegen-project": {
                           "text": "Проект XcodeGen"
@@ -492,7 +490,7 @@
                   "text": "Интеграция на основе XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Swift-пакет"
+                  "text": "Пакет Swift"
                 },
                 "continuous-integration": {
                   "text": "Непрерывная интеграция"
@@ -500,7 +498,7 @@
               }
             },
             "selective-testing": {
-              "text": "Выборочное тестирование",
+              "text": "Выборочный запуск",
               "items": {
                 "generated-xcode-project": {
                   "text": "Генерируемый проект Xcode"
@@ -524,7 +522,7 @@
               }
             },
             "test-insights": {
-              "text": "Аналитика тестов",
+              "text": "Аналитика",
               "items": {
                 "flaky-tests": {
                   "text": "Нестабильность",
@@ -537,7 +535,7 @@
               }
             },
             "bundle-insights": {
-              "text": "Аналитика бандлов",
+              "text": "Аналитика",
               "items": {
                 "apple": {
                   "text": "Apple"
@@ -584,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git-хостинги",
+              "text": "Git-форжи",
               "items": {
                 "github": {
                   "text": "GitHub"

@@ -2,12 +2,12 @@
 {
   "title": "Gradle 測試分片",
   "titleTemplate": ":title · 測試分片 · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist 測試分片將 Gradle 測試分散到多個 CI runner。"
+  "description": "透過 Tuist 測試分片，將 Gradle 測試分散到多個 CI 執行器上執行。"
 }
 ---
 # Gradle 測試分片 {#gradle-test-sharding}
 
-Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務於過往 CI 執行中記錄的測試套件來規劃，並利用 Tuist 伺服器根據歷史計時數據建立負載均衡的分片計劃。
+Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專案的測試任務於先前 CI 執行中記錄的測試套件來規劃，並利用 Tuist 伺服器根據歷史計時資料建立負載均衡的分片計劃。
 
 > [!IMPORTANT]
 > **必要條件**
@@ -18,8 +18,8 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 測試分片採用兩階段工作流程：
 
-1. **建構階段：** Tuist 會根據為你的專案記錄的測試套件，在伺服器上建立**分片計劃**。伺服器會使用過去 30 天的歷史測試計時數據，將測試分配到各個分片，使每個分片的耗時大致相同。建構階段會輸出一個**分片矩陣**，供你的 CI 系統用來產生平行執行器。
-2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並只執行分配給該分片的測試。最後一個分片也會執行所有未分配給其他分片的測試套件。
+1. **建構階段：** Tuist 會根據為你的專案記錄的測試套件，在伺服器上建立**分片計劃**。伺服器會使用過去 30 天的歷史測試計時資料，將測試分配到各個分片，使每個分片耗費的時間大致相同。建構階段會輸出**分片矩陣**，供你的 CI 系統用來產生平行執行器。
+2. **測試階段：** 每個 CI 執行器會收到一個**分片索引**，並只執行指派給該分片的測試。最後一個分片也會執行所有未指派給其他分片的測試套件。
 
 ## 建構階段 {#build-phase}
 
@@ -32,23 +32,23 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
 
 此任務會：
 1. 找出包含待分片測試任務的專案，而無需編譯它們
-2. 根據過去 30 天為這些專案記錄的測試套件和計時數據，在 Tuist 伺服器上建立分片計劃
-3. 為你的 CI 系統輸出一個分片矩陣
+2. 根據過去 30 天為這些專案記錄的測試套件與計時資料，在 Tuist 伺服器上建立分片計劃
+3. 為你的 CI 系統輸出分片矩陣
 
-如果尚未記錄任何測試套件（例如首次執行），計劃將只包含一個執行所有測試的分片。
+當尚未記錄任何測試套件時（例如首次執行），計劃會包含單一分片，並執行所有測試。
 
 ### 建構選項 {#build-options}
 
 透過 Gradle 專案屬性設定分片：
 
-| 屬性 | 描述 |
+| 屬性 | 說明 |
 |----------|-------------|
-| `-PtuistShardMax=<N>` | 最大分片數量（預設值：2） |
+| `-PtuistShardMax=<N>` | 最大分片數量（預設：2） |
 | `-PtuistShardMin=<N>` | 最小分片數量 |
 | `-PtuistShardMaxDuration=<MS>` | 每個分片的目標最長持續時間（毫秒） |
 | `-PtuistShardTestTask=<NAME>` | 要進行分片的測試任務，例如 `testDebugUnitTest`。預設為建構中的所有測試任務 |
 
-具有多個建構變體的 Android 專案，每個變體都有一個單元測試任務。將 `-PtuistShardTestTask` 設定為你的分片所執行的變體，這樣就只會規劃包含該變體的專案：
+具有多個建構變體的 Android 專案，每個變體各有一個單元測試任務。將 `-PtuistShardTestTask` 設定為你的分片所執行的變體，這樣只會規劃包含該變體的專案：
 
 ```sh
 ./gradlew tuistPrepareTestShards \
@@ -56,13 +56,13 @@ Tuist Gradle 外掛程式內建支援測試分片。它會根據 Tuist 在你專
   -PtuistShardTestTask=testDebugUnitTest
 ```
 
-分片參考會自動從 CI 環境變數（`GITHUB_RUN_ID`、`CI_PIPELINE_ID` 等）衍生，或可以透過 `TUIST_SHARD_REFERENCE` 環境變數明確設定。
+分片參考會自動從 CI 環境變數（`GITHUB_RUN_ID`、`CI_PIPELINE_ID` 等）衍生，或可透過 `TUIST_SHARD_REFERENCE` 環境變數明確設定。
 
 ## 測試階段 {#test-phase}
 
-每個分片執行器都會使用標準的 `test` 任務執行其分配的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片分配，並過濾測試執行範圍，使其僅包含已分配的測試套件。沒有測試套件分配給該分片的專案中的測試任務會被跳過。
+每個分片執行器會使用標準的 `test` 任務執行其指派的測試。當設定 `TUIST_SHARD_INDEX` 時，外掛程式會自動從伺服器取得分片指派，並過濾測試執行範圍，僅包含指派的測試套件。若專案中沒有測試套件指派給該分片，則會跳過其測試任務。
 
-最後一個分片會執行所有測試任務，並排除分配給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
+最後一個分片會執行所有測試任務，並排除已指派給其他分片的套件，因此尚未有記錄執行的套件（例如新加入的套件）仍會執行。
 
 ```sh
 TUIST_SHARD_INDEX=0 ./gradlew test
@@ -74,7 +74,7 @@ TUIST_SHARD_INDEX=0 ./gradlew test
 
 <!-- @snippet: ./_ci-providers -->
 
-每個建構和分片工作在執行 Gradle 之前都需要進行驗證。你可以安裝 Tuist CLI 並使用你的 CI 供應商的 OIDC 身分執行 `tuist auth login`，或者將帳戶權杖以 `TUIST_TOKEN` 的形式公開。請參閱<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle 外掛程式驗證</.localized_link>。以下範例省略了該步驟。
+每個建構與分片工作都需要在執行 Gradle 前進行驗證。你可以安裝 Tuist CLI 並使用 CI 提供者的 OIDC 身分執行 `tuist auth login`，或將帳戶權杖以 `TUIST_TOKEN` 形式公開。請參閱<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle 外掛程式驗證</.localized_link>。以下範例省略了該步驟。
 
 ### GitHub Actions {#github-actions}
 
@@ -122,7 +122,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 會產生一個 `.tuist-shard-child-pipeline.yml`，你可以將其作為[子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
+Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其作為[子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)觸發。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
 
 ```yaml
 # .gitlab-ci.yml
@@ -148,7 +148,7 @@ test-shards:
     strategy: depend
 ```
 
-子管線需要一個 `.tuist-shard` 工作範本：
+子管線需要 `.tuist-shard` 工作範本：
 
 ```yaml
 # .gitlab/shard-template.yml
@@ -159,7 +159,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist 會產生一個包含 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 參數的 `.tuist-shard-continuation.json`：
+Tuist 會產生 `.tuist-shard-continuation.json`，其中包含用於[continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation)的參數：
 
 ```yaml
 # .circleci/config.yml
@@ -227,7 +227,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist 會產生一個 `.tuist-shard-pipeline.yml`，其中每個分片對應一個步驟。使用 `buildkite-agent pipeline upload` 上傳：
+Tuist 會產生 `.tuist-shard-pipeline.yml`，每個分片對應一個步驟。使用 `buildkite-agent pipeline upload` 上傳：
 
 ```yaml
 # pipeline.yml
@@ -310,7 +310,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json` 寫入 `BITRISE_DEPLOY_DIR`，使其可作為下游管線階段的建構產物。使用 Bitrise Pipelines 搭配預先定義的平行工作流程：
+在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json` 寫入 `BITRISE_DEPLOY_DIR`，使其可作為建構產物供後續管線階段使用。使用 Bitrise Pipelines 搭配預先定義的平行工作流程：
 
 ```yaml
 # bitrise.yml

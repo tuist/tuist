@@ -2,19 +2,19 @@
 {
   "title": "Kod paylaşımı",
   "titleTemplate": ":title · Projeler · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tekrarları azaltmak ve tutarlılığı sağlamak için kodu bildirim dosyaları arasında nasıl paylaşacağınızı öğrenin"
+  "description": "Tekrarları azaltmak ve tutarlılığı sağlamak için kodun bildirim dosyaları arasında nasıl paylaşılacağını öğrenin"
 }
 ---
 # Kod paylaşımı {#code-sharing}
 
-Büyük projelerde Xcode kullanırken karşılaşılan zorluklardan biri, derleme ayarları dışında proje öğelerinin `.xcconfig` dosyaları aracılığıyla yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden kullanabilmek aşağıdaki nedenlerle faydalıdır:
+Xcode'u büyük projelerle kullanırken karşılaşılan zorluklardan biri, derleme ayarları dışında proje öğelerinin `.xcconfig` dosyaları aracılığıyla yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden kullanabilmek aşağıdaki nedenlerle faydalıdır:
 
-- Değişiklikler tek bir yerde uygulanabilir ve tüm projeler bu değişiklikleri otomatik olarak aldığı için **bakım** kolaylaşır.
+- Değişiklikler tek bir yerde uygulanabilir ve tüm projeler bu değişiklikleri otomatik olarak aldığı için **bakımı** kolaylaştırır.
 - Yeni projelerin uyabileceği **kurallar** tanımlamayı mümkün kılar.
 - Projeler daha **tutarlı** hale gelir ve bu nedenle tutarsızlıklardan kaynaklanan başarısız derlemelerin olasılığı önemli ölçüde azalır.
 - Mevcut mantığı yeniden kullanabildiğimiz için yeni projeler eklemek kolay bir iş haline gelir.
 
-Manifest dosyaları arasında kodun yeniden kullanılması, Tuist'te **proje açıklama yardımcıları** kavramı sayesinde mümkündür.
+Tuist'te manifest dosyaları arasında kodun yeniden kullanılması, **proje açıklama yardımcıları** kavramı sayesinde mümkündür.
 
 > [!TIP]
 > **Tuist'e özgü bir avantaj**
@@ -36,7 +36,7 @@ import ProjectDescriptionHelpers
 
 `ProjectDescriptionHelpers` aşağıdaki manifestlerde kullanılabilir:
 - `Project.swift`
-- `Package.swift` (yalnızca `#TUIST` derleyici bayrağı etkinleştirildiğinde)
+- `Package.swift` (yalnızca `#TUIST` derleyici bayrağı etkin olduğunda)
 - `Workspace.swift`
 
 ## Örnek {#example}
@@ -90,4 +90,4 @@ let project = Project.featureFramework(name: "MyFeature")
 > [!TIP]
 > **Kuralları belirlemek için bir araç**
 >
-> Fonksiyon aracılığıyla hedeflerin adı, paket kimliği ve klasör yapısı hakkında kurallar tanımladığımıza dikkat edin.
+> Fonksiyon aracılığıyla hedeflerin adları, paket kimliği ve klasör yapısı hakkında kurallar tanımladığımıza dikkat edin.

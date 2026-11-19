@@ -2,12 +2,12 @@
 {
   "title": "使用基于 XcodeProj 的包集成的生成项目",
   "titleTemplate": ":title · Swift · Package Registries · Features · Guides · Tuist",
-  "description": "在生成的项目中使用带有基于 XcodeProj 的包集成的 Tuist Registry。"
+  "description": "在生成项目中使用 Tuist Registry 与基于 XcodeProj 的包集成。"
 }
 ---
 # 使用基于 XcodeProj 的包集成生成的项目 {#generated-project-with-xcodeproj-based-integration}
 
-使用 <.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">基于 XcodeProj 的集成</.localized_link> 时，如果注册表中存在依赖项，你可以使用 `--replace-scm-with-registry` 标志从注册表解析它们。将其添加到 `Tuist.swift` 文件中的 `installOptions`：
+在使用 <.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">基于 XcodeProj 的集成</.localized_link> 时，如果注册表中存在依赖项，你可以使用 `--replace-scm-with-registry` 标志从注册表解析它们。将其添加到 `Tuist.swift` 文件中的 `installOptions`：
 ```swift
 import ProjectDescription
 

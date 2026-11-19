@@ -2,22 +2,22 @@
 {
   "title": "Аналитика сборок",
   "titleTemplate": ":title · Возможности · Руководства · Tuist",
-  "description": "Отслеживайте производительность сборок проектов Xcode, Gradle, Bazel, Elixir, Rust и Once с помощью аналитики сборок Tuist."
+  "description": "Отслеживайте производительность сборок для проектов Xcode, Gradle, Bazel, Elixir, Rust и Once с помощью аналитики сборок Tuist."
 }
 ---
 # Аналитика сборок {#build-insights}
 
-Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Once. Пошаговое руководство по исследованию медленных сборок и роста затрат на CI см. в разделах [Медленные сборки](https://tuist.dev/solutions/slow-builds) и [Затраты на CI](https://tuist.dev/solutions/ci-costs).
+Используйте аналитику сборок для отслеживания производительности локальных сборок и сборок в CI. Сейчас поддерживаются Xcode, Gradle, Bazel, Elixir, Rust и Once. Пошаговое расследование медленных сборок и роста затрат на CI см. в разделах [Медленные сборки](https://tuist.dev/solutions/slow-builds) и [Затраты на CI](https://tuist.dev/solutions/ci-costs).
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Отслеживайте время выполнения пост-действий схем Xcode, настройки сборки и метаданные сборки в панели управления Tuist."
+    details="Отслеживайте время выполнения пост-действий схем Xcode, параметры сборки и метаданные сборок в панели управления Tuist."
     link="/guides/features/build-insights/xcode"
 />
   <.home_card
     title="Сгенерированные проекты"
-    details="Отслеживайте аналитику сборок в сгенерированных проектах Tuist с пользовательскими схемами."
+    details="Отслеживайте аналитику сборок в проектах, сгенерированных Tuist, с пользовательскими схемами."
     link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card

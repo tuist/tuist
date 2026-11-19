@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "03963d4ab62edeaee7e1913b19a6aaa6e03a6b5f9336d959353e7f8ff81fecc2",
+  "hash": "6f1b07a4aa9fcbf8a327b5d0a387bd564444570f53d0b934d30071a9f808aefa",
   "hash_tree": {
     "root": {
       "children": [
@@ -94,7 +94,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
+                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +113,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
+                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
                       }
                     },
                     "sections_omitted": 0
@@ -142,11 +142,11 @@
                   }
                 }
               },
-              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
+              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
+                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
               }
             },
             {
@@ -223,21 +223,21 @@
             }
           ],
           "details": {},
-          "hash": "5e63bf3364c5d5275793bc357142415037c0f872266d90a80da5cb1430e2f386",
+          "hash": "92fd96f6188ed45511ac30051e1411bafd9807418139db10c9af6836b87844d3",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "03963d4ab62edeaee7e1913b19a6aaa6e03a6b5f9336d959353e7f8ff81fecc2",
+      "hash": "6f1b07a4aa9fcbf8a327b5d0a387bd564444570f53d0b934d30071a9f808aefa",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/previews/_tuist-share.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "418b2da668615d4a44645bf8b4bbc55e6bc12500298f6b7e99a71861e2b13f4b",
+  "output_hash": "c9bc5e7f0260bec5afd4163d78f1fbaf05572a8da36ed6c6184b3baab0a37ca6",
   "output_path": "server/priv/docs/tr/guides/features/previews/_tuist-share.md",
   "protection_state": "recorded",
   "provider": "",
@@ -257,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "dcb02e10972686faa1931ae79ce7c5d67ec2ace7",
+  "source_commit_sha": "c7fad37f906cb188113c63e92f7fab7d708d473f",
   "source_path": "server/priv/docs/en/guides/features/previews/_tuist-share.md",
-  "translated_at": "2026-11-13T15:06:48.912753Z",
-  "translation_session_id": "01a1d570-b6b3-785a-85d5-7847a337c4c0"
+  "translated_at": "2026-11-18T21:23:06.177600Z",
+  "translation_session_id": "01a1f088-64a6-7d05-be66-26878314385c"
 }
