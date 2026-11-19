@@ -53,7 +53,18 @@ class CertificateTrustTest {
                 isRevocationEnabled = false
                 date = Date(certificate.notBefore.time + 60_000)
             }
-            validator.validate(path, parameters)
+            try {
+                validator.validate(path, parameters)
+            } catch (jdkDistrust: CertPathValidatorException) {
+                // Newer JDKs ship some of these keys on their own untrusted list, which rejects
+                // the path before any added checker runs. The checker still has to refuse them.
+                assertTrue(jdkDistrust.message.orEmpty().startsWith("Untrusted certificate"), jdkDistrust.message)
+                val error = assertFailsWith<CertPathValidatorException> {
+                    CertificateTrust.DistrustedKeyChecker().check(certificate, mutableSetOf())
+                }
+                assertTrue(error.message.orEmpty().contains("distrusted public key"))
+                continue
+            }
             parameters.addCertPathChecker(CertificateTrust.DistrustedKeyChecker())
             val error = assertFailsWith<CertPathValidatorException> { validator.validate(path, parameters) }
             assertTrue(error.message.orEmpty().contains("distrusted public key"))

@@ -306,6 +306,16 @@ func TestCheckoutColdBuildNeedsEveryLFSObjectOfItsCommit(t *testing.T) {
 	if !errors.Is(build, errCheckoutLFSMissing) || Result(build) != "withheld" {
 		t.Fatalf("checkout_build reported %v", build)
 	}
+	// The host denies the lineage for a while instead of taking the same export again.
+	now := time.Now()
+	c.Now = func() time.Time { return now.Add(checkoutRefusedFor - time.Minute) }
+	if !c.Refusing(checkoutTestScope) {
+		t.Fatal("a refused lineage was granted again at once")
+	}
+	c.Now = func() time.Time { return now.Add(checkoutRefusedFor + time.Minute) }
+	if c.Refusing(checkoutTestScope) {
+		t.Fatal("a refused lineage was denied for good")
+	}
 }
 
 func TestCheckoutPublishesMastersOfDefaultBranchCommits(t *testing.T) {
@@ -567,6 +577,9 @@ func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
 			}
 			if test.refused && (!errors.Is(build, errCheckoutNotJobCheckout) || Result(build) != "withheld") {
 				t.Fatalf("checkout_build reported %v", build)
+			}
+			if c.Refusing(checkoutTestScope) != test.refused {
+				t.Fatalf("refusing %v", c.Refusing(checkoutTestScope))
 			}
 		})
 	}

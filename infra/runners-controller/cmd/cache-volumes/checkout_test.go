@@ -458,3 +458,42 @@ func TestCheckoutSpareRoomNeverEvictsAMaster(t *testing.T) {
 		t.Fatal("a restore a job asked for no longer evicts an idle master")
 	}
 }
+
+// A lineage whose first master this host refused gets no checkout for a while,
+// so its jobs stop exporting what would be refused again.
+func TestCheckoutHostDeniesALineageItRefusedToStart(t *testing.T) {
+	grant := checkoutGrantJSON(0)
+	a, server := checkoutAgent(t, grant, true)
+	if _, response := requestCheckout(t, a, "10.0.0.5"); response["reason"] != "cold" {
+		t.Fatalf("a lineage no host refused was not granted: %v", response)
+	}
+	run := func(_ context.Context, dir string, _ []string, name string, args ...string) ([]byte, error) {
+		switch {
+		case name == "losetup" && args[0] == "--find":
+			return []byte("/dev/loop7\n"), nil
+		case name == "git" && args[0] == "init":
+			return nil, os.MkdirAll(filepath.Join(dir, ".git", "info"), 0755)
+		case name == "git" && args[0] == "index-pack":
+			return []byte(strings.Repeat("9", 40) + "\n"), nil
+		}
+		return nil, nil
+	}
+	a.checkouts.Run, a.checkouts.Images = run, &cachevolumes.Ext4CheckoutImages{Run: run}
+	if code := sendExport(t, a, "10.0.0.5", checkoutArchive(t)); code != http.StatusAccepted {
+		t.Fatalf("the granted export got %d", code)
+	}
+	task, _ := a.checkouts.Pending(checkoutScope)
+	task.Commit, task.DefaultBranchJob = strings.Repeat("6", 40), false
+	a.checkouts.Process(context.Background(), task)
+	if a.checkouts.Master(checkoutScope, 1) != "" {
+		t.Fatal("the refused export started a master")
+	}
+
+	_, response := requestCheckout(t, a, "10.0.0.5")
+	if response["reason"] != "denied" {
+		t.Fatalf("a lineage this host just refused was granted: %v", response)
+	}
+	if len(server.reports) != 2 || server.reports[1]["state"] != "deleted" || server.reports[1]["id"] != checkoutUse {
+		t.Fatalf("the denied use was not ended: %v", server.reports)
+	}
+}

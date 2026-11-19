@@ -13,6 +13,9 @@ target:
   # New Linux-runner shards, Actions cache entries and sandbox archives land
   # here; Garage's target stops taking placements and drains.
   privateNetworkReady: true
+  # Garage's ID, after its buckets were copied here: rows recorded under it
+  # read these buckets in-cluster.
+  aliases: [gra-production-v1]
 # Linux runners, sandboxd and the server reach the store in-cluster, never
 # through s3.tuist.dev.
 privateNetwork:

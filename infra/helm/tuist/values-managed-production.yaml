@@ -148,8 +148,9 @@ server:
   externalSecrets:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
+    # RustFS publishes every production store, including Garage's retired
+    # ID as an alias of its buckets (infra/helm/shard-storage-rustfs).
     shardStorage:
-      secret: shard-storage-targets
       publicSecret: rustfs-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the

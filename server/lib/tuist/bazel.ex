@@ -25,6 +25,7 @@ defmodule Tuist.Bazel do
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
   @ingest_pruning_slack_seconds 24 * 60 * 60
   @running_invocation_hours 24
+  @running_invocation_report_minutes 10
   @invocation_log_streams ~w(stdout stderr)
   @invocation_log_error_pattern "(?m)^\\r*(?:ERROR|FAIL|TIMEOUT): "
 
@@ -35,8 +36,9 @@ defmodule Tuist.Bazel do
   end
 
   @doc """
-  Records invocations Kura saw start. A later start of the same invocation
-  replaces the earlier one.
+  Records invocations Kura saw start or still sees running. A later report of
+  the same invocation replaces the earlier one, so `inserted_at` is when it
+  was last reported.
   """
   def create_invocation_starts([]), do: :ok
 
@@ -47,13 +49,17 @@ defmodule Tuist.Bazel do
   end
 
   @doc """
-  The project's invocations that started in the last 24 hours and have not
-  finished, newest first, at most `:limit` (50). Kura drops an invocation it
-  has not seen finish after 24 hours, so an older start was abandoned.
-  `:invocation_id` narrows the result to that invocation.
+  The project's invocations that started in the last 24 hours, were reported
+  in the last 10 minutes, and have not finished, newest first, at most
+  `:limit` (50). Kura re-reports an invocation every few minutes while its
+  build event stream is open, so a start it stopped reporting was cancelled
+  or lost without finishing. `:invocation_id` narrows the result to that
+  invocation.
   """
   def running_invocations(project_id, opts \\ []) do
-    since = NaiveDateTime.add(NaiveDateTime.utc_now(), -@running_invocation_hours, :hour)
+    now = NaiveDateTime.utc_now()
+    since = NaiveDateTime.add(now, -@running_invocation_hours, :hour)
+    reported_since = NaiveDateTime.add(now, -@running_invocation_report_minutes, :minute)
 
     # An invocation finishes after it starts, so its row is no older than `since`.
     finished =
@@ -66,6 +72,7 @@ defmodule Tuist.Bazel do
       from(start in InvocationStart,
         hints: ["FINAL"],
         where: start.project_id == ^project_id and start.started_at >= ^since,
+        where: start.inserted_at >= ^reported_since,
         where: start.invocation_id not in subquery(finished),
         order_by: [desc: start.started_at],
         limit: ^Keyword.get(opts, :limit, 50)

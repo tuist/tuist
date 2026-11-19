@@ -2,7 +2,7 @@
 {
   "title": "Cobertura de código en Xcode",
   "titleTemplate": ":title · Cobertura de código · Funcionalidades · Guías · Tuist",
-  "description": "Sube la cobertura de código de proyectos de Xcode a Tuist y hazle seguimiento por archivo y por commit."
+  "description": "Sube la cobertura de código de proyectos de Xcode a Tuist y consúltala por archivo y por commit."
 }
 ---
 # Cobertura de código de Xcode {#xcode-code-coverage}
@@ -32,7 +32,7 @@ let tuist = Tuist(
 
 La variable de entorno `TUIST_COVERAGE_UPLOAD` (`1` o `0`) tiene prioridad sobre la opción, por ejemplo para desactivar la subida en trabajos que ejecutan pull requests desde forks.
 
-Luego activa **Cobertura de código** en la acción de test de tu esquema (**Edit Scheme › Test › Options**), o pasa `-enableCodeCoverage YES` a la ejecución, y ejecuta tus tests mediante `tuist xcodebuild test`:
+Luego activa **Cobertura de código** en la acción de test de tu scheme (**Editar Scheme › Test › Opciones**), o pasa `-enableCodeCoverage YES` a la ejecución, y ejecuta tus tests mediante `tuist xcodebuild test`:
 
 ```sh
 tuist xcodebuild test \
@@ -44,7 +44,7 @@ Tuist sube la cobertura que recopiló la ejecución junto con sus resultados de 
 
 ### Completar cada commit en CI {#complete-each-commit}
 
-La cobertura de un commit suele provenir de varios trabajos: uno por esquema, por fragmento o por plataforma. Tuist no puede saber cuándo ha informado el último de ellos, así que debes indicárselo. Una vez que haya terminado cada trabajo de test de un commit, ejecuta esto en un trabajo que dependa de todos ellos:
+La cobertura de un commit suele provenir de varios trabajos: uno por scheme, por shard o por plataforma. Tuist no puede saber cuándo ha reportado el último de ellos, así que debes indicárselo. Una vez que haya terminado cada trabajo de test para un commit, ejecuta esto en un trabajo que dependa de todos ellos:
 
 ```sh
 tuist coverage complete
@@ -64,7 +64,7 @@ Recopilar cobertura añade sobrecarga, principalmente después de que finalicen 
 
 ## Consultar cobertura {#querying}
 
-Los comandos `tuist coverage` leen lo que muestra el dashboard. Sin `--commit`, leen el último commit completo de `--branch`, o de tu rama predeterminada:
+Los comandos `tuist coverage` leen lo que muestra el dashboard. Sin `--commit`, leen el último commit completo de `--branch`, o de tu rama por defecto:
 
 ```sh
 tuist coverage show                          # the project's coverage and its targets

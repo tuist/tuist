@@ -250,8 +250,8 @@ defmodule Tuist.RemoteExecution do
   end
 
   @doc """
-  The project's running Bazel invocations, newest first: those Kura saw
-  start and not finish in the last 24 hours, and those with remote actions
+  The project's running Bazel invocations, newest first: those Kura reports
+  as still running (see `Tuist.Bazel.running_invocations/2`), and those with remote actions
   in the scheduler that Kura has not reported, whose command is then `nil`.
   `running` and `queued` count each one's remote actions; they are `nil`
   when the scheduler does not answer.

@@ -47,7 +47,15 @@ what count. Grow it again the same way, lowering Garage only above its usage.
 Until then the RustFS pod stays Pending: Garage's 3Ti request leaves the node
 less ephemeral storage than RustFS requests.
 
-The server deployment installs this release in production after Garage.
+Garage was retired on 2026-11-19. A Job on the shard host mirrored its
+`shards`, `sandbox-archives` and `actions-cache` buckets into these buckets
+under the same keys, and `target.aliases: [gra-production-v1]` publishes
+Garage's ID as a private alias of this store (in-cluster endpoint, never
+`private_network_ready`). Shard plans, Actions cache entries and sandbox archive
+rows recorded under that ID resolve here unchanged, so no database row moved.
+Production's server reads only this release's `rustfs-targets`.
+
+The server deployment installs this release in production.
 Nobody handles credentials: with `generateCredentials`, External Secrets
 generates the root Secret (`existingSecret`) and `<release>-service` once
 (`CreatedOnce`, orphaned from the release), and the hourly `<release>-setup`

@@ -1766,6 +1766,57 @@ blocked there), us-central from 2026-09-10 17:33, us-west from 2026-09-15 18:03,
 from 2026-09-16 14:03. ap-southeast (121), eu-east (313) and sa-west (586)
 were never below it.
 
+### Kura node scheduler sees disk the volume driver refuses
+
+A, in 16Gi thin replicas (19584 MiB of `tuist.dev/kura-disk` each):
+
+```promql
+floor((max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_kura_disk", cluster="tuist-production"})
+       - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_kura_disk", cluster="tuist-production"})
+          or max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_kura_disk", cluster="tuist-production"}) * 0)) / 20535312384)
+- floor(max by (cluster, node) (kura_volumes_thin_pool_available_commitment_bytes{cluster="tuist-production"}) / 20535312384)
+```
+
+B, in GiB:
+
+```promql
+(max by (cluster, node) (kura_volumes_thin_pool_committed_bytes{cluster="tuist-production"})
+ - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_kura_disk", cluster="tuist-production"})
+    or max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_kura_disk", cluster="tuist-production"}) * 0))
+/ 1073741824
+```
+
+- Threshold: B `> 16` (GiB, one 16Gi replica's worth of hidden commitment);
+  A stays in the summary as the replica count
+- Pending period: 30 minutes
+- Severity: warning
+- Live: rule `ag4s4toktgp34d`, folder `Alerts`, group `Cache`; **No Data:
+  Normal**, **Error: Alerting**
+
+The scheduler places a Kura replica against `tuist.dev/kura-disk` allocatable
+less pod requests (the CSIDriver has `storageCapacity: false`), while the
+kura-volumes driver refuses CreateVolume against `committed_bytes`, which also
+counts volumes no pod requests, unattributed pool mappings and bound volumes
+larger than their pod's reservation (see `infra/kura-volumes-csi/AGENTS.md`).
+A counts the replicas the scheduler would send to a node that the driver then
+refuses with `ResourceExhausted: complete virtual ceiling cannot be physically
+backed`, which kept `kura-bird-eu-west-1-1` Pending for 33 h on 2026-11-18. B
+is the size of the gap.
+
+When it fires, list the node's PVs with no bound pod (Released or retained
+claims) and pods whose StatefulSet reserves less than their bound volume. The
+controller raises a template's reservation to its largest bound thin volume on
+the next image rollout or new StatefulSet. Cordoning the node moves a stuck
+replica elsewhere while the gap is closed.
+
+Measured on 2026-11-19 after the driver rollout (`sha-fa2cacbb092c`): B was 0
+to 10 GiB on every thin node and unattributed mappings 0; A was 1 on
+`eu-west-qvv7x-lkh4l` (10 GiB) and `us-east-5764k-v2vrj` (4 GiB), where the
+gap straddles a replica boundary, and 0 elsewhere. The rule was created with
+A `> 0`, which would have warned on those two nodes for gaps smaller than one
+replica; it was raised to B `> 16` the same day so it warns only when at least
+a whole replica's worth of commitment is hidden from the scheduler.
+
 ### Kura cache box out of memory
 
 ```promql

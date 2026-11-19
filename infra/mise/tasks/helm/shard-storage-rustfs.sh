@@ -104,6 +104,13 @@ jq -e '
       .private_network_ready == true and .archive_bucket == "sandbox-archives" and
       .archive_capacity == "rustfs" and .actions_cache_bucket == "actions-cache" and
       .actions_cache_bytes == 500000000000)) and
+  any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and
+    (.spec.target.template.data["targets.json"] | fromjson |
+      (.["gra-production-v1"] | .access == "private" and .private_network_ready == false and .site == "gra" and
+        .endpoint == "http://rustfs-s3.rustfs-production.svc.cluster.local:9000" and (has("private_endpoint") | not) and
+        .bucket == "shards" and .archive_bucket == "sandbox-archives" and .actions_cache_bucket == "actions-cache" and
+        .access_key_id == "{{ .access_key_id }}") and
+      (keys == ["gra-production-v1", "rustfs-gra-production-v1"]))) and
   any(.[]; .kind == "NetworkPolicy" and .metadata.name == "rustfs-store" and
     ([.spec.ingress[].from[] | .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] // empty] | sort) ==
       ["tuist", "tuist-runners", "tuist-sandboxes"]) and
@@ -125,6 +132,10 @@ helm template rustfs "$chart" -n rustfs-staging --set enabled=true |
 jq -e 'all(.[] | select(.kind == "StatefulSet") | .spec.template.spec.containers[0].env[]; (.name | startswith("RUSTFS_OBS_")) | not) and
   all(.[] | select(.kind == "NetworkPolicy") | .spec.egress[]?.to[]?; .namespaceSelector.matchLabels["kubernetes.io/metadata.name"] != "observability")
 ' "$work/no-metrics.json" >/dev/null
+if helm template rustfs "$chart" -n rustfs-production -f "$chart/values-production-gra.yaml" \
+  --set privateNetwork.enabled=false --set target.privateNetworkReady=false >/dev/null 2>&1; then
+  echo 'FAIL: alias published without a private network' >&2; exit 1
+fi
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set target.id=x >/dev/null 2>&1; then
   echo 'FAIL: target published without generated credentials and a public host' >&2; exit 1
 fi

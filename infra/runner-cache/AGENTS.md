@@ -343,6 +343,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   pull request's test merge, read with `cat-file commit` because a depth-1 fetch
   leaves its parents out). That master is published like a moved tip. Once a
   master exists, other exports only add objects.
+- A cold build refuses an export that is not the job's checkout or lacks LFS
+  objects its commit references, as `withheld`. Every later job of that lineage
+  exports the same way, so the host remembers the refusal (`Refusing`, in memory,
+  `checkoutRefusedFor`) and both agents answer the lineage's checkout requests
+  without a HEAD `denied` meanwhile, which keeps guests from exporting at all.
 - `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
   share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
   within the export bounds, written through `os.Root`, else the whole stream is

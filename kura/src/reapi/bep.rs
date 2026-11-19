@@ -51,6 +51,9 @@ const BAZEL_BUILD_EVENT_TYPE_URL: &str = "type.googleapis.com/build_event_stream
 const MAX_IN_FLIGHT_INVOCATIONS: usize = 4_096;
 const MAX_IN_FLIGHT_INVOCATIONS_PER_PROJECT: usize = 256;
 const MAX_INVOCATION_LIFETIME: Duration = Duration::from_secs(24 * 60 * 60);
+// The server lists an invocation as running only while it keeps hearing from
+// it, so this must stay well under the server's staleness window (10 minutes).
+const RUNNING_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2 * 60);
 const MAX_INVOCATION_ID_BYTES: usize = 256;
 const MAX_COMMAND_BYTES: usize = 256;
 const MAX_TARGET_LABEL_BYTES: usize = 1_024;
@@ -692,6 +695,11 @@ impl PublishBuildEvent for BuildEventService {
                 let mut events_received = 0usize;
                 let mut transport_bytes = 0usize;
                 let deadline = unsigned_stream_deadline();
+                let mut heartbeat = tokio::time::interval_at(
+                    tokio::time::Instant::now() + RUNNING_HEARTBEAT_INTERVAL,
+                    RUNNING_HEARTBEAT_INTERVAL,
+                );
+                heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
                 let sender = StreamResponder {
                     sender,
                     deadline: network_trusted.then_some(deadline),
@@ -716,7 +724,23 @@ impl PublishBuildEvent for BuildEventService {
                             )),
                         }
                     } else {
-                        requests.message().await
+                        // Re-report a running invocation while its stream stays
+                        // open, so the server stops listing it once the client
+                        // or this replica goes away without finishing it.
+                        loop {
+                            tokio::select! {
+                                message = requests.message() => break message,
+                                _ = heartbeat.tick() => {
+                                    service
+                                        .report_still_running(
+                                            &account_handle,
+                                            &project_handle,
+                                            invocation_id.as_deref(),
+                                        )
+                                        .await;
+                                }
+                            }
+                        }
                     };
                     let request = match message {
                         Ok(Some(request)) => request,
@@ -871,6 +895,28 @@ impl BuildEventService {
             Status::resource_exhausted("project network reporting streams are at capacity")
         })
     }
+    async fn report_still_running(
+        &self,
+        account_handle: &str,
+        project_handle: &str,
+        invocation_id: Option<&str>,
+    ) {
+        let (Some(invocation_id), Some(analytics)) = (invocation_id, self.state.analytics.as_ref())
+        else {
+            return;
+        };
+        let key = invocation_key(account_handle, project_handle, invocation_id);
+        let event = self
+            .invocations
+            .lock()
+            .await
+            .get(&key)
+            .and_then(still_running_event);
+        if let Some(event) = event {
+            analytics.enqueue_bazel_invocation_event(event);
+        }
+    }
+
     async fn finalize_finished_invocation(
         &self,
         account_handle: &str,
@@ -2001,7 +2047,17 @@ fn record_target_patterns(
         return None;
     }
     start.running_reported = true;
-    Some(BazelInvocationAnalyticsEvent {
+    Some(running_invocation_event(start))
+}
+
+/// The event that reports a signed invocation running again, while it has been
+/// reported running and has not finished.
+fn still_running_event(start: &InvocationStart) -> Option<BazelInvocationAnalyticsEvent> {
+    (start.running_reported && start.completion.is_none()).then(|| running_invocation_event(start))
+}
+
+fn running_invocation_event(start: &InvocationStart) -> BazelInvocationAnalyticsEvent {
+    BazelInvocationAnalyticsEvent {
         submission_auth: None,
         test_summaries: Vec::new(),
         account_handle: start.account_handle.clone(),
@@ -2034,7 +2090,7 @@ fn record_target_patterns(
         exit_code: 0,
         started_at_ms: start.started_at_ms,
         finished_at_ms: 0,
-    })
+    }
 }
 
 fn completed_invocation_event(
@@ -3306,6 +3362,19 @@ mod tests {
         // Later pattern events update the patterns without reporting again.
         assert!(record_target_patterns(&mut start, &["//lib:all".into()]).is_none());
         assert_eq!(start.target_patterns, ["//lib:all"]);
+
+        // Heartbeats re-report it with its latest patterns until it finishes.
+        let heartbeat = still_running_event(&start).expect("a running invocation should heartbeat");
+        assert_eq!(heartbeat.status, "running");
+        assert_eq!(heartbeat.target_patterns, ["//lib:all"]);
+        assert_eq!(heartbeat.started_at_ms, 1_700_000_000_000);
+        start.completion = Some(InvocationCompletion {
+            status: "success",
+            exit_code: Some(0),
+            finished_at_ms: 1_700_000_060_000,
+        });
+        assert!(still_running_event(&start).is_none());
+        assert!(still_running_event(&test_invocation_start()).is_none());
 
         let mut unsigned = test_invocation_start();
         unsigned.network_trusted = true;
