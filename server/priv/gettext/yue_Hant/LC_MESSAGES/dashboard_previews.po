@@ -124,7 +124,7 @@ msgstr "執行時間"
 #: lib/tuist_web/live/previews_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "執行人員"
+msgstr "執行人"
 
 #: lib/tuist_web/live/preview_live.html.heex:121
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr "掃描 QR 碼"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "用 iOS 裝置掃描此 QR 碼以安裝此版本的應用程式"
+msgstr "用 iOS 裝置掃描此 QR Code 以安裝此版本的應用程式"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,17 +160,17 @@ msgstr "支援的平台"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "此預覽只限於模擬器使用，無法安裝到實體裝置上"
+msgstr "此預覽僅支援模擬器，無法安裝在實體裝置上"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "此預覽不支援裝置安裝"
+msgstr "此預覽不支援安裝至裝置"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "如要直接在瀏覽器中運行預覽，請下載並安裝 Tuist macOS 應用程式"
+msgstr "如要直接在瀏覽器中執行預覽，請下載並安裝 Tuist macOS 應用程式"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -207,7 +207,7 @@ msgstr "在 Android 裝置上掃描此 QR Code，以下載並安裝此版本的�
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "此預覽版的 APK 已不再提供"
+msgstr "此預覽版的 APK 已無法提供"
 
 #: lib/tuist_web/live/preview_live.html.heex:252
 #, elixir-autogen, elixir-format
@@ -242,17 +242,17 @@ msgstr "命令列預覽"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "桌面預覽以你的用戶身份執行，可存取你的檔案和環境。它們並非在沙盒中運行。"
+msgstr "桌面版預覽會以你的用戶身份執行，可存取你的檔案和環境。它們並非在沙盒中運行。"
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Only run previews you trust"
-msgstr "只運行你信任的預覽"
+msgstr "只執行你信任的預覽"
 
 #: lib/tuist_web/live/preview_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Run preview"
-msgstr "運行預覽"
+msgstr "執行預覽"
 
 #: lib/tuist_web/live/preview_live.html.heex:103
 #, elixir-autogen, elixir-format
