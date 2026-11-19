@@ -13,6 +13,7 @@ on:
       - struo.toml
       # Grouping cases shared with Pulse's sentry_errors pipeline.
       - infra/helm/pulse/sentry-errors-cases.json
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -43,6 +44,7 @@ defaults:
 jobs:
   automation-contracts:
     name: Automation compatibility
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -69,6 +71,7 @@ jobs:
           elixir scripts/check_automation_contracts.exs "$previous"
 
   deployment:
+    if: github.event_name != 'workflow_dispatch'
     uses: ./.github/workflows/atlas-deployment-validation.yml
 
   # Build, lint, and test run through Struo, which derives the graph from
@@ -76,6 +79,7 @@ jobs:
   # can't mint an OIDC token, so they fall back to the local cache.
   build:
     name: Build
+    if: github.event_name != 'workflow_dispatch'
     runs-on: tuist-linux-large
     permissions:
       contents: read
@@ -313,6 +317,7 @@ jobs:
   # still happens in atlas-release.yml.
   image:
     name: Image
+    if: github.event_name != 'workflow_dispatch'
     runs-on: tuist-linux-large
     permissions:
       contents: read
@@ -357,6 +362,7 @@ jobs:
 
   inbox-worker:
     name: Inbox Worker
+    if: github.event_name != 'workflow_dispatch'
     runs-on: tuist-linux
     defaults:
       run:
@@ -391,3 +397,116 @@ jobs:
       - run: aube run check
 
       - run: aube test
+
+  # Manual proof that a released Struo client builds Atlas on Tuist remote
+  # execution without pinning the worker image.
+  struo-remote-execution-proof:
+    name: Struo remote execution proof
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: .
+    env:
+      STRUO_VERSION: "2.3.0"
+      STRUO_CACHE_PROVIDER: tuist
+      MIX_HOME: /opt/mix
+      MIX_REBAR3: /opt/mix/rebar3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the coordinator Elixir toolchain from the worker image
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libasound2t64 libncurses6 libtinfo6
+          docker build --target elixir-toolchain -t struo-elixir-toolchain -f infra/sandbox-image/Dockerfile infra/sandbox-image
+          container=$(docker create struo-elixir-toolchain true)
+          trap 'docker rm "$container"' EXIT
+          sudo docker cp "$container:/opt/." /opt/
+          sudo chown -R "$(id -u):$(id -g)" /opt/mix
+          echo /opt/erlang/bin >> "$GITHUB_PATH"
+          echo /opt/elixir/bin >> "$GITHUB_PATH"
+      - name: Install the released Struo client
+        run: |
+          archive="struo-$STRUO_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+          base="https://github.com/tuist/struo/releases/download/$STRUO_VERSION"
+          curl -fLsS --retry 3 "$base/$archive" -o "$RUNNER_TEMP/$archive"
+          curl -fLsS --retry 3 "$base/$archive.sha256" -o "$RUNNER_TEMP/$archive.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c "$archive.sha256")
+          mkdir -p "$RUNNER_TEMP/struo-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/struo-bin"
+          bin=$(dirname "$(find "$RUNNER_TEMP/struo-bin" -type f -name struo | head -n1)")
+          echo "$bin" >> "$GITHUB_PATH"
+          "$bin/struo" --version
+      - name: Configure remote execution without pinning the worker image
+        run: |
+          cat >> struo.toml <<'EOF'
+
+          [infrastructure.execution]
+          provider = "tuist"
+
+          [infrastructure.execution.properties.elixir]
+          schema_version = 1
+          os = "linux"
+          arch = "x86_64"
+          elixir_bin = "/opt/elixir/bin"
+          erlang_bin = "/opt/erlang/bin"
+          mix_home = "/opt/mix"
+          rebar3 = "/opt/mix/rebar3"
+          EOF
+          ! grep -q execution_image struo.toml
+          mkdir -p "$RUNNER_TEMP/evidence"
+          cp struo.toml "$RUNNER_TEMP/evidence/struo.toml"
+          struo --version | tee "$RUNNER_TEMP/evidence/version.txt"
+          struo auth login --provider tuist --no-browser
+      - name: Materialize locked dependency sources
+        working-directory: atlas
+        run: mix deps.get --check-locked
+      - name: Build on remote execution, then restore from another coordinator
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/evidence"
+          token="struo-proof-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          run() {
+            phase="$1"; shift
+            rm -rf .struo
+            export XDG_DATA_HOME="$RUNNER_TEMP/data" HOME="$RUNNER_TEMP/home-$phase" XDG_CACHE_HOME="$RUNNER_TEMP/cache-$phase" XDG_STATE_HOME="$evidence/$phase-state"
+            mkdir -p "$HOME"
+            /usr/bin/time -f '%e' -o "$evidence/$phase-wall-seconds.txt" \
+              struo -vv build "$@" --config "token=$token-$phase_group" atlas/mix_application_test 2>&1 | tee "$evidence/$phase.log"
+            find .struo/out -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/$phase-files.txt"
+            find .struo/out -type l -printf '%p -> %l\n' | sort > "$evidence/$phase-links.txt"
+            test -s "$evidence/$phase-files.txt"
+          }
+          # Remote: cold build on workers, then a warm build that must restore
+          # every action from the cache with no worker calls.
+          phase_group=remote
+          run remote-cold --remote
+          grep -q 'remote action completed' "$evidence/remote-cold.log"
+          grep 'resolved Tuist execution image' "$evidence/remote-cold.log" | head -n1
+          run remote-warm --remote
+          if grep -q 'remote execution response' "$evidence/remote-warm.log"; then
+            echo 'Warm restoration dispatched worker actions' >&2; exit 1
+          fi
+          diff -u "$evidence/remote-cold-files.txt" "$evidence/remote-warm-files.txt"
+          diff -u "$evidence/remote-cold-links.txt" "$evidence/remote-warm-links.txt"
+          # Local: a different HOME and cache directory must reuse the first
+          # coordinator's local results.
+          phase_group=local
+          run local-cold
+          run local-warm
+          if grep -q '"cache":"miss"\|cache="miss"' "$evidence/local-warm.log"; then
+            echo 'Local warm build missed the cache from another HOME' >&2
+            grep -c 'cache="miss"' "$evidence/local-warm.log" >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: struo-remote-execution-proof
+          path: ${{ runner.temp }}/evidence
