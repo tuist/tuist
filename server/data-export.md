@@ -1183,6 +1183,20 @@ The archive contains everything needed to understand the account's complete data
   part of that sandbox's disk (see Sandboxes). `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
   host uses, not customer data.
 
+- **Sandbox copies of Linux cache volumes** (Linux sandbox nodes,
+  `/data/sandboxes/<cache image directory>/rc-<head digest>`, with a transient
+  `<cache filesystem>/.sandbox-cache/<grant ID>/master.img` clone on the runner-cache side
+  while it streams): when a sandbox is created with a grant to a runner cache volume's saved
+  head, the node's sandbox daemon receives a byte-for-byte copy of that volume's master
+  image from the node's runner-cache agent, which never fetches a master the node lacks.
+  Same content as the master (described above); the copy is one way and nothing a sandbox
+  writes reaches the volume. Each sandbox attaches its own reflink clone, deleted with the
+  sandbox and never saved in its disk snapshots or archives. Node-local, keyed by the head
+  rather than the account: a copy is removed 24 hours after a sandbox last attached it
+  (`sandboxes` daemon setting `CACHE_IMAGES_TTL`), least recently used first beyond the
+  node's `CACHE_IMAGES_GIB` budget, and unfinished copies at daemon start; the agent deletes
+  its clone as soon as the stream ends and abandons leftovers at start. Off unless a node
+  sets `CACHE_IMAGES_GIB`.
 - **Docker cache volumes** (Linux hosts, `<cache filesystem>/images/<use UUID>.img` and
   `masters/<scope>/`, exposed to the job's VM as `pods/<pod UID>/<scope>/docker.img`):
   when a repository's Linux jobs use Docker, it has a volume with the reserved key `docker` in

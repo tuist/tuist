@@ -353,3 +353,76 @@ func TestImageArchiveRejectsExtentsOutsideImage(t *testing.T) {
 		}
 	}
 }
+
+// A master streamed to sandboxd arrives byte for byte and stays sparse; a cut
+// stream or trailing bytes are refused and leave nothing behind.
+func TestWriteImageStreamsToReceiveImage(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "image")
+	f, err := os.Create(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const size = 1 << 30
+	if err = f.Truncate(size); err != nil {
+		t.Fatal(err)
+	}
+	payload := make([]byte, 2<<20)
+	if _, err := rand.Read(payload); err != nil {
+		t.Fatal(err)
+	}
+	for _, offset := range []int64{4096, 512 << 20} {
+		if _, err = f.WriteAt(payload, offset); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	var stream bytes.Buffer
+	if err := WriteImage(&stream, in); err != nil {
+		t.Fatal(err)
+	}
+	// CompressImage stores exactly this stream.
+	if _, _, err := CompressImage(src, src+".zst"); err != nil {
+		t.Fatal(err)
+	}
+	if stored, _ := os.ReadFile(src + ".zst"); !bytes.Equal(stored, stream.Bytes()) {
+		t.Fatal("CompressImage no longer stores the stream WriteImage writes")
+	}
+
+	dst := filepath.Join(dir, "received")
+	if err := ReceiveImage(context.Background(), bytes.NewReader(stream.Bytes()), dst, size); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := os.ReadFile(src)
+	got, _ := os.ReadFile(dst)
+	if !bytes.Equal(got, want) {
+		t.Fatal("the received image differs from the master")
+	}
+	var stat unix.Stat_t
+	if err := unix.Stat(dst, &stat); err != nil || stat.Blocks*512 > 2*int64(len(payload))+(1<<20) {
+		t.Fatalf("the received image allocates %d bytes", stat.Blocks*512)
+	}
+
+	for name, body := range map[string][]byte{
+		"cut":      stream.Bytes()[:stream.Len()/2],
+		"trailing": append(append([]byte{}, stream.Bytes()...), 0),
+	} {
+		refused := filepath.Join(dir, name)
+		if err := ReceiveImage(context.Background(), bytes.NewReader(body), refused, size); err == nil {
+			t.Fatalf("%s stream accepted", name)
+		}
+		if _, err := os.Stat(refused); !os.IsNotExist(err) {
+			t.Fatalf("%s stream left %s behind", name, refused)
+		}
+	}
+	if err := ReceiveImage(context.Background(), bytes.NewReader(stream.Bytes()), filepath.Join(dir, "small"), size/2); err == nil {
+		t.Fatal("an image above the limit was accepted")
+	}
+}

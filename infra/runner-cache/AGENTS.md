@@ -294,6 +294,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded from a host-built master; attach fails rather than format an empty image.
   The host publishes and restores checkout masters itself, with `CompressImage`
   and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- `CloneMaster` lends a saved head's master to sandboxd (the agent's
+  `/sandbox-cache/image`): a reflink under the scope lock eviction takes,
+  streamed with `WriteImage` in the `CompressImage` format and received with
+  `ReceiveImage`. It never fetches, records no use and writes nothing back.
 - A restore downloads into `restore-<generation>-<content digest>` beside the
   master, because the transfer resumes a partial it finds at the same path: a
   fixed name let a restart splice another HEAD's archive into this one. Other

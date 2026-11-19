@@ -290,6 +290,22 @@ type CreateArgs struct {
 	// never include it. Only cold-boot creates (FromDiskSnapshot) take it,
 	// because Firecracker cannot add a drive to a restored memory snapshot.
 	CacheImage string `json:"cache_image,omitempty"`
+	// CacheGrant names a runner-cache volume's saved head instead: the
+	// daemon has the node's runner-cache agent copy its master into the cache
+	// image directory once (CACHE_IMAGES_GIB) and attaches it like
+	// CacheImage. Not with CacheImage.
+	CacheGrant *CacheGrant `json:"cache_grant,omitempty"`
+}
+
+// CacheGrant is the saved head of a runner-cache volume a sandbox may read: a
+// one-way copy, nothing the sandbox writes reaches the volume. ID names the
+// use for the agent's logs.
+type CacheGrant struct {
+	ID             string `json:"id"`
+	Scope          string `json:"scope"`
+	BaseGeneration int64  `json:"base_generation"`
+	ImageDigest    string `json:"image_digest"`
+	ContentDigest  string `json:"content_digest"`
 }
 
 type SandboxArgs struct {

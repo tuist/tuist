@@ -33,8 +33,10 @@ type Accounter struct {
 	BlobCacheDir string
 	// CheckoutsDir holds the prepared checkout workspaces, node-wide too.
 	CheckoutsDir string
-	BudgetBytes  uint64
-	Exclusive    Exclusive
+	// CacheImagesDir holds runner-cache masters copied for cache drives.
+	CacheImagesDir string
+	BudgetBytes    uint64
+	Exclusive      Exclusive
 }
 
 type inode struct {
@@ -83,7 +85,11 @@ func (a Accounter) Report() (protocol.DiskReport, error) {
 	if err != nil {
 		return report, err
 	}
-	report.TemplatesBytes = templates + blobs + checkouts
+	cacheImages, err := sum(a.CacheImagesDir, seen, exclusive, nil)
+	if err != nil {
+		return report, err
+	}
+	report.TemplatesBytes = templates + blobs + checkouts + cacheImages
 	report.SnapshotsBytes = snapshots
 	report.SandboxesBytes = sandboxes
 	return report, nil

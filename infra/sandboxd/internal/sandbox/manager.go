@@ -60,6 +60,12 @@ type Config struct {
 	// CacheImageDir holds ext4 cache images that creates may attach as an
 	// extra drive; empty disables cache drives.
 	CacheImageDir string
+	// CacheImagesBytes bounds the masters copied into CacheImageDir for
+	// cache grants; zero refuses grants.
+	CacheImagesBytes int64
+	// CacheImagesTTL removes a copied master unused for this long, so one of
+	// a cleared volume or a deleted account does not linger on the node.
+	CacheImagesTTL time.Duration
 	// FirecrackerVersion is the running binary's version, recorded with
 	// every memory image a pause writes.
 	FirecrackerVersion string
@@ -94,6 +100,10 @@ type Deps struct {
 	Workspaces *checkout.Workspaces
 	Events     func(protocol.Event)
 	Log        *slog.Logger
+
+	// CacheImages copies granted runner-cache masters onto the node: the
+	// node's runner-cache agent. Nil refuses cache grants.
+	CacheImages CacheImageSource
 }
 
 type Manager struct {
@@ -113,6 +123,7 @@ type Manager struct {
 	blobs     *blobcache.Cache
 	// checkouts and checkoutLimits serve workers' checkout grants.
 	checkouts      checkout.Agent
+	cacheImages    cacheImages
 	checkoutLimits checkout.Limits
 	workspaces     *checkout.Workspaces
 
@@ -208,7 +219,7 @@ func New(cfg Config, deps Deps) *Manager {
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
 		blobs:     deps.Blobs,
-		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces,
+		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces, cacheImages: cacheImages{source: deps.CacheImages},
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -268,6 +279,17 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	fromArchive := args.FromArchive != nil
 	if fromSnapshot && fromArchive {
 		return res, errors.New("create takes a disk snapshot or an archive, not both")
+	}
+	if args.CacheGrant != nil {
+		if args.CacheImage != "" {
+			return res, fmt.Errorf("%w: a create takes a cache image or a cache grant, not both", ErrCacheImage)
+		}
+		name, release, err := m.grantedCacheImage(ctx, *args.CacheGrant)
+		if err != nil {
+			return res, err
+		}
+		defer release()
+		args.CacheImage = name
 	}
 	if args.CacheImage != "" {
 		if m.cfg.CacheImageDir == "" {
@@ -1308,6 +1330,7 @@ func (m *Manager) refreshGauges() {
 // restart interrupted) are removed, as are stale namespaces.
 func (m *Manager) Recover(ctx context.Context) error {
 	m.removePartialDiskSnapshots()
+	m.removePartialCacheImages()
 	base := filepath.Join(m.cfg.JailBase, "firecracker")
 	entries, err := os.ReadDir(base)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
