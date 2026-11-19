@@ -70,6 +70,7 @@ cluster and integration settings in every mode. Mode-specific variables
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- include "tuist.encryptionCurrentKeyEnv" . | nindent 12 }}
             {{- if .Values.server.atlasSupportIngest.enabled }}
             - name: TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH
               value: /var/run/secrets/atlas-support-ingest/token

@@ -15,10 +15,11 @@ target:
   privateNetworkReady: true
 storage:
   # The PVC (and the XFS quota the provisioner set from it) was created at
-  # 3Ti and cannot be resized. The host quota is lowered to 2Ti by hand so the
-  # RustFS pilot on this host gets 1 TB; reservation follows that quota.
+  # 3Ti and cannot be resized. The host quota is lowered by hand to hand space
+  # to RustFS, which replaces this store; reservation follows that quota.
+  # 1200Gi keeps room above Garage's ~734 GiB while it drains.
   size: 3Ti
-  reservation: 2Ti
+  reservation: 1200Gi
 lifecycle:
   expirationDays: 3
 archiveBucket: sandbox-archives

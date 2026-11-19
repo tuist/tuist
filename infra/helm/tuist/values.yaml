@@ -894,6 +894,28 @@ server:
     cacheTokenKey:
       enabled: false
       signing: false
+    # Keys that encrypt stored customer secrets (Tuist.Vault). The rotation
+    # steps are in the Tuist.Vault moduledoc (server/lib/tuist/vault.ex).
+    encryptionKeys:
+      # Sync the key ring TUIST_SECRET_KEY_ENCRYPTION_KEYS from 1Password item
+      # SECRET_KEYS, field `encryption_keys` (`<id>:<base64 32-byte key>`,
+      # comma-separated). Off until the field exists: a missing field fails
+      # the whole sync.
+      enabled: false
+      # Id of the key new values are encrypted with
+      # (TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY). Set as a plain env var on
+      # every workload, so changing it rolls them. Empty: the ring's first
+      # entry, or `V1` (the single key below) without a ring.
+      currentKeyId: ""
+      # Every key id each pod must hold (TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS),
+      # `V1` for the single key below. A pod whose synced Secret lacks one
+      # refuses to boot, and changing the list rolls every pod, so a rotation
+      # adds the new id here before making it current. When set, currentKeyId
+      # must be one of them.
+      keyIds: []
+      # Keep syncing the original single key (SECRET_KEYS/encryption, id `V1`).
+      # Turn off only after every value was re-encrypted under a ring key.
+      legacyKey: true
     # Root keys that wrap per-tenant Kura volume keys
     # (TUIST_KURA_VOLUME_ROOT_KEYS, 1Password item KURA_VOLUME_ROOT_KEYS, field
     # `value`). Off until the item exists in the environment's vault: a missing

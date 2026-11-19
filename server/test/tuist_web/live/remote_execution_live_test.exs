@@ -10,6 +10,7 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
   alias Tuist.Bazel.Profile
   alias Tuist.IngestRepo
   alias Tuist.OnceEvents
+  alias Tuist.RemoteExecution.Analytics
   alias Tuist.RemoteExecution.Scheduler
   alias Tuist.RemoteExecution.UsageEvent
   alias Tuist.Repo
@@ -179,6 +180,18 @@ defmodule TuistWeb.RemoteExecutionLiveTest do
     assert has_element?(view, "#remote-execution-activity tbody tr:first-child", "bazel build //app:running")
     refute has_element?(view, "#remote-execution-activity", "Invocation unreport")
     refute has_element?(view, "#remote-execution-activity", "running · ")
+
+    # A failing diagnostics query leaves the usage widgets in place.
+    stub(Analytics, :summary, fn _project_id, _opts -> raise "diagnostics query failed" end)
+    stub(Analytics, :activity, fn _project_id, _opts -> raise "diagnostics query failed" end)
+
+    ExUnit.CaptureLog.capture_log(fn ->
+      {:ok, view, _} = live(conn, path)
+      render_async(view, 5000)
+      assert has_element?(view, "#remote-execution-executions", "2")
+      assert has_element?(view, "#remote-execution-queue", "Couldn't load")
+      assert has_element?(view, "[data-part=bazel-invocations-table-section] [data-error]")
+    end)
   end
 
   test "Once local actions never become remote execution statistics", %{conn: conn, project: project, path: path} do

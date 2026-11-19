@@ -36,6 +36,7 @@ clusters/
 │                              (separate /data, no Kata, per-cluster RAID;
 │                              carries ClickHouse)            (mgmt-cluster-apply.yml)
 ├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
+├── clusterclass-check/        render check for the control-plane patches
 └── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
@@ -348,6 +349,24 @@ on the stuck host. Pause only the KCP, not the `Cluster`: pausing the Cluster
 also stops every worker pool from scaling or remediating. Then remove the
 annotation and either delete the stuck Machine (KCP retries) or revert.
 Reverting the type is another full roll, not an undo.
+
+## API server flags, volumes and files
+
+Opt-in API server features (the metrics label manifest, the audit log, GitHub
+Actions OIDC) each need a flag, a hostPath volume and a file. Cluster API
+patches can only add or replace whole arrays at `apiServer.extraArgs` and
+`apiServer.extraVolumes`, so one patch owns each array and builds it from
+every feature's variable: `KubeadmControlPlaneKubeletAddressTypes` for
+`extraArgs`, `ApiServerExtraVolumes` for `extraVolumes`. A feature adds its
+entries to those two templates and appends only its file (`files/-`) in its
+own patch. A second patch that writes either array replaces the first's
+entries without any error, and the control plane rolls without them.
+
+`mise run k8s:lint-clusterclass-patches` renders the control-plane patches
+with every variable on and fails when a flag or volume one patch renders is
+missing from the result, when a File volume has no file, or when the defaults
+change the base template's API server args or volumes, which would roll every
+control plane. `mgmt-cluster-apply.yml` runs it before applying anything.
 
 ## Adapting from caph upstream
 

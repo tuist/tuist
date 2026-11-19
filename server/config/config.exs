@@ -534,7 +534,7 @@ config :tuist, Tuist.Agents.Runner, kinds: %{"thread" => Tuist.Threads.Host}
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
-config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
+config :tuist, Tuist.Vault, keys: {Tuist.Environment, :encryption_keys, []}
 
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,

@@ -2,21 +2,21 @@
 {
   "title": "日誌記錄",
   "titleTemplate": ":title · CLI · 貢獻者 · Tuist",
-  "description": "Tuist CLI 中日誌記錄的運作方式及貢獻者指南。"
+  "description": "Tuist CLI 中日誌記錄的運作方式及給貢獻者的指引。"
 }
 ---
-# 記錄日誌 {#logging}
+# 記錄 {#logging}
 
-CLI 採用 [swift-log](https://github.com/apple/swift-log) 介面進行日誌記錄。該套件將日誌實作細節抽象化，令 CLI 無需依賴特定後端。記錄器透過任務區域變數注入依賴，可隨處透過以下方式存取：
+CLI 採用 [swift-log](https://github.com/apple/swift-log) 介面進行記錄。該套件將記錄的實作細節抽象化，令 CLI 無須依賴特定記錄後端。記錄器透過 task locals 進行依賴注入，並可隨處透過以下方式存取：
 
 ```bash
 Logger.current
 ```
 
 > [!NOTE]
-> 使用 `Dispatch` 或分離任務時，任務區域變數不會傳遞值，因此若使用它們，你需要取得該值並傳入非同步作業。
+> 使用 `Dispatch` 或 detached tasks 時，task locals 不會傳播值，因此如果你使用它們，就需要取得該值並傳遞給異步操作。
 
 
-## 應記錄甚麼 {#what-to-log}
+## 要記錄什麼 {#what-to-log}
 
-日誌並非 CLI 的使用者介面，而是用於在問題出現時進行診斷。因此，提供的資訊愈多愈好。開發新功能時，請設身處地想像開發人員遇到意外行為的情境，思考哪些資訊對他們有幫助。請確保使用正確的 [日誌級別](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)，否則開發人員將無法過濾雜訊。
+記錄並非 CLI 的使用者介面。它們是用於在問題出現時進行診斷的工具。因此，你提供的資訊越多越好。在開發新功能時，請設身處地想像一位遇到意外行為的開發者，並思考哪些資訊對他們有幫助。確保你使用正確的 [記錄層級](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)。否則，開發者將無法過濾雜訊。

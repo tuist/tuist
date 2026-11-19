@@ -46,6 +46,11 @@ k8s-monitoring:
     # Set per cluster only after every API server uses the source allow-list.
     # Keeping the legacy collector behavior avoids a large intermediate DPM bill.
     apiServerMetricsAggregated: false
+    # Ship the API server audit log (Secret reads and ServiceAccount token
+    # requests, see alloy-control-plane below) through alloy-receiver. Set per
+    # cluster only after its control plane has rolled with the ClusterClass
+    # `apiServerAuditLog` variable; until then there is no file to tail.
+    apiServerAuditLogs: false
 
   # v4 schema: destinations is a map keyed by destination name. Per-env
   # overlays merge into these entries (e.g. adding `extraLabels.env`) and add
@@ -1241,7 +1246,22 @@ k8s-monitoring:
         tolerations:
           - operator: Exists
         priorityClassName: system-node-critical
+        # The API server audit log written by the ClusterClass
+        # `apiServerAuditLog` variable. Mounted whatever
+        # global.apiServerAuditLogs says, because values cannot be
+        # conditional; only the config below reads it.
+        volumes:
+          extra:
+            - name: apiserver-audit
+              hostPath:
+                path: /var/log/kubernetes/audit
+                type: DirectoryOrCreate
       alloy:
+        mounts:
+          extra:
+            - name: apiserver-audit
+              mountPath: /var/log/kubernetes/audit
+              readOnly: true
         resources:
           requests:
             cpu: 25m
@@ -1250,6 +1270,38 @@ k8s-monitoring:
             cpu: 200m
             memory: 192Mi
       extraConfig: |
+        {{- if eq .Values.global.apiServerAuditLogs true }}
+        // API server audit events: who read which Secret and who requested a
+        // ServiceAccount token, at Metadata level (no object bodies, so no
+        // secret values). The policy is the `apiServerAuditLog` patch in
+        // infra/k8s/clusters/clusterclass-tuist.yaml. Pushed to
+        // alloy-receiver, which forwards with the Loki credentials it already
+        // holds, so none reach the control-plane nodes. Query with
+        // {service_name="kube-apiserver-audit"}; see
+        // infra/credential-rotation.md.
+        //
+        // tail_from_end: this collector keeps no positions across restarts,
+        // and reading the file from the start again would ship duplicates.
+        // Lines written while the pod restarts are skipped; the file on the
+        // node (30 days, 10 x 100 MB) stays the complete record.
+        loki.source.file "tuist_apiserver_audit" {
+          targets = [{
+            "__path__" = "/var/log/kubernetes/audit/audit.log",
+            "job" = "integrations/kube-apiserver-audit",
+            "service_name" = "kube-apiserver-audit",
+            "instance" = sys.env("HOSTNAME"),
+          }]
+          tail_from_end = true
+          forward_to = [loki.write.tuist_apiserver_audit.receiver]
+        }
+
+        loki.write "tuist_apiserver_audit" {
+          endpoint {
+            url = "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }
+        {{- end }}
+
         prometheus.scrape "tuist_kube_apiserver" {
           targets = [{
             "__address__" = "127.0.0.1:6443",

@@ -225,20 +225,27 @@ defmodule Tuist.RemoteExecution.Analytics do
     if NaiveDateTime.diff(until, since, :day) > 90,
       do: raise(ArgumentError, "execution diagnostics are limited to 90 days")
 
-    # Resolve current parent/profile rows before mutable environment/time predicates.
-    # Never aggregate unpublished or superseded profile versions.
-    profiles =
-      from(p in Profile,
-        hints: ["FINAL"],
-        where: p.project_id == ^project_id,
-        select: %{invocation_id: p.invocation_id, version: fragment("JSONExtractString(?, 'steps_version')", p.payload)}
-      )
-
+    # @query_opts keep predicates out of PREWHERE, so WHERE filters the current
+    # (FINAL) invocation rows rather than superseded ones.
     invocations =
       from(i in Invocation,
         hints: ["FINAL"],
         where: i.project_id == ^project_id,
+        where: i.finished_at >= ^since and i.finished_at < ^until,
         select: map(i, [:invocation_id, :command, :target_patterns, :status, :duration_ms, :is_ci, :finished_at])
+      )
+
+    # Steps and profiles are ordered by (project_id, invocation_id), so limiting
+    # them to the period's invocations reads only those granules instead of the
+    # project's whole retention.
+    invocation_ids = from(i in subquery(invocations), select: i.invocation_id)
+
+    # Never aggregate unpublished or superseded profile versions.
+    profiles =
+      from(p in Profile,
+        hints: ["FINAL"],
+        where: p.project_id == ^project_id and p.invocation_id in subquery(invocation_ids),
+        select: %{invocation_id: p.invocation_id, version: fragment("JSONExtractString(?, 'steps_version')", p.payload)}
       )
 
     query =
@@ -248,8 +255,7 @@ defmodule Tuist.RemoteExecution.Analytics do
         on: p.invocation_id == s.invocation_id and p.version == s.version,
         join: i in subquery(invocations),
         on: i.invocation_id == s.invocation_id,
-        where: s.project_id == ^project_id,
-        where: i.finished_at >= ^since and i.finished_at < ^until,
+        where: s.project_id == ^project_id and s.invocation_id in subquery(invocation_ids),
         where:
           not is_nil(s.remote_queue_ms) or not is_nil(s.remote_input_fetch_ms) or
             not is_nil(s.remote_execution_ms) or not is_nil(s.remote_output_upload_ms)

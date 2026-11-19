@@ -31,8 +31,8 @@ actionsCache:
 members: 1
 drivesPerMember: 1
 parity: ""
-# One PVC, so one XFS project quota of exactly this size. Garage's quota on the
-# same filesystem is lowered to 2Ti, leaving about 0.55 TB for the host.
+# One PVC, created with one XFS project quota of this size. Its limit is
+# raised on the host past the PVC (see the README), with Garage's lowered.
 storageClass: scw-local-nvme
 volumeSize: 1000G
 nodeSelector:
@@ -46,8 +46,12 @@ resources:
   requests:
     cpu: "1"
     memory: 2Gi
-    # Scheduler reservation matching the XFS quota, as Garage does.
-    ephemeral-storage: 1000G
+    # Scheduler reservation matching the XFS quota, as Garage does. The PVC
+    # stays 1000G (the provisioner never resizes); the host project limit was
+    # raised to 1850Gi so it can take Garage's workload. With Garage's
+    # 1200Gi this fits the node's 3.08 TiB allocatable and leaves ~460 GiB
+    # of /data to the host.
+    ephemeral-storage: 1850Gi
   limits:
     memory: 8Gi
 metricsEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics

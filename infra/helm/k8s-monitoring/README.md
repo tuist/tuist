@@ -471,6 +471,17 @@ curl -s http://localhost:12345/metrics | grep 'prometheus_remote_storage_samples
 ```
 
 
+## API server audit log
+
+`global.apiServerAuditLogs` (default `false`) makes `alloy-control-plane` tail
+`/var/log/kubernetes/audit/audit.log` on each control-plane node and push it to
+`alloy-receiver`'s Loki endpoint as `service_name="kube-apiserver-audit"`.
+The file exists only once the cluster's ClusterClass `apiServerAuditLog`
+variable has rolled its control plane, so enable that first, per cluster. The
+hostPath mount is rendered either way; only the Alloy config is gated. Do not
+enable it on management, which runs no `alloy-receiver`. Rollout, queries and
+limits: [credential-rotation.md → API server audit log](../../credential-rotation.md#api-server-audit-log).
+
 ## Label conventions (for dashboards / queries)
 
 | Label / attribute | Where it's set | Applies to |

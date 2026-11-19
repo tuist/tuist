@@ -246,6 +246,14 @@ elevations, operator grant usage against issued grants, authentication failures,
 loss of log ingestion. Retention is 30 days, so a slipped monthly review cannot be
 performed retrospectively.
 
+### `credential-rotation.md` and `incident-containment.md` — rotating everything and taking the platform offline
+The inventory of every platform credential (1Password item, Kubernetes Secret,
+consumers, reload, rotation order) with procedures for the ones that had none,
+and the containment procedure for a suspected secret compromise. Keep the
+inventory current when a chart adds or renames an `ExternalSecret`. The
+default-off API server audit log they rely on (ClusterClass `apiServerAuditLog`
+plus k8s-monitoring `global.apiServerAuditLogs`) is documented there too.
+
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
 
