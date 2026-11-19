@@ -20,7 +20,7 @@ struct GitHistoryServiceTests {
     private let gitInfo = GitInfo(
         ref: "refs/heads/feature",
         branch: "feature",
-        sha: "head",
+        headSHA: "head",
         remoteURLOrigin: "git@github.com:acme/app.git",
         baseBranch: "main"
     )
@@ -194,7 +194,7 @@ struct GitHistoryServiceTests {
             gitInfo: GitInfo(
                 ref: "refs/heads/feature",
                 branch: "feature",
-                sha: "head",
+                headSHA: "head",
                 remoteURLOrigin: "git@github.com:acme/app.git",
                 baseBranch: nil
             ),
@@ -911,7 +911,12 @@ struct GitHistoryServiceTests {
         given(missingListingsService)
             .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
             .willReturn([])
-        let rerun = GitInfo(ref: "refs/heads/main", branch: "main", sha: "old", remoteURLOrigin: "git@github.com:acme/app.git")
+        let rerun = GitInfo(
+            ref: "refs/heads/main",
+            branch: "main",
+            headSHA: "old",
+            remoteURLOrigin: "git@github.com:acme/app.git"
+        )
 
         let collected = await subject.collect(
             gitInfo: rerun,
@@ -943,7 +948,13 @@ struct GitHistoryServiceTests {
     @Test(.withMockedEnvironment())
     func uploadsNothingWithoutARemote() async throws {
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
-        let local = GitInfo(ref: "refs/heads/feature", branch: "feature", sha: "head", remoteURLOrigin: nil, baseBranch: "main")
+        let local = GitInfo(
+            ref: "refs/heads/feature",
+            branch: "feature",
+            headSHA: "head",
+            remoteURLOrigin: nil,
+            baseBranch: "main"
+        )
 
         let collected = await subject.collect(
             gitInfo: local,
@@ -987,7 +998,7 @@ struct GitHistoryServiceTests {
         let gitInfo = GitInfo(
             ref: "refs/pull/7/merge",
             branch: "feature",
-            sha: "head",
+            headSHA: "head",
             remoteURLOrigin: nil,
             baseBranch: "main",
             pullRequestNumber: 7

@@ -602,7 +602,7 @@ struct ShardPlanServiceTests {
         given(gitController)
             .gitInfo(workingDirectory: .value(projectPath))
             .willReturn(
-                GitInfo(ref: nil, branch: "feature/current", sha: "sha", remoteURLOrigin: nil)
+                GitInfo(ref: nil, branch: "feature/current", headSHA: "sha", remoteURLOrigin: nil)
             )
 
         let shardMatrixOutputService = MockShardMatrixOutputServicing()

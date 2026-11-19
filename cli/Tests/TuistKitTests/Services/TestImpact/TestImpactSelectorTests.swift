@@ -150,7 +150,7 @@ struct TestImpactSelectorTests {
         // The merge commit `gitInfo` reports, from the repository's top level, where the run's
         // report reads the history too.
         verify(gitHistoryService).publish(
-            gitInfo: .matching { $0.sha == "merge" },
+            gitInfo: .matching { $0.headSHA == "merge" },
             workingDirectory: .value(repository),
             fullHandle: .value("acme/shop"),
             serverURL: .value(serverURL),
@@ -513,7 +513,8 @@ struct TestImpactSelectorTests {
         given(gitController).gitInfo(workingDirectory: .any).willReturn(.test(
             ref: "refs/pull/7/merge",
             branch: "feature",
-            sha: "merge",
+            headSHA: "merge",
+            branchHeadSHA: "head",
             baseBranch: "main",
             pullRequestNumber: 7
         ))
@@ -523,7 +524,7 @@ struct TestImpactSelectorTests {
 
     private func givenBranchCheckout() {
         given(gitController).gitInfo(workingDirectory: .any)
-            .willReturn(.test(ref: "refs/heads/main", branch: "main", sha: "main-tip"))
+            .willReturn(.test(ref: "refs/heads/main", branch: "main", headSHA: "main-tip"))
         given(gitController).checkedOutCommit(workingDirectory: .any)
             .willReturn(GitCheckedOutCommit(sha: "main-tip", parentSHAs: ["main-parent"]))
     }

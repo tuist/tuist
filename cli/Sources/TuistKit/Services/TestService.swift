@@ -3396,7 +3396,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testSummary: testSummary,
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
-            gitCommitSHA: gitInfo.sha,
+            gitCommitSHA: gitInfo.headSHA,
             gitRef: gitInfo.ref,
             gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
             isCI: Environment.current.isCI,

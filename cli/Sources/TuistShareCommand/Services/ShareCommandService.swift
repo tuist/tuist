@@ -358,7 +358,7 @@ struct ShareCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 gitBranch: gitInfo.branch,
-                gitCommitSHA: gitInfo.sha,
+                gitCommitSHA: gitInfo.branchHeadSHA,
                 gitRef: gitInfo.ref,
                 track: track,
                 releaseNotes: releaseNotes,
@@ -397,7 +397,7 @@ struct ShareCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 gitBranch: gitInfo.branch,
-                gitCommitSHA: gitInfo.sha,
+                gitCommitSHA: gitInfo.branchHeadSHA,
                 gitRef: gitInfo.ref,
                 track: track,
                 releaseNotes: releaseNotes,
@@ -412,7 +412,7 @@ struct ShareCommandService {
         (try? await gitController.gitInfo(workingDirectory: path)) ?? GitInfo(
             ref: nil,
             branch: nil,
-            sha: nil,
+            headSHA: nil,
             remoteURLOrigin: nil
         )
     }
@@ -573,7 +573,7 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     gitBranch: gitInfo.branch,
-                    gitCommitSHA: gitInfo.sha,
+                    gitCommitSHA: gitInfo.branchHeadSHA,
                     gitRef: gitInfo.ref,
                     track: track,
                     releaseNotes: releaseNotes,

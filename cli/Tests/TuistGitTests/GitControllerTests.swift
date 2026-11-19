@@ -355,6 +355,11 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "merge-commit-sha\n"
         )
+        // The raw format prints the parents the commit object stores, also in a depth-1 clone.
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "merge-commit-sha"],
+            output: "commit merge-commit-sha\ntree tree-sha\nparent base-tip-sha\nparent pr-head-sha\n"
+        )
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
         commandRunner.succeedCommand(
             ["git", "-C", path.pathString, "remote", "get-url", "origin"],
@@ -367,9 +372,47 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == "refs/pull/1/merge")
         #expect(gitInfo.branch == "feature-branch")
-        // The merge commit the run measured, not the pull request's head.
-        #expect(gitInfo.sha == "merge-commit-sha")
+        // The merge commit the run measured, and the pull request's head beside it.
+        #expect(gitInfo.headSHA == "merge-commit-sha")
+        #expect(gitInfo.branchHeadSHA == "pr-head-sha")
         #expect(gitInfo.remoteURLOrigin == "https://github.com/tuist/tuist")
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        arguments: [
+            // A workflow that checked out another commit than the merge commit GitHub made.
+            ["GITHUB_REF": "refs/pull/1/merge", "GITHUB_SHA": "github-merge-sha"],
+            // A push of a merge commit to a branch.
+            ["GITHUB_REF": "refs/heads/feature", "GITHUB_SHA": "head-sha"],
+        ]
+    ) func gitInfo_keeps_head_as_the_branch_head_unless_it_is_the_pull_requests_merge_commit(
+        variables: [String: String]
+    ) async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = variables
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "head-sha\n")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "head-sha"],
+            output: "commit head-sha\ntree tree-sha\nparent first-parent-sha\nparent second-parent-sha\n"
+        )
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist"
+        )
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.headSHA == "head-sha")
+        #expect(gitInfo.branchHeadSHA == "head-sha")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_reads_the_base_branch_and_pull_request_number()
@@ -1306,7 +1349,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == "refs/pull/42/merge")
         #expect(gitInfo.branch == "develop")
-        #expect(gitInfo.sha == "def456")
+        #expect(gitInfo.headSHA == "def456")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_circleci() async throws {
@@ -1331,7 +1374,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == "refs/pull/6740/merge")
         #expect(gitInfo.branch == "fix-bug")
-        #expect(gitInfo.sha == "ghi789")
+        #expect(gitInfo.headSHA == "ghi789")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_buildkite() async throws {
@@ -1356,7 +1399,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == "refs/pull/123/merge")
         #expect(gitInfo.branch == "main")
-        #expect(gitInfo.sha == "jkl012")
+        #expect(gitInfo.headSHA == "jkl012")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_local_git_repo() async throws {
@@ -1382,7 +1425,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == nil)
         #expect(gitInfo.branch == "local-branch")
-        #expect(gitInfo.sha == "mno345")
+        #expect(gitInfo.headSHA == "mno345")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_not_git_repo() async throws {
@@ -1398,7 +1441,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == nil)
         #expect(gitInfo.branch == nil)
-        #expect(gitInfo.sha == nil)
+        #expect(gitInfo.headSHA == nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_no_commits() async throws {
@@ -1420,7 +1463,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == nil)
         #expect(gitInfo.branch == "main")
-        #expect(gitInfo.sha == nil)
+        #expect(gitInfo.headSHA == nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_detached_head() async throws {
@@ -1446,7 +1489,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == nil)
         #expect(gitInfo.branch == nil)
-        #expect(gitInfo.sha == "pqr678")
+        #expect(gitInfo.headSHA == "pqr678")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_azure_devops() async throws {
@@ -1470,7 +1513,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == nil)
         #expect(gitInfo.branch == "feature/new-feature")
-        #expect(gitInfo.sha == "stu901")
+        #expect(gitInfo.headSHA == "stu901")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_ci_branch_priority_over_git() async throws {
@@ -1498,7 +1541,7 @@ struct GitControllerTests {
         // Then
         #expect(gitInfo.ref == nil)
         #expect(gitInfo.branch == "ci-branch") // CI variable takes priority
-        #expect(gitInfo.sha == "vwx234")
+        #expect(gitInfo.headSHA == "vwx234")
     }
 
     @Test(.inTemporaryDirectory) func inGitRepository_when_rev_parse_succeeds() async throws {

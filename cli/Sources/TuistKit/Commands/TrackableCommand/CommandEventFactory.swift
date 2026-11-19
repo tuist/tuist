@@ -51,7 +51,7 @@ public struct CommandEventFactory {
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: Environment.current.isCI,
             status: info.status,
-            gitCommitSHA: gitInfo.sha,
+            gitCommitSHA: gitInfo.branchHeadSHA,
             gitRef: gitInfo.ref,
             gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
             gitBranch: gitInfo.branch,

@@ -72,7 +72,7 @@ public struct SnapshotsDownloadService: SnapshotsDownloadServicing {
         }
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let gitInfo = try? await gitController.gitInfo(workingDirectory: options.path)
-        guard let gitInfo, let sha = gitInfo.sha, !sha.isEmpty else {
+        guard let gitInfo, let sha = gitInfo.branchHeadSHA, !sha.isEmpty else {
             throw SnapshotsUploadServiceError.missingCommit(options.path)
         }
 

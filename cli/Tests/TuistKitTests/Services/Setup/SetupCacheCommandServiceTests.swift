@@ -83,7 +83,7 @@ struct SetupCacheCommandServiceTests {
         // Only read on CI, where the proxy cannot see the job's branch itself.
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn(GitInfo(ref: nil, branch: "feature/tags", sha: nil, remoteURLOrigin: nil))
+            .willReturn(GitInfo(ref: nil, branch: "feature/tags", headSHA: nil, remoteURLOrigin: nil))
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))

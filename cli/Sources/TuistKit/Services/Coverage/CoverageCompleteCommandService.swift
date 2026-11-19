@@ -59,7 +59,7 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
 
         var sha = commit
         if sha == nil {
-            sha = try? await gitController.gitInfo(workingDirectory: directoryPath).sha
+            sha = try? await gitController.gitInfo(workingDirectory: directoryPath).headSHA
         }
         guard let sha, !sha.isEmpty else {
             throw CoverageCompleteCommandServiceError.missingCommit

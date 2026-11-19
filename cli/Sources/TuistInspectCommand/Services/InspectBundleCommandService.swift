@@ -181,7 +181,7 @@ public struct InspectBundleCommandService {
         let gitInfo = try await gitController.gitInfo(workingDirectory: path)
         let gitRef = gitInfo.ref
         let gitBranch = gitInfo.branch
-        let gitCommitSHA = gitInfo.sha
+        let gitCommitSHA = gitInfo.branchHeadSHA
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let serverBundle = try await Noora.current.progressStep(

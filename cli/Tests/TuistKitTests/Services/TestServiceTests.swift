@@ -5290,7 +5290,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 .willReturn(path)
             given(gitController)
                 .gitInfo(workingDirectory: .any)
-                .willReturn(.test(ref: "refs/pull/12862/merge", sha: "current-commit"))
+                .willReturn(.test(ref: "refs/pull/12862/merge", headSHA: "current-commit"))
             given(xcodebuildController)
                 .version()
                 .willReturn(nil)

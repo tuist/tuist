@@ -135,7 +135,7 @@
             guard Self.enabled(coverage: coverage) else { return nil }
             let key = GitHistoryCache.key(
                 workingDirectory: workingDirectory,
-                sha: gitInfo.sha,
+                sha: gitInfo.headSHA,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
@@ -187,8 +187,8 @@
             // Without a repository there is nothing to collect, but the run still says so, and keeps
             // the pull request identity CI provided, so the server can complete the history from
             // the VCS provider instead of treating the run as a plain one.
-            guard gitInfo.sha != nil, await gitController.isInGitRepository(workingDirectory: workingDirectory) else {
-                let reason = gitInfo.sha == nil ? "the run's commit is unknown" : "the working directory is not a Git repository"
+            guard gitInfo.headSHA != nil, await gitController.isInGitRepository(workingDirectory: workingDirectory) else {
+                let reason = gitInfo.headSHA == nil ? "the run's commit is unknown" : "the working directory is not a Git repository"
                 return CollectedGitHistory(
                     payload: TestRunGitHistory(
                         baseBranch: gitInfo.baseBranch,
@@ -201,7 +201,7 @@
                     ),
                     history: GitHistory(
                         objectFormat: "sha1",
-                        headSHA: gitInfo.sha ?? "",
+                        headSHA: gitInfo.headSHA ?? "",
                         baseBranch: gitInfo.baseBranch,
                         mergeBaseSHA: nil,
                         commits: [],
@@ -257,7 +257,7 @@
                     ),
                     history: GitHistory(
                         objectFormat: "sha1",
-                        headSHA: gitInfo.sha ?? "",
+                        headSHA: gitInfo.headSHA ?? "",
                         baseBranch: gitInfo.baseBranch,
                         mergeBaseSHA: nil,
                         commits: [],
@@ -478,7 +478,7 @@
     ) async throws -> GitHistory {
         let history = try await gitController.gitHistory(
             workingDirectory: workingDirectory,
-            headSHA: gitInfo.sha,
+            headSHA: gitInfo.headSHA,
             baseBranch: gitInfo.baseBranch,
             limits: limits
         )

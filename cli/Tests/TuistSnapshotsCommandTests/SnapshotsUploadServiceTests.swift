@@ -47,7 +47,13 @@ struct SnapshotsUploadServiceTests {
         given(configLoader).loadConfig(path: .any).willReturn(.test(fullHandle: "tuist/ios"))
         given(serverEnvironmentService).url(configServerURL: .any).willReturn(Self.serverURL)
         given(gitController).gitInfo(workingDirectory: .any).willReturn(
-            .test(ref: "refs/pull/42/merge", branch: "feature/buttons", sha: Self.sha, pullRequestNumber: 42)
+            .test(
+                ref: "refs/pull/42/merge",
+                branch: "feature/buttons",
+                headSHA: "fedcba9876543210fedcba9876543210fedcba98",
+                branchHeadSHA: Self.sha,
+                pullRequestNumber: 42
+            )
         )
         return SnapshotsUploadService(
             snapshotBuildService: snapshotBuildService,
@@ -155,6 +161,7 @@ struct SnapshotsUploadServiceTests {
 
         let manifest = try #require(manifests.values.first)
         #expect(manifest.set == "ios-iphone")
+        // The pull request's head, where the build's check run shows on the pull request.
         #expect(manifest.gitCommitSHA == Self.sha)
         #expect(manifest.pullRequestNumber == 42)
         #expect(manifest.buildSystem == .xcode)

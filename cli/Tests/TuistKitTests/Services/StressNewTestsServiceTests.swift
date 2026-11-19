@@ -129,7 +129,7 @@ struct StressNewTestsServiceTests {
         // to have seen its newest one.
         let events = EventLog()
         let root = try AbsolutePath(validating: "/repo")
-        let gitInfo = GitInfo(ref: nil, branch: "feature", sha: "head", remoteURLOrigin: nil, baseBranch: "main")
+        let gitInfo = GitInfo(ref: nil, branch: "feature", headSHA: "head", remoteURLOrigin: nil, baseBranch: "main")
         let gitController = MockGitControlling()
         let gitHistoryService = MockGitHistoryServicing()
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)

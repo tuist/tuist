@@ -33,7 +33,7 @@ struct SnapshotsDownloadServiceTests {
     private func subject(baseline: ServerSnapshotBaseline) -> SnapshotsDownloadService {
         given(configLoader).loadConfig(path: .any).willReturn(.test(fullHandle: "tuist/ios"))
         given(serverEnvironmentService).url(configServerURL: .any).willReturn(Self.serverURL)
-        given(gitController).gitInfo(workingDirectory: .any).willReturn(.test(branch: "feature/buttons", sha: Self.sha))
+        given(gitController).gitInfo(workingDirectory: .any).willReturn(.test(branch: "feature/buttons", headSHA: Self.sha))
         given(snapshotBuildService).getSnapshotBaseline(
             fullHandle: .value("tuist/ios"),
             serverURL: .value(Self.serverURL),

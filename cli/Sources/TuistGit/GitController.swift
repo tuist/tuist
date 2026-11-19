@@ -430,7 +430,7 @@ public struct GitController: GitControlling {
             return GitInfo(
                 ref: gitRef,
                 branch: branchName,
-                sha: nil,
+                headSHA: nil,
                 remoteURLOrigin: nil,
                 baseBranch: baseBranch,
                 pullRequestNumber: pullRequestNumber
@@ -440,11 +440,23 @@ public struct GitController: GitControlling {
         // SHA — the checkout's HEAD, which is what a run measures. On a pull request's merge ref
         // (refs/pull/N/merge) that is the merge commit CI checked out: its files are the ones the
         // run built, and the server keeps it on the pull request's ref, off the branch.
-        let commitSHA: String?
+        let headSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            commitSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
+            headSHA = try? await currentCommitSHA(workingDirectory: workingDirectory)
         } else {
-            commitSHA = nil
+            headSHA = nil
+        }
+
+        // The branch's head: on that merge commit, its second parent, the pull request's head. On
+        // GitHub Actions, GITHUB_SHA is the merge commit, so a workflow that checked out another
+        // commit (such as the pull request's head, whose second parent, if it has one, is the base
+        // branch) keeps HEAD. A push's ref is a branch, so a merge pushed to it is its head too.
+        let branchHeadSHA: String?
+        let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
+        if let headSHA, gitRef?.hasPrefix("refs/pull/") == true, mergeCommit == nil || mergeCommit == headSHA {
+            branchHeadSHA = await secondParent(of: headSHA, workingDirectory: workingDirectory) ?? headSHA
+        } else {
+            branchHeadSHA = headSHA
         }
 
         let remoteURLOrigin: String?
@@ -457,11 +469,22 @@ public struct GitController: GitControlling {
         return GitInfo(
             ref: gitRef,
             branch: branchName,
-            sha: commitSHA,
+            headSHA: headSHA,
+            branchHeadSHA: branchHeadSHA,
             remoteURLOrigin: remoteURLOrigin,
             baseBranch: baseBranch,
             pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// A merge commit's second parent, read from the commit object: the raw format ignores a shallow
+    /// clone's grafts, so this works in a depth-1 checkout, where `HEAD^2` does not resolve.
+    private func secondParent(of sha: String, workingDirectory: AbsolutePath) async -> String? {
+        guard let raw = try? await capture(
+            command: "git", "-C", workingDirectory.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", sha
+        ) else { return nil }
+        let parents = GitHistoryParser.parseRawParents(raw)[sha] ?? []
+        return parents.count > 1 ? parents[1] : nil
     }
 
     /// Some providers name a branch by its full ref, `refs/heads/main`.

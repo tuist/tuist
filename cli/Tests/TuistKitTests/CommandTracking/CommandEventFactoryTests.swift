@@ -381,7 +381,7 @@ struct CommandEventFactoryTests {
                 .test(
                     ref: "github-ref",
                     branch: "main",
-                    sha: "commit-sha",
+                    headSHA: "commit-sha",
                     remoteURLOrigin: "https://github.com/tuist/tuist"
                 )
             )
@@ -512,7 +512,7 @@ struct CommandEventFactoryTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .value(path))
-            .willReturn(.test(ref: nil, branch: nil, sha: "commit-sha"))
+            .willReturn(.test(ref: nil, branch: nil, headSHA: "commit-sha"))
 
         // When
         let event = try await subject.make(

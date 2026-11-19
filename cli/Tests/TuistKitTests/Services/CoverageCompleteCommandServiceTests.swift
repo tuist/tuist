@@ -73,7 +73,7 @@ struct CoverageCompleteCommandServiceTests {
     func signalsTheCheckoutsCommitAndReportsTheCompleteCoverage() async throws {
         try await givenProject()
         given(gitController).gitInfo(workingDirectory: .any).willReturn(
-            GitInfo(ref: nil, branch: "main", sha: "abcdef1234567", remoteURLOrigin: nil)
+            GitInfo(ref: nil, branch: "main", headSHA: "abcdef1234567", remoteURLOrigin: nil)
         )
         given(completeCommitCoverageService)
             .completeCommitCoverage(

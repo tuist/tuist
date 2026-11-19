@@ -171,8 +171,8 @@ actor TestImpactSelector {
         }
 
         let request = TestImpactRunRequest(
-            headSHA: gitInfo.sha ?? checkout.sha,
-            commitSHA: checkout.sha == gitInfo.sha ? nil : checkout.sha,
+            headSHA: gitInfo.headSHA ?? checkout.sha,
+            commitSHA: checkout.sha == gitInfo.headSHA ? nil : checkout.sha,
             parentSHAs: checkout.parentSHAs,
             ancestorSHAs: ancestorSHAs,
             basis: basis,

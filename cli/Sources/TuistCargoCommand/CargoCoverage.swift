@@ -242,7 +242,7 @@ extension CargoCoverage {
         let option = arguments.firstIndex(of: "--commit").flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
             ?? arguments.first { $0.hasPrefix("--commit=") }.map { String($0.dropFirst(9)) }
         var commit = option
-        if commit == nil { commit = try? await GitController().gitInfo(workingDirectory: directory).sha }
+        if commit == nil { commit = try? await GitController().gitInfo(workingDirectory: directory).headSHA }
         guard let commit, !commit.isEmpty else {
             throw CargoReportError(
                 message: "Pass --commit, or run it from a Git checkout, to name the commit whose coverage is complete."

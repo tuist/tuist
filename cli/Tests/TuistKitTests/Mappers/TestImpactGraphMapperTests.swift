@@ -40,7 +40,7 @@ struct TestImpactGraphMapperTests {
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(path)
         given(gitController).gitInfo(workingDirectory: .any)
-            .willReturn(.test(branch: "feature", sha: "head", pullRequestNumber: 7))
+            .willReturn(.test(branch: "feature", headSHA: "head", pullRequestNumber: 7))
         given(gitController).checkedOutCommit(workingDirectory: .any)
             .willReturn(GitCheckedOutCommit(sha: "head", parentSHAs: []))
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)

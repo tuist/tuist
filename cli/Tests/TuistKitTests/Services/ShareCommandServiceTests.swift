@@ -59,7 +59,7 @@ struct ShareCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn(GitInfo(ref: nil, branch: nil, sha: nil, remoteURLOrigin: nil))
+            .willReturn(GitInfo(ref: nil, branch: nil, headSHA: nil, remoteURLOrigin: nil))
 
         subject = ShareCommandService(
             fileSystem: fileSystem,
@@ -121,7 +121,7 @@ struct ShareCommandServiceTests {
         given(gitController)
             .gitInfo(workingDirectory: .value(directory))
             .willReturn(GitInfo(
-                ref: "refs/pull/123/merge", branch: "feature/cli", sha: "preview-commit", remoteURLOrigin: nil
+                ref: "refs/pull/123/merge", branch: "feature/cli", headSHA: "preview-commit", remoteURLOrigin: nil
             ))
         previewsUploadService.reset()
         given(previewsUploadService)
@@ -1216,7 +1216,7 @@ struct ShareCommandServiceTests {
                 GitInfo(
                     ref: "refs/heads/feat/android",
                     branch: "feat/android",
-                    sha: "abc123def456",
+                    headSHA: "abc123def456",
                     remoteURLOrigin: "https://github.com/tuist/tuist.git"
                 )
             )

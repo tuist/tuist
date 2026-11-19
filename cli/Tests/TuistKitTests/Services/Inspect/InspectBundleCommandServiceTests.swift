@@ -47,7 +47,7 @@ struct InspectBundleCommandServiceTests {
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
-            .willReturn(.test(ref: "refs/pull/1/merge", branch: nil, sha: nil))
+            .willReturn(.test(ref: "refs/pull/1/merge", branch: nil, headSHA: nil))
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)

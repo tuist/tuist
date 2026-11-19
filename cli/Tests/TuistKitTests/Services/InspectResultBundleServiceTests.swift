@@ -214,7 +214,7 @@ struct UploadResultBundleServiceTests {
                 .test(
                     ref: "git-ref",
                     branch: "main",
-                    sha: "abc123",
+                    headSHA: "abc123",
                     remoteURLOrigin: "https://github.com/tuist/tuist"
                 )
             )
@@ -506,7 +506,7 @@ struct UploadResultBundleServiceTests {
                 .test(
                     ref: "git-ref",
                     branch: "main",
-                    sha: "abc123",
+                    headSHA: "abc123",
                     remoteURLOrigin: "https://github.com/tuist/tuist"
                 )
             )

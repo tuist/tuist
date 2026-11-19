@@ -192,7 +192,7 @@ struct UploadBuildRunServiceTests {
                 .test(
                     ref: "git-ref",
                     branch: "branch",
-                    sha: "sha",
+                    headSHA: "sha",
                     remoteURLOrigin: "https://github.com/tuist/tuist"
                 )
             )

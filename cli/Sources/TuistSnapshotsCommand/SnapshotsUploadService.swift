@@ -131,7 +131,7 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let gitInfo = try? await gitController.gitInfo(workingDirectory: options.path)
-        guard let gitInfo, let sha = gitInfo.sha, !sha.isEmpty else {
+        guard let gitInfo, let sha = gitInfo.branchHeadSHA, !sha.isEmpty else {
             throw SnapshotsUploadServiceError.missingCommit(options.path)
         }
         let allImageNames = SnapshotImages.allImageNames(
@@ -265,7 +265,7 @@ extension GitControlling {
         guard gitInfo.baseBranch != nil else { return nil }
         return try? await gitHistory(
             workingDirectory: try topLevelGitDirectory(workingDirectory: workingDirectory),
-            headSHA: gitInfo.sha,
+            headSHA: gitInfo.branchHeadSHA,
             baseBranch: gitInfo.baseBranch,
             limits: GitHistoryLimits(windowDays: 1, windowCommits: 1, deepenBudgetSeconds: 0, remoteAccess: .none)
         ).mergeBaseSHA
