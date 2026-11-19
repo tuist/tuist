@@ -117,10 +117,14 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `Sandbox.guaranteed_cpu_milli/1` (a quarter vCPU per GiB of memory, or the creator's pick if more) of each
   creating, resuming or running agent sandbox on it, up to the ceiling,
   through `Tuist.Kubernetes.Client.resize_sandbox_daemon_cpu/4` under the
-  node lock. A growth only goes into the fresh grant's `cpu_free_milli`; a
-  shrink always goes. Run on every `reconcile_allocation/1` and by
-  `ShrinkCarveOutsWorker`; the last confirmed request is cached per node and
-  Pod for five minutes so an unchanged guarantee reads nothing. Placement holds
+  node lock. A growth goes, from the CPU the kubelet allocated, into the fresh
+  grant's `cpu_free_milli` plus `cpu_reclaimable_milli` (idle warm runners'
+  CPU, which the runners-controller retires when the kubelet defers the
+  growth); a request the grant stops funding is lowered, since a deferred
+  resize holds up memory growths. A shrink always goes. Run on every
+  `reconcile_allocation/1` and by `ShrinkCarveOutsWorker`; the last request
+  the kubelet applied is cached per node and Pod for five minutes so an
+  unchanged guarantee reads nothing. Placement holds
   it: `Capacity.cpu_room?/2`. See `infra/sandboxd/fleet-sharing.md` ("Disk and CPU").
 - Placement packs Linux agent sandboxes (`Capacity.place/3`): after nodes in
   `prefer:`, the node with room that already runs the most sandbox memory
@@ -134,8 +138,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   CPU its VM used (`cpu_ms`), as a `Tuist.Sandboxes.UsageEvent` row; the
   sandbox's `metered_cpu_ms`/`metered_at` hold the last reading and are
   cleared with `guest_cpu_ms` on pause. A pause bills the time since the
-  last report from the `cpu_ms` the node returns with it; a pause the
-  server adopts from a report, or from an older daemon, leaves it unbilled. `Analytics.compute/2` sums those rows
+  last report from the `cpu_ms` the node returns with it, and a pause the
+  server adopts from a report bills it from the `cpu_ms` the paused sandbox
+  reports (once: the row is no longer running afterwards). A pause from an
+  older daemon, a VM the daemon lost, or one `settle_running` adopts from a
+  failed exec leaves it unbilled. `cpu_ms` counts the vCPU threads only. `Analytics.compute/2` sums those rows
   for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
   runs from before metering, up to their first metered report).
   `Concurrency` counts guarantees. The API's analytics report guaranteed

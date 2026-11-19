@@ -179,13 +179,19 @@ them, while it has room: mostly idle sandboxes burst into each other's idle
 cores rather than beside CI jobs that keep theirs busy, and the nodes left
 without a sandbox take whole runners.
 
-A growth only goes into CPU no Pod requests, which the grant reports as
-`cpu_free_milli` (an older controller sends none, and its nodes' requests do not
-grow). The kubelet defers a resize that does not fit the node and judges a Pod's
-resize as a whole, so a deferred CPU growth would hold up the daemon's memory
-growths too. A guarantee that does not fit waits for CPU to free up; nothing is
-retired or evicted for it, and admission does not wait for it. A shrink always
-goes ahead. The runners-controller already subtracts the daemon's CPU request
+A growth goes into CPU no Pod requests (`cpu_free_milli` in the grant; an
+older controller sends none, and its nodes' requests do not grow) and into CPU
+idle warm runners hold (`cpu_reclaimable_milli`), the way memory growths take
+idle runners' memory: guarantees outrank warm CI seats, never running jobs. The
+kubelet defers the part idle runners hold, and the runners-controller retires
+the oldest idle warm runners on the node until their CPU covers it
+(`deferredCPU`, the same path as a deferred memory growth). The kubelet judges a
+Pod's resize as a whole, so a deferred CPU growth holds up the daemon's memory
+growths too: the grant counts the daemon at the CPU the kubelet allocated, and
+when a runner claims a job before it is retired, the next sync lowers the
+request to what fits. A request is cached only once applied. A guarantee that
+fits neither waits for CPU to free up; admission does not wait for it. A shrink
+always goes ahead. The runners-controller already subtracts the daemon's CPU request
 from its seat accounting.
 
 Production measurements over the week to 2026-11-17 (5-minute rates, before

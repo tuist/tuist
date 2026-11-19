@@ -496,11 +496,13 @@ defmodule Tuist.Kubernetes.Client do
   @doc """
   Resizes the CPU request of a sandbox daemon Pod's `sandboxd` container in
   place, leaving its memory and its absent CPU limit alone. `target` gets the
-  container's current request in millicores and returns the one to ask for;
-  nothing is written when they are equal. Fenced like
+  CPU the kubelet has allocated the container in millicores (its request
+  while nothing is pending) and returns the request to ask for; nothing is
+  written when the Pod already asks for it. Fenced like
   `resize_sandbox_daemon_memory/4`: the PATCH carries the resourceVersion
-  and UID the current request was read at. Returns `{:ok, millicores}`, the
-  request the Pod asks for afterwards.
+  and UID the current request was read at. Returns
+  `{:ok, millicores, applied?}`: the request the Pod asks for afterwards and
+  whether the kubelet has already allocated it.
   """
   def resize_sandbox_daemon_cpu(namespace, name, target, opts \\ [])
       when is_binary(namespace) and is_binary(name) and is_function(target, 1) do
@@ -508,10 +510,12 @@ defmodule Tuist.Kubernetes.Client do
 
     with {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}} = pod}
          when is_binary(version) and is_binary(uid) <- request(:get, path, opts: opts, timeout: 5_000),
-         {:ok, current} <- sandboxd_cpu_request(pod) do
-      case target.(current) do
-        ^current ->
-          {:ok, current}
+         {:ok, requested} <- sandboxd_cpu_request(pod) do
+      allocated = sandboxd_cpu_allocated(pod, requested)
+
+      case target.(allocated) do
+        ^requested ->
+          {:ok, requested, requested == allocated}
 
         milli when is_integer(milli) and milli > 0 ->
           resources = %{requests: %{cpu: "#{milli}m"}}
@@ -527,12 +531,35 @@ defmodule Tuist.Kubernetes.Client do
                      }),
                    headers: [{"content-type", "application/strategic-merge-patch+json"}]
                  ) do
-            {:ok, milli}
+            {:ok, milli, false}
           end
       end
     else
       {:error, reason} -> {:error, reason}
       {:ok, _invalid_pod} -> {:error, :invalid_pod}
+    end
+  end
+
+  # What the kubelet admitted, which a deferred growth has not reached yet.
+  defp sandboxd_cpu_allocated(pod, requested) do
+    pod
+    |> get_in(["status", "containerStatuses"])
+    |> List.wrap()
+    |> Enum.find(&(&1["name"] == "sandboxd"))
+    |> case do
+      %{"allocatedResources" => %{"cpu" => quantity}} -> quantity
+      %{"resources" => %{"requests" => %{"cpu" => quantity}}} -> quantity
+      _unreported -> nil
+    end
+    |> case do
+      nil ->
+        requested
+
+      quantity ->
+        case cpu_milli(quantity) do
+          {:ok, milli} -> milli
+          {:error, _invalid} -> requested
+        end
     end
   end
 

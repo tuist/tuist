@@ -2,12 +2,12 @@
 {
   "title": "測試洞察",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist Test Insights，識別 Xcode、Gradle、Bazel、Elixir、Rust 同 Struo 項目中不穩定同緩慢嘅測試。"
+  "description": "使用 Tuist Test Insights，識別 Xcode、Gradle、Bazel、Elixir、Rust 同 Struo 專案中嘅不穩定同緩慢測試。"
 }
 ---
 # 測試洞察 {#test-insights}
 
-使用測試洞察，透過識別慢速測試、追蹤不穩定測試，以及快速了解失敗的 CI 運行，來監控你的測試套件健康狀況。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 和 Struo。可用結果和時間取決於你的 runner。要追蹤測試在支援的構建系統上執行哪些代碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">代碼覆蓋率</.localized_link>。有關 [慢速測試](https://tuist.dev/solutions/slow-tests) 和 [不穩定測試](https://tuist.dev/solutions/flaky-tests) 的指導，請參閱解決方案指南。
+使用測試洞察，透過識別慢速測試、追蹤不穩定測試，以及快速了解失敗的 CI 執行，來監控你的測試套件健康狀況。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 和 Struo。可用的結果和時間取決於你的 runner。要了解在支援的建置系統上你的測試執行哪些程式碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。有關 [慢速測試](https://tuist.dev/solutions/slow-tests) 和 [不穩定測試](https://tuist.dev/solutions/flaky-tests) 的指引，請參閱解決方案指南。
 
 <.home_cards>
   <.home_card
@@ -17,7 +17,7 @@
 />
   <.home_card
     title="Gradle"
-    details="透過 Tuist Gradle 插件追蹤 Gradle 測試分析數據。"
+    details="透過 Tuist Gradle 外掛程式追蹤 Gradle 測試分析數據。"
     link="/guides/features/test-insights/gradle"
 />
   <.home_card
@@ -32,12 +32,12 @@
 />
   <.home_card
     title="Rust"
-    details="透過你常用的測試命令追蹤 Cargo 測試結果、套件持續時間和 doctests。"
+    details="透過你慣用的測試指令追蹤 Cargo 測試結果、套件持續時間和 doctests。"
     link="/guides/features/test-insights/rust"
 />
   <.home_card
     title="Struo"
-    details="透過 Struo 的原生整合追蹤報告的測試目標、套件、用例、失敗和重試嘗試。"
+    details="透過 Struo 的原生整合，追蹤回報的測試目標、套件、案例、失敗和重試嘗試。"
     link="/guides/features/test-insights/struo"
 />
 </.home_cards>

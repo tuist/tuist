@@ -2184,7 +2184,9 @@ defmodule Tuist.Sandboxes do
   # its guarantee (`Sandbox.guaranteed_cpu_milli/1`) over the time since the
   # previous report and the CPU its VM used in that time (`cpu_ms` counts
   # from the VM process's start), and its pause bills the time since the
-  # last report the same way (`pause_usage/2`). The first report of a run
+  # last report the same way (`pause_usage/2`), as does a report that tells
+  # the server of a pause it did not make, such as a daemon shutdown's,
+  # from the reading the node took at that pause. The first report of a run
   # bills the CPU used so far; a lower reading than the last one comes from
   # a new VM process. An interval longer than two reports, such as across a
   # server restart, bills the guarantee for two. The usage row is written
@@ -2197,6 +2199,16 @@ defmodule Tuist.Sandboxes do
        when is_integer(cpu_ms) and cpu_ms >= 0 do
     at = DateTime.utc_now()
     {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage(sandbox, cpu_ms, at)}
+  end
+
+  # Daemons before the paused reading, and a VM the daemon lost rather than
+  # paused, report none: that last interval goes unbilled.
+  defp meter(attrs, %Sandbox{state: :running, purpose: :agent, platform: :linux} = sandbox, %{
+         "state" => "paused",
+         "cpu_ms" => cpu_ms
+       })
+       when is_integer(cpu_ms) and cpu_ms > 0 do
+    {attrs, usage(sandbox, cpu_ms, DateTime.utc_now())}
   end
 
   defp meter(attrs, _sandbox, _reported), do: {attrs, nil}

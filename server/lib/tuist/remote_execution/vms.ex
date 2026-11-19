@@ -231,6 +231,10 @@ defmodule Tuist.RemoteExecution.VMs do
   @doc """
   Deletes the VM and then its row. `not_before` holds an unconfirmed create's
   reservation until the node can no longer accept that create.
+
+  Deleting a placed VM frees room on its node for every account, so it is
+  announced on `room_topic/0`: schedulers waiting for node room retry then,
+  not on their next tick.
   """
   def destroy(%Sandbox{} = sandbox, not_before \\ nil) do
     if not_before do
@@ -240,9 +244,15 @@ defmodule Tuist.RemoteExecution.VMs do
 
     with :ok <- delete_vm(sandbox) do
       Repo.delete_all(from(s in Sandbox, where: s.id == ^sandbox.id and s.purpose == :remote_execution))
+
+      if sandbox.node_name,
+        do: Phoenix.PubSub.broadcast(Tuist.PubSub, room_topic(), {:remote_execution_room, sandbox.node_name})
+
       :ok
     end
   end
+
+  def room_topic, do: "remote_execution:room"
 
   defp delete_vm(%Sandbox{node_name: nil}), do: :ok
 

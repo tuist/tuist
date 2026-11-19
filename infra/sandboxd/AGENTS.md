@@ -501,12 +501,17 @@ Server to node:
 {"type":"command","id":"c13","op":"copy_disks","args":{"snapshot_id":"...","template":"default","workspace_gb":10,"from_archive":{"url":"https://...","bytes":N,"sha256":"..."}}}
 ```
 
-A running sandbox's `cpu_ms` is its Firecracker process's user and system
-time from `/proc/<pid>/stat` (vCPU threads included), restarting from zero
-with each new VM process; the server uses it to pause idle Amp Orbs and to
-bill bursting sandboxes. Paused sandboxes, and hosts without `/proc`, omit
-it. A `pause` result carries the same reading, taken as the VM's vCPUs stop
-and before the snapshot, so the server bills the time since the last report.
+A running sandbox's `cpu_ms` is the guest's CPU time: the user and system
+time of its Firecracker process's `fc_vcpu` threads
+(`/proc/<pid>/task/*/stat`), without the VMM thread's device emulation,
+restarting from zero with each new VM process (a process without such
+threads counts whole); the server uses it to pause idle Amp Orbs and to bill
+bursting sandboxes. Hosts without `/proc` omit it. A `pause` result carries
+the same reading, taken as the VM's vCPUs stop and before the snapshot, so
+the server bills the time since the last report; a paused sandbox keeps
+reporting it (`paused_cpu_ms` in its metadata), so a pause the server only
+learns of from a report, such as a shutdown's, is billed too. A VM the
+daemon lost while running reports none.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker
@@ -731,7 +736,7 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set and no `EXECUTION_SLOTS`, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. Remote-execution daemons (`EXECUTION_SLOTS`) also keep the tag the node ran before, the other tag whose `metadata.json` the init container rewrote last, because the server keeps placing executions on it until most nodes roll. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |

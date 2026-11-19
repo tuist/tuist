@@ -84,6 +84,19 @@ func TestSandboxAllocationReportsUnrequestedCPU(t *testing.T) {
 	if allocation.CPUFreeMilli != 32000-8250-1000-3000 {
 		t.Fatalf("cpu free = %d, want %d", allocation.CPUFreeMilli, 32000-8250-1000-3000)
 	}
+	// Only the idle warm runner's CPU can be reclaimed.
+	if allocation.CPUReclaimableMilli != 1000 {
+		t.Fatalf("cpu reclaimable = %d, want the idle runner's 1000m", allocation.CPUReclaimableMilli)
+	}
+
+	// A growth the kubelet deferred counts at what it allocated, so the
+	// server can lower a request that stopped fitting.
+	daemon.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("12")
+	pods = []corev1.Pod{*exclusive, *shared, *daemon, *finished}
+	allocation = planSandboxAllocation(node, sandboxDaemon{name: daemon.Name, node: node.Name, memory: gib}, pods, fleet)
+	if allocation.CPUFreeMilli != 32000-8250-1000-3000 {
+		t.Fatalf("cpu free with a deferred growth = %d, want %d", allocation.CPUFreeMilli, 32000-8250-1000-3000)
+	}
 	if got := allocationPodRequest(exclusive, corev1.ResourceMemory); got != 16*gib {
 		t.Fatalf("memory of a CPU-only Pod budget = %d, want the containers' 16 GiB", got)
 	}

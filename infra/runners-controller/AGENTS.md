@@ -215,6 +215,11 @@ cancellable and leaves the reserve intact. See
     through the uncached `APIReader`, since the manager caches only the
     runners namespace. A failed read propagates to the existing autoscaler
     fallback and prevents sandbox preemption or new host reservation.
+    A Linux daemon's deferred CPU growth (the server grows its request into
+    `cpu_reclaimable_milli`, the CPU idle warm runners hold) retires idle
+    runners the same way, until their CPU, Pod-level budget and overhead
+    included, covers it. The grant counts the daemon at the CPU the kubelet
+    allocated, so a deferred growth does not hide `cpu_free_milli`.
     Per-node shape caps and reservation calculations subtract the same
     allocation plus the daemon's CPU request, including pending shrinks and
     terminating daemons. Never write the adjusted allocatable back to a Node.
