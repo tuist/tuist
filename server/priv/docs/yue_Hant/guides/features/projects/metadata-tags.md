@@ -1,28 +1,28 @@
 ---
 {
-  "title": "中繼資料標籤",
+  "title": "元數據標籤",
   "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
-  "description": "了解如何使用目標中繼資料標籤來組織並專注於專案的特定部分"
+  "description": "了解如何使用目標元數據標籤來組織並專注於專案的特定部分"
 }
 ---
 # 元數據標籤 {#metadata-tags}
 
-隨著專案規模和複雜度增加，一次性處理整個代碼庫會變得不夠高效。Tuist 提供 **元數據標籤**，讓你將 target 組織成邏輯群組，並在開發期間專注於專案的特定部分。
+隨著專案規模和複雜度增加，一次性處理整個代碼庫會變得不夠高效。Tuist 提供 **元數據標籤**，讓你可以將 target 組織成邏輯群組，並在開發期間專注於專案的特定部分。
 
 ## 甚麼是元數據標籤？ {#what-are-metadata-tags}
 
 元數據標籤是可以附加到專案中 target 的字串標籤。它們作為標記，讓你可以：
 
 - **將相關 target 分組** - 為屬於同一功能、團隊或架構層級的 target 加上標籤
-- **聚焦工作區** - 生成只包含帶有特定標籤之 target 的專案
-- **優化工作流程** - 處理特定功能，無需載入代碼庫中不相關的部分
-- **選擇保留為 source 的 target** - 在快取時選擇希望保留為 source 的 target 群組
+- **聚焦工作區** - 生成只包含具有特定標籤之 target 的專案
+- **優化工作流程** - 專注於特定功能，無需載入代碼庫中不相關的部分
+- **選擇要保留為原始碼的 target** - 在快取時選擇你想保留為原始碼的 target 群組
 
 標籤使用 target 上的 `metadata` 屬性定義，並儲存為字串陣列。
 
 ## 定義元數據標籤 {#defining-metadata-tags}
 
-你可以在專案 manifest 中為任何 target 添加標籤：
+你可以在專案清單中為任何 target 加入標籤：
 
 ```swift
 import ProjectDescription
@@ -61,9 +61,9 @@ let project = Project(
 )
 ```
 
-## 聚焦已加標籤的 target {#focusing-on-tagged-targets}
+## 聚焦於已加標籤的 target {#focusing-on-tagged-targets}
 
-一旦你為 target 加上標籤，就可以使用 `tuist generate` 指令來建立一個聚焦的專案，其中只包含特定的 target：
+為 target 加上標籤後，你可以使用 `tuist generate` 指令來建立一個聚焦專案，只包含特定的 target：
 
 ### 按標籤聚焦
 
@@ -92,14 +92,14 @@ tuist generate Authentication
 
 1. **包含的 target** - 符合你查詢條件的 target 會被包含在生成的專案中
 2. **依賴項** - 聚焦 target 的所有依賴項會自動被包含
-3. **測試 target** - 聚焦 target 的測試 target 會被包含
-4. **排除** - 所有其他 target 都會從工作區中排除
+3. **測試 target** - 聚焦 target 對應的測試 target 會被包含
+4. **排除** - 所有其他 target 會從工作區中排除
 
-這意味著你會獲得一個更小、更易管理的工作區，其中只包含處理你的功能所需的内容。
+這意味著你會獲得一個更小、更易管理的工作區，只包含開發功能所需的內容。
 
-## 標籤命名慣例 {#tag-naming-conventions}
+## 標籤命名規範 {#tag-naming-conventions}
 
-雖然你可以使用任何字串作為標籤，但遵循一致的命名慣例有助於保持標籤整齊有序：
+雖然你可以使用任何字串作為標籤，但遵循一致的命名規範有助於保持標籤整齊有序：
 
 ```swift
 // Organize by feature
@@ -118,7 +118,7 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-使用如 `feature:`、`team:` 或 `layer:` 等前綴，可以更輕鬆地理解每個標籤的用途並避免命名衝突。
+使用如 `feature:`、`team:` 或 `layer:` 等前綴，可以更容易理解每個標籤的用途並避免命名衝突。
 
 ## 系統標籤 {#system-tags}
 
@@ -128,7 +128,7 @@ Tuist 使用 `tuist:` 前綴來標示系統管理的標籤。這些標籤由 Tui
 
 | 標籤 | 描述 |
 | --- | --- |
-| `tuist:synthesized` | 應用於 Tuist 為靜態程式庫和靜態框架中的資源處理所建立的合成 bundle target。這些 bundle 出於歷史原因而存在，以提供資源存取 API。 |
+| `tuist:synthesized` | 應用於 Tuist 為靜態程式庫和靜態框架中的資源處理所建立的合成 bundle target。這些 bundle 出於歷史原因存在，以提供資源存取 API。 |
 
 ### 在快取設定檔中使用系統標籤
 
@@ -160,9 +160,9 @@ let tuist = Tuist(
 > 合成 bundle target 除了接收 `tuist:synthesized` 標籤外，還會繼承其父級 target 的所有標籤。這意味著如果你為靜態程式庫加上 `feature:auth` 標籤，其合成的資源 bundle 將同時擁有 `feature:auth` 和 `tuist:synthesized` 標籤。
 
 
-## 在專案描述輔助工具中使用標籤 {#using-tags-with-helpers}
+## 搭配專案描述輔助工具使用標籤 {#using-tags-with-helpers}
 
-你可以利用 <.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link> 來標準化標籤在整個專案中的應用方式：
+你可以利用 <.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link> 來標準化標籤在專案中的應用方式：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -190,7 +190,7 @@ extension Target {
 }
 ```
 
-然後在你的 manifest 中使用它：
+然後在你的清單中使用它：
 
 ```swift
 import ProjectDescription
@@ -211,22 +211,22 @@ let project = Project(
 
 透過聚焦於專案的特定部分，你可以：
 
-- **減小 Xcode 專案大小** - 處理更小的專案，開啟和導航速度更快
-- **加快建構速度** - 只建構當前工作所需的內容
-- **提高專注度** - 避免無關程式碼的干擾
-- **優化索引** - Xcode 索引的程式碼更少，使自動完成更快
+- **縮小 Xcode 專案規模** - 處理較小的專案，開啟和瀏覽速度更快
+- **加快建置速度** - 只建置目前工作所需的內容
+- **提升專注度** - 避免無關程式碼的干擾
+- **最佳化索引** - Xcode 索引的程式碼較少，使自動完成功能更快
 
 ### 更好的專案組織
 
 標籤提供了一種靈活的方式來組織你的程式碼庫：
 
-- **多個維度** - 按功能、團隊、層級、平台或任何其他維度為 target 打上標籤
+- **多個維度** - 按功能、團隊、層級、平台或其他任何維度為 target 加上標籤
 - **無需結構變更** - 在不更改目錄佈局的情況下添加組織結構
-- **跨切面關注點** - 單一 target 可以屬於多個邏輯群組
+- **跨領域關注點** - 單一 target 可以屬於多個邏輯群組
 
 ### 與快取整合
 
-元數據標籤可與 <.localized_link href="/guides/features/cache">Tuist 的快取功能</.localized_link> 無縫配合：
+元數據標籤可與 <.localized_link href="/guides/features/cache">Tuist 的快取功能</.localized_link> 無縫協作：
 
 ```bash
 # Cache all targets
@@ -238,8 +238,8 @@ tuist generate tag:feature:payment
 
 ## 最佳實踐 {#best-practices}
 
-1. **從簡單開始** - 從單一的標籤維度（例如功能）開始，並根據需要擴展
-2. **保持一致** - 在所有 manifest 中使用相同的命名慣例
+1. **從簡單開始** - 從單一的標籤維度（例如功能）開始，並按需擴展
+2. **保持一致** - 在所有清單中使用相同的命名規範
 3. **記錄你的標籤** - 在專案文件中維護可用標籤及其含義的列表
 4. **使用輔助工具** - 利用專案描述輔助工具來標準化標籤應用
 5. **定期檢視** - 隨著專案演進，檢視並更新你的標籤策略
@@ -247,5 +247,5 @@ tuist generate tag:feature:payment
 ## 相關功能 {#related-features}
 
 - <.localized_link href="/guides/features/projects/code-sharing">程式碼共享</.localized_link> - 使用專案描述輔助工具來標準化標籤用法
-- <.localized_link href="/guides/features/cache">快取</.localized_link> - 將標籤與快取結合，以獲得最佳建構效能
-- <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> - 只對已變更的 target 執行測試
+- <.localized_link href="/guides/features/cache">快取</.localized_link> - 將標籤與快取結合，以獲得最佳建置效能
+- <.localized_link href="/guides/features/selective-testing">選擇性測試</.localized_link> - 僅針對已變更的 target 執行測試

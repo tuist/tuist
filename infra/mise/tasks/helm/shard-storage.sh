@@ -76,8 +76,11 @@ for environment in staging canary production; do
     production) server_namespace=tuist vrack=pn-2024093 ;;
   esac
   archive_budget_bytes=$((100 * 1024 * 1024 * 1024))
-  if [[ "$environment" == production ]]; then archive_budget_bytes=$((500 * 1024 * 1024 * 1024)); fi
-  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" --argjson archive_budget_bytes "$archive_budget_bytes" '
+  # Production drains into RustFS: existing objects stay readable, but the
+  # target takes no new placements.
+  placements=true
+  if [[ "$environment" == production ]]; then archive_budget_bytes=$((500 * 1024 * 1024 * 1024)); placements=false; fi
+  jq -e --arg environment "$environment" --arg ns "$server_namespace" --arg vrack "$vrack" --argjson archive_budget_bytes "$archive_budget_bytes" --argjson placements "$placements" '
     any(.[]; .kind == "Service" and
       any(.spec.ports[]; .port == 3903 and .targetPort == "health")) and
     any(.[]; .kind == "NetworkPolicy" and
@@ -98,7 +101,7 @@ for environment in staging canary production; do
     any(.[]; .kind == "ExternalSecret" and .metadata.namespace == $ns and
       .spec.target.name == "shard-storage-targets" and
       (.spec.target.template.data["targets.json"] | fromjson | .["gra-" + $environment + "-v1"] |
-        .site == "gra" and .enabled and .private_network_ready and .bucket == "shards" and
+        .site == "gra" and .enabled and .private_network_ready == $placements and .bucket == "shards" and
         .archive_bucket == "sandbox-archives" and .archive_budget_bytes == $archive_budget_bytes and
         .archive_capacity_urls == ["http://shard-storage.kura.svc.cluster.local:3903/metrics"] and
         .actions_cache_bucket == "actions-cache" and (.actions_cache_bytes | type == "number" and . >= 1000000000) and

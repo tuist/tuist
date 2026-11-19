@@ -2529,8 +2529,10 @@ runnersFleetLinux:
     # Hosts serve the GitHub Actions cache from the gra shard store only to
     # accounts with the `:runner_actions_cache` flag; every other job keeps
     # GitHub's cache. Turning this off returns every job to GitHub's cache.
+    # New entries go to the RustFS store, so hosts gate on its private endpoint.
     actionsCache:
       enabled: true
+      store: http://rustfs-s3.rustfs-production.svc.cluster.local:9000
   name: runners-linux
   # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet. It
   # injects the device only into Pods the controller annotates, which it does

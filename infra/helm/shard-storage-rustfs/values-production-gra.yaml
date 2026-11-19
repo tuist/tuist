@@ -10,9 +10,9 @@ generateCredentials: true
 target:
   id: rustfs-gra-production-v1
   site: gra
-  # Off until the drive's XFS quota is raised for Garage's workload: Garage
-  # sorts first and keeps taking in-cluster placements until then.
-  privateNetworkReady: false
+  # New Linux-runner shards, Actions cache entries and sandbox archives land
+  # here; Garage's target stops taking placements and drains.
+  privateNetworkReady: true
 # Linux runners, sandboxd and the server reach the store in-cluster, never
 # through s3.tuist.dev.
 privateNetwork:
