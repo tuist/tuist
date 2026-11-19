@@ -52,11 +52,14 @@ public struct HeadersContentHasher: HeadersContentHashing {
         ]
         // Frameworks now keep an `include/<Module>/` namespace in Headers. Only these targets' keys change, so
         // artifacts exported before that are not reused and other packages keep theirs.
+        let allHeaders = headers.public + headers.private + headers.project
         let namespace = layout.publicHeaders.appending(component: layout.moduleName)
-        if !layout.usesDirectoryModuleMap,
-           (headers.public + headers.private + headers.project).contains(where: { $0.isDescendant(of: namespace) })
-        {
+        if !layout.usesDirectoryModuleMap, allHeaders.contains(where: { $0.isDescendant(of: namespace) }) {
             inputs.append("framework-headers-namespace")
+        }
+        // Textually included files such as `.inl` were left out of artifacts before, so their targets' keys change.
+        if allHeaders.contains(where: { ["inl", "inc", "tcc", "tpp"].contains($0.extension ?? "") }) {
+            inputs.append("textual-headers")
         }
         return inputs
     }
