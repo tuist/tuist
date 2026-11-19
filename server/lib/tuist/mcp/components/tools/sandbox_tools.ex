@@ -108,7 +108,7 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
         "macOS sandboxes boot one Xcode; `xcode_version` is not available on this server."
 
       [default | _] = versions ->
-        "For a macOS sandbox, pass `xcode_version` with the exact Xcode the project needs: read the version it pins, in `.xcode-version`, `mise.toml`, a CI config (`xcode-version:`, `DEVELOPER_DIR`, `xcode-select`) or its Tuist runner profile, and pick that version. It implies `platform: darwin`. Served: #{Enum.join(versions, ", ")}. Without it the sandbox boots #{default}. A version not served is refused; then pick the nearest served one and tell the user. A sandbox keeps its Xcode; another one needs a new sandbox."
+        "For a macOS sandbox, first find the Xcode the repository builds with, and pass it as `xcode_version`. Each repository records it differently, so look before you create: `.xcode-version`, `.tool-versions` or `mise.toml`, the Xcode its CI selects (`xcode-version:`, `DEVELOPER_DIR`, `xcode-select`, a runner image or label naming Xcode), its Tuist runner profile, or its README or contributor docs. Use the most specific version it names; when the user asks for another Xcode, use theirs and tell them the build will not be cached. A different Xcode, even a different patch release, misses the repository's binary and compilation caches and its ready snapshot, so the whole project builds from source. It implies `platform: darwin`. Served: #{Enum.join(versions, ", ")}. Only when the repository names no Xcode, omit it and the sandbox boots #{default}. A version not served is refused; then pick the nearest served one and tell the user which you used and why. A sandbox keeps its Xcode; another one needs a new sandbox."
     end
   end
 end
