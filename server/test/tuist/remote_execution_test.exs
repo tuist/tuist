@@ -293,6 +293,36 @@ defmodule Tuist.RemoteExecutionTest do
     assert Map.keys(waits) -- ["node_capacity", "vm_preparing", "scheduling"] == []
   end
 
+  test "an action no node has room for runs as soon as another account frees one", %{project: project} do
+    stub(Nodes, :connected_nodes, fn ->
+      [
+        %{
+          name: "reserved-linux",
+          execution_deadlines: true,
+          execution_slots: 1,
+          capacity: %{cpus: 8, memory_bytes: 32 * 1024 * 1024 * 1024},
+          templates: [%{name: "bazel", tag: @image, ready: true}],
+          disk: %{}
+        }
+      ]
+    end)
+
+    # Another account's VM holds the node's only slot.
+    other = project_fixture()
+    {:ok, settings} = configure(other, max_concurrency: 1)
+    {:ok, vm} = VMs.reserve(other.account_id, settings)
+    Repo.update_all(from(s in Sandbox, where: s.id == ^vm.id), set: [node_name: "reserved-linux", state: :running])
+
+    stub_node()
+    assert {:ok, %{done: false, state: "queued", id: id}} = submit(project, %{}, wait: 300)
+
+    assert :ok = VMs.destroy(%{vm | node_name: "reserved-linux"})
+
+    # Well before the scheduler's 5 s tick.
+    assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 2_000)
+    assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 2_000)
+  end
+
   test "the warm pool follows demand below its ceiling", %{project: project} do
     {:ok, _} = configure(project, max_concurrency: 8)
     stub_node()

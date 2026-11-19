@@ -131,6 +131,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
     case RemoteExecution.available_settings(account_id) do
       {:ok, settings} ->
         Process.flag(:trap_exit, true)
+        :ok = Phoenix.PubSub.subscribe(Tuist.PubSub, VMs.room_topic())
         Process.send_after(self(), :tick, @tick_ms)
         Process.send_after(self(), :renew, @renew_ms)
         Process.send_after(self(), :refresh, @refresh_ms)
@@ -299,6 +300,12 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     {:noreply, %{state | lease_waiters: :queue.from_list(waiting)}}
   end
+
+  # Any account's VM deletion frees node room; one waiting for it retries now.
+  def handle_info({:remote_execution_room, _node}, %{blocked_on: :node} = state),
+    do: {:noreply, reconcile(%{state | blocked_on: nil})}
+
+  def handle_info({:remote_execution_room, _node}, state), do: {:noreply, state}
 
   def handle_info({:destroy, vm_id}, state) do
     case Map.get(state.vms, vm_id) do
