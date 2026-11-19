@@ -62,7 +62,7 @@ defmodule Tuist.Snapshots.Workers.CheckRunWorker do
           params
           |> Map.merge(%{
             name: check_name(build),
-            head_sha: build.git_commit_sha,
+            head_sha: check_head_sha(build, project),
             details_url: url,
             external_id: build.id
           })
@@ -84,6 +84,25 @@ defmodule Tuist.Snapshots.Workers.CheckRunWorker do
         error
     end
   end
+
+  # GitHub Actions runs a pull request on a merge commit (`refs/pull/N/merge`), and a check
+  # on that commit doesn't show on the pull request. Its second parent is the pull request's
+  # head, the commit the run was for.
+  defp check_head_sha(%Build{git_ref: "refs/pull/" <> _ = ref, git_commit_sha: sha}, project) do
+    with true <- String.ends_with?(ref, "/merge"),
+         {:ok, %{"parents" => [_base, %{"sha" => head} | _]}} <-
+           Client.get_git_commit(%{
+             repository_full_handle: project.vcs_connection.repository_full_handle,
+             installation: project.vcs_connection.github_app_installation,
+             sha: sha
+           }) do
+      head
+    else
+      _ -> sha
+    end
+  end
+
+  defp check_head_sha(build, _project), do: build.git_commit_sha
 
   @approve %{label: "Approve", description: "Approve these snapshot changes", identifier: @approve_action}
   @reject %{label: "Reject", description: "Reject these snapshot changes", identifier: @reject_action}

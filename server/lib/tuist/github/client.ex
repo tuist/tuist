@@ -361,6 +361,20 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
+  Fetches a Git commit object, whose `parents` list the commits it was made from.
+  """
+  def get_git_commit(%{repository_full_handle: repository_full_handle, installation: installation, sha: sha}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/git/commits/#{sha}"
+
+    github_request(&Req.get/1,
+      url: url,
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
+  @doc """
   Fetches a workflow run. The response carries `head_repository` (where the run's
   head commit lives) and `repository` (the base) — comparing them tells whether
   the run originates from a fork, which the runner dispatch uses to decide
