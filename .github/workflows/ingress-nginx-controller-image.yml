@@ -116,6 +116,9 @@ jobs:
           TAG: ${{ env.CONTROLLER_VERSION }}
           COMMIT_SHA: ${{ env.FORK_REF }}
           REPO_INFO: https://github.com/${{ env.FORK_REPOSITORY }}
+          # The fork is checked out inside the runner workspace, where the
+          # tuist repository's go.work would otherwise take over the build.
+          GOWORK: "off"
         # The script is marked #!/bin/sh but uses bash's `set -o pipefail`.
         run: bash build/build.sh
 
