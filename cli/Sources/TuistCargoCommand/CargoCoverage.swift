@@ -227,7 +227,7 @@ struct CargoCoverage {
 extension CargoCoverage {
     /// `tuist cargo coverage-complete [--commit <sha>]`: tells the server that every run gathering coverage for the
     /// commit has reported, as `tuist coverage complete` does, which the Linux CLI doesn't have. The commit defaults
-    /// to the checkout's, or the one the CI provider reports.
+    /// to the checkout's HEAD, the commit its runs measured.
     static func complete(arguments: [String], environment: [String: String], directory: AbsolutePath) async throws {
         let config = try? await ConfigLoader().loadCargoConfig(path: directory)
         guard let handle = environment["TUIST_PROJECT"] ?? config?.fullHandle else {
