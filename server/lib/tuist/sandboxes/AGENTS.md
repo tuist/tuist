@@ -133,7 +133,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   guarantee over the time since the previous report (at most 60 s) and the
   CPU its VM used (`cpu_ms`), as a `Tuist.Sandboxes.UsageEvent` row; the
   sandbox's `metered_cpu_ms`/`metered_at` hold the last reading and are
-  cleared with `guest_cpu_ms` on pause. `Analytics.compute/2` sums those rows
+  cleared with `guest_cpu_ms` on pause. A pause bills the time since the
+  last report from the `cpu_ms` the node returns with it; a pause the
+  server adopts from a report, or from an older daemon, leaves it unbilled. `Analytics.compute/2` sums those rows
   for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
   runs from before metering, up to their first metered report).
   `Concurrency` counts guarantees. The API's analytics report guaranteed

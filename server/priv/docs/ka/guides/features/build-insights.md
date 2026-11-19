@@ -2,47 +2,47 @@
 {
   "title": "ბილდის ანალიტიკა",
   "titleTemplate": ":title · ფუნქციები · სახელმძღვანელოები · Tuist",
-  "description": "აკონტროლეთ ბილდის წარმადობა Xcode, Gradle, Bazel, Elixir, Rust და Struo პროექტებში Tuist Build Insights-ით."
+  "description": "თვალყური ადევნეთ ბილდის წარმადობას Xcode, Gradle, Bazel, Elixir, Rust და Struo პროექტებში Tuist Build Insights-ით."
 }
 ---
-# ბილდის ანალიტიკა {#build-insights}
+# Build Insights {#build-insights}
 
-გამოიყენეთ ბილდის ანალიტიკა ლოკალური და CI ბილდების წარმადობის თვალთვალისთვის. ის ამჟამად მხარს უჭერს Xcode-ს, Gradle-ს, Bazel-ს, Elixir-ს, Rust-ს და Struo-ს. ნელი ბილდებისა და მზარდი CI ხარჯების ეტაპობრივი კვლევისთვის იხილეთ [ნელი ბილდები](https://tuist.dev/solutions/slow-builds) და [CI ხარჯები](https://tuist.dev/solutions/ci-costs).
+გამოიყენეთ Build Insights ლოკალური და CI ბილდების წარმადობის თვალთვალისთვის. ამჟამად ის მხარდაჭერილია Xcode, Gradle, Bazel, Elixir, Rust და Struo-სთვის. ნელი ბილდების დაზღვევისა და მზარდი CI ხარჯების საფეხურ-საფეხურად შესწავლისთვის, იხილეთ [ნელი ბილდები](https://tuist.dev/solutions/slow-builds) და [CI ხარჯები](https://tuist.dev/solutions/ci-costs).
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="აკონტროლეთ Xcode სქემის post-action დრო, ბილდის პარამეტრები და ბილდის მეტამონაცემები Tuist-ის დაშბორდზე."
+    details="თვალთვალეთ Xcode სქემის post-action დროები, ბილდის პარამეტრები და მეტამონაცემები Tuist დაშბორდში."
     link="/guides/features/build-insights/xcode"
 />
   <.home_card
     title="გენერირებული პროექტები"
-    details="აკონტროლეთ ბილდის ანალიტიკა Tuist-ის მიერ გენერირებულ პროექტებში მორგებული სქემებით."
+    details="თვალთვალეთ ბილდის ინსაიტები Tuist-ით გენერირებულ პროექტებში კუსტომი სქემებით."
     link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card
     title="Gradle"
-    details="აკონტროლეთ Gradle ამოცანების დრო და ქეშის ეფექტურობა Tuist Gradle პლაგინით."
+    details="თვალთვალეთ Gradle ტასკების დროები და ქეშის ეფექტურობა Tuist Gradle პლაგინით."
     link="/guides/features/build-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="აკონტროლეთ Bazel ბრძანებების ხანგრძლივობა, ქეშის ჯამები და კრიტიკული გზის დიაგნოსტიკა Build Event Protocol-ის საშუალებით."
+    details="თვალთვალეთ Bazel კომანდების ხანგრძლივობა, ქეშის ჯამები და კრიტიკული გზის დიაგნოსტიკა Build Event Protocol-ის მეშვეობით."
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="აკონტროლეთ, რამდენ ხანს კომპილირდება თქვენი Elixir პროექტი, მისი გაფრთხილებები და ფაილები, რომლებიც აფერხებენ ბილდს."
+    details="თვალთვალეთ, რამდენი დრო სჭირდება თქვენს Elixir პროექტს კომპილაციას, მის გაფრთხილებებს და ფაილებს, რომლებიც აფერხებენ ბილდს."
     link="/guides/features/build-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="აკონტროლეთ Cargo ბრძანებების ხანგრძლივობა, rustc-ის გამოძახებები და კომპილატორის დიაგნოსტიკა Tuist CLI-ით."
+    details="თვალთვალეთ Cargo კომანდის ხანგრძლივობა, დაკვირვებული rustc გამოძახებები და კომპილატორის დიაგნოსტიკა Tuist CLI-ით."
     link="/guides/features/build-insights/rust"
 />
   <.home_card
     title="Struo"
-    details="თვალყური ადევნეთ გაშვებებს რეალურ დროში და შეისწავლეთ გრაფის მოქმედებები, ხანგრძლივობა, შეცდომები და ქეშის გადაწყვეტილებები."
+    details="მიჰყევით გაშვებებს რეალურ დროში და შეისწავლეთ გრაფის მოქმედებები, ხანგრძლივობები, შეცდომები და ქეშის გადაწყვეტილებები."
     link="/guides/features/build-insights/struo"
 />
 </.home_cards>

@@ -80,7 +80,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                     .with(env_filter)
                     .with(fmt_layer)
                     .with(tracing_opentelemetry::layer().with_tracer(tracer))
-                    .with(sentry::integrations::tracing::layer())
+                    .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter))
                     .init();
             } else {
                 tracing_subscriber::registry()
@@ -107,7 +107,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                 tracing_subscriber::registry()
                     .with(env_filter)
                     .with(fmt_layer)
-                    .with(sentry::integrations::tracing::layer())
+                    .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter))
                     .init();
             } else {
                 tracing_subscriber::registry()
@@ -133,7 +133,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                 tracing_subscriber::registry()
                     .with(env_filter)
                     .with(fmt_layer)
-                    .with(sentry::integrations::tracing::layer())
+                    .with(sentry::integrations::tracing::layer().event_filter(sentry_event_filter))
                     .init();
             } else {
                 tracing_subscriber::registry()
@@ -206,6 +206,22 @@ pub fn record_trace_context(span: &Span) {
     if span_context.is_valid() {
         span.record("trace_id", field::display(span_context.trace_id()));
         span.record("span_id", field::display(span_context.span_id()));
+    }
+}
+
+// The OpenTelemetry SDK logs every failed export at ERROR (for example
+// `BatchSpanProcessor.ExportError`), which the default filter turns into one
+// Sentry event per dropped span batch: collector stalls became Kura's largest
+// error issue. Keep them as breadcrumbs. Export failures stay visible through
+// the throttled `kura.telemetry.http_export_failed` warning.
+fn sentry_event_filter(
+    metadata: &tracing::Metadata<'_>,
+) -> sentry::integrations::tracing::EventFilter {
+    if metadata.target().starts_with("opentelemetry") && *metadata.level() == tracing::Level::ERROR
+    {
+        sentry::integrations::tracing::EventFilter::Breadcrumb
+    } else {
+        sentry::integrations::tracing::default_event_filter(metadata)
     }
 }
 
@@ -1062,6 +1078,45 @@ mod tests {
         assert!(auth.contains("sentry_secret=pulse-secret"), "{auth}");
         assert_eq!(pulse_body, atlas_body);
         assert!(String::from_utf8_lossy(&atlas_body).contains("kura failed"));
+    }
+
+    #[test]
+    fn sentry_keeps_opentelemetry_export_errors_out_of_error_events() {
+        use sentry::integrations::tracing::EventFilter;
+        use tracing_subscriber::layer::SubscriberExt;
+
+        // EventFilter has no PartialEq; compare its bits.
+        struct Record(Arc<Mutex<Vec<(&'static str, u32)>>>);
+        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Record {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                let metadata = event.metadata();
+                self.0.lock().unwrap().push((
+                    metadata.target(),
+                    super::sentry_event_filter(metadata).bits(),
+                ));
+            }
+        }
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = tracing_subscriber::registry().with(Record(seen.clone()));
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::error!(target: "opentelemetry_sdk", "BatchSpanProcessor.ExportError");
+            tracing::error!(target: "opentelemetry_otlp", "export failed");
+            tracing::warn!(target: "opentelemetry_sdk", "queue full");
+            tracing::error!(target: "kura::store", "segment write failed");
+        });
+
+        let seen = seen.lock().unwrap();
+        let breadcrumb = EventFilter::Breadcrumb.bits();
+        assert_eq!(seen[0], ("opentelemetry_sdk", breadcrumb));
+        assert_eq!(seen[1], ("opentelemetry_otlp", breadcrumb));
+        assert_eq!(seen[2], ("opentelemetry_sdk", breadcrumb));
+        // Kura's own errors still reach Sentry as events.
+        assert_eq!(seen[3], ("kura::store", EventFilter::Event.bits()));
     }
 
     #[test]

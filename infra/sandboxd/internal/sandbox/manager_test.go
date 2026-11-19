@@ -1320,7 +1320,7 @@ func TestDeleteFailureRetainsInstanceAndReservationForRetry(t *testing.T) {
 	}
 }
 
-func TestListReportsCPUTimeOfRunningSandboxesOnly(t *testing.T) {
+func TestCPUTimeIsReportedWhileRunningAndAtPause(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 	h.create(t, testID, 1)
@@ -1329,8 +1329,13 @@ func TestListReportsCPUTimeOfRunningSandboxesOnly(t *testing.T) {
 	if got := h.m.List()[0].CPUMs; got != 1500 {
 		t.Fatalf("running cpu_ms = %d, want 1500", got)
 	}
-	if _, err := h.m.Pause(ctx, testID); err != nil {
+	h.launcher.Last().SetCPUTime(2500 * time.Millisecond)
+	res, err := h.m.Pause(ctx, testID)
+	if err != nil {
 		t.Fatalf("pause: %v", err)
+	}
+	if res.CPUMs != 2500 {
+		t.Fatalf("pause cpu_ms = %d, want 2500", res.CPUMs)
 	}
 	if got := h.m.List()[0].CPUMs; got != 0 {
 		t.Fatalf("paused cpu_ms = %d, want 0", got)

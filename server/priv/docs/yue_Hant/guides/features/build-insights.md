@@ -2,7 +2,7 @@
 {
   "title": "建構洞察",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "透過 Tuist Build Insights 追蹤 Xcode、Gradle、Bazel、Elixir、Rust 同 Struo 專案嘅建構效能。"
+  "description": "透過 Tuist Build Insights，追蹤 Xcode、Gradle、Bazel、Elixir、Rust 同 Struo 專案嘅建構效能。"
 }
 ---
 # 構建洞察 {#build-insights}
@@ -32,7 +32,7 @@
 />
   <.home_card
     title="Elixir"
-    details="追蹤你的 Elixir 項目編譯所需時間、警告以及拖慢構建的文件。"
+    details="追蹤你的 Elixir 項目編譯所需時間、警告以及阻礙構建的文件。"
     link="/guides/features/build-insights/elixir"
 />
   <.home_card
