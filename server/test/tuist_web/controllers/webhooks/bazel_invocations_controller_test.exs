@@ -6,7 +6,9 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
 
   alias Tuist.Bazel
   alias Tuist.Bazel.Invocation
+  alias Tuist.Bazel.InvocationStart
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -79,6 +81,27 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
                }
              ] = Bazel.running_invocations(project.id)
 
+      # Kura re-reports a running invocation every few minutes; a start it
+      # stopped reporting was cancelled or lost without finishing.
+      now = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(InvocationStart, [
+        %{
+          project_id: project.id,
+          invocation_id: "lost",
+          command: "build",
+          started_at: NaiveDateTime.add(now, -30, :minute),
+          inserted_at: NaiveDateTime.add(now, -11, :minute)
+        }
+      ])
+
+      assert ["running-1"] = Enum.map(Bazel.running_invocations(project.id), & &1.invocation_id)
+
+      assert %{"accepted" => 1} = post_events.([event.("lost", %{})])
+
+      assert ["lost", "running-1"] =
+               project.id |> Bazel.running_invocations() |> Enum.map(& &1.invocation_id) |> Enum.sort()
+
       assert %{"accepted" => 1} =
                post_events.([
                  event.("running-1", %{
@@ -88,7 +111,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
                  })
                ])
 
-      assert Bazel.running_invocations(project.id) == []
+      assert ["lost"] = Enum.map(Bazel.running_invocations(project.id), & &1.invocation_id)
     end
   end
 
