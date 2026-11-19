@@ -57,7 +57,8 @@ struct SandboxSync {
     let remote: SandboxRemote
     let commandRunner: CommandRunning
 
-    /// - Parameter destination: The repository's path in the sandbox. Defaults to `$HOME/work/<repository name>`.
+    /// - Parameter destination: The repository's path in the sandbox. Defaults to `$HOME/work/<repository name>`, the
+    ///   name in the `origin` remote's URL, else the worktree directory's.
     func sync(repository: AbsolutePath, destination: String?) async throws -> Result {
         let state = try AbsolutePath(
             validating: try await git(["rev-parse", "--path-format=absolute", "--git-path", "tuist-sync"], in: repository)
@@ -69,7 +70,13 @@ struct SandboxSync {
         try Self.serialize(entries).write(to: URL(fileURLWithPath: manifest.pathString))
         let id = try await git(["hash-object", "--no-filters", manifest.pathString], in: repository)
 
-        let destination = destination ?? "$HOME/work/\(repository.basename)"
+        let destination: String
+        if let given = destination {
+            destination = given
+        } else {
+            let origin = try? await git(["remote", "get-url", "origin"], in: repository)
+            destination = "$HOME/work/\(origin.flatMap(Self.repositoryName(fromRemoteURL:)) ?? repository.basename)"
+        }
         var result = try await apply(entries, id: id, manifests: manifests, repository: repository, destination: destination)
         if result == nil {
             // The sandbox's copy moved since the probe, such as through a sync from elsewhere: send everything.
@@ -102,6 +109,34 @@ struct SandboxSync {
             environment: ProcessInfo.processInfo.environment.merging(environment) { $1 }
         ).concatenatedString(including: [.standardOutput])
         return Self.entries(fromIndexListing: listing)
+    }
+
+    /// Saves the manifest of `commit` under `id` when this machine has no manifest of that id and the commit's files hash
+    /// to it. A sandbox booted from a repository snapshot holds a clean checkout of `commit` that no sync sent, so the
+    /// first sync then sends only the files that differ from it, leaving the others, and the modification times Xcode
+    /// compares, alone. Anything that does not match, such as a commit this clone lacks, leaves the full sync.
+    private func recordCommitManifest(_ commit: String, id: String, manifests: AbsolutePath, repository: AbsolutePath) async {
+        let manifest = manifests.appending(component: id)
+        guard !FileManager.default.fileExists(atPath: manifest.pathString),
+              [40, 64].contains(commit.count), commit.allSatisfy(\.isHexDigit)
+        else { return }
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("tuist-sandbox-sync-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        do {
+            try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+            let environment = ["GIT_INDEX_FILE": scratch.appendingPathComponent("index").path]
+            _ = try await git(["read-tree", commit], in: repository, environment: environment)
+            let listing = try await commandRunner.run(
+                arguments: ["git", "-C", repository.pathString, "ls-files", "-s", "-z"],
+                environment: ProcessInfo.processInfo.environment.merging(environment) { $1 }
+            ).concatenatedString(including: [.standardOutput])
+            let candidate = scratch.appendingPathComponent("manifest")
+            try Self.serialize(Self.entries(fromIndexListing: listing)).write(to: candidate)
+            guard try await git(["hash-object", "--no-filters", candidate.path], in: repository) == id else { return }
+            try FileManager.default.moveItem(atPath: candidate.path, toPath: manifest.pathString)
+        } catch {
+            return
+        }
     }
 
     /// Runs one command in the sandbox that reports which worktree its copy holds and then waits on its stdin for what
@@ -139,9 +174,12 @@ struct SandboxSync {
         }
         do {
             var iterator = probes.makeAsyncIterator()
-            guard let probe = await iterator.next(), case let (root, remoteID)? = Self.probe(probe) else {
+            guard let probe = await iterator.next(), case let (root, remoteID, remoteCommit)? = Self.probe(probe) else {
                 let captured = try await output.value
                 throw SandboxCommandError.stepFailed("Preparing \(destination) in the sandbox", captured.stdout + captured.stderr)
+            }
+            if let manifests, let remoteID, let remoteCommit {
+                await recordCommitManifest(remoteCommit, id: remoteID, manifests: manifests, repository: repository)
             }
             if remoteID == id {
                 try await remote.writeStdin(command.id, at: 0, Data("skip\n".utf8))
@@ -349,14 +387,32 @@ struct SandboxSync {
         return shards
     }
 
-    /// Parses the probe's `root <path>` and `id <id>` lines.
-    static func probe(_ stdout: String) -> (root: String, id: String?)? {
+    /// The repository's name in a remote URL, such as `app` in `https://github.com/acme/app.git` or `git@github.com:acme/app`:
+    /// its last path component without `.git`. A repository snapshot clones there, so every checkout of the repository
+    /// syncs to the same path in the sandbox whatever its local directory is called, and Xcode's DerivedData, which is
+    /// keyed by the workspace's path, carries over. Nil when the URL names nothing usable as a directory.
+    static func repositoryName(fromRemoteURL url: String) -> String? {
+        var name = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        while name.hasSuffix("/") { name.removeLast() }
+        name = String(name.split(whereSeparator: { $0 == "/" || $0 == ":" }).last ?? "")
+        if name.hasSuffix(".git") { name.removeLast(4) }
+        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+        guard !name.isEmpty, name != ".", name != "..", name.allSatisfy(allowed.contains) else { return nil }
+        return name
+    }
+
+    /// Parses the probe's `root <path>` and `id <id>` lines, and the optional `commit <sha>` line of a copy a repository
+    /// snapshot prepared.
+    static func probe(_ stdout: String) -> (root: String, id: String?, commit: String?)? {
         let lines = stdout.split(separator: "\n").map(String.init)
         guard let root = lines.first(where: { $0.hasPrefix("root ") })?.dropFirst(5),
               let id = lines.first(where: { $0.hasPrefix("id ") || $0 == "id" })
         else { return nil }
-        let value = id.dropFirst(3).trimmingCharacters(in: .whitespaces)
-        return (String(root), value.isEmpty ? nil : value)
+        func value(_ line: String?, _ prefix: Int) -> String? {
+            let value = line.map { $0.dropFirst(prefix).trimmingCharacters(in: .whitespaces) } ?? ""
+            return value.isEmpty ? nil : value
+        }
+        return (String(root), value(id, 3), value(lines.first(where: { $0.hasPrefix("commit ") }), 7))
     }
 
     private static func check(_ captured: SandboxRemote.Captured) throws {
@@ -450,7 +506,10 @@ extension SandboxSync {
     ' "$state/paths"); then
       probed=
     fi
-    printf 'root %s\nid %s\nprobed\n' "$root" "$probed"
+    # A repository snapshot's build records the commit its clean checkout holds, which this machine can list.
+    commit=
+    if [ -n "$probed" ]; then commit=$(cat "$state/commit" 2> /dev/null || true); fi
+    printf 'root %s\nid %s\ncommit %s\nprobed\n' "$root" "$probed" "$commit"
     IFS=' ' read -r action kind url || true
     case "$action" in inline | url | shards) ;; *) exit 0 ;; esac
     work=$(mktemp -d "${TMPDIR:-/tmp}/tuist-sync.XXXXXX")
@@ -517,6 +576,7 @@ extension SandboxSync {
     done
     for shard in $shards; do wait "$shard"; done
     mv "$work/paths" "$state/paths"
+    rm -f "$state/commit"
     printf '%s' "$TUIST_ID" > "$state/id"
     """#
 }

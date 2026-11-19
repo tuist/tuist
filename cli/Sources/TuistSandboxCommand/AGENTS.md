@@ -39,7 +39,10 @@
   `COPYFILE_DISABLE=1` and place it with a rename from a scratch directory next
   to the destination.
 - `sync` (`SandboxSync`) mirrors the worktree's non-ignored files one way, file
-  by file, like Amp's Mac satellites; the sandbox needs no Git or repository
+  by file, like Amp's Mac satellites, to `$HOME/work/<name>` by default, where
+  `<name>` comes from the `origin` remote's URL (else the directory's): a
+  Claude Code macOS repository snapshot clones there, and Xcode keys
+  DerivedData by that path; the sandbox needs no Git or repository
   access. Git only lists and hashes files locally, through a scratch index under
   `<git-dir>/tuist-sync` so the user's staging area is untouched. Each sync's
   manifest is saved there by its hash, and the sandbox records the hash it holds

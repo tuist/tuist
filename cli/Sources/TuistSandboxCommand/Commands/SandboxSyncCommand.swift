@@ -19,7 +19,10 @@ public struct SandboxSyncCommand: AsyncParsableCommand, NooraReadyCommand {
     @OptionGroup var sandbox: SandboxID
     @OptionGroup var options: SandboxOptions
 
-    @Option(name: .long, help: "The repository's path in the sandbox. Defaults to $HOME/work/<repository name>.")
+    @Option(
+        name: .long,
+        help: "The repository's path in the sandbox. Defaults to $HOME/work/<repository name>, the name in the origin remote's URL, else the directory's."
+    )
     var to: String?
 
     public var jsonThroughNoora: Bool { true }
