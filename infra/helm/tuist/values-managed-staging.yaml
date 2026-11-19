@@ -1206,3 +1206,18 @@ sentryPulse:
   xcresultProcessor:
     enabled: true
     url: https://staging.tuist.dev/api/accounts/tuist/pulse/sentry/server/1
+
+# Short-lived Tigris keys for the platform bucket (templates/s3-key-rotator.yaml).
+# Staging is where this is proven first. The admin key comes from the
+# S3_ROTATOR_ADMIN 1Password item: the `tuist-staging-s3-rotator` Tigris key,
+# Editor on tuist-stag-storage and tuist-xcode-cache-staging only (no admin).
+# Enable once the rotator image is published (set image.tag), then turn on
+# useInWorkloads after the first run has created the Secret.
+s3KeyRotation:
+  enabled: false
+  useInWorkloads: false
+  keyPrefix: tuist-staging-platform-
+  adminCredentials:
+    externalSecret:
+      enabled: true
+      item: S3_ROTATOR_ADMIN

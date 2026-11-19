@@ -4527,6 +4527,50 @@ redis:
     networkPolicy:
       enabled: true
 
+# Short-lived platform storage keys for Tigris, which has no STS: a CronJob
+# mints a bucket-scoped key with an organization admin key, stores it in a
+# Secret, and deletes each replaced key after `retention`. See
+# templates/s3-key-rotator.yaml and infra/s3-key-rotator. Managed clusters only.
+s3KeyRotation:
+  enabled: false
+  # Mount the rotated key into the server and processor instead of the static
+  # key. Set only after the CronJob has created the Secret.
+  useInWorkloads: false
+  image:
+    repository: ghcr.io/tuist/tuist-s3-key-rotator
+    tag: ""
+  schedule: "*/30 * * * *"
+  # Keys older than this are replaced. Must be longer than retention.
+  interval: 24h
+  # How long a replaced key keeps working: it must outlast the longest
+  # operation started on it and the longest presigned URL it signed (12 hours).
+  # The rotator refuses less than 12h15m.
+  retention: 13h
+  # Every Tigris key whose name starts with this belongs to this rotation, and
+  # the rotator deletes the ones it is not using. Unique per environment.
+  keyPrefix: ""
+  # Defaults to the platform bucket plus cache.s3.bucket and
+  # cache.s3.xcodeCacheBucket, every bucket the server uses the platform key on.
+  buckets: []
+  bucketRole: ReadWrite
+  # The default of Tigris's own IAM SDK.
+  iamEndpoint: https://iam.storageapi.dev
+  adminCredentials:
+    # Existing Secret with the admin key's access_key_id and secret_access_key.
+    secretName: ""
+    externalSecret:
+      enabled: false
+      item: ""
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
 objectStorage:
   mode: embedded
   external:

@@ -66,8 +66,11 @@ spec:
         - name: server
           image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled .Values.server.symptoms.enabled }}
+          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled .Values.server.symptoms.enabled (include "tuist.s3KeyRotationInWorkloads" .) }}
           volumeMounts:
+            {{- if include "tuist.s3KeyRotationInWorkloads" . }}
+            {{- include "tuist.s3KeyRotationVolumeMount" . | nindent 12 }}
+            {{- end }}
             {{- if .Values.server.symptoms.enabled }}
             - name: tuist-symptoms-api
               mountPath: /var/run/secrets/tuist-symptoms-api
@@ -145,8 +148,11 @@ spec:
                 command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled .Values.server.symptoms.enabled }}
+      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled .Values.server.symptoms.enabled (include "tuist.s3KeyRotationInWorkloads" .) }}
       volumes:
+        {{- if include "tuist.s3KeyRotationInWorkloads" . }}
+        {{- include "tuist.s3KeyRotationVolume" . | nindent 8 }}
+        {{- end }}
         {{- if .Values.server.symptoms.enabled }}
         - name: tuist-symptoms-api
           projected:

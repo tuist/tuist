@@ -35,6 +35,7 @@ use (
 	./infra/runner-cache
 	./infra/runner-image
 	./infra/runners-controller
+	./infra/s3-key-rotator
 	./infra/sandbox-image
 	./infra/sandboxd
 	./infra/stable-egress-controller

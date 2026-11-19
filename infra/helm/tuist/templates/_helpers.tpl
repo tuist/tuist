@@ -475,6 +475,47 @@ Call with the component's `s3` values:
 {{- end -}}
 {{- end -}}
 
+{{/*
+Rotated platform storage key (`s3KeyRotation`, templates/s3-key-rotator.yaml).
+`tuist.s3KeyRotationInWorkloads` is "true" when the server and processor read
+that key from a mounted Secret instead of environment variables; use it to
+drop their static key env and add the env, volume mount and volume below.
+*/}}
+{{- define "tuist.s3KeyRotationSecretName" -}}
+{{ include "tuist.componentName" (dict "root" . "component" "s3-rotated-key") }}
+{{- end -}}
+
+{{- define "tuist.s3KeyRotationAdminSecretName" -}}
+{{- .Values.s3KeyRotation.adminCredentials.secretName | default (include "tuist.componentName" (dict "root" . "component" "s3-key-rotator-admin")) -}}
+{{- end -}}
+
+{{- define "tuist.s3KeyRotationInWorkloads" -}}
+{{- if and .Values.s3KeyRotation.enabled .Values.s3KeyRotation.useInWorkloads -}}true{{- end -}}
+{{- end -}}
+
+{{- define "tuist.s3KeyRotationEnv" -}}
+- name: TUIST_S3_AUTHENTICATION_METHOD
+  value: credential_files
+- name: TUIST_S3_CREDENTIALS_DIR
+  value: /var/run/tuist/s3-credentials
+{{- end -}}
+
+{{- define "tuist.s3KeyRotationVolumeMount" -}}
+- name: s3-credentials
+  mountPath: /var/run/tuist/s3-credentials
+  readOnly: true
+{{- end -}}
+
+{{/*
+Mounted as a Secret volume, never subPath: kubelet updates a Secret volume's
+files in place, which is how pods switch keys without restarting.
+*/}}
+{{- define "tuist.s3KeyRotationVolume" -}}
+- name: s3-credentials
+  secret:
+    secretName: {{ include "tuist.s3KeyRotationSecretName" . }}
+{{- end -}}
+
 {{- define "tuist.serverObjectStorageEnv" -}}
 - name: TUIST_OBJECT_STORAGE_PROVIDER
   value: {{ .Values.server.storage.provider | quote }}

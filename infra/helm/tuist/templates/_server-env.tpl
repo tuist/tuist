@@ -448,7 +448,9 @@ environment.
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST
               value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
-            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            {{- if include "tuist.s3KeyRotationInWorkloads" . }}
+            {{- include "tuist.s3KeyRotationEnv" . | nindent 12 }}
+            {{- else if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:

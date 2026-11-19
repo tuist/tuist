@@ -1,0 +1,178 @@
+{{- if .Values.s3KeyRotation.enabled }}
+{{- /*
+Rotates the platform storage key the server and processor use. (The
+migration job never touches storage and gets no key on managed clusters.)
+
+A CronJob (infra/s3-key-rotator) mints a short-lived, bucket-scoped Tigris key
+with an organization admin key, writes it to the Secret below, and deletes a
+replaced key only once nothing can still be using it. Workloads mount that Secret as files
+(`s3KeyRotation.useInWorkloads`) and pick up each new key without restarting
+(TuistCommon.AWS.CredentialFiles).
+
+Rollout: enable this first and let one run create the Secret (or trigger it
+with `kubectl create job --from=cronjob/...`; a run started by hand can
+overlap a scheduled one, which the rotator tolerates), then set useInWorkloads. Pods
+mounting a Secret that does not exist yet would not start.
+
+The admin key is the one long-lived credential left, held only by this
+CronJob. The 1Password key in object-storage-external-secrets stays in place for
+the workloads that cannot reload a key (ClickHouse and CNPG backups, the
+registry cache).
+*/ -}}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "s3-key-rotator") }}
+{{- $secretName := include "tuist.s3KeyRotationSecretName" . }}
+{{- $adminSecretName := include "tuist.s3KeyRotationAdminSecretName" . }}
+{{- $rotation := .Values.s3KeyRotation }}
+{{- if not $rotation.keyPrefix }}
+{{- fail "s3KeyRotation.keyPrefix is required: the rotator deletes every Tigris key named with it, so it must be unique to this environment." }}
+{{- end }}
+{{- if not $rotation.image.tag }}
+{{- fail "s3KeyRotation.image.tag is required." }}
+{{- end }}
+{{- if not (or $rotation.adminCredentials.secretName $rotation.adminCredentials.externalSecret.enabled) }}
+{{- fail "s3KeyRotation needs the admin key: set adminCredentials.secretName or enable adminCredentials.externalSecret." }}
+{{- end }}
+{{- /*
+Every bucket the server and processor reach with the platform key: the
+platform bucket and the cache buckets the server's retention workers sweep.
+*/ -}}
+{{- $buckets := $rotation.buckets | default (list (include "tuist.objectStorageBucketDefault" .) .Values.cache.s3.bucket .Values.cache.s3.xcodeCacheBucket) | compact | uniq }}
+{{- $roles := list }}
+{{- range $buckets }}
+{{- $roles = append $roles (dict "bucket" . "role" $rotation.bucketRole) }}
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-key-rotator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-key-rotator
+rules:
+  # Read and replace only the rotated Secret. `create` cannot be limited by
+  # name; it is needed once, for the first key.
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: [get, update]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-key-rotator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- if $rotation.adminCredentials.externalSecret.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $adminSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-key-rotator
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: {{ $rotation.adminCredentials.externalSecret.storeRef.name }}
+    kind: {{ $rotation.adminCredentials.externalSecret.storeRef.kind }}
+  target:
+    name: {{ $adminSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        access_key_id: "{{ `{{ .access_key_id | trim }}` }}"
+        secret_access_key: "{{ `{{ .secret_access_key | trim }}` }}"
+  data:
+    - secretKey: access_key_id
+      remoteRef:
+        key: "{{ required "s3KeyRotation.adminCredentials.externalSecret.item is required" $rotation.adminCredentials.externalSecret.item }}/access_key_id"
+    - secretKey: secret_access_key
+      remoteRef:
+        key: "{{ $rotation.adminCredentials.externalSecret.item }}/secret_access_key"
+{{- end }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: s3-key-rotator
+spec:
+  schedule: {{ $rotation.schedule | quote }}
+  # One scheduled run at a time. Runs started by hand can still overlap; the
+  # rotator never deletes a key minted within interval + retention, so a
+  # concurrent run's new key is safe.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            {{- include "tuist.componentLabels" (dict "root" . "component" "s3-key-rotator") | nindent 12 }}
+        spec:
+          serviceAccountName: {{ $name }}
+          restartPolicy: Never
+          securityContext:
+            # The image's user is the name `nonroot`; kubelet can only check
+            # runAsNonRoot against a numeric user.
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: rotator
+              image: "{{ $rotation.image.repository }}:{{ $rotation.image.tag }}"
+              args:
+                - --namespace={{ .Release.Namespace }}
+                - --secret={{ $secretName }}
+                - --key-prefix={{ $rotation.keyPrefix }}
+                - {{ printf "--bucket-roles=%s" (toJson $roles) | quote }}
+                - --interval={{ $rotation.interval }}
+                - --retention={{ $rotation.retention }}
+                - --iam-endpoint={{ $rotation.iamEndpoint }}
+                - --s3-endpoint={{ include "tuist.objectStorageEndpoint" . }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: admin-credentials
+                  mountPath: /var/run/tigris-admin
+                  readOnly: true
+              resources:
+                {{- toYaml $rotation.resources | nindent 16 }}
+          volumes:
+            - name: admin-credentials
+              secret:
+                secretName: {{ $adminSecretName }}
+{{- end }}
