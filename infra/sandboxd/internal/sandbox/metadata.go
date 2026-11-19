@@ -29,6 +29,9 @@ type Metadata struct {
 	Slot        int    `json:"slot"`
 	Generation  int    `json:"generation"`
 	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	// CPUGuaranteeMilli weighs the VM's cgroup; zero, as in metadata from
+	// before guarantees, is protocol.DefaultCPUGuaranteeMilli.
+	CPUGuaranteeMilli uint64 `json:"cpu_guarantee_milli,omitempty"`
 	// FirecrackerVersion wrote the memory image beside the disks; another
 	// version cannot load it, so recovery turns a mismatch into a cold boot.
 	FirecrackerVersion string `json:"firecracker_version,omitempty"`

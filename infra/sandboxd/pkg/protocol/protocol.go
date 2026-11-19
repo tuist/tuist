@@ -77,11 +77,16 @@ type Capacity struct {
 // Elastic describes how far the server may resize the daemon's Pod: from
 // the floor the chart requests up to the ceiling, in place, through the
 // Pod's resize subresource. A zero ceiling, or one not above the floor,
-// keeps the memory limit fixed.
+// keeps the memory limit fixed. The CPU request moves the same way, in
+// millicores, with no CPU limit: the server raises it to what the node's
+// running sandboxes are guaranteed, so guests keep that much of the shared
+// CPU pool and burst into the rest.
 type Elastic struct {
 	PodName            string `json:"pod_name,omitempty"`
 	MemoryFloorBytes   uint64 `json:"memory_floor_bytes,omitempty"`
 	MemoryCeilingBytes uint64 `json:"memory_ceiling_bytes,omitempty"`
+	CPUFloorMilli      uint64 `json:"cpu_floor_milli,omitempty"`
+	CPUCeilingMilli    uint64 `json:"cpu_ceiling_milli,omitempty"`
 }
 
 type ReclaimArgs struct {
@@ -204,6 +209,10 @@ type Hello struct {
 	// LazyDisks: the daemon restores archives written with lazy disks
 	// (ArchiveArgs.LazyDisks), serving their disks by range.
 	LazyDisks bool `json:"lazy_disks,omitempty"`
+	// CPUGuarantees: each VM runs in its own cgroup whose CPU weight is
+	// its CreateArgs.CPUGuaranteeMilli, so a sandbox keeps its guaranteed
+	// share against the node's other sandboxes, not only against other Pods.
+	CPUGuarantees bool `json:"cpu_guarantees,omitempty"`
 	// Archives: a macOS host archives its evicted sandboxes' disks (OpArchive)
 	// and creates sandboxes from such archives. Linux daemons always do.
 	Archives bool `json:"archives,omitempty"`
@@ -267,6 +276,10 @@ type Command struct {
 	Args json.RawMessage `json:"args"`
 }
 
+// DefaultCPUGuaranteeMilli is the guarantee of a sandbox created without
+// one: a quarter core.
+const DefaultCPUGuaranteeMilli = 250
+
 type CreateArgs struct {
 	// A leased execution request must never create a VM after its owner expired.
 	// Zero preserves the persistent agent-session protocol.
@@ -278,6 +291,10 @@ type CreateArgs struct {
 	MemoryMB      int    `json:"memory_mb"`
 	WorkspaceGB   int    `json:"workspace_gb"`
 	Hostname      string `json:"hostname"`
+	// CPUGuaranteeMilli is the CPU, in millicores, the sandbox is guaranteed
+	// while it runs: its VM's cgroup weight against the node's other VMs.
+	// Zero is DefaultCPUGuaranteeMilli. It holds for the sandbox's life.
+	CPUGuaranteeMilli uint64 `json:"cpu_guarantee_milli,omitempty"`
 	// FromDiskSnapshot names a saved disk snapshot to clone instead of the
 	// template's disks. The sandbox cold boots on the clones.
 	FromDiskSnapshot string `json:"from_disk_snapshot,omitempty"`

@@ -468,7 +468,8 @@ Node to server:
 ```
 {"type":"hello","node":"...","daemon_version":"...","firecracker_version":"...",
  "capacity":{"memory_bytes":N,"cpus":N},
- "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N},
+ "elastic":{"pod_name":"...","memory_floor_bytes":N,"memory_ceiling_bytes":N,
+            "cpu_floor_milli":N,"cpu_ceiling_milli":N},
  "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true,"rootfs_bytes":N}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
@@ -738,6 +739,8 @@ agent so the manager runs end to end without KVM).
 | `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
+| `CPU_FLOOR_MILLI`, `CPU_CEILING_MILLI` | `0`, `0` | The CPU request the Pod starts at and the most the server may raise it to, in millicores, reported in `hello.elastic`. There is no CPU limit either way. A ceiling not above the floor keeps the request fixed. |
+| `VM_CGROUPS` | `true` | Run each VM in its own cgroup v2 child of the container's, weighted by its `create.cpu_guarantee_milli` (default 250), with the daemon in a `sandboxd` leaf weighted by `CPU_FLOOR_MILLI`; hello then sets `cpu_guarantees`. If the cpu controller is unavailable the daemon logs it and every VM shares its cgroup as before. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. Shapes built with another size are removed at startup and rebuilt. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
