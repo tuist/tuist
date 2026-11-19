@@ -2390,6 +2390,19 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  The most the server raises a Linux sandbox daemon's CPU request to, in
+  millicores (chart `sandboxes.maxCpu`). It wins over the ceiling the daemon
+  reports, so raising it needs no daemon restart. Unset falls back to the
+  daemon's.
+  """
+  def sandbox_cpu_ceiling_milli do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_CPU_CEILING_MILLI", "")) do
+      {milli, ""} when milli > 0 -> milli
+      _ -> nil
+    end
+  end
+
+  @doc """
   Hours an Amp Orb stays paused on its node before its disks are archived
   to object storage and the node copy is deleted
   (`Tuist.Sandboxes.Archives`). Unset or `0` keeps paused Orbs on their

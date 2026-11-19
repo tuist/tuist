@@ -2434,13 +2434,16 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  # Held at the `cpu` floor while exclusive runner CPUs are re-rolled out:
-  # the daemon's CPU request stays fixed, so CI seats and the shared pool
-  # are unchanged. Guests still burst and are weighted and billed per VM,
-  # but guarantees aren't held against runners, and the server refuses
-  # picked guarantees here. Raise it (the chart default is 24) once
-  # exclusive CPUs are settled.
-  maxCpu: "250m"
+  # Below the chart's 24 while guarantees first take CPU from CI: the
+  # daemon's request grows to the floor plus its sandboxes' guarantees, into
+  # free CPU and idle warm runners' CPU (which the runners-controller
+  # retires, never one with a job), at most 8 cores per node. Raise it
+  # toward 24 once runner retirements for sandboxes and runner queue age
+  # stay acceptable.
+  maxCpu: "8"
+  # What the daemons were started with, so raising maxCpu (read by the
+  # server) restarts none of them.
+  daemonMaxCpu: "250m"
   # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
   # (about 38 GiB each) per node. The nodes have about 830 GiB.
   diskGiB: 240

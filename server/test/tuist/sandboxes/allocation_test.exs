@@ -293,6 +293,25 @@ defmodule Tuist.Sandboxes.AllocationTest do
       assert {:ok, 3000} = Capacity.sync_cpu(node)
     end
 
+    test "the server's ceiling wins over the daemon's", %{cpu_node: node} do
+      Repo.delete!(Repo.get!(SandboxNode, node.name))
+      # 250m floor + four 4 GiB sandboxes' 1000m each is 4250m.
+      for _ <- 1..4, do: sandbox_fixture(node_name: node.name, state: :running)
+
+      # A daemon whose reported ceiling is its floor holds its request...
+      fixed = put_in(node, [:elastic, :cpu_ceiling_milli], 250)
+      refute Capacity.cpu_elastic?(fixed)
+      assert :unchanged = Capacity.sync_cpu(fixed)
+
+      # ...until the server's ceiling raises it, with no daemon restart.
+      stub(Environment, :sandbox_cpu_ceiling_milli, fn -> 3000 end)
+      assert Capacity.cpu_elastic?(fixed)
+      assert {:ok, 3000} = Capacity.sync_cpu(fixed)
+
+      # It caps a daemon reporting a higher one too.
+      assert {:ok, 3000} = Capacity.sync_cpu(node)
+    end
+
     test "a guarantee goes only where the node holds it and has the CPU for it", %{cpu_node: node} do
       # 4096 MB is guaranteed a quarter vCPU per GiB, 1000m.
       default = sandbox_fixture(node_name: nil, state: :creating)

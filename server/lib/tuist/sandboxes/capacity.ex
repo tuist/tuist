@@ -1506,13 +1506,25 @@ defmodule Tuist.Sandboxes.Capacity do
 
   @doc """
   Whether the node's daemon CPU request can be resized: its daemon names its
-  Pod and reports a CPU ceiling above its floor.
+  Pod and reports a CPU floor, and the CPU ceiling (the server's, else the
+  one the daemon reports) is above it.
   """
-  def cpu_elastic?(%{elastic: %{pod_name: pod_name, cpu_floor_milli: floor, cpu_ceiling_milli: ceiling}})
-      when is_binary(pod_name) and pod_name != "" and is_integer(floor) and floor > 0 and is_integer(ceiling) and
-             ceiling > floor, do: true
+  def cpu_elastic?(%{elastic: %{pod_name: pod_name, cpu_floor_milli: floor}} = node)
+      when is_binary(pod_name) and pod_name != "" and is_integer(floor) and floor > 0 do
+    case cpu_ceiling_milli(node) do
+      ceiling when is_integer(ceiling) -> ceiling > floor
+      nil -> false
+    end
+  end
 
   def cpu_elastic?(_node), do: false
+
+  # The server's own ceiling (`Environment.sandbox_cpu_ceiling_milli/0`,
+  # from the chart) wins over the one the daemon reports, so raising it rolls
+  # only the server: a daemon restart pauses every sandbox on its node.
+  defp cpu_ceiling_milli(%{elastic: elastic}) do
+    Environment.sandbox_cpu_ceiling_milli() || Map.get(elastic, :cpu_ceiling_milli)
+  end
 
   @doc "Moves every connected node's daemon CPU request to its sandboxes' guarantee (`sync_cpu/1`)."
   def sync_cpus do
@@ -1589,8 +1601,8 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp desired_cpu_milli(%{name: node_name, elastic: %{cpu_floor_milli: floor, cpu_ceiling_milli: ceiling}}) do
-    min(floor + guaranteed_cpu_milli(node_name), ceiling)
+  defp desired_cpu_milli(%{name: node_name, elastic: %{cpu_floor_milli: floor}} = node) do
+    min(floor + guaranteed_cpu_milli(node_name), cpu_ceiling_milli(node))
   end
 
   defp guaranteed_cpu_milli(node_name) do
@@ -1628,7 +1640,7 @@ defmodule Tuist.Sandboxes.Capacity do
       Map.get(node, :cpu_guarantees) == true and cpu_elastic?(node) ->
         guarantee = Sandbox.guaranteed_cpu_milli(sandbox)
 
-        node.elastic.cpu_floor_milli + guaranteed_cpu_milli(node.name) + guarantee <= node.elastic.cpu_ceiling_milli and
+        node.elastic.cpu_floor_milli + guaranteed_cpu_milli(node.name) + guarantee <= cpu_ceiling_milli(node) and
           case cpu_room(Repo.get(SandboxNode, node.name), node) do
             :unbounded -> true
             :unreported -> not Sandbox.picked_guarantee?(sandbox)
