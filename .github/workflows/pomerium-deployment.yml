@@ -98,7 +98,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha,scope=kube-impersonator
-          cache-to: type=gha,mode=max,scope=kube-impersonator
+          cache-to: type=gha,mode=max,scope=kube-impersonator,ignore-error=true
 
   deploy:
     name: Pomerium (${{ matrix.environment }})
