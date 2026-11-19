@@ -1,5 +1,7 @@
 import Config
 
+alias TuistCommon.AWS.CredentialFiles
+
 if config_env() == :dev do
   cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
   server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
@@ -119,6 +121,11 @@ if config_env() == :prod do
 
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
+  # A key mounted as files (a Kubernetes Secret volume) is re-read every 30
+  # seconds, so rotating it needs no restart. It takes precedence over the
+  # variables so a deployment can switch while they are still set.
+  s3_credentials_dir = System.get_env("S3_CREDENTIALS_DIR")
+
   # CACHE_TOKEN_PUBLIC_KEY verifies the server's ES256 cache tokens and cannot
   # mint anything. GUARDIAN_SECRET_KEY is the server's own HS512 token key, kept
   # only until every node holds the public key and the server signs with ES256.
@@ -189,6 +196,13 @@ if config_env() == :prod do
     http_client: TuistCommon.AWS.Client
 
   cond do
+    s3_credentials_dir not in [nil, ""] ->
+      config :ex_aws,
+             [
+               access_key_id: CredentialFiles.credential("s3"),
+               secret_access_key: CredentialFiles.credential("s3")
+             ] ++ CredentialFiles.ex_aws_config(%{"s3" => %{credentials_dir: s3_credentials_dir}})
+
     s3_access_key_id && s3_secret_access_key ->
       config :ex_aws,
         access_key_id: s3_access_key_id,
