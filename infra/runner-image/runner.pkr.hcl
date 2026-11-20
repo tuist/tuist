@@ -845,7 +845,8 @@ build {
       "rm -f /tmp/agent-guide.sh",
       "sudo -u runner -H /bin/zsh -lc '/opt/tuist/agent-guide.sh write /tmp/agent-guide.md'",
       "sudo install -m 0644 -o root -g wheel /tmp/agent-guide.md /opt/tuist/agent-guide.md",
-      "rm -f /tmp/agent-guide.md",
+      # runner wrote it, and /tmp is sticky, so admin cannot remove it unprivileged.
+      "sudo rm -f /tmp/agent-guide.md",
       "sudo -u runner -H /opt/tuist/agent-guide.sh link /Users/runner",
       "grep -q '^- Xcode ' /opt/tuist/agent-guide.md || { echo 'agent guide lists no Xcode' >&2; exit 1; }",
       "grep -q 'Tuist ${var.tuist_version} is installed' /opt/tuist/agent-guide.md || { echo 'agent guide names the wrong Tuist' >&2; exit 1; }",
