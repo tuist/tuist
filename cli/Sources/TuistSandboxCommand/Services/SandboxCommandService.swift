@@ -5,6 +5,7 @@ import Path
 import TuistConfigLoader
 import TuistEnvironment
 import TuistHTTP
+import TuistNooraExtension
 import TuistProcess
 import TuistServer
 
@@ -37,7 +38,7 @@ enum SandboxCommandError: LocalizedError, Equatable {
 
 /// Runs `tuist sandbox` subcommands against the sandbox API, which shares its contract with the MCP sandbox tools
 /// (`server/lib/tuist/sandboxes/query.ex`).
-struct SandboxCommandService {
+struct SandboxCommandService { // swiftlint:disable:this type_body_length
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let fullHandleService: FullHandleServicing
@@ -92,7 +93,7 @@ struct SandboxCommandService {
             return
         }
         try await Noora.current.paginatedTable(
-            headers: ["ID", "Status", "Platform", "vCPUs", "Memory", "Last active"],
+            headers: ["ID", "Status", "Platform", "vCPUs", "Memory", "Last active", "Expires"],
             pageSize: pageSize,
             totalPages: response.pagination_metadata.total_pages,
             startPage: page - 1,
@@ -132,7 +133,8 @@ struct SandboxCommandService {
         vcpus: Int?,
         memoryGB: Int?,
         workspaceGB: Int?,
-        guaranteedVCPUs: Double? = nil
+        guaranteedVCPUs: Double? = nil,
+        lifetimeMinutes: Int? = nil
     ) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
         // The server waits up to 25 seconds for a host when every one is busy. When they stay busy it answers
@@ -152,10 +154,26 @@ struct SandboxCommandService {
                 vcpus: vcpus,
                 memoryMB: memoryGB.map { $0 * 1024 },
                 workspaceGB: workspaceGB,
-                guaranteedVCPUs: guaranteedVCPUs
+                guaranteedVCPUs: guaranteedVCPUs,
+                lifetimeSeconds: lifetimeMinutes.map { $0 * 60 }
             )
         }
         try output(sandbox, options: options) { SandboxOutput.details($0) }
+    }
+
+    /// Starts the sandbox's lifetime again from now, so it keeps running past its current `expires_at`.
+    func extend(options: SandboxOptions.Values, sandboxID: String, lifetimeMinutes: Int?) async throws {
+        let (accountHandle, serverURL) = try await resolve(options)
+        let sandbox = try await sandboxesService.extendSandbox(
+            accountHandle: accountHandle,
+            serverURL: serverURL,
+            sandboxID: sandboxID,
+            lifetimeSeconds: lifetimeMinutes.map { $0 * 60 }
+        )
+        try output(sandbox, options: options) { sandbox in
+            let expiry = sandbox.expires_at.map { " until \(Formatters.formatDate($0))" } ?? ""
+            return "Extended sandbox \(sandbox.id)\(expiry)."
+        }
     }
 
     /// Streams the command's output as it runs, however long that is, and exits with its status, so scripts can rely

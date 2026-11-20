@@ -10,7 +10,7 @@ import TuistNooraTesting
 import TuistServer
 @testable import TuistSandboxCommand
 
-struct SandboxCommandServiceTests {
+struct SandboxCommandServiceTests { // swiftlint:disable:this type_body_length
     private static let serverURL = URL(string: "https://sandbox-tests.tuist.dev")!
     private static let id = "a57a427c-1ffc-476f-9282-558ff3f61585"
     private static let pagination = """
@@ -142,7 +142,10 @@ struct SandboxCommandServiceTests {
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func createsALinuxSandboxWithAGuarantee() async throws {
         let created = Self.sandbox(status: "starting")
-            .replacingOccurrences(of: "\"vcpus\":4", with: "\"vcpus\":16,\"guaranteed_vcpus\":2")
+            .replacingOccurrences(
+                of: "\"vcpus\":4",
+                with: "\"vcpus\":16,\"guaranteed_vcpus\":2,\"lifetime_seconds\":1800,\"expires_at\":\"2026-11-01T10:30:00Z\""
+            )
         given(sandboxesService).createSandbox(
             accountHandle: .value("resolved-account"),
             serverURL: .value(Self.serverURL),
@@ -152,10 +155,11 @@ struct SandboxCommandServiceTests {
             vcpus: .value(nil),
             memoryMB: .value(nil),
             workspaceGB: .value(nil),
-            guaranteedVCPUs: .value(2)
+            guaranteedVCPUs: .value(2),
+            lifetimeSeconds: .value(1800)
         ).willReturn(try Self.decode(created))
 
-        let command = try SandboxCreateCommand.parse(["--guaranteed-vcpus", "2"])
+        let command = try SandboxCreateCommand.parse(["--guaranteed-vcpus", "2", "--lifetime-minutes", "30"])
         try await subject().create(
             options: Self.values(),
             platform: command.resolvedPlatform.server,
@@ -164,10 +168,15 @@ struct SandboxCommandServiceTests {
             vcpus: command.vcpus,
             memoryGB: command.memoryGB,
             workspaceGB: command.workspaceGb,
-            guaranteedVCPUs: command.guaranteedVCPUs
+            guaranteedVCPUs: command.guaranteedVCPUs,
+            lifetimeMinutes: command.lifetimeMinutes
         )
 
         #expect(ui().contains("Guaranteed: 2 vCPUs"))
+        #expect(ui().contains("Lifetime: 30m, expires"))
+        // The server takes 5 minutes to a day.
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--lifetime-minutes", "4"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--lifetime-minutes", "1441"]) }
         // A macOS sandbox holds every vCPU, and only the offered guarantees go.
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "macos", "--guaranteed-vcpus", "2"]) }
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--guaranteed-vcpus", "3"]) }
@@ -186,7 +195,8 @@ struct SandboxCommandServiceTests {
             vcpus: .value(8),
             memoryMB: .value(24576),
             workspaceGB: .value(nil),
-            guaranteedVCPUs: .value(nil)
+            guaranteedVCPUs: .value(nil),
+            lifetimeSeconds: .value(nil)
         ).willReturn(try Self.decode(created))
 
         let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
@@ -217,7 +227,8 @@ struct SandboxCommandServiceTests {
             vcpus: .value(nil),
             memoryMB: .value(nil),
             workspaceGB: .value(nil),
-            guaranteedVCPUs: .value(nil)
+            guaranteedVCPUs: .value(nil),
+            lifetimeSeconds: .value(nil)
         ).willReturn(try Self.decode(created))
 
         let command = try SandboxCreateCommand.parse(["--xcode", "26.1.1"])
@@ -233,6 +244,27 @@ struct SandboxCommandServiceTests {
 
         #expect(ui().contains("Platform: macOS"))
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--platform", "linux", "--xcode", "26.1.1"]) }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func extendsASandboxsLifetimeInMinutes() async throws {
+        let extended = Self.sandbox(status: "active")
+            .replacingOccurrences(
+                of: "\"vcpus\":4",
+                with: "\"vcpus\":4,\"lifetime_seconds\":14400,\"expires_at\":\"2026-11-01T14:00:00Z\""
+            )
+        given(sandboxesService).extendSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            sandboxID: .value(Self.id),
+            lifetimeSeconds: .value(14400)
+        ).willReturn(try Self.decode(extended))
+
+        let command = try SandboxExtendCommand.parse([Self.id, "--lifetime-minutes", "240"])
+        try await subject().extend(options: Self.values(), sandboxID: Self.id, lifetimeMinutes: command.lifetimeMinutes)
+
+        #expect(ui().contains("Extended sandbox \(Self.id) until"))
+        #expect(throws: (any Error).self) { try SandboxExtendCommand.parse([Self.id, "--lifetime-minutes", "0"]) }
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)

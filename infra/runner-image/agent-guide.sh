@@ -108,6 +108,11 @@ An agent that runs elsewhere, such as on Linux, uses the Tuist CLI there with
 - Run only the builds and tests the user asked for, and delete the sandbox
   (\`tuist sandbox delete <id> --yes\`) when the task is done. An idle sandbox
   pauses, and the next command resumes it.
+- A sandbox created this way lives until its \`expires_at\`
+  (\`tuist sandbox show <id>\`), two hours from creation or its last resume by
+  default. Then its running commands are cancelled and it is paused and
+  archived, keeping its files. Before a long build, extend it with
+  \`tuist sandbox extend <id> --lifetime-minutes <n>\` (at most a day).
 
 ## Builds
 

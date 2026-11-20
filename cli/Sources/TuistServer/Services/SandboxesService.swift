@@ -44,7 +44,15 @@ public protocol SandboxesServicing: Sendable {
         vcpus: Int?,
         memoryMB: Int?,
         workspaceGB: Int?,
-        guaranteedVCPUs: Double?
+        guaranteedVCPUs: Double?,
+        lifetimeSeconds: Int?
+    ) async throws -> ServerSandbox
+    /// Starts the sandbox's lifetime again from now, for `lifetimeSeconds` when given, else for its current lifetime.
+    func extendSandbox(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        lifetimeSeconds: Int?
     ) async throws -> ServerSandbox
     func transitionSandbox(
         _ transition: SandboxTransition,
@@ -256,7 +264,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         vcpus: Int?,
         memoryMB: Int?,
         workspaceGB: Int?,
-        guaranteedVCPUs: Double?
+        guaranteedVCPUs: Double?,
+        lifetimeSeconds: Int?
     ) async throws -> ServerSandbox {
         typealias Body = Operations.createSandbox.Input.Body.jsonPayload
         let shapeVCPUs = try vcpus.map { try Body.vcpusPayload(rawValue: $0) ?? { throw SandboxesServiceError.invalidShape }() }
@@ -268,6 +277,7 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
                 path: .init(account_handle: accountHandle),
                 body: .json(.init(
                     guaranteed_vcpus: guaranteedVCPUs,
+                    lifetime_seconds: lifetimeSeconds,
                     memory_mb: shapeMemory,
                     platform: platform,
                     template: template,
@@ -288,6 +298,30 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         // `account_limit` (the account's CPU and memory) and `rate_limited` (creates per minute) say what to do.
         case let .tooManyRequests(value):
             throw (try? value.body.json).map { SandboxesServiceError.refused(.init($0)) } ?? SandboxesServiceError.limited
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
+        }
+    }
+
+    public func extendSandbox(
+        accountHandle: String,
+        serverURL: URL,
+        sandboxID: String,
+        lifetimeSeconds: Int?
+    ) async throws -> ServerSandbox {
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).extendSandbox(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID),
+                body: .json(.init(lifetime_seconds: lifetimeSeconds))
+            ))
+        }
+        switch response {
+        case let .ok(value): return try Self.convert(value.body.json)
+        case let .badRequest(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        // `no_lifetime`: an integration owns the sandbox, or it predates lifetimes.
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }

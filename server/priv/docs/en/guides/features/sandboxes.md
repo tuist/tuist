@@ -40,7 +40,7 @@ tuist auth login
 tuist sandbox create --platform macos
 ```
 
-Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), `--guaranteed-vcpus` to guarantee a Linux sandbox more [CPU](#guaranteed-cpu), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
+Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), `--guaranteed-vcpus` to guarantee a Linux sandbox more [CPU](#guaranteed-cpu), and `--workspace-gb` for a larger disk. The sandbox runs for two hours from creation, and again from each resume; pass `--lifetime-minutes` for between 5 minutes and a day. When its lifetime ends, its running commands are cancelled and it's paused and archived, keeping its files, so a forgotten sandbox stops using your account's capacity. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
 
 ### 3. Run commands {#cli-exec}
 
@@ -59,6 +59,7 @@ The command runs detached from `tuist`, so it survives a dropped connection. To 
 | List sandboxes | `tuist sandbox list` |
 | Show one | `tuist sandbox show <id>` |
 | Pause or resume | `tuist sandbox pause <id>`, `tuist sandbox resume <id>` |
+| Keep it running past its expiry | `tuist sandbox extend <id> --lifetime-minutes 240` |
 | Mirror the local Git worktree's files into it | `tuist sandbox sync <id>` |
 | Copy files out or in | `tuist sandbox cp <id>:<path> <local-path>`, `tuist sandbox cp <local-path> <id>:<path>` |
 | Delete | `tuist sandbox delete <id> --yes` |
@@ -88,7 +89,7 @@ A coding agent that runs on Linux, such as a cloud agent session, can build, tes
 3. Authenticate the CLI. The MCP server's sign-in doesn't carry over to it, so either run `tuist auth login` as an account member, or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope.
 4. If the environment restricts network access, allow `tuist.dev`. The CLI uploads files to the Mac through it, so it needs no other domain.
 
-The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The Mac already has [Tuist](#tuist-in-sandbox), the project's pinned version when it pins one, signed in to your account's cache, and the agent reads the Mac's guide once. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses and is deleted after 14 days paused.
+The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The Mac already has [Tuist](#tuist-in-sandbox), the project's pinned version when it pins one, signed in to your account's cache, and the agent reads the Mac's guide once. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses, is archived when its two-hour lifetime ends, and is deleted after 14 days; the agent extends the lifetime before a long build.
 
 ## Linux and macOS {#platforms}
 

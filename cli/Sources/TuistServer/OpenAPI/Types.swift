@@ -709,6 +709,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)`.
     func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output
+    /// Extend a sandbox's lifetime.
+    ///
+    /// Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API has its running commands cancelled and is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)`.
+    func extendSandbox(_ input: Operations.extendSandbox.Input) async throws -> Operations.extendSandbox.Output
     /// Get a cache run by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
@@ -3490,6 +3497,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Extend a sandbox's lifetime.
+    ///
+    /// Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API has its running commands cancelled and is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)`.
+    public func extendSandbox(
+        path: Operations.extendSandbox.Input.Path,
+        headers: Operations.extendSandbox.Input.Headers = .init(),
+        body: Operations.extendSandbox.Input.Body? = nil
+    ) async throws -> Operations.extendSandbox.Output {
+        try await extendSandbox(Operations.extendSandbox.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Get a cache run by ID.
@@ -28879,6 +28903,23 @@ public enum Components {
                 case write_bytes
             }
         }
+        /// - Remark: Generated from `#/components/schemas/ExtendSandbox`.
+        public struct ExtendSandbox: Codable, Hashable, Sendable {
+            /// How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ExtendSandbox/lifetime_seconds`.
+            public var lifetime_seconds: Swift.Int?
+            /// Creates a new `ExtendSandbox`.
+            ///
+            /// - Parameters:
+            ///   - lifetime_seconds: How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
+            public init(lifetime_seconds: Swift.Int? = nil) {
+                self.lifetime_seconds = lifetime_seconds
+            }
+            public enum CodingKeys: String, CodingKey {
+                case lifetime_seconds
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CacheTaskStatus`.
         @frozen public enum CacheTaskStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case hit_local = "hit_local"
@@ -29747,6 +29788,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/guaranteed_vcpus`.
             public var guaranteed_vcpus: Swift.Double?
+            /// How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/lifetime_seconds`.
+            public var lifetime_seconds: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
             @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
                 case _4096 = 4096
@@ -29793,6 +29838,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - guaranteed_vcpus: Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.
+            ///   - lifetime_seconds: How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
             ///   - memory_mb:
             ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - template: Sandbox template name.
@@ -29801,6 +29847,7 @@ public enum Components {
             ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 guaranteed_vcpus: Swift.Double? = nil,
+                lifetime_seconds: Swift.Int? = nil,
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
                 platform: Components.Schemas.CreateSandbox.platformPayload? = nil,
                 template: Swift.String? = nil,
@@ -29809,6 +29856,7 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.guaranteed_vcpus = guaranteed_vcpus
+                self.lifetime_seconds = lifetime_seconds
                 self.memory_mb = memory_mb
                 self.platform = platform
                 self.template = template
@@ -29818,6 +29866,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case guaranteed_vcpus
+                case lifetime_seconds
                 case memory_mb
                 case platform
                 case template
@@ -32485,6 +32534,10 @@ public enum Components {
             public var archived_at: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/Sandbox/error_message`.
             public var error_message: Swift.String?
+            /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/expires_at`.
+            public var expires_at: Foundation.Date?
             /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
             ///
             /// - Remark: Generated from `#/components/schemas/Sandbox/guaranteed_vcpus`.
@@ -32497,6 +32550,10 @@ public enum Components {
             public var inserted_at: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/Sandbox/last_active_at`.
             public var last_active_at: Foundation.Date?
+            /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/lifetime_seconds`.
+            public var lifetime_seconds: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/Sandbox/memory_mb`.
             public var memory_mb: Swift.Int
             /// - Remark: Generated from `#/components/schemas/Sandbox/node_name`.
@@ -32553,11 +32610,13 @@ public enum Components {
             ///   - archive_bytes: Size of the stored archive in bytes.
             ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
             ///   - error_message:
+            ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
             ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
             ///   - hostname:
             ///   - id:
             ///   - inserted_at:
             ///   - last_active_at:
+            ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
             ///   - memory_mb:
             ///   - node_name:
             ///   - paused_at:
@@ -32578,11 +32637,13 @@ public enum Components {
                 archive_bytes: Swift.Int? = nil,
                 archived_at: Foundation.Date? = nil,
                 error_message: Swift.String? = nil,
+                expires_at: Foundation.Date? = nil,
                 guaranteed_vcpus: Swift.Double? = nil,
                 hostname: Swift.String? = nil,
                 id: Swift.String,
                 inserted_at: Foundation.Date,
                 last_active_at: Foundation.Date? = nil,
+                lifetime_seconds: Swift.Int? = nil,
                 memory_mb: Swift.Int,
                 node_name: Swift.String? = nil,
                 paused_at: Foundation.Date? = nil,
@@ -32603,11 +32664,13 @@ public enum Components {
                 self.archive_bytes = archive_bytes
                 self.archived_at = archived_at
                 self.error_message = error_message
+                self.expires_at = expires_at
                 self.guaranteed_vcpus = guaranteed_vcpus
                 self.hostname = hostname
                 self.id = id
                 self.inserted_at = inserted_at
                 self.last_active_at = last_active_at
+                self.lifetime_seconds = lifetime_seconds
                 self.memory_mb = memory_mb
                 self.node_name = node_name
                 self.paused_at = paused_at
@@ -32629,11 +32692,13 @@ public enum Components {
                 case archive_bytes
                 case archived_at
                 case error_message
+                case expires_at
                 case guaranteed_vcpus
                 case hostname
                 case id
                 case inserted_at
                 case last_active_at
+                case lifetime_seconds
                 case memory_mb
                 case node_name
                 case paused_at
@@ -34916,6 +34981,10 @@ public enum Components {
                 public var archived_at: Foundation.Date?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/error_message`.
                 public var error_message: Swift.String?
+                /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/expires_at`.
+                public var expires_at: Foundation.Date?
                 /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                 ///
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/guaranteed_vcpus`.
@@ -34928,6 +34997,10 @@ public enum Components {
                 public var inserted_at: Foundation.Date
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/last_active_at`.
                 public var last_active_at: Foundation.Date?
+                /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/lifetime_seconds`.
+                public var lifetime_seconds: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/memory_mb`.
                 public var memory_mb: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/node_name`.
@@ -34984,11 +35057,13 @@ public enum Components {
                 ///   - archive_bytes: Size of the stored archive in bytes.
                 ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                 ///   - error_message:
+                ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                 ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                 ///   - hostname:
                 ///   - id:
                 ///   - inserted_at:
                 ///   - last_active_at:
+                ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                 ///   - memory_mb:
                 ///   - node_name:
                 ///   - paused_at:
@@ -35009,11 +35084,13 @@ public enum Components {
                     archive_bytes: Swift.Int? = nil,
                     archived_at: Foundation.Date? = nil,
                     error_message: Swift.String? = nil,
+                    expires_at: Foundation.Date? = nil,
                     guaranteed_vcpus: Swift.Double? = nil,
                     hostname: Swift.String? = nil,
                     id: Swift.String,
                     inserted_at: Foundation.Date,
                     last_active_at: Foundation.Date? = nil,
+                    lifetime_seconds: Swift.Int? = nil,
                     memory_mb: Swift.Int,
                     node_name: Swift.String? = nil,
                     paused_at: Foundation.Date? = nil,
@@ -35034,11 +35111,13 @@ public enum Components {
                     self.archive_bytes = archive_bytes
                     self.archived_at = archived_at
                     self.error_message = error_message
+                    self.expires_at = expires_at
                     self.guaranteed_vcpus = guaranteed_vcpus
                     self.hostname = hostname
                     self.id = id
                     self.inserted_at = inserted_at
                     self.last_active_at = last_active_at
+                    self.lifetime_seconds = lifetime_seconds
                     self.memory_mb = memory_mb
                     self.node_name = node_name
                     self.paused_at = paused_at
@@ -35060,11 +35139,13 @@ public enum Components {
                     case archive_bytes
                     case archived_at
                     case error_message
+                    case expires_at
                     case guaranteed_vcpus
                     case hostname
                     case id
                     case inserted_at
                     case last_active_at
+                    case lifetime_seconds
                     case memory_mb
                     case node_name
                     case paused_at
@@ -43172,6 +43253,10 @@ public enum Operations {
                             public var archived_at: Foundation.Date?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/error_message`.
                             public var error_message: Swift.String?
+                            /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/expires_at`.
+                            public var expires_at: Foundation.Date?
                             /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/guaranteed_vcpus`.
@@ -43184,6 +43269,10 @@ public enum Operations {
                             public var inserted_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/last_active_at`.
                             public var last_active_at: Foundation.Date?
+                            /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/lifetime_seconds`.
+                            public var lifetime_seconds: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/memory_mb`.
                             public var memory_mb: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/node_name`.
@@ -43240,11 +43329,13 @@ public enum Operations {
                             ///   - archive_bytes: Size of the stored archive in bytes.
                             ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                             ///   - error_message:
+                            ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                             ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                             ///   - hostname:
                             ///   - id:
                             ///   - inserted_at:
                             ///   - last_active_at:
+                            ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                             ///   - memory_mb:
                             ///   - node_name:
                             ///   - paused_at:
@@ -43265,11 +43356,13 @@ public enum Operations {
                                 archive_bytes: Swift.Int? = nil,
                                 archived_at: Foundation.Date? = nil,
                                 error_message: Swift.String? = nil,
+                                expires_at: Foundation.Date? = nil,
                                 guaranteed_vcpus: Swift.Double? = nil,
                                 hostname: Swift.String? = nil,
                                 id: Swift.String,
                                 inserted_at: Foundation.Date,
                                 last_active_at: Foundation.Date? = nil,
+                                lifetime_seconds: Swift.Int? = nil,
                                 memory_mb: Swift.Int,
                                 node_name: Swift.String? = nil,
                                 paused_at: Foundation.Date? = nil,
@@ -43290,11 +43383,13 @@ public enum Operations {
                                 self.archive_bytes = archive_bytes
                                 self.archived_at = archived_at
                                 self.error_message = error_message
+                                self.expires_at = expires_at
                                 self.guaranteed_vcpus = guaranteed_vcpus
                                 self.hostname = hostname
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.last_active_at = last_active_at
+                                self.lifetime_seconds = lifetime_seconds
                                 self.memory_mb = memory_mb
                                 self.node_name = node_name
                                 self.paused_at = paused_at
@@ -43316,11 +43411,13 @@ public enum Operations {
                                 case archive_bytes
                                 case archived_at
                                 case error_message
+                                case expires_at
                                 case guaranteed_vcpus
                                 case hostname
                                 case id
                                 case inserted_at
                                 case last_active_at
+                                case lifetime_seconds
                                 case memory_mb
                                 case node_name
                                 case paused_at
@@ -43678,6 +43775,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/guaranteed_vcpus`.
                     public var guaranteed_vcpus: Swift.Double?
+                    /// How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/lifetime_seconds`.
+                    public var lifetime_seconds: Swift.Int?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
                     @frozen public enum memory_mbPayload: Int, Codable, Hashable, Sendable, CaseIterable {
                         case _4096 = 4096
@@ -43724,6 +43825,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - guaranteed_vcpus: Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: 1, 2, 4, 8. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life.
+                    ///   - lifetime_seconds: How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
                     ///   - memory_mb:
                     ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - template: Sandbox template name.
@@ -43732,6 +43834,7 @@ public enum Operations {
                     ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         guaranteed_vcpus: Swift.Double? = nil,
+                        lifetime_seconds: Swift.Int? = nil,
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
@@ -43740,6 +43843,7 @@ public enum Operations {
                         xcode_version: Swift.String? = nil
                     ) {
                         self.guaranteed_vcpus = guaranteed_vcpus
+                        self.lifetime_seconds = lifetime_seconds
                         self.memory_mb = memory_mb
                         self.platform = platform
                         self.template = template
@@ -43749,6 +43853,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case guaranteed_vcpus
+                        case lifetime_seconds
                         case memory_mb
                         case platform
                         case template
@@ -43801,6 +43906,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
                         /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/guaranteed_vcpus`.
@@ -43813,6 +43922,10 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/last_active_at`.
                         public var last_active_at: Foundation.Date?
+                        /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/lifetime_seconds`.
+                        public var lifetime_seconds: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/memory_mb`.
                         public var memory_mb: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/node_name`.
@@ -43869,11 +43982,13 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                         ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - last_active_at:
+                        ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
@@ -43894,11 +44009,13 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            expires_at: Foundation.Date? = nil,
                             guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             last_active_at: Foundation.Date? = nil,
+                            lifetime_seconds: Swift.Int? = nil,
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
@@ -43919,11 +44036,13 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.expires_at = expires_at
                             self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
                             self.last_active_at = last_active_at
+                            self.lifetime_seconds = lifetime_seconds
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
@@ -43945,11 +44064,13 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case expires_at
                             case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
                             case last_active_at
+                            case lifetime_seconds
                             case memory_mb
                             case node_name
                             case paused_at
@@ -60628,6 +60749,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
                         /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/guaranteed_vcpus`.
@@ -60640,6 +60765,10 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/last_active_at`.
                         public var last_active_at: Foundation.Date?
+                        /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/lifetime_seconds`.
+                        public var lifetime_seconds: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/memory_mb`.
                         public var memory_mb: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/node_name`.
@@ -60696,11 +60825,13 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                         ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - last_active_at:
+                        ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
@@ -60721,11 +60852,13 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            expires_at: Foundation.Date? = nil,
                             guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             last_active_at: Foundation.Date? = nil,
+                            lifetime_seconds: Swift.Int? = nil,
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
@@ -60746,11 +60879,13 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.expires_at = expires_at
                             self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
                             self.last_active_at = last_active_at
+                            self.lifetime_seconds = lifetime_seconds
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
@@ -60772,11 +60907,13 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case expires_at
                             case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
                             case last_active_at
+                            case lifetime_seconds
                             case memory_mb
                             case node_name
                             case paused_at
@@ -81627,6 +81764,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
                         /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/guaranteed_vcpus`.
@@ -81639,6 +81780,10 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/last_active_at`.
                         public var last_active_at: Foundation.Date?
+                        /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/lifetime_seconds`.
+                        public var lifetime_seconds: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/memory_mb`.
                         public var memory_mb: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/node_name`.
@@ -81695,11 +81840,13 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                         ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - last_active_at:
+                        ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
@@ -81720,11 +81867,13 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            expires_at: Foundation.Date? = nil,
                             guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             last_active_at: Foundation.Date? = nil,
+                            lifetime_seconds: Swift.Int? = nil,
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
@@ -81745,11 +81894,13 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.expires_at = expires_at
                             self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
                             self.last_active_at = last_active_at
+                            self.lifetime_seconds = lifetime_seconds
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
@@ -81771,11 +81922,13 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case expires_at
                             case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
                             case last_active_at
+                            case lifetime_seconds
                             case memory_mb
                             case node_name
                             case paused_at
@@ -98903,6 +99056,658 @@ public enum Operations {
             }
         }
     }
+    /// Extend a sandbox's lifetime.
+    ///
+    /// Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API has its running commands cancelled and is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)`.
+    public enum extendSandbox {
+        public static let id: Swift.String = "extendSandbox"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The sandbox identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/path/sandbox_id`.
+                public var sandbox_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - sandbox_id: The sandbox identifier.
+                public init(
+                    account_handle: Swift.String,
+                    sandbox_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.sandbox_id = sandbox_id
+                }
+            }
+            public var path: Operations.extendSandbox.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.extendSandbox.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.extendSandbox.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.extendSandbox.Input.Headers
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/requestBody/json/lifetime_seconds`.
+                    public var lifetime_seconds: Swift.Int?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - lifetime_seconds: How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.
+                    public init(lifetime_seconds: Swift.Int? = nil) {
+                        self.lifetime_seconds = lifetime_seconds
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case lifetime_seconds
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/requestBody/content/application\/json`.
+                case json(Operations.extendSandbox.Input.Body.jsonPayload)
+            }
+            public var body: Operations.extendSandbox.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.extendSandbox.Input.Path,
+                headers: Operations.extendSandbox.Input.Headers = .init(),
+                body: Operations.extendSandbox.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A persistent Linux or macOS sandbox VM.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/agent_environment_id`.
+                        public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/anthropic_session_id`.
+                        public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/error_message`.
+                        public var error_message: Swift.String?
+                        /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
+                        /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/guaranteed_vcpus`.
+                        public var guaranteed_vcpus: Swift.Double?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/hostname`.
+                        public var hostname: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/last_active_at`.
+                        public var last_active_at: Foundation.Date?
+                        /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/lifetime_seconds`.
+                        public var lifetime_seconds: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/memory_mb`.
+                        public var memory_mb: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/node_name`.
+                        public var node_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/paused_at`.
+                        public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/platform`.
+                        public var platform: Operations.extendSandbox.Output.Ok.Body.jsonPayload.platformPayload?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/residency_work_id`.
+                        public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case creating = "creating"
+                            case running = "running"
+                            case resuming = "resuming"
+                            case paused = "paused"
+                            case archived = "archived"
+                            case error = "error"
+                            case deleted = "deleted"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/state`.
+                        public var state: Operations.extendSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/template`.
+                        public var template: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/template_tag`.
+                        public var template_tag: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/vcpus`.
+                        public var vcpus: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/json/workspace_gb`.
+                        public var workspace_gb: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_environment_id:
+                        ///   - amp_orb_id:
+                        ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///   - error_message:
+                        ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
+                        ///   - hostname:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - last_active_at:
+                        ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///   - memory_mb:
+                        ///   - node_name:
+                        ///   - paused_at:
+                        ///   - platform:
+                        ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
+                        ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///   - template:
+                        ///   - template_tag:
+                        ///   - updated_at:
+                        ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///   - workspace_gb:
+                        public init(
+                            agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
+                            anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
+                            error_message: Swift.String? = nil,
+                            expires_at: Foundation.Date? = nil,
+                            guaranteed_vcpus: Swift.Double? = nil,
+                            hostname: Swift.String? = nil,
+                            id: Swift.String,
+                            inserted_at: Foundation.Date,
+                            last_active_at: Foundation.Date? = nil,
+                            lifetime_seconds: Swift.Int? = nil,
+                            memory_mb: Swift.Int,
+                            node_name: Swift.String? = nil,
+                            paused_at: Foundation.Date? = nil,
+                            platform: Operations.extendSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
+                            residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
+                            state: Operations.extendSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
+                            template: Swift.String,
+                            template_tag: Swift.String? = nil,
+                            updated_at: Foundation.Date,
+                            vcpus: Swift.Int,
+                            workspace_gb: Swift.Int
+                        ) {
+                            self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
+                            self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
+                            self.error_message = error_message
+                            self.expires_at = expires_at
+                            self.guaranteed_vcpus = guaranteed_vcpus
+                            self.hostname = hostname
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.last_active_at = last_active_at
+                            self.lifetime_seconds = lifetime_seconds
+                            self.memory_mb = memory_mb
+                            self.node_name = node_name
+                            self.paused_at = paused_at
+                            self.platform = platform
+                            self.residency_work_id = residency_work_id
+                            self.resident = resident
+                            self.state = state
+                            self.status = status
+                            self.template = template
+                            self.template_tag = template_tag
+                            self.updated_at = updated_at
+                            self.vcpus = vcpus
+                            self.workspace_gb = workspace_gb
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_environment_id
+                            case amp_orb_id
+                            case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
+                            case error_message
+                            case expires_at
+                            case guaranteed_vcpus
+                            case hostname
+                            case id
+                            case inserted_at
+                            case last_active_at
+                            case lifetime_seconds
+                            case memory_mb
+                            case node_name
+                            case paused_at
+                            case platform
+                            case residency_work_id
+                            case resident
+                            case state
+                            case status
+                            case template
+                            case template_tag
+                            case updated_at
+                            case vcpus
+                            case workspace_gb
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/200/content/application\/json`.
+                    case json(Operations.extendSandbox.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.extendSandbox.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.extendSandbox.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.extendSandbox.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Sandbox
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.extendSandbox.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.extendSandbox.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas.SandboxError)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SandboxError {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.extendSandbox.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.extendSandbox.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid params
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.extendSandbox.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.extendSandbox.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas.SandboxError)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SandboxError {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.extendSandbox.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.extendSandbox.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.extendSandbox.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.extendSandbox.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas.SandboxError)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SandboxError {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.extendSandbox.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.extendSandbox.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.extendSandbox.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.extendSandbox.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas.SandboxError)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SandboxError {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.extendSandbox.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.extendSandbox.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox has no lifetime
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.extendSandbox.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.extendSandbox.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.extendSandbox.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas.SandboxError)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.SandboxError {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.extendSandbox.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.extendSandbox.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.extendSandbox.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend/post(extendSandbox)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.extendSandbox.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.extendSandbox.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a cache run by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
@@ -108590,6 +109395,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
                         /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/guaranteed_vcpus`.
@@ -108602,6 +109411,10 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/last_active_at`.
                         public var last_active_at: Foundation.Date?
+                        /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/lifetime_seconds`.
+                        public var lifetime_seconds: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/memory_mb`.
                         public var memory_mb: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/node_name`.
@@ -108658,11 +109471,13 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                         ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - last_active_at:
+                        ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
@@ -108683,11 +109498,13 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            expires_at: Foundation.Date? = nil,
                             guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             last_active_at: Foundation.Date? = nil,
+                            lifetime_seconds: Swift.Int? = nil,
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
@@ -108708,11 +109525,13 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.expires_at = expires_at
                             self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
                             self.last_active_at = last_active_at
+                            self.lifetime_seconds = lifetime_seconds
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
@@ -108734,11 +109553,13 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case expires_at
                             case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
                             case last_active_at
+                            case lifetime_seconds
                             case memory_mb
                             case node_name
                             case paused_at
@@ -130345,6 +131166,10 @@ public enum Operations {
                         public var archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/error_message`.
                         public var error_message: Swift.String?
+                        /// When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date?
                         /// The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/guaranteed_vcpus`.
@@ -130357,6 +131182,10 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/last_active_at`.
                         public var last_active_at: Foundation.Date?
+                        /// How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/lifetime_seconds`.
+                        public var lifetime_seconds: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/memory_mb`.
                         public var memory_mb: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/node_name`.
@@ -130413,11 +131242,13 @@ public enum Operations {
                         ///   - archive_bytes: Size of the stored archive in bytes.
                         ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
                         ///   - error_message:
+                        ///   - expires_at: When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it.
                         ///   - guaranteed_vcpus: The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.
                         ///   - hostname:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - last_active_at:
+                        ///   - lifetime_seconds: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
@@ -130438,11 +131269,13 @@ public enum Operations {
                             archive_bytes: Swift.Int? = nil,
                             archived_at: Foundation.Date? = nil,
                             error_message: Swift.String? = nil,
+                            expires_at: Foundation.Date? = nil,
                             guaranteed_vcpus: Swift.Double? = nil,
                             hostname: Swift.String? = nil,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             last_active_at: Foundation.Date? = nil,
+                            lifetime_seconds: Swift.Int? = nil,
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
@@ -130463,11 +131296,13 @@ public enum Operations {
                             self.archive_bytes = archive_bytes
                             self.archived_at = archived_at
                             self.error_message = error_message
+                            self.expires_at = expires_at
                             self.guaranteed_vcpus = guaranteed_vcpus
                             self.hostname = hostname
                             self.id = id
                             self.inserted_at = inserted_at
                             self.last_active_at = last_active_at
+                            self.lifetime_seconds = lifetime_seconds
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
@@ -130489,11 +131324,13 @@ public enum Operations {
                             case archive_bytes
                             case archived_at
                             case error_message
+                            case expires_at
                             case guaranteed_vcpus
                             case hostname
                             case id
                             case inserted_at
                             case last_active_at
+                            case lifetime_seconds
                             case memory_mb
                             case node_name
                             case paused_at
