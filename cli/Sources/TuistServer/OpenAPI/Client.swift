@@ -1034,7 +1034,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1056,7 +1056,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1090,7 +1090,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1117,7 +1117,7 @@ public struct Client: APIProtocol {
     }
     /// Create a sandbox.
     ///
-    /// Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.
+    /// Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/post(createSandbox)`.
@@ -1190,7 +1190,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1212,7 +1212,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1234,7 +1234,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1268,7 +1268,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1293,7 +1293,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1315,7 +1315,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -1337,7 +1337,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2334,7 +2334,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2356,7 +2356,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2378,7 +2378,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2412,7 +2412,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2437,7 +2437,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2459,7 +2459,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -2481,7 +2481,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -5989,7 +5989,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6011,7 +6011,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6033,7 +6033,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6067,7 +6067,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6092,7 +6092,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6114,7 +6114,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6136,7 +6136,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6846,7 +6846,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6868,7 +6868,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6902,7 +6902,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6970,7 +6970,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -6992,7 +6992,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -7014,7 +7014,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -7048,7 +7048,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -7073,7 +7073,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -7095,7 +7095,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -7117,7 +7117,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -9253,7 +9253,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -9275,7 +9275,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -9309,7 +9309,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -11939,7 +11939,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -11961,7 +11961,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -11983,7 +11983,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12017,7 +12017,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12042,7 +12042,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12064,7 +12064,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12086,7 +12086,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12532,7 +12532,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12554,7 +12554,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12588,7 +12588,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12689,7 +12689,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12711,7 +12711,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12733,7 +12733,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12755,7 +12755,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12789,7 +12789,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12814,7 +12814,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12836,7 +12836,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -12858,7 +12858,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13546,7 +13546,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13568,7 +13568,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13590,7 +13590,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13612,7 +13612,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13646,7 +13646,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13671,7 +13671,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13693,7 +13693,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13715,7 +13715,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13800,7 +13800,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13822,7 +13822,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13844,7 +13844,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13878,7 +13878,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13903,7 +13903,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13925,7 +13925,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -13947,7 +13947,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22179,7 +22179,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22201,7 +22201,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22223,7 +22223,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22257,7 +22257,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22282,7 +22282,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22304,7 +22304,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22326,7 +22326,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22961,7 +22961,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -22995,7 +22995,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -23095,7 +23095,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -23117,7 +23117,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -23151,7 +23151,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29524,7 +29524,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29546,7 +29546,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29568,7 +29568,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29602,7 +29602,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29627,7 +29627,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29649,7 +29649,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29671,7 +29671,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29695,7 +29695,7 @@ public struct Client: APIProtocol {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -29769,7 +29769,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29791,7 +29791,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29813,7 +29813,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29847,7 +29847,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29915,7 +29915,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29937,7 +29937,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -29971,7 +29971,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33734,7 +33734,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33756,7 +33756,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33778,7 +33778,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33812,7 +33812,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33837,7 +33837,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33859,7 +33859,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -33881,7 +33881,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34357,7 +34357,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34379,7 +34379,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34401,7 +34401,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34435,7 +34435,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34460,7 +34460,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34482,7 +34482,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -34504,7 +34504,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -46590,7 +46590,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -46612,7 +46612,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -46646,7 +46646,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
+                            Components.Schemas.SandboxError.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)

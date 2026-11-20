@@ -102,6 +102,21 @@ struct SandboxRemoteTests {
     }
 
     @Test
+    func startDoesNotWaitForAMacThatWasReplaced() async throws {
+        let replaced = SandboxesServiceError.unavailable(.init(message: "The Mac was replaced.", code: "host_replaced"))
+        given(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).willThrow(replaced)
+
+        await #expect(throws: replaced) { _ = try await remote.start("make") }
+        verify(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).called(1)
+    }
+
+    @Test
     func startWaitsForTheHostWhileTheServerHasNoNodeAndRepeatsTheNoticeEveryMinute() async throws {
         let calls = Counter()
         let command: ServerSandboxCommand = try JSONDecoder.iso8601.decode(

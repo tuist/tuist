@@ -283,6 +283,10 @@ struct SandboxRemote {
         }
     }
 
+    /// 503 codes (`Tuist.Sandboxes.Query.error/1`) that no wait resolves: the sandbox's Mac was replaced, or its archive
+    /// or snapshot can't be reached.
+    static let finalUnavailableCodes: Set<String> = ["host_replaced", "archive_unavailable", "snapshot_not_saved"]
+
     /// A dropped connection, an undecodable chunk or a server-side 5xx. A refusal, such as a 404 for a command that is
     /// gone, is final.
     static func isTransient(_ error: any Error) -> Bool {
@@ -290,7 +294,9 @@ struct SandboxRemote {
         case is CancellationError: return false
         case let error as SandboxesServiceError:
             switch error {
-            case .unavailable, .limited: return true
+            // A 503 that waiting never clears, such as a replaced Mac, is final.
+            case let .unavailable(answer): return !(answer.code.map(finalUnavailableCodes.contains) ?? false)
+            case .limited: return true
             case let .unknownError(statusCode): return statusCode >= 500
             case .refused, .notFound, .invalidShape: return false
             }
