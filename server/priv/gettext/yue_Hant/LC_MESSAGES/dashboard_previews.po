@@ -31,7 +31,7 @@ msgstr "分支"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "構建時間"
+msgstr "建置時間"
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr "掃描 QR 碼"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "用 iOS 裝置掃描此 QR Code 以安裝此版本的應用程式"
+msgstr "掃描此 QR 碼以在 iOS 裝置上安裝此版本的應用程式"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -170,7 +170,7 @@ msgstr "此預覽不支援安裝至裝置"
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "如要直接在瀏覽器中執行預覽，請下載並安裝 Tuist macOS 應用程式"
+msgstr "如要直接從瀏覽器執行預覽，請下載並安裝 Tuist macOS 應用程式"
 
 #: lib/tuist_web/live/preview_live.html.heex:95
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "套件名稱"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "在 Android 裝置上掃描此 QR Code，以下載並安裝此版本的應用程式"
+msgstr "使用 Android 裝置掃描此 QR Code，以下載並安裝此版本的應用程式"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format
@@ -242,17 +242,17 @@ msgstr "命令列預覽"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "桌面版預覽會以你的用戶身份執行，可存取你的檔案和環境。它們並非在沙盒中運行。"
+msgstr "桌面版預覽以你的用戶身份運行，可存取你的檔案和環境。它們並非在沙盒中執行。"
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Only run previews you trust"
-msgstr "只執行你信任的預覽"
+msgstr "只運行你信任的預覽"
 
 #: lib/tuist_web/live/preview_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Run preview"
-msgstr "執行預覽"
+msgstr "運行預覽"
 
 #: lib/tuist_web/live/preview_live.html.heex:103
 #, elixir-autogen, elixir-format

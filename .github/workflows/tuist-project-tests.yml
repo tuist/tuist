@@ -338,7 +338,13 @@ jobs:
       # `tuist/snapshots (TuistAppSnapshots)` check or in the dashboard.
       - name: Run snapshot tests
         if: ${{ !cancelled() && github.event.pull_request.head.repo.fork != true }}
-        run: tuist test TuistAppSnapshots --platform iOS ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        # Snapshots render at the simulator's screen size, so every run must use the same
+        # device: without --device, tuist test takes whichever one it finds first, which
+        # differs between runners. This picks the first available iPhone by name.
+        run: |
+          device=$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries[] | select(.key | contains("SimRuntime.iOS-")) | .value[].name | select(startswith("iPhone "))] | unique | first')
+          echo "Rendering snapshots on: $device"
+          tuist test TuistAppSnapshots --platform iOS --device "$device" ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   acceptance-tests-build:
     name: Build Acceptance Tests

@@ -62,7 +62,7 @@ msgstr "詳細資訊"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "尚未安裝 Tuist App？"
+msgstr "尚未安裝 Tuist 應用程式？"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -73,12 +73,12 @@ msgstr "下載"
 #: lib/tuist_web/live/preview_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Install App"
-msgstr "安裝 App"
+msgstr "安裝應用程式"
 
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "最新 App 預覽"
+msgstr "最新的應用程式預覽"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -145,7 +145,7 @@ msgstr "掃描 QR Code"
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "在 iOS 裝置上掃描此 QR Code 以安裝此版本的 App"
+msgstr "在 iOS 裝置上掃描此 QR Code，以安裝此版本的 App"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
@@ -160,7 +160,7 @@ msgstr "支援的平台"
 #: lib/tuist_web/live/preview_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "此預覽僅支援模擬器，無法安裝於實體裝置"
+msgstr "此預覽僅支援模擬器，無法安裝至實體裝置"
 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
@@ -242,7 +242,7 @@ msgstr "命令列預覽"
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "桌面版預覽會以你的使用者身分執行，可存取你的檔案與環境。它們並未沙箱化。"
+msgstr "桌面版預覽以你的使用者身份執行，可存取你的檔案與環境。它們不受沙箱隔離。"
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format

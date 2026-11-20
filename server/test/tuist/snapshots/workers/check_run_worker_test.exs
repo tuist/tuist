@@ -121,6 +121,21 @@ defmodule Tuist.Snapshots.Workers.CheckRunWorkerTest do
     assert Snapshots.status(Repo.get!(Build, build.id), project) == "needs_review"
   end
 
+  test "posts a pull request merge commit's check on the pull request's head", %{project: project} do
+    build = build(project, %{git_commit_sha: "merge123", git_ref: "refs/pull/7/merge", pull_request_number: 7})
+
+    expect(Client, :get_git_commit, fn %{sha: "merge123"} ->
+      {:ok, %{"parents" => [%{"sha" => "base456"}, %{"sha" => "head789"}]}}
+    end)
+
+    expect(Client, :create_check_run, fn params ->
+      assert params.head_sha == "head789"
+      {:ok, %{"id" => 77}}
+    end)
+
+    assert :ok = perform(build)
+  end
+
   test "posts nothing for default branch builds", %{project: project} do
     reject(&Client.create_check_run/1)
     assert :ok = perform(build(project, %{git_branch: project.default_branch}))

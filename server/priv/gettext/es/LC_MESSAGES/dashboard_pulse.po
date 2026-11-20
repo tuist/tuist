@@ -14,22 +14,22 @@ msgstr "Language: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
-msgstr "Todas las entradas de registro con un nombre de servicio en el periodo seleccionado, independientemente de la búsqueda en la tabla. El gráfico muestra las entradas por intervalo."
+msgstr "Todas las entradas de registro con un nombre de servicio en el período seleccionado, independientemente de la búsqueda en la tabla. El gráfico muestra las entradas por intervalo."
 
 #: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
-msgstr "Todos los spans registrados en el periodo seleccionado, no trazas distintas. El gráfico muestra los spans por intervalo."
+msgstr "Todos los spans registrados en el período seleccionado, no trazas distintas. El gráfico muestra los spans por intervalo."
 
 #: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
-msgstr "Percentil 95 aproximado de la duración de los spans durante todo el periodo seleccionado, en milisegundos. El gráfico muestra el percentil por intervalo."
+msgstr "Percentil 95 aproximado de la duración de los spans durante todo el período seleccionado, en milisegundos. El gráfico muestra el percentil por intervalo."
 
 #: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
 msgid "Check your query and time range, then try again."
-msgstr "Revisa tu consulta y el rango de tiempo, e inténtalo de nuevo."
+msgstr "Revisa tu consulta y el rango de tiempo, luego inténtalo de nuevo."
 
 #: lib/tuist_web/live/pulse_live.ex:800
 #, elixir-autogen, elixir-format
@@ -49,12 +49,12 @@ msgstr "Registros de error"
 #: lib/tuist_web/live/pulse_live.ex:999
 #, elixir-autogen, elixir-format
 msgid "Error spans"
-msgstr "Spans de error"
+msgstr "Spans con error"
 
 #: lib/tuist_web/live/pulse_live.ex:935
 #, elixir-autogen, elixir-format
 msgid "Healthy targets"
-msgstr "Targets en buen estado"
+msgstr "Objetivos saludables"
 
 #: lib/tuist_web/live/pulse_live.ex:791
 #, elixir-autogen, elixir-format
@@ -138,7 +138,7 @@ msgstr "No hay mediciones en este periodo"
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "No hay telemetría que coincida con esta consulta y rango de tiempo."
+msgstr "Ninguna telemetría coincide con esta consulta y rango de tiempo."
 
 #: lib/tuist_web/live/pulse_live.ex:257
 #, elixir-autogen, elixir-format
@@ -148,12 +148,12 @@ msgstr "Período:"
 #: lib/tuist_web/live/pulse_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
-msgstr "Pulse no ha podido completar esta consulta. Ajusta la consulta o actualiza para intentarlo de nuevo."
+msgstr "Pulse no pudo completar esta consulta. Ajusta la consulta o actualiza para intentarlo de nuevo."
 
 #: lib/tuist_web/live/pulse_live.ex:925
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
-msgstr "Objetivos de informes"
+msgstr "Destinos de informes"
 
 #: lib/tuist_web/live/pulse_live.ex:251
 #, elixir-autogen, elixir-format
@@ -237,7 +237,7 @@ msgstr "La conexión a Pulse no está configurada. Contacta con tu administrador
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
-msgstr "Esta consulta supera el límite de resultados. Reduce el intervalo de tiempo o la consulta nativa e inténtalo de nuevo."
+msgstr "Esta consulta supera el límite de resultados. Reduce el rango de tiempo o la consulta nativa e inténtalo de nuevo."
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
 #: lib/tuist_web/live/pulse_error_live.ex:258
@@ -271,7 +271,7 @@ msgstr "Registros de advertencia"
 #: lib/tuist_web/live/pulse_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
-msgstr "Duración del intervalo p95"
+msgstr "Duración p95 del span"
 
 #: lib/tuist_web/live/pulse_live.ex:651
 #, elixir-autogen, elixir-format
@@ -281,17 +281,17 @@ msgstr "vs. los 15 minutos anteriores"
 #: lib/tuist_web/live/pulse_live.ex:653
 #, elixir-autogen, elixir-format
 msgid "vs previous 24 hours"
-msgstr "vs. las 24 horas anteriores"
+msgstr "vs. las últimas 24 horas"
 
 #: lib/tuist_web/live/pulse_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "vs previous 6 hours"
-msgstr "vs. las 6 horas anteriores"
+msgstr "vs. las últimas 6 horas"
 
 #: lib/tuist_web/live/pulse_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "vs previous hour"
-msgstr "vs. la hora anterior"
+msgstr "vs. la última hora"
 
 #: lib/tuist_web/live/pulse_live.ex:910
 #, elixir-autogen, elixir-format
@@ -376,7 +376,7 @@ msgstr "En la app"
 #: lib/tuist_web/live/pulse_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Issue"
-msgstr "Problema"
+msgstr "Incidencia"
 
 #: lib/tuist_web/live/pulse_error_live.ex:202
 #: lib/tuist_web/live/pulse_live.ex:759
@@ -393,7 +393,7 @@ msgstr "Último evento"
 #: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
-msgstr "Ninguna excepción registrada"
+msgstr "No se ha registrado ninguna excepción"
 
 #: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
@@ -405,7 +405,7 @@ msgstr "No se han registrado marcos de pila"
 #: lib/tuist_web/live/pulse_error_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Occurrences"
-msgstr "Repeticiones"
+msgstr "Ocurrencias"
 
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
@@ -417,7 +417,7 @@ msgstr "Versión"
 #: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
-msgstr "Traza de la pila"
+msgstr "Traza de pila"
 
 #: lib/tuist_web/live/pulse_error_live.ex:457
 #, elixir-autogen, elixir-format
@@ -459,7 +459,7 @@ msgstr "Detalles del evento"
 #: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Events over the selected period"
-msgstr "Eventos durante el periodo seleccionado"
+msgstr "Eventos en el periodo seleccionado"
 
 #: lib/tuist_web/live/pulse_live.ex:1033
 #, elixir-autogen, elixir-format
@@ -480,7 +480,7 @@ msgstr "No registrado"
 #: lib/tuist_web/live/pulse_error_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Occurrence pages"
-msgstr "Páginas de ocurrencia"
+msgstr "Páginas de ocurrencias"
 
 #: lib/tuist_web/live/pulse_error_live.ex:190
 #, elixir-autogen, elixir-format
@@ -490,7 +490,7 @@ msgstr "Plataforma"
 #: lib/tuist_web/live/pulse_error_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
-msgstr "Pulse no pudo cargar estos detalles. Vuelve a Errores e inténtalo de nuevo."
+msgstr "Pulse no ha podido cargar estos detalles. Vuelve a Errores e inténtalo de nuevo."
 
 #: lib/tuist_web/live/pulse_live.ex:1026
 #, elixir-autogen, elixir-format
@@ -510,7 +510,7 @@ msgstr "ID del span"
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
-msgstr "Este problema o evento no se encontró en el periodo seleccionado."
+msgstr "Este problema o evento no se ha encontrado en el periodo seleccionado."
 
 #: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
@@ -530,7 +530,7 @@ msgstr "Este evento registró un mensaje, no una excepción."
 #: lib/tuist_web/live/pulse_error_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Breadcrumbs"
-msgstr "Migas de pan"
+msgstr "Ruta de navegación"
 
 #: lib/tuist_web/live/pulse_error_live.ex:570
 #, elixir-autogen, elixir-format

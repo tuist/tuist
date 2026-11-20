@@ -62,7 +62,7 @@ msgstr "Detalles"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "¿No tienes instalada la app de Tuist?"
+msgstr "¿No tienes la app de Tuist instalada?"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -89,12 +89,12 @@ msgstr "Nombre"
 #: lib/tuist_web/live/previews_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "None"
-msgstr "Ninguno"
+msgstr "Ninguna"
 
 #: lib/tuist_web/live/preview_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
-msgstr "O ejecutar usando la CLI"
+msgstr "O ejecutar con la CLI"
 
 #: lib/tuist_web/live/previews_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -129,18 +129,18 @@ msgstr "Ejecutado por"
 #: lib/tuist_web/live/preview_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Run"
-msgstr "Ejecución"
+msgstr "Ejecutar"
 
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Ejecuta el siguiente comando para compartir la vista previa de la aplicación."
+msgstr "Ejecuta el siguiente comando para compartir la vista previa de la app."
 
 #: lib/tuist_web/live/preview_live.html.heex:227
 #: lib/tuist_web/live/preview_live.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
-msgstr "Escanea el código QR"
+msgstr "Escanear código QR"
 
 #: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
@@ -165,7 +165,7 @@ msgstr "Esta previsualización solo es compatible con simuladores y no se puede 
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "Esta previsualización no está disponible para instalación en dispositivos"
+msgstr "Esta previsualización no está disponible para su instalación en dispositivos"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
@@ -192,7 +192,7 @@ msgstr "Buscar..."
 #: lib/tuist_web/live/previews_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Track"
-msgstr "Rastrear"
+msgstr "Seguir"
 
 #: lib/tuist_web/live/preview_live.html.heex:154
 #, elixir-autogen, elixir-format
@@ -217,7 +217,7 @@ msgstr "Esta preview no está disponible para descarga"
 #: lib/tuist_web/live/preview_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "App preview"
-msgstr "Preview de la app"
+msgstr "App preview"
 
 #: lib/tuist_web/live/preview_live.ex:53
 #, elixir-autogen, elixir-format

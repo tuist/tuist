@@ -150,7 +150,7 @@ msgstr "iOS 기기에서 이 QR 코드를 스캔하여 앱 버전을 설치하�
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "앱 미리보기를 한 번의 클릭으로 공유하기"
+msgstr "앱 미리보기를 한 번의 클릭으로 공유하세요"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -165,7 +165,7 @@ msgstr "이 미리보기는 시뮬레이터에서만 지원되며 실제 기기�
 #: lib/tuist_web/live/preview_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "이 미리보기는 기기에 설치할 수 없습니다"
+msgstr "이 미리보기는 기기 설치를 지원하지 않습니다"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
@@ -237,12 +237,12 @@ msgstr "CLI"
 #: lib/tuist_web/live/preview_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Command-line preview"
-msgstr "커맨드라인 미리보기"
+msgstr "명령줄 미리보기"
 
 #: lib/tuist_web/live/preview_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Desktop previews run as your user, with access to your files and environment. They are not sandboxed."
-msgstr "데스크톱 미리보기는 사용자의 파일과 환경에 접근할 수 있도록 사용자 권한으로 실행됩니다. 샌드박스 처리되지 않습니다."
+msgstr "데스크톱 미리보기는 사용자의 권한으로 실행되어 파일과 환경에 접근합니다. 샌드박스로 격리되지 않습니다."
 
 #: lib/tuist_web/live/preview_live.html.heex:333
 #, elixir-autogen, elixir-format
