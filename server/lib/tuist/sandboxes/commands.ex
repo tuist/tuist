@@ -199,13 +199,18 @@ defmodule Tuist.Sandboxes.Commands do
                  """ <>
                  ~S"""
                  [ -e "$d/exit_code" ] && exit 0
-                 [ -s "$d/killed" ] || printf '%s' "$TUIST_REASON" > "$d/killed"
+                 mark() { [ -s "$d/killed" ] || printf '%s' "$TUIST_REASON" > "$d/killed"; }
+                 # A note goes to the command's stderr once nothing else writes
+                 # it, and the command reads as ended only after it.
+                 [ -n "${TUIST_NOTE-}" ] || mark
                  : > "$d/stdin_closed"
                  pid=$(cat "$d/pid")
-                 kill -TERM -- -"$pid" 2> /dev/null || exit 0
-                 i=0
-                 while kill -0 -- -"$pid" 2> /dev/null && [ "$i" -lt 50 ]; do i=$((i + 1)); sleep 0.1; done
-                 kill -KILL -- -"$pid" 2> /dev/null || true
+                 if kill -TERM -- -"$pid" 2> /dev/null; then
+                   i=0
+                   while kill -0 -- -"$pid" 2> /dev/null && [ "$i" -lt 50 ]; do i=$((i + 1)); sleep 0.1; done
+                   kill -KILL -- -"$pid" 2> /dev/null || true
+                 fi
+                 if [ -n "${TUIST_NOTE-}" ]; then printf '\n%s\n' "$TUIST_NOTE" >> "$d/stderr"; mark; fi
                  exit 0
                  """
 
@@ -463,27 +468,40 @@ defmodule Tuist.Sandboxes.Commands do
     }
 
     with {:ok, command} <- get(sandbox, id) do
-      exec_opts = [env: env, timeout_ms: wait * 1000 + 30_000, raw_output: true]
+      if expired_and_ended?(sandbox, command),
+        do: {:ok, Map.merge(serialize(command), empty_read(stdout_offset, stderr_offset))},
+        else: read_guest(sandbox, command, env, wait, stdout_offset, stderr_offset)
+    end
+  end
 
-      case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @read_script], exec_opts) do
-        {:ok, result} ->
-          case parse(result, stdout_offset, stderr_offset) do
-            {:ok, read} ->
-              command = record(sandbox, command, read.status, read.exit_code)
-              {:ok, Map.merge(serialize(command), Map.drop(read, [:status, :exit_code]))}
+  # Reading a command that ended in a sandbox whose lifetime ended would
+  # resume the sandbox, and with it a new lifetime, only to read output.
+  defp expired_and_ended?(%Sandbox{state: state, expires_at: %DateTime{} = at}, %SandboxCommand{status: status}),
+    do: state != :running and status != :running and not DateTime.after?(at, DateTime.utc_now())
 
-            {:error, :not_found} ->
-              # The guest lost the directory, such as a sandbox created again.
-              command = record(sandbox, command, :lost, nil)
-              {:ok, Map.merge(serialize(command), empty_read(stdout_offset, stderr_offset))}
+  defp expired_and_ended?(_sandbox, _command), do: false
 
-            {:error, reason} ->
-              {:error, reason}
-          end
+  defp read_guest(sandbox, command, env, wait, stdout_offset, stderr_offset) do
+    exec_opts = [env: env, timeout_ms: wait * 1000 + 30_000, raw_output: true]
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+    case Sandboxes.exec(sandbox, ["/bin/bash", "-c", @read_script], exec_opts) do
+      {:ok, result} ->
+        case parse(result, stdout_offset, stderr_offset) do
+          {:ok, read} ->
+            command = record(sandbox, command, read.status, read.exit_code)
+            {:ok, Map.merge(serialize(command), Map.drop(read, [:status, :exit_code]))}
+
+          {:error, :not_found} ->
+            # The guest lost the directory, such as a sandbox created again.
+            command = record(sandbox, command, :lost, nil)
+            {:ok, Map.merge(serialize(command), empty_read(stdout_offset, stderr_offset))}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -571,9 +589,27 @@ defmodule Tuist.Sandboxes.Commands do
     end
   end
 
+  @doc """
+  Cancels every command running in a sandbox whose lifetime ended, without
+  resuming it, leaving `note` at the end of each one's stderr, and records
+  them `cancelled`. Leaves the residency to the pause that follows.
+  """
+  def cancel_expired(%Sandbox{} = sandbox, note) do
+    from(c in SandboxCommand, where: c.sandbox_id == ^sandbox.id and c.status == :running)
+    |> Repo.all()
+    |> Enum.each(fn command ->
+      _ = kill(sandbox, command.id, "cancelled", &Sandboxes.exec_running/3, note)
+
+      command
+      |> Ecto.Changeset.change(status: :cancelled, finished_at: DateTime.utc_now(:second))
+      |> Repo.update!()
+    end)
+  end
+
   @doc false
-  def kill(sandbox, id, reason, exec \\ &Sandboxes.exec_running/3) do
+  def kill(sandbox, id, reason, exec \\ &Sandboxes.exec_running/3, note \\ nil) do
     env = %{"TUIST_COMMAND_ID" => id, "TUIST_REASON" => reason}
+    env = if note, do: Map.put(env, "TUIST_NOTE", note), else: env
 
     case exec.(sandbox, ["/bin/bash", "-c", @kill_script], env: env, timeout_ms: 30_000) do
       {:ok, %{exit_code: 0}} -> :ok

@@ -102,7 +102,7 @@ defmodule Tuist.MCP.Components.Tools.CreateSandbox do
     - Run commands with `tuist sandbox exec <id> --cwd <root> --wait <seconds> -- '<command>'`, with `--wait` a minute under your tool-call time limit. It streams output, waits while the Mac's host is busy, and exits with the command's status; stopping it cancels the command. When `--wait` passes first, the command keeps running: it exits with 75 and prints the `tuist sandbox exec ... --attach` command that continues where the output stopped and ends with the command's status. Run builds and tests this way in the foreground; don't background them and poll a log.
     - The Mac has `tuist`, the repository's own version when it pins one through mise, signed in to the account's cache in every command. Once, read the Mac's guide with `tuist sandbox exec <id> -- cat /opt/tuist/agent-guide.md`: its Xcode and simulators, what a ready snapshot holds, and copying results back. A Mac without the guide predates it: run `mise install` in `root` there for Tuist.
     - Keep the default shape unless a build runs out of memory, and run only the builds and tests the user asked for: every larger shape and every extra scheme makes the user wait longer.
-    - The sandbox runs until `expires_at`, two hours unless you pass `lifetime_seconds` (at most a day); then it is paused and archived, keeping its files. For longer work, call `extend_sandbox` before it expires. Delete the sandbox when the task is done.
+    - The sandbox runs until `expires_at`, two hours from creation unless you pass `lifetime_seconds` (at most a day). The limit is hard: then any running command is cancelled and the sandbox is paused and archived, keeping its files; a later command resumes it with a new lifetime. Before a long build or test run, check `expires_at` and call `extend_sandbox` so it outlasts the command's timeout. Delete the sandbox when the task is done.
     """
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:create, conn, args)
@@ -168,7 +168,7 @@ defmodule Tuist.MCP.Components.Tools.ExtendSandbox do
   @impl EMCP.Tool
   def description,
     do:
-      "Start a sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours), so it keeps running past its `expires_at`. Sandboxes created with `create_sandbox` are paused and archived when their lifetime ends; resuming one starts a new lifetime. Requires an account member."
+      "Start a sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours), so it keeps running past its `expires_at`. Call it before a command that may outlast `expires_at`: when a lifetime ends, running commands are cancelled and the sandbox is paused and archived, keeping its files; resuming one starts a new lifetime. Requires an account member."
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.SandboxTools.execute(:extend, conn, args)
 end

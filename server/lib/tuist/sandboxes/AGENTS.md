@@ -575,10 +575,15 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   by default, five minutes to a day) and `expires_at`, set at create and
   started again by every resume or restore (`running_or_resume/1`) and by
   `extend/2` (`POST .../extend`, MCP `extend_sandbox`). Every minute
-  `ExpireSandboxesWorker` (`expire_sandboxes/0`) pauses an expired running one
-  once no command runs (a command's deadline bounds that) and queues the
-  archive of an expired paused one once archivable (a Mac after its host's
-  eviction, about 30 s later). Archive, not delete: the files survive, a
+  `ExpireSandboxesWorker` (`expire_sandboxes/0`) ends an expired running one
+  hard: `Commands.cancel_expired/2` kills its commands without resuming it,
+  appends a note to each one's stderr (written before the kill marker, so a
+  reader sees it with the end) and records them `cancelled`, then it pauses;
+  agents extend first (the `create_sandbox` description says so). It queues
+  the archive of an expired paused one once archivable (a Mac after its host's
+  eviction, about 30 s later). `Commands.read/3` answers an ended command of
+  an expired, paused sandbox from its row: resuming to read output would
+  start a new lifetime. Archive, not delete: the files survive, a
   resume restores them, and the 14-day retention deletes the rest. Sandboxes
   of Amp Orbs and agent environments (Claude) have no lifetime and are never
   expired: their integrations own them.

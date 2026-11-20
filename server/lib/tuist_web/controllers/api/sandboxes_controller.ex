@@ -1001,7 +1001,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:extend,
     summary: "Extend a sandbox's lifetime.",
     description:
-      "Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.",
+      "Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API has its running commands cancelled and is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.",
     operation_id: "extendSandbox",
     parameters: @sandbox_parameters,
     request_body:

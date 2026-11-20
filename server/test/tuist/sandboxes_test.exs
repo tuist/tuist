@@ -16,6 +16,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.UsageEvent
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
@@ -1377,17 +1378,6 @@ defmodule Tuist.SandboxesTest do
       # Integrations own these, even with a stray expiry.
       orb = sandbox_fixture(account: account, node_name: "node-a", amp_orb_id: "orb-1", expires_at: ago(10))
 
-      busy = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(10))
-
-      Repo.insert!(%Tuist.Sandboxes.SandboxCommand{
-        id: Ecto.UUID.generate(),
-        sandbox_id: busy.id,
-        account_id: account.id,
-        command: "sleep",
-        status: :running,
-        deadline_at: DateTime.truncate(ago(-3600), :second)
-      })
-
       expired_id = expired.id
 
       expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^expired_id}, _opts -> {:ok, %{}} end)
@@ -1395,7 +1385,44 @@ defmodule Tuist.SandboxesTest do
       Sandboxes.expire_sandboxes()
 
       assert %Sandbox{state: :paused} = Repo.reload!(expired)
-      for sandbox <- [live, unbounded, orb, busy], do: assert(%Sandbox{state: :running} = Repo.reload!(sandbox))
+      for sandbox <- [live, unbounded, orb], do: assert(%Sandbox{state: :running} = Repo.reload!(sandbox))
+    end
+
+    test "expire_sandboxes/0 cancels a running command with a note, pauses, and a read does not resume it" do
+      account = account_fixture()
+      busy = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(10))
+
+      command =
+        Repo.insert!(%SandboxCommand{
+          id: Ecto.UUID.generate(),
+          sandbox_id: busy.id,
+          account_id: account.id,
+          command: "xcodebuild",
+          status: :running,
+          deadline_at: DateTime.truncate(ago(-3600), :second)
+        })
+
+      busy_id = busy.id
+      command_id = command.id
+
+      expect(Nodes, :call, 2, fn
+        "node-a", "exec", %{sandbox_id: ^busy_id, env: %{"TUIST_COMMAND_ID" => ^command_id} = env}, _opts ->
+          assert env["TUIST_REASON"] == "cancelled"
+          assert env["TUIST_NOTE"] =~ "lifetime ended"
+          {:ok, %{"exit_code" => 0}}
+
+        "node-a", "pause", %{sandbox_id: ^busy_id}, _opts ->
+          {:ok, %{}}
+      end)
+
+      Sandboxes.expire_sandboxes()
+
+      assert %Sandbox{state: :paused} = paused = Repo.reload!(busy)
+      assert %SandboxCommand{status: :cancelled} = Repo.reload!(command)
+
+      # The client's next read answers from the row instead of resuming the sandbox.
+      reject(&Nodes.call/4)
+      assert {:ok, %{status: "cancelled", complete: true}} = Tuist.Sandboxes.Commands.read(paused, command_id)
     end
 
     test "expire_sandboxes/0 archives an expired paused Mac once its host evicted it" do

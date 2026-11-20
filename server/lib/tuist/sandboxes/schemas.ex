@@ -64,7 +64,7 @@ defmodule Tuist.Sandboxes.Schemas do
           format: "date-time",
           nullable: true,
           description:
-            "When the sandbox's lifetime ends: it is then paused once no command runs, and archived, keeping its files; resuming it starts a new lifetime. Extend it to keep it running longer."
+            "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
         },
         error_message: %Schema{type: :string, nullable: true},
         inserted_at: %Schema{type: :string, format: "date-time"},
@@ -122,7 +122,7 @@ defmodule Tuist.Sandboxes.Schemas do
       minimum: 300,
       maximum: Sandbox.max_lifetime_seconds(),
       description:
-        "How long the sandbox may run, in seconds, from now and again after each resume: #{div(Sandbox.default_lifetime_seconds(), 3600)} hours by default, at most #{div(Sandbox.max_lifetime_seconds(), 3600)}. When it ends, the sandbox is paused once no command runs and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac."
+        "How long the sandbox may run, in seconds, from now and again after each resume: #{div(Sandbox.default_lifetime_seconds(), 3600)} hours by default, at most #{div(Sandbox.max_lifetime_seconds(), 3600)}. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac."
     }
   end
 

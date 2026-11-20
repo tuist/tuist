@@ -1472,13 +1472,16 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
-  Ends the sandboxes whose lifetime ran out: pauses a running one (once no
-  command runs in it; a command's own deadline bounds that) and queues the
-  archive of a paused one, which frees its disk and, on macOS, follows the
-  host's eviction of the paused VM. The files survive: a resume restores the
-  sandbox and starts a new lifetime, and the 14-day retention deletes it
+  Ends the sandboxes whose lifetime ran out: a running one has its commands
+  cancelled, each with a note on its stderr, and is paused; a paused one has
+  its archive queued, which frees its disk and, on macOS, follows the host's
+  eviction of the paused VM. The limit is hard, as an agent extends a
+  sandbox it still needs (`extend/2`). The files survive: a resume restores
+  the sandbox and starts a new lifetime, and the 14-day retention deletes it
   otherwise. Run every minute by `Workers.ExpireSandboxesWorker`.
   """
+  @expired_note "tuist: the sandbox's lifetime ended, so this command was cancelled and the sandbox paused and archived with its files. Resuming it (any command does) starts a new lifetime; extend a sandbox before long work with `extend_sandbox` or `POST .../extend`."
+
   def expire_sandboxes do
     now = now()
     # A failed upload is retried after the archive tier's own backoff.
@@ -1504,7 +1507,12 @@ defmodule Tuist.Sandboxes do
         fn ->
           with_fresh(id, fn
             %Sandbox{state: :running, expires_at: %DateTime{} = at} = sandbox ->
-              if DateTime.after?(at, now()) or commands_running?(sandbox), do: {:ok, :skipped}, else: do_pause(sandbox)
+              if DateTime.after?(at, now()) do
+                {:ok, :skipped}
+              else
+                Commands.cancel_expired(sandbox, @expired_note)
+                do_pause(sandbox)
+              end
 
             _sandbox ->
               {:ok, :skipped}
