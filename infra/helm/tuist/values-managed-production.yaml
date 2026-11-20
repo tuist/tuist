@@ -2437,10 +2437,10 @@ sandboxes:
   # Below the chart's 24 while guarantees first take CPU from CI: the
   # daemon's request grows to the floor plus its sandboxes' guarantees, into
   # free CPU and idle warm runners' CPU (which the runners-controller
-  # retires, never one with a job), at most 8 cores per node. Raise it
+  # retires, never one with a job), at most 16 cores per node. Raise it
   # toward 24 once runner retirements for sandboxes and runner queue age
   # stay acceptable.
-  maxCpu: "8"
+  maxCpu: "16"
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"
