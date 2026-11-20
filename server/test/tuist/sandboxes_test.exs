@@ -289,6 +289,30 @@ defmodule Tuist.SandboxesTest do
       assert events(sandbox) == ["created", "failed"]
     end
 
+    test "a create refused for room records no events and, with capacity_wait_ms, waits for room on the same row" do
+      account = account_fixture()
+      expect(Capacity, :place, 3, fn _ -> {:error, :no_capacity} end)
+
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{}, capacity_wait_ms: 25)
+
+      assert [%Sandbox{state: :error, node_name: nil} = refused] = Sandboxes.list_sandboxes(account)
+      assert events(refused) == []
+
+      expect(Capacity, :place, 2, fn _ -> {:error, :no_capacity} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :running} = sandbox} = Sandboxes.create_sandbox(account, %{}, capacity_wait_ms: 5_000)
+      assert events(sandbox) == ["created", "started"]
+    end
+
+    test "a create without capacity_wait_ms answers a refusal at once" do
+      account = account_fixture()
+      expect(Capacity, :place, fn _ -> {:error, :no_capacity} end)
+
+      assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
+    end
+
     test "marks the sandbox as errored when the node rejects the create" do
       account = account_fixture()
       expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)

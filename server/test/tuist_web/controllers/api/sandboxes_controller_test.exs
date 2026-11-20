@@ -696,15 +696,50 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert json_response(conn, :service_unavailable)["message"] =~ "archive can't be reached"
     end
 
-    test "answers 503 when no node has memory or disk left", %{conn: conn, account: account} do
-      stub(Capacity, :place, fn _ -> {:error, :no_capacity} end)
+    test "answers fleet_busy with an honest retry-after once a create has waited for room", %{
+      conn: conn,
+      account: account
+    } do
+      test_pid = self()
 
-      response =
-        conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
-        |> json_response(:service_unavailable)
+      stub(Capacity, :place, fn _ ->
+        send(test_pid, :placed)
+        {:error, :no_capacity}
+      end)
 
-      assert response["message"] =~ "memory or disk"
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
+
+      assert %{"code" => "fleet_busy", "message" => message} = json_response(conn, :service_unavailable)
+      assert message =~ "Do not retry in a loop"
+      assert get_resp_header(conn, "retry-after") == ["300"]
+      # It placed again while it waited instead of answering the first refusal.
+      assert_received :placed
+      assert_received :placed
+    end
+
+    test "tells the account's limit apart from a busy fleet", %{conn: conn, account: account} do
+      {:ok, _} = Tuist.Sandboxes.Concurrency.update_limits(account, %{sandbox_vcpus_limit: 1, sandbox_memory_gb_limit: 1})
+      reject(&Capacity.place/1)
+
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
+
+      assert %{"code" => "account_limit"} = json_response(conn, :too_many_requests)
+      assert get_resp_header(conn, "retry-after") == []
+    end
+
+    test "limits how fast an account creates sandboxes", %{conn: conn, account: account} do
+      stub(Capacity, :place, fn _ -> {:error, :no_node} end)
+
+      for _ <- 1..10 do
+        assert %{"code" => "no_node"} =
+                 conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:service_unavailable)
+      end
+
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
+
+      assert %{"code" => "rate_limited"} = json_response(conn, :too_many_requests)
+      assert [seconds] = get_resp_header(conn, "retry-after")
+      assert String.to_integer(seconds) in 1..60
     end
 
     test "answers 409 for an operation the sandbox state does not allow", %{conn: conn, account: account} do

@@ -23,6 +23,8 @@ defmodule Tuist.Sandboxes.Concurrency do
   alias Tuist.Sandboxes.Sandbox
 
   @fields [:sandbox_vcpus_limit, :sandbox_memory_gb_limit]
+  @busy_wait_ms 3_000
+  @busy_poll_ms 50
 
   def change_limits(account, attrs \\ %{}) do
     account
@@ -74,7 +76,43 @@ defmodule Tuist.Sandboxes.Concurrency do
        else: :ok
   end
 
+  @doc """
+  Checks the limits and runs `reserve` under the account row's lock.
+
+  The lock is taken with `SKIP LOCKED`, so an admission never waits inside a
+  transaction that may hold other locks (a node's, during a resume). Any
+  transaction holding the account row, not only another admission, makes
+  that answer `:sandbox_account_busy`, which concurrent creates of one account
+  hit. So an admission outside a transaction tries again for up to
+  #{@busy_wait_ms} ms, holding nothing while it waits, before it answers that.
+  """
   def admit(account_id, requested, reserve) do
+    if Repo.in_transaction?() do
+      admit_locked(account_id, requested, reserve)
+    else
+      deadline = System.monotonic_time(:millisecond) + busy_wait_ms()
+      admit_waiting(account_id, requested, reserve, deadline)
+    end
+  end
+
+  defp admit_waiting(account_id, requested, reserve, deadline) do
+    case admit_locked(account_id, requested, reserve) do
+      {:error, :sandbox_account_busy} = busy ->
+        if System.monotonic_time(:millisecond) + @busy_poll_ms < deadline do
+          Process.sleep(@busy_poll_ms)
+          admit_waiting(account_id, requested, reserve, deadline)
+        else
+          busy
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp busy_wait_ms, do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:busy_wait_ms, @busy_wait_ms)
+
+  defp admit_locked(account_id, requested, reserve) do
     Repo.transaction(fn ->
       account = Repo.one(from a in Account, where: a.id == ^account_id, lock: "FOR UPDATE SKIP LOCKED")
       if is_nil(account), do: Repo.rollback(:sandbox_account_busy)
