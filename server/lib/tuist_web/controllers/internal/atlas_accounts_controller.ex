@@ -72,6 +72,7 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
                :already_enterprise,
                :subscription_exists,
                :no_cancellable_subscription,
+               :no_schedulable_subscription,
                :already_on_trial,
                :not_on_trial,
                :paid_plan_required

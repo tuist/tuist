@@ -405,6 +405,99 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
                conn |> authed() |> put(plan_path(account.id), again) |> json_response(409)
     end
 
+    test "schedules an Enterprise subscription's switch to Pro once the customer has a card", %{conn: conn} do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "enterprise" => %{"usage" => ["enterprise.usage"], "flat_monthly" => ["enterprise.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "usage_meters" => %{
+            "cache_egress_megabytes" => "pro.egress",
+            "cache_requests" => "pro.requests",
+            "passing_test_cases" => "pro.tests"
+          },
+          "runners" => %{"runner_minutes" => "runner.minutes"}
+        }
+      end)
+
+      account = AccountsFixtures.organization_fixture(customer_id: "cus_nell", preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_free", plan: :enterprise)
+      starts_at = DateTime.utc_now() |> DateTime.add(10, :day) |> DateTime.truncate(:second)
+      attrs = %{"operation" => "schedule_pro", "starts_at" => DateTime.to_iso8601(starts_at)}
+
+      # Without a card the first Pro invoice could not be charged.
+      stub(Stripe.Customer, :retrieve, fn "cus_nell" ->
+        {:ok, %Stripe.Customer{id: "cus_nell", invoice_settings: %{default_payment_method: nil}}}
+      end)
+
+      stub(Stripe.SubscriptionSchedule, :create, fn _params -> flunk("scheduled without a payment method") end)
+
+      assert %{"error" => "payment_method_required"} =
+               conn |> authed() |> put(plan_path(account.id), plan_request(conn, account.id, attrs)) |> json_response(422)
+
+      stub(Stripe.Customer, :retrieve, fn "cus_nell" ->
+        {:ok, %Stripe.Customer{id: "cus_nell", invoice_settings: %{default_payment_method: "pm_card"}}}
+      end)
+
+      expect(Stripe.SubscriptionSchedule, :create, fn %{from_subscription: "sub_free"} ->
+        {:ok,
+         %{
+           id: "sub_sched",
+           phases: [%{start_date: 1_790_000_000, items: [%{price: "enterprise.flat.monthly", quantity: 0}]}]
+         }}
+      end)
+
+      starts_at_unix = DateTime.to_unix(starts_at)
+
+      expect(Stripe.SubscriptionSchedule, :update, fn "sub_sched", %{end_behavior: "release", phases: phases} ->
+        assert [
+                 %{
+                   items: [%{price: "enterprise.flat.monthly", quantity: 0}],
+                   start_date: 1_790_000_000,
+                   end_date: ^starts_at_unix
+                 },
+                 %{
+                   items: [
+                     %{price: "pro.egress"},
+                     %{price: "pro.requests"},
+                     %{price: "pro.tests"},
+                     %{price: "runner.minutes"},
+                     %{price: "pro.flat.monthly", quantity: 1}
+                   ],
+                   billing_cycle_anchor: "phase_start",
+                   proration_behavior: "none",
+                   collection_method: "charge_automatically"
+                 }
+               ] = phases
+
+        {:ok, %{id: "sub_sched"}}
+      end)
+
+      request = plan_request(conn, account.id, attrs)
+
+      # The account stays on Enterprise until the schedule switches it.
+      assert %{"effective_plan" => "enterprise"} =
+               conn |> authed() |> put(plan_path(account.id), request) |> json_response(200)
+
+      assert Repo.get_by!(AccountPlanChange, change_id: request["change_id"]).request["starts_at"] ==
+               attrs["starts_at"]
+
+      # When Stripe refuses the phases, the new schedule is released and nothing is recorded.
+      expect(Stripe.SubscriptionSchedule, :create, fn _ ->
+        {:ok, %{id: "sub_sched_2", phases: [%{start_date: 1, items: []}]}}
+      end)
+
+      expect(Stripe.SubscriptionSchedule, :update, fn "sub_sched_2", _ ->
+        {:error, %Stripe.Error{source: :stripe, code: :invalid_request_error, message: "no"}}
+      end)
+
+      expect(Stripe.SubscriptionSchedule, :release, fn "sub_sched_2" -> {:ok, %{id: "sub_sched_2"}} end)
+
+      assert %{"error" => "stripe_request_failed"} =
+               conn |> authed() |> put(plan_path(account.id), plan_request(conn, account.id, attrs)) |> json_response(502)
+
+      assert Repo.aggregate(AccountPlanChange, :count) == 1
+    end
+
     test "a subscription webhook invalidates the revision Atlas read", %{conn: conn} do
       account = AccountsFixtures.organization_fixture(customer_id: "cus_hook", preload: [:account]).account
       request = plan_request(conn, account.id, %{"operation" => "start_open_source"})
@@ -429,6 +522,10 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
 
       for attrs <- [
             %{"operation" => "upgrade_to_pro"},
+            %{"starts_at" => "2099-01-01T00:00:00Z"},
+            %{"operation" => "schedule_pro"},
+            %{"operation" => "schedule_pro", "starts_at" => "2020-01-01T00:00:00Z"},
+            %{"operation" => "schedule_pro", "starts_at" => "2099-01-01T00:00:00Z"},
             %{"operation" => "start_open_source", "billing_details" => details},
             %{"billing_details" => put_in(details, ["address", "country"], "USA")},
             %{"billing_details" => Map.delete(details, "email")},

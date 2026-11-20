@@ -2,7 +2,8 @@ defmodule Tuist.Ops.AccountPlans do
   @moduledoc """
   Audited, revision-checked plan changes for Atlas, the counterpart of the
   ops account page's plan buttons: upgrade to Enterprise, start the open
-  source plan, and cancel the live subscription at the end of its period.
+  source plan, and cancel the live subscription at the end of its period. It
+  can also schedule a switch to Pro at a later date, which the ops page cannot.
 
   Like `Tuist.Ops.RunnerConcurrencyLimits`, a write names the revision it
   read, a reason and a change UUID, and the request, workload principal and
@@ -21,12 +22,16 @@ defmodule Tuist.Ops.AccountPlans do
   alias Tuist.Ops.AccountPlanChange
   alias Tuist.Repo
 
-  @operations ~w(upgrade_to_enterprise start_open_source cancel_at_period_end)
-  @fields ~w(operation billing_details expected_revision reason change_id actor interface)
+  @operations ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro)
+  @fields ~w(operation billing_details starts_at expected_revision reason change_id actor interface)
   @address_fields ~w(line1 line2 city state postal_code country)
   @required_address_fields ~w(line1 city postal_code country)
   # The plans the ops page offers to cancel.
   @cancellable_plans [:pro, :enterprise, :open_source]
+  # The plans a switch to Pro can be scheduled from.
+  @schedulable_plans [:enterprise, :open_source]
+  # How far ahead a switch to Pro can be scheduled.
+  @max_schedule_days 366
   @recent_subscriptions 10
 
   def get(account_id) do
@@ -125,6 +130,35 @@ defmodule Tuist.Ops.AccountPlans do
 
       _ ->
         Repo.rollback(:no_cancellable_subscription)
+    end
+  end
+
+  # The switch charges the customer's default payment method, which Stripe
+  # has only once the customer added a card, so it is refused without one
+  # instead of leaving the first Pro invoice unpaid.
+  defp change_plan("schedule_pro", account, params) do
+    case Billing.get_current_active_subscription(account) do
+      %Subscription{plan: plan, cancel_at_period_end: false} = subscription when plan in @schedulable_plans ->
+        if not default_payment_method?(account), do: Repo.rollback(:payment_method_required)
+        {:ok, starts_at, 0} = DateTime.from_iso8601(params["starts_at"])
+
+        case Billing.schedule_pro_plan(account, subscription, starts_at) do
+          {:ok, _schedule} -> :ok
+          {:error, _reason} -> Repo.rollback(:stripe_request_failed)
+        end
+
+      _ ->
+        Repo.rollback(:no_schedulable_subscription)
+    end
+  end
+
+  defp default_payment_method?(%Account{customer_id: nil}), do: false
+
+  defp default_payment_method?(%Account{customer_id: customer_id}) do
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, %{invoice_settings: %{default_payment_method: payment_method}}} -> not is_nil(payment_method)
+      {:ok, _customer} -> false
+      {:error, _reason} -> Repo.rollback(:stripe_request_failed)
     end
   end
 
@@ -246,6 +280,7 @@ defmodule Tuist.Ops.AccountPlans do
     with true <- Enum.all?(Map.keys(params), &(&1 in @fields)),
          true <- params["operation"] in @operations,
          true <- valid_billing_details?(params["operation"], Map.fetch(params, "billing_details")),
+         true <- valid_starts_at?(params["operation"], Map.fetch(params, "starts_at")),
          true <- params["interface"] in ~w(mcp worker api),
          true <- text?(params["reason"], 1000),
          true <- String.trim(params["reason"]) != "",
@@ -277,6 +312,23 @@ defmodule Tuist.Ops.AccountPlans do
   end
 
   defp valid_billing_details?(_operation, _details), do: false
+
+  # A UTC instant after now and at most @max_schedule_days ahead.
+  defp valid_starts_at?("schedule_pro", {:ok, starts_at}) when is_binary(starts_at) do
+    case DateTime.from_iso8601(starts_at) do
+      {:ok, starts_at, 0} ->
+        now = DateTime.utc_now()
+
+        DateTime.after?(starts_at, now) and
+          not DateTime.after?(starts_at, DateTime.add(now, @max_schedule_days, :day))
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_starts_at?(operation, :error), do: operation != "schedule_pro"
+  defp valid_starts_at?(_operation, _starts_at), do: false
 
   defp text?(value, max), do: is_binary(value) and byte_size(value) in 1..max and String.trim(value) != ""
 

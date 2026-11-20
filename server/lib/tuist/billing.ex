@@ -642,6 +642,62 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Moves `subscription` onto the Pro plan at `starts_at`, through a Stripe
+  subscription schedule, so a customer can agree today to be billed from a
+  later date.
+
+  The schedule keeps the subscription's items until `starts_at`, then swaps
+  them for the Pro items `update_plan/1` would put on it, starts a new billing
+  cycle there and charges the customer's default payment method from then on.
+  Proration is off: the old phase is not settled. Its metered items, if any,
+  stop counting usage at the swap, so the swap is meant for subscriptions
+  without metered usage of their own, such as a $0 Enterprise one. After the
+  switch the schedule releases the subscription, which then renews as Pro.
+
+  When Stripe refuses the phases, the schedule it created is released again,
+  so the subscription is left as it was.
+  """
+  def schedule_pro_plan(%Account{} = account, %Subscription{} = subscription, %DateTime{} = starts_at) do
+    with {:ok, schedule} <- Stripe.SubscriptionSchedule.create(%{from_subscription: subscription.subscription_id}) do
+      [current_phase | _] = schedule.phases
+
+      phases = [
+        %{
+          items: Enum.map(current_phase.items, &schedule_phase_item/1),
+          start_date: current_phase.start_date,
+          end_date: DateTime.to_unix(starts_at)
+        },
+        %{
+          items: get_subscription_items("pro", account),
+          billing_cycle_anchor: "phase_start",
+          proration_behavior: "none",
+          collection_method: "charge_automatically"
+        }
+      ]
+
+      case Stripe.SubscriptionSchedule.update(schedule.id, %{phases: phases, end_behavior: "release"}) do
+        {:ok, schedule} ->
+          {:ok, schedule}
+
+        {:error, reason} ->
+          Stripe.SubscriptionSchedule.release(schedule.id)
+          {:error, reason}
+      end
+    end
+  end
+
+  # A phase item names its Price by ID, expanded or not, and carries a
+  # quantity only when it is licensed.
+  defp schedule_phase_item(item) do
+    price_id = with %{id: id} <- item.price, do: id
+
+    case Map.get(item, :quantity) do
+      nil -> %{price: price_id}
+      quantity -> %{price: price_id, quantity: quantity}
+    end
+  end
+
+  @doc """
   Whether a Stripe customer already has the name, email and address an
   invoice-billed Enterprise subscription needs, so `upgrade_to_enterprise/2`
   can run with `%{}` instead of asking for them.
