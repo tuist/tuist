@@ -20,7 +20,7 @@ struct LocalPackageCoverageTargetsValidatorTests {
         let path: AbsolutePath = "/project"
         let graph = graph(
             projectPath: path,
-            packages: [.local(path: "/packageA")],
+            packages: [.local(config: .init(path: "/packageA"))],
             codeCoverageTargets: [TargetReference(projectPath: path, name: "App")]
         )
 
@@ -45,7 +45,7 @@ struct LocalPackageCoverageTargetsValidatorTests {
         let reference = TargetReference(projectPath: packagePath, name: "LibraryA")
         let graph = graph(
             projectPath: path,
-            packages: [.local(path: packagePath)],
+            packages: [.local(config: .init(path: packagePath))],
             codeCoverageTargets: [reference]
         )
         given(packageInfoLoader)
@@ -68,7 +68,7 @@ struct LocalPackageCoverageTargetsValidatorTests {
         let packagePath: AbsolutePath = "/packageA"
         let graph = graph(
             projectPath: path,
-            packages: [.local(path: packagePath)],
+            packages: [.local(config: .init(path: packagePath))],
             // The name of the package target backing the product, not the product itself.
             codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "LibraryACore")]
         )
@@ -99,7 +99,7 @@ struct LocalPackageCoverageTargetsValidatorTests {
         let packageBPath: AbsolutePath = "/packageB"
         let graph = graph(
             projectPath: path,
-            packages: [.local(path: packageAPath), .local(path: packageBPath)],
+            packages: [.local(config: .init(path: packageAPath)), .local(config: .init(path: packageBPath))],
             // A product of package B referenced through package A's path.
             codeCoverageTargets: [TargetReference(projectPath: packageAPath, name: "LibraryB")]
         )
@@ -129,7 +129,7 @@ struct LocalPackageCoverageTargetsValidatorTests {
         let unknownReference = TargetReference(projectPath: "/unknown", name: "Unknown")
         let graph = graph(
             projectPath: path,
-            packages: [.local(path: "/packageA")],
+            packages: [.local(config: .init(path: "/packageA"))],
             codeCoverageTargets: [unknownReference]
         )
 
@@ -150,7 +150,7 @@ struct LocalPackageCoverageTargetsValidatorTests {
         let packagePath: AbsolutePath = "/packageA"
         var graph = graph(
             projectPath: path,
-            packages: [.local(path: packagePath)],
+            packages: [.local(config: .init(path: packagePath))],
             codeCoverageTargets: []
         )
         graph.workspace.schemes = [

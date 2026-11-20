@@ -10,7 +10,7 @@ struct PackageTests {
     }
 
     @Test func codableLocal() throws {
-        let subject = Package.local(path: try AbsolutePath(validating: "/path/to/workspace"))
+        let subject = Package.local(config: .init(path: try AbsolutePath(validating: "/path/to/workspace")))
 
         let encoded = try JSONEncoder().encode(subject)
 
@@ -45,7 +45,7 @@ struct PackageTests {
     }
 
     @Test func identityIsNormalized() throws {
-        let local = Package.local(path: try AbsolutePath(validating: "/path/to/LocalPackage"))
+        let local = Package.local(config: .init(path: try AbsolutePath(validating: "/path/to/LocalPackage")))
         let remote = Package.remote(
             url: "https://example.com/RemotePackage.git",
             requirement: .branch("main")
@@ -56,7 +56,7 @@ struct PackageTests {
     }
 
     @Test func isRemote() throws {
-        let local = Package.local(path: try AbsolutePath(validating: "/path/to/package"))
+        let local = Package.local(config: .init(path: try AbsolutePath(validating: "/path/to/package")))
         let remote = Package.remote(
             url: "/url/to/package",
             requirement: .branch("branch")
@@ -68,7 +68,7 @@ struct PackageTests {
 
     @Test func projectPackageTraitsRoundTripAndRemainOptional() throws {
         let project = Project.test(
-            packages: [.local(path: try AbsolutePath(validating: "/path/to/package"))],
+            packages: [.local(config: .init(path: try AbsolutePath(validating: "/path/to/package")))],
             packageTraits: ["package": []]
         )
         let encoded = try JSONEncoder().encode(project)

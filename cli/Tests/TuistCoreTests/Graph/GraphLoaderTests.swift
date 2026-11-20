@@ -552,10 +552,10 @@ final class GraphLoaderTests: TuistUnitTestCase {
             .package(product: "PackageLibraryB", type: .runtime),
         ])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
-            .local(path: "/Packages/PackageLibraryA"),
+            .local(config: .init(path: "/Packages/PackageLibraryA")),
         ])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB], packages: [
-            .local(path: "/Packages/PackageLibraryA"),
+            .local(config: .init(path: "/Packages/PackageLibraryA")),
         ])
         let projectC = Project.test(path: "/C", name: "C", targets: [targetC], packages: [
             .remote(url: "https://example.com/package-library-b", requirement: .branch("testing")),
@@ -580,8 +580,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
         // which has a few limitation / bugs when it comes to identifying the same
         // package referenced by multiple projects/
         XCTAssertEqual(graph.packages, [
-            "/A": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
-            "/B": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
+            "/A": ["/Packages/PackageLibraryA": .local(config: .init(path: "/Packages/PackageLibraryA"))],
+            "/B": ["/Packages/PackageLibraryA": .local(config: .init(path: "/Packages/PackageLibraryA"))],
             "/C": ["https://example.com/package-library-b": .remote(
                 url: "https://example.com/package-library-b",
                 requirement: .branch("testing")
@@ -607,7 +607,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
 
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
-            .local(path: "/Packages/PackagePlugin"),
+            .local(config: .init(path: "/Packages/PackagePlugin")),
         ])
 
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
@@ -624,7 +624,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(graph.packages, [
-            "/A": ["/Packages/PackagePlugin": .local(path: "/Packages/PackagePlugin")],
+            "/A": ["/Packages/PackagePlugin": .local(config: .init(path: "/Packages/PackagePlugin"))],
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
@@ -640,7 +640,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
 
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
-            .local(path: "/Packages/PackageEmbedded"),
+            .local(config: .init(path: "/Packages/PackageEmbedded")),
         ])
 
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
@@ -657,7 +657,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(graph.packages, [
-            "/A": ["/Packages/PackageEmbedded": .local(path: "/Packages/PackageEmbedded")],
+            "/A": ["/Packages/PackageEmbedded": .local(config: .init(path: "/Packages/PackageEmbedded"))],
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
