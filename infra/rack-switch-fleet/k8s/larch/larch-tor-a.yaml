@@ -15,7 +15,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-tor-b and the rack is still up.
   credentialItem: rack-switch-controller picos admin
-  configRevision: 8f0ae806def44545
+  configRevision: 14ca97a1976d0b43
   config:
     hostname: larch-tor-a
     managementVlan: 20
@@ -200,15 +200,16 @@ spec:
       - port: 30
         description: ""
         spanningTree: true
-        nativeVlan: 20
+        nativeVlan: 1
         taggedVlans:
           - 10
+          - 20
           - 4000
           - 4001
       - port: 31
         description: ""
         spanningTree: true
-        nativeVlan: 10
+        nativeVlan: 20
         taggedVlans: []
       - port: 32
         description: ""

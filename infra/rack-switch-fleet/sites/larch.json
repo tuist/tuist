@@ -300,9 +300,7 @@
           "port": 30,
           "media": "dac",
           "nic": "n225p-1",
-          "purpose": "data",
-          "native_vlan": 20,
-          "note": "Carries the management VLAN untagged until larch-edge-b is installed: its preinstalled installer asks for DHCP untagged, and the provisioning range is on the management VLAN."
+          "purpose": "data"
         },
         {
           "switch": "larch-tor-b",
@@ -329,7 +327,7 @@
       "name": "larch-store-a",
       "role": "storage",
       "hardware": "rs501a-e12",
-      "status": "planned",
+      "status": "installed",
       "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-tor-a over SFP28. Its BMC is on larch-tor-b copper port 22, so losing larch-tor-a still leaves its out-of-band path: ports 29 to 32 are one speed group on the S5860, and a 1G module there would not commit beside the 25G edge legs.",
       "feeds": [
         "feed-a",
@@ -341,7 +339,10 @@
           "port": 31,
           "media": "dac",
           "nic": "n225p-1",
-          "purpose": "data"
+          "purpose": "data",
+          "mac": "34:d8:68:5a:10:5a",
+          "native_vlan": 20,
+          "note": "Carries the management VLAN untagged until larch-store-a is installed: its preinstalled installer asks for DHCP untagged, and the provisioning range is on the management VLAN. Back to the machines VLAN once it is."
         },
         {
           "switch": "larch-tor-b",

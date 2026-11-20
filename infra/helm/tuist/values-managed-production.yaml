@@ -1988,6 +1988,18 @@ rackLinuxFleet:
       hostname: larch-edge-b
       role: edge
       site: larch
+    # larch-store-a (S/N TAS0CG00016P), the design's store-b, read from its
+    # BMC on 20 Nov. Single-homed to larch-tor-a port 31; its address is on
+    # the machines segment, reserved against its n225p-1 MAC. No public
+    # address yet: one would have the edges forward cluster traffic on
+    # larch's WAN address to it, a separate step once it is up. No TPM check
+    # code was recorded for it, so it installs from larch's own boot server.
+    - uuid: 05fd922b-27d6-16c8-f0b5-a0ad9f25c51f
+      hostname: larch-store-a
+      role: storage
+      site: larch
+      bootMAC: "34:d8:68:5a:10:5a"
+      address: 10.20.0.11
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
