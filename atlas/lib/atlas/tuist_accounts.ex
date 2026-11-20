@@ -56,7 +56,12 @@ defmodule Atlas.TuistAccounts do
     "type" => "object",
     "properties" => %{
       "account_id" => @account_id,
-      "operation" => %{"type" => "string", "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end)},
+      "operation" => %{
+        "type" => "string",
+        "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end schedule_pro)
+      },
+      # Only for schedule_pro, which requires it: when the switch to Pro happens.
+      "starts_at" => %{"type" => "string", "format" => "date-time"},
       # Only for upgrade_to_enterprise, when the Stripe customer lacks them.
       "billing_details" => %{
         "type" => "object",
@@ -382,7 +387,7 @@ defmodule Atlas.TuistAccounts do
     # Billing details stay out of the audit metadata; mcp.tool_called keeps the arguments.
     metadata =
       if is_map(args),
-        do: Map.take(args, ~w(operation expected_revision reason change_id)),
+        do: Map.take(args, ~w(operation starts_at expected_revision reason change_id)),
         else: %{}
 
     metadata =
