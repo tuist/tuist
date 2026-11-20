@@ -23,6 +23,9 @@ type metrics struct {
 	prefetches   *prometheus.CounterVec
 	publications *prometheus.CounterVec
 	phases       *prometheus.HistogramVec
+	records      *prometheus.CounterVec
+	logCopies    *prometheus.CounterVec
+	logBytes     prometheus.Counter
 }
 
 func newMetrics(registry prometheus.Registerer) *metrics {
@@ -53,8 +56,20 @@ func newMetrics(registry prometheus.Registerer) *metrics {
 			Help:    "Executed actions by phase, from the executor's metadata: queued (admission to worker start, including VM creation), input_fetch (reading the action and materializing its input tree), execution and output_upload.",
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 20),
 		}, []string{"phase"}),
+		records: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "reapi_gateway_action_records_total",
+			Help: "Records of finished actions sent to the server: sent or failed (counted per record), dropped while the queue was full, unattributed when the client sent no invocation ID, and incomplete when the action, command or a log could not be read (also sent).",
+		}, []string{"result"}),
+		logCopies: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "reapi_gateway_action_log_copies_total",
+			Help: "Copies of long action logs to the server's object storage: copied, dropped while the queue was full, refused when the server's upload was out of bounds, and failed.",
+		}, []string{"result"}),
+		logBytes: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "reapi_gateway_action_log_copy_bytes_total",
+			Help: "Bytes of action logs copied to the server's object storage.",
+		}),
 	}
-	registry.MustRegister(m.executions, m.duration, m.streams, m.prefetches, m.publications, m.phases)
+	registry.MustRegister(m.executions, m.duration, m.streams, m.prefetches, m.publications, m.phases, m.records, m.logCopies, m.logBytes)
 	return m
 }
 
