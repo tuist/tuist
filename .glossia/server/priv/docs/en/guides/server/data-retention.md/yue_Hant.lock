@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f9ece59f8182249a378ac90f0264a9b1b3f353dee38244ccc27620ec58b3c8a6",
+  "hash": "62be5bc4958c9c055466280b895c8736ed263682a1979d9577ebea8dcbf38081",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,10 +20,10 @@
                   "content_hash": "750c18650f45fa0d7d65e23727530d8f0b87d5d402ff3513580e0a08d5480987"
                 },
                 "### Hosted Tuist server {#hosted-artifact-files}": {
-                  "content_hash": "56a79e4ed32463aa569db00fe81e801bf4fa6d8ebbb41951d0593ac400325461"
+                  "content_hash": "d9e76b83573cd620d38be4077c659c24e825770e95d4d34780d40fa7deedd618"
                 },
                 "### Other dashboard and activity data {#other-dashboard-and-activity-data}": {
-                  "content_hash": "560b51c58c57b7a444d66d42029bf19cddea5dc3377f46219fa27f3f1bff33ee"
+                  "content_hash": "f570270f94be9b07bfef0f92dc5945da30fde95d1b9f04131acf5ea2ebeeb850"
                 },
                 "### Self-hosted instances {#self-hosted-artifact-files}": {
                   "content_hash": "cd537d12a18d5e9963843dfda1f17d0d5c18a23f4c3e182cb55d49ca6b5d9537"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0a4c12b548f5862ce741424af1bc0723e9867ac9d3ffb546e9e49ce7ab77b6a3",
+          "hash": "144c4890a81e6596317b0adccfffca2909b3fd229b8794fb0be80be679372daa",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/data-retention.md",
           "metadata": {
-            "content_hash": "3cb6a32639d0139a94f08e01de7f8a441c2680ca93dd03b30a464ab4190aa334"
+            "content_hash": "59c969cc6f6e76a7a646614e31ff346e7ba099c2f9a841b268376ec28491a674"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "f9ece59f8182249a378ac90f0264a9b1b3f353dee38244ccc27620ec58b3c8a6",
+      "hash": "62be5bc4958c9c055466280b895c8736ed263682a1979d9577ebea8dcbf38081",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/data-retention.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "70ac8718262c09355cad5a32bf127a7587ab7b9aa53c7fedc72486640b944cf9",
+  "output_hash": "fd2ce445941bb3a580c7b833d590d28e4da0157cd16bebcd6e3b59d60f919a59",
   "output_path": "server/priv/docs/yue_Hant/guides/server/data-retention.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "9aad004028ce3d0e5eafe8720c73abb6b8d57f24",
+  "source_commit_sha": "69bdc65ad439b8656adc12259c1953e40659d0e6",
   "source_path": "server/priv/docs/en/guides/server/data-retention.md",
-  "translated_at": "2026-11-19T17:59:17.909886Z",
-  "translation_session_id": "01a1f4f3-808d-736e-b4c9-4f157bb16bd2"
+  "translated_at": "2026-11-20T10:53:14.330344Z",
+  "translation_session_id": "01a1f87e-648e-7983-880e-3c168199b0b8"
 }

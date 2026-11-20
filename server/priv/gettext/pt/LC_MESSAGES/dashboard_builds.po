@@ -94,8 +94,8 @@ msgid "Branch"
 msgstr "Branch"
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
-#: lib/tuist_web/live/bazel_invocation_live.ex:67
-#: lib/tuist_web/live/bazel_invocation_live.ex:95
+#: lib/tuist_web/live/bazel_invocation_live.ex:68
+#: lib/tuist_web/live/bazel_invocation_live.ex:96
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/cargo_build_live.html.heex:47
 #: lib/tuist_web/live/mix_build_live.html.heex:383
@@ -120,7 +120,7 @@ msgstr "Execução da compilação"
 msgid "Build Runs"
 msgstr "Execuções da compilação"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:620
+#: lib/tuist_web/live/bazel_invocation_live.ex:632
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -183,7 +183,7 @@ msgstr "Pastas compiláveis"
 msgid "Builds"
 msgstr "Builds"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:629
+#: lib/tuist_web/live/bazel_invocation_live.ex:641
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -192,7 +192,7 @@ msgstr "Builds"
 msgid "Built at"
 msgstr "Compilado em"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:615
+#: lib/tuist_web/live/bazel_invocation_live.ex:627
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -362,8 +362,9 @@ msgstr "Limpar"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:251
-#: lib/tuist_web/live/bazel_invocation_live.ex:596
+#: lib/tuist_web/live/bazel_invocation_live.ex:252
+#: lib/tuist_web/live/bazel_invocation_live.ex:608
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:157
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
@@ -507,9 +508,10 @@ msgstr "Taxa de transferência do download"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
-#: lib/tuist_web/live/bazel_invocation_live.ex:1442
+#: lib/tuist_web/live/bazel_invocation_live.ex:1467
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:69
 #: lib/tuist_web/live/cargo_build_live.ex:131
 #: lib/tuist_web/live/cargo_build_live.html.heex:323
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
@@ -521,7 +523,7 @@ msgstr "Taxa de transferência do download"
 #: lib/tuist_web/live/generate_runs_live.html.heex:92
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:49
 #: lib/tuist_web/live/once_runs_live.ex:1002
-#: lib/tuist_web/live/remote_execution_live.ex:726
+#: lib/tuist_web/live/remote_execution_live.ex:725
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:14
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:30
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
@@ -536,6 +538,7 @@ msgid "Entitlements"
 msgstr "Entitlements"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:395
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:261
 #: lib/tuist_web/live/build_entity_live.ex:1158
 #: lib/tuist_web/live/build_entity_live.ex:1220
 #: lib/tuist_web/live/cargo_build_runs_live.ex:62
@@ -555,6 +558,8 @@ msgstr "Ambiente"
 msgid "Environment:"
 msgstr "Ambiente:"
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:125
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:131
 #: lib/tuist_web/live/build_run_live.html.heex:196
 #: lib/tuist_web/live/build_run_live.html.heex:361
 #: lib/tuist_web/live/build_run_live.html.heex:788
@@ -587,6 +592,7 @@ msgstr "Externo"
 #: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
+#: lib/tuist_web/live/bazel_remote_action_live.ex:167
 #: lib/tuist_web/live/build_entity_live.ex:517
 #: lib/tuist_web/live/build_entity_live.ex:1193
 #: lib/tuist_web/live/build_entity_live.html.heex:438
@@ -978,6 +984,7 @@ msgstr "Nenhum aviso detectado"
 msgid "None"
 msgstr "Nenhum"
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:37
 #: lib/tuist_web/live/build_entity_live.html.heex:41
 #: lib/tuist_web/live/build_run_live.html.heex:168
 #: lib/tuist_web/live/cargo_build_live.html.heex:33
@@ -988,7 +995,8 @@ msgid "Overview"
 msgstr "Visão geral"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:1335
+#: lib/tuist_web/live/bazel_invocation_live.ex:1347
+#: lib/tuist_web/live/bazel_remote_action_live.ex:166
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
@@ -1060,7 +1068,7 @@ msgstr "Configurações do projeto"
 #: lib/tuist_web/live/generate_runs_live.html.heex:108
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:76
 #: lib/tuist_web/live/once_runs_live.ex:1003
-#: lib/tuist_web/live/remote_execution_live.ex:732
+#: lib/tuist_web/live/remote_execution_live.ex:731
 #: lib/tuist_web/live/run_detail_live.html.heex:156
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:15
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
@@ -1142,7 +1150,7 @@ msgstr "Esquema:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:967
+#: lib/tuist_web/live/bazel_invocation_live.ex:979
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1181,7 +1189,7 @@ msgstr "Tamanho (MB)"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
-#: lib/tuist_web/live/bazel_invocation_live.ex:468
+#: lib/tuist_web/live/bazel_invocation_live.ex:469
 #: lib/tuist_web/live/bazel_invocations_live.ex:524
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
@@ -1214,9 +1222,10 @@ msgstr "Fontes"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:259
-#: lib/tuist_web/live/bazel_invocation_live.ex:347
-#: lib/tuist_web/live/bazel_invocation_live.ex:605
+#: lib/tuist_web/live/bazel_invocation_live.ex:260
+#: lib/tuist_web/live/bazel_invocation_live.ex:348
+#: lib/tuist_web/live/bazel_invocation_live.ex:617
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:57
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
@@ -1234,7 +1243,7 @@ msgstr "Fontes"
 #: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
 #: lib/tuist_web/live/once_run_live.ex:319
-#: lib/tuist_web/live/remote_execution_live.ex:731
+#: lib/tuist_web/live/remote_execution_live.ex:730
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -1434,6 +1443,7 @@ msgstr "Tipo:"
 #: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
+#: lib/tuist_web/live/bazel_remote_action_live.ex:171
 #: lib/tuist_web/live/build_entity_live.html.heex:607
 #: lib/tuist_web/live/build_run_live.html.heex:58
 #: lib/tuist_web/live/build_run_live.html.heex:245
@@ -1703,6 +1713,7 @@ msgstr "desde a semana passada"
 msgid "since last year"
 msgstr "desde o ano passado"
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:132
 #: lib/tuist_web/live/build_run_live.html.heex:364
 #: lib/tuist_web/live/build_run_live.html.heex:401
 #: lib/tuist_web/live/build_run_live.html.heex:747
@@ -1959,7 +1970,7 @@ msgstr "Iniciado após"
 msgid "Succeeded"
 msgstr "Concluído com sucesso"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:429
+#: lib/tuist_web/live/bazel_invocation_live.ex:430
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/mix_build_live.html.heex:60
@@ -2037,6 +2048,7 @@ msgid "In"
 msgstr "Entrada"
 
 #: lib/tuist_web/components/build_timeline.ex:117
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "Memória"
@@ -2486,11 +2498,11 @@ msgid "Declared action index"
 msgstr "Índice de ação declarado"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:65
-#: lib/tuist_web/live/bazel_invocation_live.ex:327
-#: lib/tuist_web/live/bazel_invocation_live.ex:446
+#: lib/tuist_web/live/bazel_invocation_live.ex:328
+#: lib/tuist_web/live/bazel_invocation_live.ex:447
 #: lib/tuist_web/live/build_entity_live.ex:625
 #: lib/tuist_web/live/remote_execution_live.ex:245
-#: lib/tuist_web/live/remote_execution_live.ex:847
+#: lib/tuist_web/live/remote_execution_live.ex:846
 #, elixir-autogen, elixir-format
 msgid "Executions"
 msgstr "Execuções"
@@ -2560,7 +2572,9 @@ msgstr "Sem consultas registradas"
 msgid "Not found in this project."
 msgstr "Não encontrado neste projeto."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1483
+#: lib/tuist_web/live/bazel_invocation_live.ex:1510
+#: lib/tuist_web/live/bazel_remote_action_live.ex:179
+#: lib/tuist_web/live/bazel_remote_action_live.ex:182
 #: lib/tuist_web/live/build_entity_live.ex:518
 #: lib/tuist_web/live/build_entity_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:675
@@ -2571,7 +2585,7 @@ msgstr "Não encontrado neste projeto."
 #: lib/tuist_web/live/build_entity_live.html.heex:443
 #: lib/tuist_web/live/build_entity_live.html.heex:455
 #: lib/tuist_web/live/build_entity_live.html.heex:594
-#: lib/tuist_web/live/remote_execution_live.ex:702
+#: lib/tuist_web/live/remote_execution_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "Não registrado"
@@ -3354,27 +3368,32 @@ msgstr "Usado"
 msgid "Compiled without consulting the cache because it could not be cached."
 msgstr "Compilado sem consultar o cache porque não pôde ser armazenado em cache."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1448
+#: lib/tuist_web/live/bazel_invocation_live.ex:1473
+#: lib/tuist_web/live/bazel_remote_action_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Execution"
 msgstr "Execução"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1447
+#: lib/tuist_web/live/bazel_invocation_live.ex:1472
+#: lib/tuist_web/live/bazel_remote_action_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Input fetch"
 msgstr "Busca de entrada"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1449
+#: lib/tuist_web/live/bazel_invocation_live.ex:1474
+#: lib/tuist_web/live/bazel_remote_action_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Output upload"
 msgstr "Upload de saída"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1446
+#: lib/tuist_web/live/bazel_invocation_live.ex:1471
+#: lib/tuist_web/live/bazel_remote_action_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Queue"
 msgstr "Fila"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:439
+#: lib/tuist_web/live/bazel_invocation_live.ex:440
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr "Execução remota"
@@ -3390,17 +3409,17 @@ msgid "Open build runs"
 msgstr "Execuções de build abertas"
 
 #: lib/tuist_web/live/remote_execution_live.ex:579
-#: lib/tuist_web/live/remote_execution_live.ex:728
+#: lib/tuist_web/live/remote_execution_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Avg. execution"
 msgstr "Execução média"
 
-#: lib/tuist_web/live/remote_execution_live.ex:697
+#: lib/tuist_web/live/remote_execution_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Avg. execution time"
 msgstr "Tempo médio de execução"
 
-#: lib/tuist_web/live/remote_execution_live.ex:693
+#: lib/tuist_web/live/remote_execution_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "Avg. queue time"
 msgstr "Tempo médio na fila"
@@ -3411,8 +3430,8 @@ msgid "No remote execution timings in this period"
 msgstr "Não há tempos de execução remota neste período"
 
 #: lib/tuist_web/live/remote_execution_live.ex:569
-#: lib/tuist_web/live/remote_execution_live.ex:727
-#: lib/tuist_web/live/remote_execution_live.ex:771
+#: lib/tuist_web/live/remote_execution_live.ex:726
+#: lib/tuist_web/live/remote_execution_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "Remote actions"
 msgstr "Ações remotas"
@@ -3427,32 +3446,32 @@ msgstr "Tempo que as ações executaram em um worker remoto. Este é o tempo de 
 msgid "Time actions waited for a remote worker. Actions without a recorded queue phase are excluded."
 msgstr "Tempo que as ações aguardaram por um worker remoto. Ações sem uma fase de fila registrada são excluídas."
 
-#: lib/tuist_web/live/remote_execution_live.ex:696
+#: lib/tuist_web/live/remote_execution_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "p50 execution time"
 msgstr "tempo de execução p50"
 
-#: lib/tuist_web/live/remote_execution_live.ex:692
+#: lib/tuist_web/live/remote_execution_live.ex:691
 #, elixir-autogen, elixir-format
 msgid "p50 queue time"
 msgstr "tempo de fila p50"
 
-#: lib/tuist_web/live/remote_execution_live.ex:695
+#: lib/tuist_web/live/remote_execution_live.ex:694
 #, elixir-autogen, elixir-format
 msgid "p90 execution time"
 msgstr "tempo de execução p90"
 
-#: lib/tuist_web/live/remote_execution_live.ex:691
+#: lib/tuist_web/live/remote_execution_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "p90 queue time"
 msgstr "tempo de fila p90"
 
-#: lib/tuist_web/live/remote_execution_live.ex:694
+#: lib/tuist_web/live/remote_execution_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "p99 execution time"
 msgstr "tempo de execução p99"
 
-#: lib/tuist_web/live/remote_execution_live.ex:690
+#: lib/tuist_web/live/remote_execution_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "p99 queue time"
 msgstr "tempo de fila p99"
@@ -3462,12 +3481,12 @@ msgstr "tempo de fila p99"
 msgid "Invocations"
 msgstr "Invocações"
 
-#: lib/tuist_web/live/remote_execution_live.ex:626
+#: lib/tuist_web/live/remote_execution_live.ex:625
 #, elixir-autogen, elixir-format
 msgid "No invocations match your search"
 msgstr "Nenhuma invocação corresponde à sua pesquisa"
 
-#: lib/tuist_web/live/remote_execution_live.ex:622
+#: lib/tuist_web/live/remote_execution_live.ex:621
 #, elixir-autogen, elixir-format
 msgid "No invocations with remote execution timings in this period"
 msgstr "Nenhuma invocação com tempos de execução remota neste período"
@@ -3477,43 +3496,43 @@ msgstr "Nenhuma invocação com tempos de execução remota neste período"
 msgid "Search invocations..."
 msgstr "Pesquisar invocações..."
 
-#: lib/tuist_web/live/remote_execution_live.ex:729
+#: lib/tuist_web/live/remote_execution_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "p50 execution"
 msgstr "Execução p50"
 
-#: lib/tuist_web/live/remote_execution_live.ex:730
+#: lib/tuist_web/live/remote_execution_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "p90 execution"
 msgstr "Execução p90"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#: lib/tuist_web/live/bazel_invocation_live.ex:572
 #, elixir-autogen, elixir-format
 msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
 msgstr "É necessário um perfil com intervalos claros para as fases de ação e servidor. Perfis mais antigos ou incompletos podem não conter esses tempos. Envie um novo perfil para visualizá-los."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:558
+#: lib/tuist_web/live/bazel_invocation_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "No remote action timings"
 msgstr "Sem tempos de ação remota"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:511
+#: lib/tuist_web/live/bazel_invocation_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Phases"
 msgstr "Fases"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:505
-#: lib/tuist_web/live/bazel_invocation_live.ex:1441
+#: lib/tuist_web/live/bazel_invocation_live.ex:517
+#: lib/tuist_web/live/bazel_invocation_live.ex:1466
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr "Iniciado em"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:365
+#: lib/tuist_web/live/bazel_invocation_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
 msgstr "%{vcpus} vCPU · %{memory} GB"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:363
+#: lib/tuist_web/live/bazel_invocation_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Machine"
 msgstr "Máquina"
@@ -3523,45 +3542,45 @@ msgstr "Máquina"
 msgid "No remote executions in this period"
 msgstr "Nenhuma execução remota neste período"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:352
+#: lib/tuist_web/live/bazel_invocation_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Queued"
 msgstr "Na fila"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:261
-#: lib/tuist_web/live/bazel_invocation_live.ex:351
+#: lib/tuist_web/live/bazel_invocation_live.ex:262
+#: lib/tuist_web/live/bazel_invocation_live.ex:352
 #: lib/tuist_web/live/remote_execution_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "Em execução"
 
 #: lib/tuist_web/live/remote_execution_live.ex:265
-#: lib/tuist_web/live/remote_execution_live.ex:857
+#: lib/tuist_web/live/remote_execution_live.ex:856
 #, elixir-autogen, elixir-format
 msgid "Total execution time"
 msgstr "Tempo total de execução"
 
-#: lib/tuist_web/live/remote_execution_live.ex:827
+#: lib/tuist_web/live/remote_execution_live.ex:826
 #, elixir-autogen, elixir-format
 msgid "%{running} running · %{queued} queued"
 msgstr "%{running} em execução · %{queued} na fila"
 
-#: lib/tuist_web/live/remote_execution_live.ex:820
+#: lib/tuist_web/live/remote_execution_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Invocation %{id}"
 msgstr "Invocação %{id}"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:277
+#: lib/tuist_web/live/bazel_invocation_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "Running for"
 msgstr "Executando por"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:335
+#: lib/tuist_web/live/bazel_invocation_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "No executions are running or queued"
 msgstr "Nenhuma execução está em andamento ou na fila"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:334
+#: lib/tuist_web/live/bazel_invocation_live.ex:335
 #, elixir-autogen, elixir-format
 msgid "Running executions are unavailable"
 msgstr "As execuções em andamento não estão disponíveis"
@@ -3592,7 +3611,219 @@ msgstr "A telemetria de execução do Struo ainda não distingue ações remotas
 msgid "Couldn't load"
 msgstr "Não foi possível carregar"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:371
+#: lib/tuist_web/live/bazel_remote_action_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "%{message} at %{location}"
+msgstr "%{message} em %{location}"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "%{size} GB"
+msgstr "%{size} GB"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "Action Details"
+msgstr "Detalhes da Ação"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Action digest"
+msgstr "Resumo da Ação"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Cached"
+msgstr "Em cache"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Client"
+msgstr "Cliente"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Error"
+msgstr "Erro"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Execution path"
+msgstr "Caminho de execução"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Exit code"
+msgstr "Código de saída"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Failed compiling %{path}"
+msgstr "Falha ao compilar %{path}"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "Leased worker"
+msgstr "Worker alugado"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:307
+#, elixir-autogen, elixir-format
+msgid "Load earlier lines"
+msgstr "Carregar linhas anteriores"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:42
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr "Logs"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "No error output was recorded."
+msgstr "Nenhuma saída de erro foi registrada."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:325
+#, elixir-autogen, elixir-format
+msgid "No output was recorded."
+msgstr "Nenhuma saída foi registrada."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Outputs"
+msgstr "Saídas"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr "Plataforma"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:73
+#, elixir-autogen, elixir-format
+msgid "Queued at"
+msgstr "Enfileirado em"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:41
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Remote action"
+msgstr "Ação remota"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "Remote action not found."
+msgstr "Ação remota não encontrada."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Sandbox"
+msgstr "Sandbox"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:170
+#, elixir-autogen, elixir-format
+msgid "Scheduled"
+msgstr "Agendado"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "Standard error"
+msgstr "Erro padrão"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Standard output"
+msgstr "Saída padrão"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Status message"
+msgstr "Mensagem de status"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "The action requested no platform properties."
+msgstr "A ação solicitada não possui propriedades de plataforma."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "The action set no environment variables."
+msgstr "A ação não definiu variáveis de ambiente."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "The command exceeded the recorded size and is incomplete."
+msgstr "O comando excedeu o tamanho registrado e está incompleto."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:228
+#, elixir-autogen, elixir-format
+msgid "The command exited with code %{code}"
+msgstr "O comando foi encerrado com o código %{code}"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "The command was not recorded."
+msgstr "O comando não foi registrado."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "The execution failed"
+msgstr "A execução falhou"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Timeout"
+msgstr "Tempo esgotado"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Worker"
+msgstr "Trabalhador"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:209
+#, elixir-autogen, elixir-format
+msgid "Working directory"
+msgstr "Diretório de trabalho"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "%{stream}: %{size} skipped. Output over 16 MiB keeps its first 16 KiB and its last 16 MiB."
+msgstr "%{stream}: %{size} ignorado. Saídas acima de 16 MiB mantêm os primeiros 16 KiB e os últimos 16 MiB."
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "%{stream}: the remaining %{size} is not available. It has not been stored yet, could not be stored, or has expired."
+msgstr "%{stream}: os %{size} restantes não estão disponíveis. Ainda não foram armazenados, não foi possível armazená-los ou expiraram."
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Show full command"
+msgstr "Mostrar comando completo"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Show less"
+msgstr "Mostrar menos"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:182
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr "Copiar comando"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:250
+#, elixir-autogen, elixir-format
+msgid "Show all %{count} outputs"
+msgstr "Mostrar todas as %{count} saídas"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Show fewer"
+msgstr "Mostrar menos"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:219
+#, elixir-autogen, elixir-format
+msgid "Showing %{shown} of %{count} outputs; the rest were not recorded."
+msgstr "Exibindo %{shown} de %{count} saídas; as demais não foram registradas."
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Waiting / running for"
 msgstr "Aguardando / executando por"
