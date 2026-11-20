@@ -701,6 +701,11 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
 
       reject(&Storage.get_object_size/2)
 
+      # The CLI uploads the session under the command event's ID, not the run's.
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
+        {:ok, %{id: "command-event-1"}}
+      end)
+
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
@@ -711,9 +716,64 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert result["total_test_count"] == 50
       assert result["failed_test_count"] == 2
       assert result["result_bundle_url"] == "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
-      assert result["session_url"] == "https://storage.test/acme/app/runs/run-1/session.zip"
+      assert result["session_url"] == "https://storage.test/acme/app/runs/command-event-1/session.zip"
       assert result["coverage"]["coverage"] == 75.0
       assert result["selective_testing"]["strategy"] == "coverage"
+    end
+
+    test "returns a null session URL when no command event ran the test run" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Tests, :get_test, fn "run-1" ->
+        {:ok,
+         %{
+           id: "run-1",
+           status: :success,
+           duration: 10_000,
+           is_ci: true,
+           is_flaky: false,
+           scheme: "AppTests",
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           ran_at: ~N[2024-01-01 12:00:00],
+           project_id: 1
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Analytics, :get_test_run_metrics, fn _ ->
+        %{total_count: 1, failed_count: 0, flaky_count: 0, avg_duration: 1}
+      end)
+
+      stub(CoverageQuery, :test_run, fn _ ->
+        %{
+          enabled: false,
+          git_dirty: false,
+          measured: false,
+          partial: false,
+          covered_lines: 0,
+          executable_lines: 0,
+          coverage: nil
+        }
+      end)
+
+      stub(SelectionQuery, :test_run, fn _ ->
+        %{strategy: "coverage", baseline_sha: "0f0f", requested: 10, selected: 1, skipped: 9, estimated: 0}
+      end)
+
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", _opts -> {:error, :not_found} end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetTestRun.call(conn, %{"test_run_id" => "run-1"})
+
+      result = JSON.decode!(text)
+      assert result["result_bundle_url"] == "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
+      assert result["session_url"] == nil
     end
 
     test "requires :test_read authorization" do

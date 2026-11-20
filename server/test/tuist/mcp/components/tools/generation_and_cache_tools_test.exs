@@ -9,6 +9,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
   alias Tuist.MCP.Components.Tools.ListGenerations
   alias Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets
   alias Tuist.Projects
+  alias Tuist.Storage
   alias Tuist.Xcode
 
   describe "list_generations" do
@@ -246,6 +247,11 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
 
       stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
 
+      stub(Storage, :generate_download_url, fn object_key, %{name: "acme"}, opts ->
+        assert Keyword.fetch!(opts, :expires_in) == 900
+        "https://storage.test/#{object_key}"
+      end)
+
       conn = %Plug.Conn{assigns: %{}}
 
       assert %{"content" => [%{"text" => json}]} =
@@ -254,6 +260,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       data = JSON.decode!(json)
       assert data["id"] == "cr-1"
       assert data["command_arguments"] == "warm"
+      assert data["session_url"] == "https://storage.test/acme/app/runs/cr-1/session.zip"
     end
   end
 
