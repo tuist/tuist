@@ -50,6 +50,8 @@ tuist sandbox exec <sandbox-id> -- xcodebuild -version
 
 The command runs with `bash -l` in the sandbox, which resumes first if it's paused. `tuist` streams its output however long it runs and exits with the command's status; Ctrl-C cancels it in the sandbox. Pass `--cwd`, `--env NAME=VALUE` and `--timeout` (up to six hours) as needed.
 
+The command runs detached from `tuist`, so it survives a dropped connection. To fit a long build into a tool call with a time limit, such as an agent's, pass `--wait <seconds>`: when they pass first, `tuist` leaves the command running, exits with 75 and prints the `tuist sandbox exec <sandbox-id> --attach <command-id> --stdout-offset … --stderr-offset …` command that continues its output where it stopped and exits with the command's status.
+
 ### Common tasks {#cli-tasks}
 
 | Task | Command |
