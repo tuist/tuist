@@ -15,7 +15,7 @@ msgstr "Language: yue_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset
 #: lib/tuist_web/live/sandboxes_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Active"
-msgstr "啟用"
+msgstr "使用中"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:165
 #: lib/tuist_web/live/sandboxes_live.html.heex:54
@@ -115,7 +115,7 @@ msgstr "恢復中"
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Resuming would exceed this account's vCPU or memory limit."
-msgstr "恢復將超出此帳戶的 vCPU 或記憶體限制。"
+msgstr "恢復會超出此帳戶的 vCPU 或記憶體限制。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:41
 #, elixir-autogen, elixir-format
@@ -125,7 +125,7 @@ msgstr "恢復中…"
 #: lib/tuist_web/live/sandboxes_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Run agents in sandboxes"
-msgstr "在沙盒中運行代理程式"
+msgstr "在沙盒中執行代理程式"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:101
 #, elixir-autogen, elixir-format
@@ -180,12 +180,12 @@ msgstr "沙盒狀態已變更。請重試。"
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "The sandbox is busy with an agent task and was not paused."
-msgstr "沙盒正忙於代理任務，因此未暫停。"
+msgstr "沙盒正忙於處理代理任務，因此未暫停。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "沙盒將停止並捨棄磁碟。未推送的工作將會遺失。"
+msgstr "沙盒將停止並捨棄其磁碟。未推送的工作將會遺失。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -221,7 +221,7 @@ msgstr "目前使用 %{count} 個，上限 %{limit} 個"
 #: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Analytics"
-msgstr "分析數據"
+msgstr "分析"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:63
 #, elixir-autogen, elixir-format
@@ -231,12 +231,12 @@ msgstr "套用"
 #: lib/tuist_web/live/sandboxes_live.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Avg. session duration"
-msgstr "平均會話時長"
+msgstr "平均會話持續時間"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
-msgstr "並發數"
+msgstr "並行數"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:45
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "自訂"
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "沙盒在暫停、封存、刪除或失敗前的執行時間。"
+msgstr "沙盒在暫停、歸檔、刪除或失敗前的執行時間。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -261,12 +261,12 @@ msgstr "過去 24 小時"
 #: lib/tuist_web/live/sandboxes_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
-msgstr "過去 30 日"
+msgstr "過去 30 天"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
-msgstr "過去 7 日"
+msgstr "過去 7 天"
 
 #: lib/tuist_web/live/sandboxes_live.ex:199
 #, elixir-autogen, elixir-format
@@ -281,7 +281,7 @@ msgstr "峰值記憶體（GB）"
 #: lib/tuist_web/live/sandboxes_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
-msgstr "vCPU 峰值"
+msgstr "峰值 vCPU 數量"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
@@ -316,37 +316,37 @@ msgstr "自上月起"
 #: lib/tuist_web/live/sandboxes_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "自上週期起"
+msgstr "自上一週期起"
 
 #: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "過去一週"
+msgstr "自上星期起"
 
 #: lib/tuist_web/live/sandboxes_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "過去一年"
+msgstr "自去年起"
 
 #: lib/tuist_web/live/sandboxes_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "昨日以來"
+msgstr "自昨日開始"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
-msgstr "Tuist 啟動沙盒所需時間，無論係從模板、項目快照定係從歸檔恢復。不包括設置時間。"
+msgstr "Tuist 啟動沙盒所需時間，無論係從模板、項目快照定係從歸檔還原。設定時間唔計在內。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "你的項目 .agents/setup 在從模板啟動的 Amp Orb 中所需時間。從項目快照啟動的 Orbs 會跳過此步驟，因此這裡顯示你自定義設置工作的耗時。"
+msgstr "你項目 .agents/setup 喺從模板啟動嘅 Amp Orb 中所需時間。從項目快照啟動嘅 Orbs 會跳過呢步，所以呢度反映你自己設定工作嘅耗時。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Avg. Setup"
-msgstr "平均設置時間"
+msgstr "平均設定時間"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -356,7 +356,7 @@ msgstr "平均啟動時間"
 #: lib/tuist_web/live/sandboxes_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "p50 Setup"
-msgstr "p50 設置時間"
+msgstr "p50 設定時間"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
@@ -366,7 +366,7 @@ msgstr "p50 啟動時間"
 #: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
-msgstr "p90 設定時間"
+msgstr "p90 設定"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
@@ -376,7 +376,7 @@ msgstr "p90 啟動時間"
 #: lib/tuist_web/live/sandboxes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "p99 Setup"
-msgstr "p99 設定時間"
+msgstr "p99 設定"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:196
 #, elixir-autogen, elixir-format
@@ -401,7 +401,7 @@ msgstr "上一頁"
 #: lib/tuist_web/live/sandboxes_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
-msgstr "最近嘅沙盒"
+msgstr "近期沙盒"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
@@ -420,7 +420,7 @@ msgstr "實例"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Every sandbox in the account."
-msgstr "帳戶內所有沙盒。"
+msgstr "帳戶中的所有沙盒。"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:32
 #, elixir-autogen, elixir-format
@@ -430,17 +430,17 @@ msgstr "篩選"
 #: lib/tuist_web/live/sandboxes_live.ex:870
 #, elixir-autogen, elixir-format
 msgid "No sandboxes found"
-msgstr "搵唔到沙盒"
+msgstr "未找到沙盒"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "排序："
+msgstr "排序方式："
 
 #: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
-msgstr "試下其他搜尋或篩選條件。"
+msgstr "嘗試其他搜尋或篩選條件。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -455,17 +455,17 @@ msgstr "封存"
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "封存已開始。當沙盒的磁碟上傳完成後，將顯示為已封存。"
+msgstr "封存已開始。沙盒的磁碟上傳完成後，會顯示為已封存。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Archiving…"
-msgstr "正在封存…"
+msgstr "封存中…"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Start your first sandbox from your terminal by running:"
-msgstr "在終端機執行以下指令以啟動你的第一個沙盒："
+msgstr "在終端機執行以下指令，即可啟動你的第一個沙盒："
 
 #: lib/tuist_web/live/sandbox_live.html.heex:105
 #: lib/tuist_web/live/sandboxes_live.ex:836

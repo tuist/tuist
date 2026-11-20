@@ -62,7 +62,7 @@ msgstr "Disco"
 #: lib/tuist_web/live/sandboxes_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "Falhou"
+msgstr "Falha"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:133
 #: lib/tuist_web/live/sandboxes_live.ex:889
@@ -170,27 +170,27 @@ msgstr "A máquina que o executa relatou um erro."
 #: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The machine running this sandbox is unreachable. Please retry."
-msgstr "A máquina que executa esta sandbox está inacessível. Tente novamente."
+msgstr "A máquina que executa este sandbox está inacessível. Tente novamente."
 
 #: lib/tuist_web/live/sandbox_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "The sandbox changed state in the meantime. Please retry."
-msgstr "O estado da sandbox mudou nesse intervalo. Tente novamente."
+msgstr "O sandbox mudou de estado nesse meio tempo. Tente novamente."
 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "The sandbox is busy with an agent task and was not paused."
-msgstr "A sandbox está ocupada com uma tarefa do agente e não foi pausada."
+msgstr "O sandbox está ocupado com uma tarefa do agente e não foi pausado."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "A sandbox é interrompida e seu disco é descartado. O trabalho que não foi enviado é perdido."
+msgstr "O sandbox é interrompido e seu disco é descartado. O trabalho que não foi enviado é perdido."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "This sandbox failed"
-msgstr "Falha nesta sandbox"
+msgstr "Falha neste sandbox"
 
 #: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
@@ -296,17 +296,17 @@ msgstr "Sandboxes criadas"
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "p50 session duration"
-msgstr "duração da sessão p50"
+msgstr "Duração da sessão p50"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "p90 session duration"
-msgstr "duração da sessão p90"
+msgstr "Duração da sessão p90"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "p99 session duration"
-msgstr "duração da sessão p99"
+msgstr "Duração da sessão p99"
 
 #: lib/tuist_web/live/sandboxes_live.ex:129
 #, elixir-autogen, elixir-format
@@ -341,12 +341,12 @@ msgstr "Quanto tempo o Tuist leva para iniciar um sandbox, seja a partir do mode
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "Quanto tempo leva a execução de .agents/setup do seu projeto em um Amp Orb iniciado a partir do modelo. Orbs iniciados a partir de um snapshot do projeto ignoram essa etapa, então é aqui que o seu trabalho de configuração aparece."
+msgstr "Quanto tempo a configuração .agents/setup do seu projeto leva em um Amp Orb iniciado a partir do modelo. Orbs iniciados a partir de um snapshot do projeto pulam essa etapa, então é aqui que o seu trabalho de configuração aparece."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Avg. Setup"
-msgstr "Configuração média"
+msgstr "Tempo médio de configuração"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:198
 #, elixir-autogen, elixir-format
@@ -356,7 +356,7 @@ msgstr "Tempo médio de início"
 #: lib/tuist_web/live/sandboxes_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "p50 Setup"
-msgstr "p50 Configuração"
+msgstr "Configuração p50"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
@@ -440,7 +440,7 @@ msgstr "Ordenar por:"
 #: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
-msgstr "Tente uma pesquisa ou filtro diferente."
+msgstr "Tente uma busca ou filtro diferente."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -482,4 +482,4 @@ msgstr "Instância"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Search by instance..."
-msgstr "Buscar por instância..."
+msgstr "Pesquisar por instância..."

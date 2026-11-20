@@ -75,7 +75,7 @@ msgstr "Boşta"
 #: lib/tuist_web/live/sandboxes_live.ex:850
 #, elixir-autogen, elixir-format
 msgid "Last active"
-msgstr "Son aktiflik"
+msgstr "Son etkinlik"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:113
 #: lib/tuist_web/live/sandboxes_live.ex:171
@@ -104,7 +104,7 @@ msgstr "Duraklatılıyor…"
 #: lib/tuist_web/live/sandbox_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Resume"
-msgstr "Devam ettir"
+msgstr "Devam et"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:135
 #: lib/tuist_web/live/sandboxes_live.ex:891
@@ -115,7 +115,7 @@ msgstr "Yeniden başlatılıyor"
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Resuming would exceed this account's vCPU or memory limit."
-msgstr "Yeniden başlatmak, bu hesabın vCPU veya bellek sınırını aşacaktır."
+msgstr "Yeniden başlatma, bu hesabın vCPU veya bellek sınırını aşar."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:41
 #, elixir-autogen, elixir-format
@@ -125,30 +125,30 @@ msgstr "Yeniden başlatılıyor…"
 #: lib/tuist_web/live/sandboxes_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Run agents in sandboxes"
-msgstr "Ajanları korumalı alanlarda çalıştır"
+msgstr "Aracıları yalıtılmış ortamlarda çalıştırın"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Sandbox ID"
-msgstr "Korumalı Alan Kimliği"
+msgstr "Yalıtılmış Ortam Kimliği"
 
 #: lib/tuist_web/live/sandbox_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Sandbox deleted."
-msgstr "Korumalı alan silindi."
+msgstr "Yalıtılmış ortam silindi."
 
 #: lib/tuist_web/components/dashboard_navigation.ex:43
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
-msgstr "Korumalı Alanlar"
+msgstr "Yalıtılmış Ortamlar"
 
 #: lib/tuist_web/live/sandbox_live.ex:112
 #: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
-msgstr "Bir hata oluştu. Lütfen tekrar deneyin."
+msgstr "Bir şeyler ters gitti. Lütfen tekrar deneyin."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
 #: lib/tuist_web/live/sandboxes_live.ex:890
@@ -170,12 +170,12 @@ msgstr "Çalıştıran makine bir hata bildirdi."
 #: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The machine running this sandbox is unreachable. Please retry."
-msgstr "Bu sanal alanı çalıştıran makineye ulaşılamıyor. Lütfen tekrar deneyin."
+msgstr "Bu sanal alanı çalıştıran makineye ulaşılamıyor. Lütfen yeniden deneyin."
 
 #: lib/tuist_web/live/sandbox_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "The sandbox changed state in the meantime. Please retry."
-msgstr "Sanal alan bu sırada durum değiştirdi. Lütfen tekrar deneyin."
+msgstr "Sanal alan bu sırada durum değiştirdi. Lütfen yeniden deneyin."
 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
@@ -185,7 +185,7 @@ msgstr "Sanal alan bir aracı göreviyle meşgul ve duraklatılmadı."
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "Sanal alan durur ve diski silinir. Gönderilmemiş çalışmalar kaybolur."
+msgstr "Sanal alan durur ve diski silinir. Gönderilmemiş işler kaybolur."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -203,7 +203,7 @@ msgstr "Bu sanal ortam silindi."
 #: lib/tuist_web/live/sandboxes_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
-msgstr "vCPU'lar"
+msgstr "vCPU"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:137
 #: lib/tuist_web/live/sandbox_live.html.heex:139
@@ -216,7 +216,7 @@ msgstr "Arşivlendi"
 #: lib/tuist_web/live/sandboxes_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
-msgstr "Şu anda %{limit} üzerinden %{count} kullanımda"
+msgstr "Şu anda %{limit} içinden %{count} kullanılıyor"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "Özel"
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "Bir sanal alanın duraklatılana, arşivlenene, silinene kadar veya başarısız olana kadar ne kadar süre çalıştığını gösterir."
+msgstr "Bir sandbox'ın duraklatılana, arşivlenene, silinene kadar veya başarısız olana kadar ne kadar süre çalıştığını gösterir."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -271,7 +271,7 @@ msgstr "Son 7 gün"
 #: lib/tuist_web/live/sandboxes_live.ex:199
 #, elixir-autogen, elixir-format
 msgid "Limit"
-msgstr "Sınır"
+msgstr "Limit"
 
 #: lib/tuist_web/live/sandboxes_live.ex:179
 #, elixir-autogen, elixir-format
@@ -281,17 +281,17 @@ msgstr "Maksimum bellek (GB)"
 #: lib/tuist_web/live/sandboxes_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
-msgstr "Eş Zamanlı En Yüksek vCPU"
+msgstr "Maksimum vCPU"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "Seçilen zaman aralığında başlatılan Sandbox ajanları."
+msgstr "Seçilen zaman aralığında başlatılan sandbox ajanları."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "Oluşturulan Sandbox'lar"
+msgstr "Oluşturulan sandbox'lar"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
@@ -336,12 +336,12 @@ msgstr "dünden beri"
 #: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
-msgstr "Tuist'in bir sandbox'ı şablondan, bir proje anlık görüntüsünden veya bir arşivden geri yükleyerek başlatmasının ne kadar sürdüğü. Kurulum dahil değildir."
+msgstr "Tuist'in bir sandbox'ı başlatmasının ne kadar sürdüğü; şablondan, proje anlık görüntüsünden veya arşivden geri yüklenerek. Kurulum dahil değildir."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "Şablondan başlatılan bir Amp Orb'da projenizin .agents/setup adımının ne kadar sürdüğü. Proje anlık görüntüsünden başlatılan Orb'lar bu adımı atlar, dolayısıyla kendi kurulum çalışmanız burada görünür."
+msgstr "Şablondan başlatılan bir Amp Orb'da projenizin .agents/setup adımının ne kadar sürdüğü. Proje anlık görüntüsünden başlatılan Orb'lar bu adımı atladığı için kendi kurulum çalışmanız burada görünür."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -351,7 +351,7 @@ msgstr "Ort. Kurulum"
 #: lib/tuist_web/live/sandboxes_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Avg. Time to start"
-msgstr "Ort. Başlama Süresi"
+msgstr "Başlatma Süresi Ort."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:157
 #, elixir-autogen, elixir-format
@@ -406,7 +406,7 @@ msgstr "Son sandıklar"
 #: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "Daha fazlasını görüntüle"
+msgstr "Daha fazla göster"
 
 #: lib/tuist_web/components/dashboard_navigation.ex:46
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
@@ -445,7 +445,7 @@ msgstr "Farklı bir arama veya filtre deneyin."
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Sandbox details"
-msgstr "Sandbox detayları"
+msgstr "Sandbox ayrıntıları"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:57
 #, elixir-autogen, elixir-format
@@ -455,7 +455,7 @@ msgstr "Arşivle"
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "Arşivleme başlatıldı. Diskler yüklendiğinde sandbox arşivlenmiş olarak gösterilir."
+msgstr "Arşivleme başladı. Diskler yüklendiğinde sandbox arşivlenmiş olarak görünür."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format

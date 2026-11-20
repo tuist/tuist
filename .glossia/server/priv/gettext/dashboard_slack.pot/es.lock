@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2de73c314e959597a783353f95c02cfb5d79344defbae5dfb37e32e265afaf0d",
+  "hash": "841603df098ddeff4b66bb80d49876d43f7230b64a38c4aaf4b82b8421c92e79",
   "hash_tree": {
     "root": {
       "children": [
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +113,17 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/gettext/L10N.md": {
+                    "content_hash": "baf67c8575122ab33bf6d55af39a1bcda272121bca06889608f9d3c73007490c",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Gettext Translation Context": {
+                        "content_hash": "5da0d103cac66e60b0e791e126ea11c78241d1bd2608cc6a02b7f747f9c0ae4e"
                       },
                       "## Plural Forms by Locale": {
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
@@ -126,11 +136,11 @@
                   }
                 }
               },
-              "hash": "a967e79884bdf7c9ccb8393c70561e234593ff582b04967b53c4a6b50df76641",
+              "hash": "1bdd64400ec983fee41bde23b367af24e84212e74320dba2509ef13497fed684",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "af16c628c45c1dd547432fd31623fc3939fb6e5d37eaf69114cbc046d899f811"
+                "content_hash": "fe9d86afda0962597f76dcec911fb86f1943216c7f641b3831bb30a5cb4dc361"
               }
             },
             {
@@ -203,21 +213,21 @@
             }
           ],
           "details": {},
-          "hash": "4ccc610e1df2653be6924e9ad164342d4f202328e773486ba8a1143e09d26db5",
+          "hash": "84a5029d61461b3bb00b0989c2a25d3490dea15fd491f1f19387c78bbe38b2f6",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "2de73c314e959597a783353f95c02cfb5d79344defbae5dfb37e32e265afaf0d",
+      "hash": "841603df098ddeff4b66bb80d49876d43f7230b64a38c4aaf4b82b8421c92e79",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_slack.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9f32cc7c850ad2d154ef3a3829e5cf674d781a7b906b022b8127ddb07d46ef06",
+  "output_hash": "e3e9b92f34b1c9494d6015cc6f4433a74e581a7d3de44dc1250b3c91cdd597e7",
   "output_path": "server/priv/gettext/es/LC_MESSAGES/dashboard_slack.po",
   "po_units": {
     "0b35d7b1c8cfd06471c3eb2302f283c7b1cd3ddd9a9a0ad630290ff1e0cbb6c6": "a7b8178938eacd330f87f34722b58f6f9e9739f2f830953e0fa1f7a5b412e455",
@@ -247,8 +257,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "e5f9b5b705709ed88b83e6a5c4ae56ed001ea0d8",
+  "source_commit_sha": "7ff32897a59ff15107146b90c26c2bc80a6ceb85",
   "source_path": "server/priv/gettext/dashboard_slack.pot",
-  "translated_at": "2026-11-19T07:52:23.878670Z",
-  "translation_session_id": "01a1f2c1-719b-7d77-b947-142f9ecd3a0f"
+  "translated_at": "2026-11-20T00:44:09.159877Z",
+  "translation_session_id": "01a1f640-6615-713d-85c3-dc996fc4ca81"
 }

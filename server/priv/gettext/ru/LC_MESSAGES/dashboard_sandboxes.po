@@ -15,7 +15,7 @@ msgstr "Language: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/sandboxes_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Active"
-msgstr "Активный"
+msgstr "Активно"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:165
 #: lib/tuist_web/live/sandboxes_live.html.heex:54
@@ -62,13 +62,13 @@ msgstr "Диск"
 #: lib/tuist_web/live/sandboxes_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Failed"
-msgstr "Сбой"
+msgstr "Ошибка"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:133
 #: lib/tuist_web/live/sandboxes_live.ex:889
 #, elixir-autogen, elixir-format
 msgid "Idle"
-msgstr "Ожидание"
+msgstr "Бездействие"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:171
 #: lib/tuist_web/live/sandbox_live.html.heex:127
@@ -115,7 +115,7 @@ msgstr "Возобновление"
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Resuming would exceed this account's vCPU or memory limit."
-msgstr "Возобновление превысит лимит vCPU или памяти для этого аккаунта."
+msgstr "При возобновлении будет превышен лимит vCPU или памяти для этого аккаунта."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:41
 #, elixir-autogen, elixir-format
@@ -148,7 +148,7 @@ msgstr "Песочницы"
 #: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
-msgstr "Что-то пошло не так. Пожалуйста, повторите попытку."
+msgstr "Что-то пошло не так. Попробуйте ещё раз."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
 #: lib/tuist_web/live/sandboxes_live.ex:890
@@ -180,12 +180,12 @@ msgstr "Состояние песочницы изменилось. Повтор
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "The sandbox is busy with an agent task and was not paused."
-msgstr "Песочница занята задачей агента и не была приостановлена."
+msgstr "Песочница занята выполнением задачи агента и не была приостановлена."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "Песочница останавливается, а её диск удаляется. Работа, которая не была отправлена, будет потеряна."
+msgstr "Песочница останавливается, а её диск удаляется. Работа, которая не была отправлена, теряется."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -210,7 +210,7 @@ msgstr "виртуальные процессоры"
 #: lib/tuist_web/live/sandboxes_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Archived"
-msgstr "Архивировано"
+msgstr "В архиве"
 
 #: lib/tuist_web/live/sandboxes_live.ex:161
 #: lib/tuist_web/live/sandboxes_live.ex:173
@@ -236,7 +236,7 @@ msgstr "Средняя длительность сессии"
 #: lib/tuist_web/live/sandboxes_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
-msgstr "Параллельное выполнение"
+msgstr "Параллельность"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:45
 #, elixir-autogen, elixir-format
@@ -286,27 +286,27 @@ msgstr "Пиковое количество vCPU"
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "Агенты песочниц, запущенные в выбранном периоде."
+msgstr "Агенты песочниц, запущенные в выбранном окне."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "Создано песочниц"
+msgstr "Созданные песочницы"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "p50 session duration"
-msgstr "p50 длительности сессии"
+msgstr "Длительность сессии (p50)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "p90 session duration"
-msgstr "p90 длительности сессии"
+msgstr "Длительность сессии (p90)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "p99 session duration"
-msgstr "p99 длительности сессии"
+msgstr "Длительность сессии (p99)"
 
 #: lib/tuist_web/live/sandboxes_live.ex:129
 #, elixir-autogen, elixir-format
@@ -321,12 +321,12 @@ msgstr "с прошлого периода"
 #: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "за последнюю неделю"
+msgstr "с прошлой недели"
 
 #: lib/tuist_web/live/sandboxes_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "за последний год"
+msgstr "с прошлого года"
 
 #: lib/tuist_web/live/sandboxes_live.ex:125
 #, elixir-autogen, elixir-format
@@ -336,12 +336,12 @@ msgstr "со вчерашнего дня"
 #: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
-msgstr "Время, которое требуется Tuist для запуска песочницы: из шаблона, из снимка проекта или при восстановлении из архива. Настройка не включена."
+msgstr "Время, которое Tuist тратит на запуск песочницы — из шаблона, из снимка проекта или при восстановлении из архива. Настройка не включена."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "Сколько времени занимает .agents/setup вашего проекта в Amp Orb, запущенном из шаблона. Orbs, запущенные из снимка проекта, пропускают этот этап, поэтому здесь отображается время вашей собственной настройки."
+msgstr "Сколько времени занимает .agents/setup вашего проекта в Amp Orb, запущенном из шаблона. Орбы, запущенные из снимка проекта, пропускают этот этап, поэтому здесь видно время вашей собственной настройки."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -455,7 +455,7 @@ msgstr "Архивировать"
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "Архивирование начато. Песочница будет помечена как архивная после загрузки её дисков."
+msgstr "Архивирование началось. Песочница будет отображаться как архивная после загрузки её дисков."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format

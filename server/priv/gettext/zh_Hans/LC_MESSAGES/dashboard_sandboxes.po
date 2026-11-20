@@ -29,7 +29,7 @@ msgstr "取消"
 #: lib/tuist_web/live/sandboxes_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Created"
-msgstr "已创建"
+msgstr "创建时间"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:72
 #, elixir-autogen, elixir-format
@@ -148,7 +148,7 @@ msgstr "沙盒"
 #: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
-msgstr "出错了。请重试。"
+msgstr "出现错误，请重试。"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
 #: lib/tuist_web/live/sandboxes_live.ex:890
@@ -281,17 +281,17 @@ msgstr "峰值内存 (GB)"
 #: lib/tuist_web/live/sandboxes_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
-msgstr "峰值 vCPU"
+msgstr "峰值 vCPU 数"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "所选时间窗口内启动的沙盒代理。"
+msgstr "在选定时间窗口内启动的沙盒代理数量。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "创建的沙盒数"
+msgstr "已创建的沙盒数量"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
@@ -311,12 +311,12 @@ msgstr "p99 会话时长"
 #: lib/tuist_web/live/sandboxes_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "自上月以来"
+msgstr "较上月"
 
 #: lib/tuist_web/live/sandboxes_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "自上一周期以来"
+msgstr "较上一周期"
 
 #: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
@@ -341,7 +341,7 @@ msgstr "Tuist 启动沙盒所需的时间，无论是从模板、项目快照还
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "你的项目的 .agents/setup 在从模板启动的 Amp Orb 中所需的时间。从项目快照启动的 Orb 会跳过此步骤，因此这里体现的是你自己的设置工作。"
+msgstr "你的项目在从模板启动的 Amp Orb 中运行 .agents/setup 所需的时间。从项目快照启动的 Orb 会跳过此步骤，因此这里反映的是你自己的设置工作量。"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -361,27 +361,27 @@ msgstr "p50 设置时间"
 #: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "p50 Time to start"
-msgstr "p50 启动时间"
+msgstr "p50 启动耗时"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
-msgstr "p90 设置时间"
+msgstr "p90 准备时间"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "p90 Time to start"
-msgstr "p90 启动时间"
+msgstr "p90 启动耗时"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "p99 Setup"
-msgstr "p99 设置时间"
+msgstr "p99 准备时间"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "p99 Time to start"
-msgstr "p99 启动时间"
+msgstr "p99 启动耗时"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:80
 #, elixir-autogen, elixir-format
@@ -401,7 +401,7 @@ msgstr "上一页"
 #: lib/tuist_web/live/sandboxes_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Recent sandboxes"
-msgstr "最近沙盒"
+msgstr "最近的沙盒"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:355
 #, elixir-autogen, elixir-format
@@ -440,7 +440,7 @@ msgstr "排序方式："
 #: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Try a different search or filter."
-msgstr "尝试其他搜索或筛选条件。"
+msgstr "尝试更换搜索词或筛选条件。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:97
 #, elixir-autogen, elixir-format
@@ -455,7 +455,7 @@ msgstr "归档"
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "归档已开始。磁盘上传完成后，沙盒将显示为已归档状态。"
+msgstr "归档已开始。沙盒的磁盘上传完成后将显示为已归档。"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format
