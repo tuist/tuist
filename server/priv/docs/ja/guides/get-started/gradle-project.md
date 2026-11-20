@@ -2,10 +2,10 @@
 {
   "title": "Gradle プロジェクト",
   "titleTemplate": ":title · はじめに · ガイド · Tuist",
-  "description": "Gradle プロジェクトを Tuist に接続して、リモートビルドキャッシュの共有、CI 全体でのビルドおよびテストのインサイト、バンドルサイズの追跡、プレビューリンクを利用しましょう。"
+  "description": "Gradle プロジェクトを Tuist に接続して、リモートビルドキャッシュの共有、CI 全体でのビルドおよびテストのインサイト、バンドルサイズの追跡、プレビューリンクを利用できます。"
 }
 ---
-# Gradle プロジェクト {#gradle-project}
+# Gradleプロジェクト {#gradle-project}
 
 ::: code-group
 
@@ -16,68 +16,68 @@ https://tuist.dev/en/docs/guides/get-started/gradle-project
 
 :::
 
-既存の Gradle プロジェクトを Tuist 向けに設定するには、この手順に従ってください。`dev.tuist` Gradle プラグインは、Gradle のローカルビルドキャッシュを Tuist のリモートキャッシュに接続し、`./gradlew` コマンドを一切変更することなく、ビルドおよびテストデータをダッシュボードにアップロードします。
+既存のGradleプロジェクトをTuistに接続するには、この手順に従ってください。`dev.tuist` Gradleプラグインは、GradleのローカルビルドキャッシュをTuistのリモートキャッシュに接続し、`./gradlew` コマンドを一切変更することなく、ビルドおよびテストデータをダッシュボードにアップロードします。
 
-以下の各セクションでは、現在不足している部分を最初に示し、そのギャップを埋める機能の手順を説明します。
+以下の各セクションでは、現在不足している点を示し、そのギャップを埋める機能について説明します。
 
 ## 前提条件
 
-- `settings.gradle.kts`（または `settings.gradle`）を持つ Gradle プロジェクト。
-- <.localized_link href="/guides/install-tuist">Tuist コマンドラインインターフェース</.localized_link>。
+- `settings.gradle.kts`（または `settings.gradle`）を持つGradleプロジェクト。
+- <.localized_link href="/guides/install-tuist">Tuistコマンドラインインターフェース</.localized_link>。
 
 ## プロジェクトを接続する
 
-Gradle プロジェクトのルートで `tuist init` を実行します。**Integrate a Gradle project** を選択し、ブラウザで認証を行って、プロジェクトを所有するアカウントを選択してください。
+Gradleプロジェクトのルートで `tuist init` を実行します。**Gradleプロジェクトを統合**を選択し、ブラウザで認証を行って、プロジェクトを所有すべきアカウントを選択します。
 
 ```bash
 tuist init
 ```
 
-コーディングエージェントやスクリプトから実行する場合は、まず `tuist auth login` を実行してください（ブラウザフローでは Enter キーを押すまで待機します）。その後、非インタラクティブな形式を使用します。
+コーディングエージェントやスクリプトから実行する場合は、まず `tuist auth login` を実行してください（ブラウザフローではEnterキーを押すまで待機します）。その後、非インタラクティブな形式を使用します。
 
 ```bash
 tuist init --build-system gradle --name <project-handle> --account <account>
 ```
 
-Tuist はリポジトリのルートにプロジェクトハンドルを含む `tuist.toml` を書き込み、`plugins { ... }` ブロックを表示します。これを `settings.gradle.kts` の先頭に貼り付けてください。
+Tuistはリポジトリのルートにプロジェクトハンドルを含む `tuist.toml` を作成し、`plugins { ... }` ブロックを表示します。これを `settings.gradle.kts` の先頭に貼り付けます。
 
 <!-- @snippet: ../_gradle-plugin-block -->
 
-`./gradlew help` で動作確認を行います。Gradle がエラーなしで読み込まれるはずです。プラグインが見つからない場合は、ブロックが `build.gradle.kts` ではなく `settings.gradle.kts` にあることを確認してください。
+`./gradlew help` で動作確認を行います。Gradleがエラーなく読み込まれるはずです。プラグインが見つからない場合は、ブロックが `build.gradle.kts` ではなく `settings.gradle.kts` にあることを確認してください。
 
-以下はすべて任意であり、独立しています。
+以下はすべてオプションであり、独立しています。
 
 ## リモートビルドキャッシュ
 
-Gradle のローカルビルドキャッシュは、タスクの出力を生成したマシン上に保存されます。同じブランチ上の 2 人の開発者は、それぞれ独自の `~/.gradle` 内のキャッシュを利用しますが、互いのキャッシュは利用しません。また、CI はジョブごとに空の新しいキャッシュから開始します。
+Gradleのローカルビルドキャッシュは、タスクの出力を生み出したマシン上に保存されます。同じブランチ上の2人の開発者は、それぞれ独自の `~/.gradle` 内のキャッシュを利用しますが、互いのキャッシュは利用しません。また、CIはジョブごとに新規の空のキャッシュを利用します。
 
-Tuist のリモートキャッシュは、Gradle がすでにマシン間で使用している同じキー/バリュープロトコルを拡張します。タスクの出力は、最初に実行したマシンでアップロードされ、同じ入力に遭遇した他の任何人都ダウンロードできます。`gradle.properties` で有効にしてください。
+Tuistのリモートキャッシュは、Gradleがすでにマシン間で使用している同じキー/バリュープロトコルを拡張します。タスクの出力は、最初にそれを実行したマシンでアップロードされ、同じ入力に遭遇した他の誰でもダウンロードできます。`gradle.properties` で有効にします。
 
 ```properties
 org.gradle.caching=true
 ```
 
-次に、2 つの環境でビルドを実行します。
+次に、2つの環境でビルドします。
 
 ```bash
 ./gradlew clean build --build-cache --info
 ```
 
-キャッシュ可能なタスクは、2 回目の実行時に `FROM-CACHE` と報告されます。ダッシュボードの **Cache** を開いて、時間経過に伴うヒット率を確認してください。
+キャッシュ可能なタスクは、2回目の実行時に `FROM-CACHE` と報告されます。ダッシュボードの **キャッシュ** を開いて、時間経過に伴うヒット率を確認してください。
 
 ## ビルドインサイト
 
-Gradle はビルド終了時にタスクの実行時間を出力し、`--profile` を使用するとビルドごとの HTML レポートを書き出します。いずれも実行をまたいで集計しません。一連のコミットを通じて遅くなってきたタスクも、単一のビルドレポート上では従来と同じように見えます。
+Gradleはビルドの最後にタスクのタイミングを出力し、`--profile` を使用するとビルドごとのHTMLレポートを書き出します。いずれも実行をまたいで集計しません。一連のコミットを通じて遅くなったタスクは、どの単一ビルドのレポートでも以前と同じように見えます。
 
-`dev.tuist` プラグインは、適用されるとすべてのビルドのタスク実行時間を自動的にダッシュボードにアップロードします。追加の設定は不要です。次の `./gradlew build` の後にダッシュボードの **Builds** を開いて、傾向を確認してください。
+`dev.tuist` プラグインは、適用されるとすべてのビルドのタスクタイミングを自動的にダッシュボードにアップロードします。追加の設定は不要です。次の `./gradlew build` の後にダッシュボードの **ビルド** を開いて、傾向を確認してください。
 
 ## テストインサイト
 
-Gradle のテストレポートは、`build/reports/tests/` 以下にビルドごとに保存されます。10 回の CI 実行で断続的に失敗するテストも、個々のレポート上では一度だけ失敗した安定したテストのように見えます。
+Gradleのテストレポートは、`build/reports/tests/` 下にビルドごとに保存されます。10回のCI実行の中で断続的に失敗するテストは、どのレポートを見ても、偶然1回失敗した安定したテストのように見えます。
 
-テストインサイトは、`./gradlew test` 実行ごとに各タスクの結果と継続時間を記録し、実行をまたいで結果を相関付けます。不安定なテスト、低速なテスト、および失敗は、ダッシュボードの **Tests** タブに表示されます。不安定なテストが蓄積された場合は、ダッシュボードから隔離して、マージをブロックしないようにしてください。
+テストインサイトは、すべての `./gradlew test` 実行について、各タスクの結果と期間を記録し、実行をまたいで結果を相関付けます。不安定なテスト、低速なテスト、および失敗は、ダッシュボードの **テスト** タブに表示されます。不安定さが増加した場合は、ダッシュボードから隔離して、マージをブロックしないようにします。
 
-このプラグインは、ビルドで導入されたテストケースを再実行し、マージ前に不安定性を示すものをフラグ付けする **ストレステストモード** もサポートしています。`settings.gradle.kts` の `tuist` 拡張機能に以下を追加してください。
+このプラグインは、ビルドが導入したテストケースを再実行し、マージされる前に不安定であることが判明したものをフラグ立てる **ストレステストモード** もサポートしています。これを `settings.gradle.kts` の `tuist` 拡張機能に追加します。
 
 ```kotlin
 tuist {
@@ -87,36 +87,52 @@ tuist {
 }
 ```
 
+## コードカバレッジ
+
+JaCoCoは、テストタスクごと、マシンごとにカバレッジレポートを書き出します。コミットのCIジョブのレポートを結合したり、ブランチのカバレッジが増減したかを示すものは何もありません。
+
+このプラグインは、JaCoCoを使用してJVMおよびAndroidのユニットテストを測定し、各テスト実行とともにカバレッジをアップロードできます。Tuistは、シャードを含め、コミットの実行を1つの数値にまとめます。`settings.gradle.kts` の `tuist` 拡張機能で有効にします。
+
+```kotlin
+tuist {
+    coverage {
+        enabled = true
+    }
+}
+```
+
+ダッシュボードの **コードカバレッジ** を開いて、コミットごとおよびファイルごとの状況を確認してください。CIでのコミットの完了とRobolectricの設定については、<.localized_link href="/guides/features/test-code-coverage/gradle">Gradleコードカバレッジ</.localized_link> を参照してください。
+
 ## バンドルインサイト
 
-Android Gradle Plugin は、生成された `.aab` のサイズをビルド出力で報告します。この数値はブランチとともに消失し、リリース間でのサイズ比較は手動での管理作業となります。Play Console でも同じ数値を報告しますが、アーティファクトがアップロードされた後に限られます。
+Android Gradle Pluginは、生成された `.aab` のサイズをビルド出力で報告します。この数値はブランチとともに消失し、リリース間でのサイズ比較は手動の管理作業となります。Play Consoleも同じ数値を報告しますが、アーティファクトがアップロードされた後のみです。
 
-バンドルインサイトは、すべての `.aab`（推奨）または `.apk` のインストールサイズとダウンロードサイズを記録し、ブランチごとの閾値を超えた場合に PR チェックを失敗させることができます。ビルドステップの直後にこれを CI に追加してください。
+バンドルインサイトは、すべての `.aab`（推奨）または `.apk` のインストールサイズとダウンロードサイズを記録し、ブランチごとのしきい値を超えた場合にPRチェックを失敗させることができます。これをビルドステップの直後にCIに追加します。
 
 ```bash
 tuist inspect bundle App.aab
 ```
 
-ダッシュボードの **Bundle insights → Android** を開いて、傾向を確認し、閾値を設定してください。
+ダッシュボードの **バンドルインサイト → Android** を開いて、傾向を確認し、しきい値を設定してください。
 
 ## プレビュー
 
-Play Console の内部テストトラックでは、共有ごとにレビューと反映の遅延が発生します。生の `.apk` を Slack やメールで送信する方が高速ですが、特定のメッセージがどのビルドを指しているかの追跡が失われます。
+Play Consoleの内部テストトラックでは、共有ごとにレビューおよび反映の遅延が発生します。生の `.apk` をSlackやメールで送信する方が速いですが、特定のメッセージがどのビルドを指しているかの追跡が失われます。
 
-このプラグインは、別の CLI アップロードなしでアプリケーションバリアントを直接ビルドおよび公開できます。
+このプラグインは、別のCLIアップロードなしでアプリケーションバリアントを直接ビルドおよび公開できます。
 
 ```bash
 ./gradlew :app:tuistShareDebug --track nightly
 ```
 
-`tuistShare<Variant>` タスクをリクエストすると、その呼び出しが公開対象になります。通常のビルドではプレビューはアップロードされません。サポートされている APK、署名、およびインストールについては、<.localized_link href="/guides/features/previews/gradle">Gradle previews</.localized_link> を参照してください。
+`tuistShare<Variant>` タスクをリクエストすると、その呼び出しが公開対象になります。通常のビルドではプレビューはアップロードされません。サポートされているAPK、署名、およびインストールについては、<.localized_link href="/guides/features/previews/gradle">Gradleプレビュー</.localized_link> を参照してください。
 
 ## チームを巻き込む
 
-キャッシュヒット、インサイト、およびストレステストの効果は、プロジェクトに接続されている人数に応じて増大します。ダッシュボードのアカウント設定からチームメンバーを組織に招待し、<.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link>（Google、Okta、Microsoft）を設定して、オンボーディングを個人ごとの `tuist auth login` ではなくクリック操作で完了できるようにしてください。
+キャッシュヒット、インサイト、およびストレステストはすべて、プロジェクトに接続されている人数に応じて効果が増大します。ダッシュボードのアカウント設定からチームメイトを組織に招待し、<.localized_link href="/guides/integrations/authentication/sso">シングルサインオン</.localized_link>（Google、Okta、Microsoft）を設定して、オンボーディングを個人ごとの `tuist auth login` ではなくクリック一回で完了できるようにします。
 
-CI では個人ログインを使用しないでください。CI プロバイダーの OIDC アイデンティティで認証するか、ダッシュボードの **CI** プリセットでアカウントトークンを作成し、`TUIST_TOKEN` として設定してください。<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradle plugin authentication</.localized_link> を参照してください。
+CIでは、個人用ログインを使用しないでください。CIプロバイダーのOIDCアイデンティティで認証するか、ダッシュボードで **CI** プリセットを使用してアカウントトークンを作成し、それを `TUIST_TOKEN` として設定してください。<.localized_link href="/guides/server/authentication#gradle-plugin-authentication">Gradleプラグイン認証</.localized_link> を参照してください。
 
 ## プラグインのリファレンス全体
 
-ここで説明した内容は、Gradle プロジェクトで Tuist の価値を得るための最小限の設定です。`tuist` 拡張ブロック、`stressNewTests` モード、および CI 認証の構成オプションは、[Install the Gradle plugin](https://tuist.dev/en/docs/guides/install-gradle-plugin) リファレンスに記載されています。
+ここで説明した内容は、GradleプロジェクトでTuistの価値を得るための最小限の手順です。`tuist`拡張ブロック、`stressNewTests`モード、およびCI認証の設定オプションについては、[Gradleプラグインのインストール](https://tuist.dev/en/docs/guides/install-gradle-plugin)のリファレンスを参照してください。

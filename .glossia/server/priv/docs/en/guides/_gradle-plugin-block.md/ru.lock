@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7902741c1de1ff3623e0b5b9562f9dd1ebcc3c9b679a4137fe3df45367f2922a",
+  "hash": "905d3691ec5535a743a4a3c4e545cce75978be6476f509add4a8f7091f52b370",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "738ad3468e6d46bcca0512c1cb520806f93c822732a3ecec9757e25765ae4aed"
+                  "content_hash": "c8cb52b498c057f38e8d7a04604426222b021fd7d791f1243b245486c7335c72"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "1192ca12d50fe4585e09d640828e5f97906fa4c39be20f826a9afe2285674552",
+          "hash": "62a6eaa081b59093185435ce1ad3ff3a833ef01700fdad1d438e64e00bbbae0f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/_gradle-plugin-block.md",
           "metadata": {
-            "content_hash": "e061e9bdb37ee1f1b7d87f8ff1083282b32fd296c881ddd1ec36c1a647c2ef2b"
+            "content_hash": "2f872b431b3a155b8c30edaf5033be9d3566e9c9a35ecfe328f573fb3de9b7a4"
           }
         },
         {
@@ -205,14 +205,14 @@
         }
       ],
       "details": {},
-      "hash": "7902741c1de1ff3623e0b5b9562f9dd1ebcc3c9b679a4137fe3df45367f2922a",
+      "hash": "905d3691ec5535a743a4a3c4e545cce75978be6476f509add4a8f7091f52b370",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/_gradle-plugin-block.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e061e9bdb37ee1f1b7d87f8ff1083282b32fd296c881ddd1ec36c1a647c2ef2b",
+  "output_hash": "2f872b431b3a155b8c30edaf5033be9d3566e9c9a35ecfe328f573fb3de9b7a4",
   "output_path": "server/priv/docs/ru/guides/_gradle-plugin-block.md",
   "protection_state": "recorded",
   "provider": "",
@@ -230,8 +230,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "7de2be7842eb451709307fc98d11bb905cb3ecfa",
+  "source_commit_sha": "3f30a51aa2186e86cb4a5b9f3fc87969b0ce0582",
   "source_path": "server/priv/docs/en/guides/_gradle-plugin-block.md",
-  "translated_at": "2026-11-19T10:00:41.840942Z",
-  "translation_session_id": "01a1f33d-295d-7bd7-914e-eb0f2e63eb61"
+  "translated_at": "2026-11-20T05:24:21.123258Z",
+  "translation_session_id": "01a1f768-215b-749c-a358-e1df3676f19e"
 }
