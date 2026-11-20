@@ -29,4 +29,4 @@ msgstr "Gráfico de dispersión"
 #: lib/tuist_web/components/chart_type_toggle.ex:67
 #, elixir-autogen, elixir-format
 msgid "Bar"
-msgstr "Bar"
+msgstr "Barras"

@@ -11,8 +11,8 @@
 msgid ""
 msgstr "Language: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/tuist_web/live/docs_live.ex:181
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
+#: lib/tuist_web/live/docs_live.ex:186
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1123
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "Página não encontrada"
@@ -22,12 +22,12 @@ msgstr "Página não encontrada"
 #: lib/tuist_web/controllers/build_controller.ex:60
 #: lib/tuist_web/controllers/build_controller.ex:113
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:21
-#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
+#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "Compilação não encontrada"
+msgstr "Build não encontrado"
 
 #: lib/tuist_web/controllers/build_controller.ex:109
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "Você não está autorizado a acessar esta compilação"
+msgstr "Você não está autorizado a acessar este build"

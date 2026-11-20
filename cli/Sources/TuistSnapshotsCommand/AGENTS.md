@@ -20,6 +20,10 @@ names, so in-process verifiers can use it instead of reference images in Git.
   names (paths relative to the directory), derived Roborazzi files skipped,
   Sentry-format JSON sidecars, `tuist-all-image-names.txt`, pull request title
   sources, and the verdicts that fail the command (`needs_review`, `rejected`).
+- While snapshots run, `TestService` hands its selective-testing hashes to
+  `SnapshotsTestRunner.hashStoresAwaitingVerdict`, which stores them only once
+  the verdict is `passed`, `baseline` or `approved`. A hash stored earlier would
+  make a rerun skip the snapshot target, upload nothing and pass unreviewed.
 - The server API lives in `server/lib/tuist_web/controllers/api/snapshots_controller.ex`;
   regenerate the OpenAPI client after changing it, never edit it by hand.
 - `status` and `state` are open strings: never switch on them exhaustively.
