@@ -33,6 +33,16 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
     /// A simulated location used when testing this test target.
     public let simulatedLocation: SimulatedLocation?
 
+    /// Swift Testing tag names, in the dotted spelling Xcode writes (e.g. `".contract"`), whose tests
+    /// are the only ones the target runs. Written as `selectedTags` into generated `.xctestplan` files
+    /// and ignored by scheme test actions.
+    public let selectedTags: [String]
+
+    /// Swift Testing tag names, in the dotted spelling Xcode writes (e.g. `".contract"`), whose tests
+    /// the target skips. Written as `skippedTags` into generated `.xctestplan` files and ignored by
+    /// scheme test actions.
+    public let skippedTags: [String]
+
     @available(*, deprecated, renamed: "init(target:skipped:parallelization:randomExecutionOrdering:simulatedLocation:)")
     public init(
         target: TargetReference,
@@ -46,6 +56,8 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
         parallelization = parallelizable ? .all : .none
         isRandomExecutionOrdering = randomExecutionOrdering
         self.simulatedLocation = simulatedLocation
+        selectedTags = []
+        skippedTags = []
     }
 
     public init(
@@ -53,13 +65,17 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
         skipped: Bool = false,
         parallelization: Parallelization = .none,
         randomExecutionOrdering: Bool = false,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        selectedTags: [String] = [],
+        skippedTags: [String] = []
     ) {
         self.target = target
         isSkipped = skipped
         self.parallelization = parallelization
         isRandomExecutionOrdering = randomExecutionOrdering
         self.simulatedLocation = simulatedLocation
+        self.selectedTags = selectedTags
+        self.skippedTags = skippedTags
     }
 
     #if DEBUG
@@ -69,14 +85,18 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
             skipped: Bool = false,
             parallelizable: Bool = false,
             randomExecutionOrdering: Bool = false,
-            simulatedLocation: SimulatedLocation? = nil
+            simulatedLocation: SimulatedLocation? = nil,
+            selectedTags: [String] = [],
+            skippedTags: [String] = []
         ) -> TestableTarget {
             TestableTarget(
                 target: target,
                 skipped: skipped,
                 parallelization: parallelizable ? .all : .none,
                 randomExecutionOrdering: randomExecutionOrdering,
-                simulatedLocation: simulatedLocation
+                simulatedLocation: simulatedLocation,
+                selectedTags: selectedTags,
+                skippedTags: skippedTags
             )
         }
     #endif

@@ -774,6 +774,100 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             "Should fall back to the surviving test plan target, not the build action's target."
         )
     }
+
+    func test_map_keeps_referenced_test_plan_whose_targets_never_existed_in_the_graph() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let app = Target.test(name: "App", product: .app)
+        let path = try temporaryPath()
+        let testPlan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: path, name: "GhostTests")),
+            ],
+            isDefault: true,
+            kind: .referenced
+        )
+        let scheme = Scheme.test(
+            name: "Plan",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: app.name)]),
+            testAction: .test(targets: [], testPlans: [testPlan])
+        )
+        let project = Project.test(path: path, targets: [prunedFramework, app], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(
+            survivingScheme.testAction?.testPlans,
+            [testPlan],
+            "A referenced plan the mapper never pruned anything from should be kept untouched."
+        )
+    }
+
+    func test_map_drops_referenced_test_plan_whose_targets_were_all_pruned() throws {
+        // Given
+        var prunedTests = Target.test(name: "PrunedTests", product: .unitTests)
+        prunedTests.metadata.tags.formUnion(["tuist:prunable"])
+        let app = Target.test(name: "App", product: .app)
+        let path = try temporaryPath()
+        let testPlan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: path, name: prunedTests.name)),
+            ],
+            isDefault: true,
+            kind: .referenced
+        )
+        let scheme = Scheme.test(
+            name: "Plan",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: app.name)]),
+            testAction: .test(targets: [], testPlans: [testPlan])
+        )
+        let project = Project.test(path: path, targets: [prunedTests, app], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(survivingScheme.testAction?.testPlans, [])
+    }
+
+    func test_map_drops_generated_test_plan_whose_targets_never_existed_in_the_graph() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let app = Target.test(name: "App", product: .app)
+        let path = try temporaryPath()
+        let testPlan = TestPlan(
+            path: path.appending(component: "Plan.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: path, name: "GhostTests")),
+            ],
+            isDefault: true,
+            kind: .generated
+        )
+        let scheme = Scheme.test(
+            name: "Plan",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: app.name)]),
+            testAction: .test(targets: [], testPlans: [testPlan])
+        )
+        let project = Project.test(path: path, targets: [prunedFramework, app], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(survivingScheme.testAction?.testPlans, [])
+    }
 }
 
 struct TreeShakePrunedTargetsGraphMapperSchemeReparentingTests {
