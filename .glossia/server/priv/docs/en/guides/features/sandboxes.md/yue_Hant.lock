@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2f56ae6e77623fb87932028c126157b2b507111bfea2e34ad03c74e576ed84d4",
+  "hash": "9e6a27c0ab1c6e06f7434da4e789c5f86d3b18b9c386d587cf61d48f605bfea7",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "39179a1bb11e9db0e8d52183984ce3e7fcb6333ef0371e5443ede691fd6363b1"
                 },
                 "## Build on a Mac from a coding agent {#coding-agents}": {
-                  "content_hash": "c56bda90f5ebe2418aa4afac40db44cab0073a1dc008949a1f7c4e0a1dadc8c9"
+                  "content_hash": "392189272d99c8108b73f0878c4a2a7d4eb3d7a6bc6dbe0da8503ba45651ec47"
                 },
                 "## Get started with the CLI {#cli}": {
                   "content_hash": "e8a3dcf97cd2cb530d95db160bf4fc514c74dfa8db7660d532ad29b514b346db"
@@ -32,7 +32,7 @@
                   "content_hash": "be49c51b0b782d6fd5338f635151cc4e4b25b489705dfd8d4d0bad41c95387c0"
                 },
                 "### 3. Run commands {#cli-exec}": {
-                  "content_hash": "a8ff944c41ee24058124691b9f4552df6c8c46479f3b53ea46f3605e767c7925"
+                  "content_hash": "c74b09783d227ceb2771bc04fbd451263ffa81d1694c920fa73b692b6a605d5c"
                 },
                 "### Choose an Xcode {#xcode}": {
                   "content_hash": "5c4a27696b86ba479a94f34d1759f392996153607cb3da5d5e4fb980f22cfe89"
@@ -44,7 +44,7 @@
                   "content_hash": "e9019160a96dd427e2af2323170771c8590963fb39e34da6d012920039adf8a7"
                 },
                 "### Tuist inside the sandbox {#tuist-in-sandbox}": {
-                  "content_hash": "5a1a8453113ac9343e5998c459ea39c64fac4946c5529cc017345daa4516ad10"
+                  "content_hash": "fb7b88da310dd2b7d4917e19f117b9da5991b51f360a5775e6972f2a27ff4da8"
                 },
                 "Preamble": {
                   "content_hash": "5e751ab42706e47370a09323de4f94ff05361bb8d492e6c34e175192936d587c"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "9e488865af76e53a5a7571603c7cb5296c957972090c032e1d675cceaee09e2d",
+          "hash": "05d866f4b8aa8c601fd06fd66002e06da7819fbd3b11846ca71833b03e683601",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes.md",
           "metadata": {
-            "content_hash": "a65d8f216347fb52b71602f46727516a23f5c9d9c2e31a964df90036352c80d0"
+            "content_hash": "9bcf28f25619927f94207e432aaad03bc8481ef6ca44f5aa2c6ceb6ea45d4f0c"
           }
         },
         {
@@ -248,14 +248,14 @@
         }
       ],
       "details": {},
-      "hash": "2f56ae6e77623fb87932028c126157b2b507111bfea2e34ad03c74e576ed84d4",
+      "hash": "9e6a27c0ab1c6e06f7434da4e789c5f86d3b18b9c386d587cf61d48f605bfea7",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "c3d0d3c87528fc852d2fd549e1cf05d6eb33c49264900c84283adccdf48ad978",
+  "output_hash": "fb84b5e3e5f3795a4d68dcc257edfb65674d8bbbfb8200785617c038a4569593",
   "output_path": "server/priv/docs/yue_Hant/guides/features/sandboxes.md",
   "protection_state": "recorded",
   "provider": "",
@@ -275,8 +275,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5f6b0c6761cf60e6ba412eb3de60cafd4a5b924e",
+  "source_commit_sha": "0b9170c316005321d83391a75993a3bfc04c2e7e",
   "source_path": "server/priv/docs/en/guides/features/sandboxes.md",
-  "translated_at": "2026-11-19T14:38:21.369205Z",
-  "translation_session_id": "01a1f43c-cc79-7fa7-97c3-b1bca0dda8f1"
+  "translated_at": "2026-11-20T09:25:12.575504Z",
+  "translation_session_id": "01a1f83a-f112-750b-b469-cdebb2c0d4d4"
 }

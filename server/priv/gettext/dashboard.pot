@@ -218,6 +218,7 @@ msgid "N/A"
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:62
+#: lib/tuist_web/components/app_components.ex:91
 #: lib/tuist_web/live/mix_build_live.html.heex:348
 #: lib/tuist_web/live/pulse_error_live.ex:299
 #: lib/tuist_web/live/pulse_live.ex:602
@@ -271,6 +272,7 @@ msgid "Please, make sure you are accessing the right resource and that you have 
 msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:53
+#: lib/tuist_web/components/app_components.ex:83
 #: lib/tuist_web/live/pulse_error_live.ex:290
 #: lib/tuist_web/live/pulse_live.ex:593
 #, elixir-autogen, elixir-format

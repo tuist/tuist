@@ -146,13 +146,13 @@ defmodule Tuist.RemoteExecution.AnalyticsTest do
     end
 
     opts = [since: NaiveDateTime.add(now, -3600), until: now]
-    assert %{rows: first, total_pages: 2} = Analytics.activity(project.id, opts)
+    assert %{rows: first, has_next_page?: true} = Analytics.activity(project.id, opts)
     assert length(first) == 20
     assert hd(first).invocation_id == "run-01"
-    assert %{rows: last} = Analytics.activity(project.id, Keyword.put(opts, :page, 2))
+    assert %{rows: last, has_next_page?: false} = Analytics.activity(project.id, Keyword.put(opts, :page, 2))
     assert Enum.map(last, & &1.invocation_id) == ~w(run-21 run-22 run-23)
 
-    assert %{rows: [%{invocation_id: "run-23"}], total_pages: 1} =
+    assert %{rows: [%{invocation_id: "run-23"}], has_next_page?: false} =
              Analytics.activity(project.id, Keyword.put(opts, :search, "run-23"))
 
     assert %{rows: rows} = Analytics.activity(project.id, Keyword.put(opts, :search, "//app:demo"))
@@ -164,13 +164,13 @@ defmodule Tuist.RemoteExecution.AnalyticsTest do
     assert hd(sorted.("ran-at", "asc")).invocation_id == "run-23"
 
     filtered = fn filters -> Analytics.activity(project.id, Keyword.put(opts, :filters, filters)) end
-    assert %{rows: [], total_pages: 1} = filtered.([%{field: :actions, op: :>=, value: "2"}])
-    assert %{total_pages: 2} = filtered.([%{field: :actions, op: :==, value: "1"}])
+    assert %{rows: [], has_next_page?: false} = filtered.([%{field: :actions, op: :>=, value: "2"}])
+    assert %{has_next_page?: true} = filtered.([%{field: :actions, op: :==, value: "1"}])
     assert %{rows: []} = filtered.([%{field: :status, op: :!=, value: "success"}])
     assert %{rows: []} = filtered.([%{field: :command, op: :not_ilike, value: "BUILD"}])
 
     combined = [%{field: :target_patterns, op: :=~, value: "DEMO"}, %{field: :command, op: :==, value: "build"}]
-    assert %{total_pages: 2} = filtered.(combined)
+    assert %{has_next_page?: true} = filtered.(combined)
 
     assert %{rows: [%{invocation_id: "run-07"}]} =
              Analytics.activity(project.id, opts ++ [search: "run-07", filters: combined])

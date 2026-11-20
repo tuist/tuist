@@ -171,6 +171,16 @@ variable "bitrise_cli_version" {
   default = "3.2.1"
 }
 
+variable "tuist_version" {
+  type        = string
+  description = "Tuist CLI preinstalled for runner. https://github.com/tuist/tuist/releases (bare-version tags only)."
+  # Installed through mise, which verifies the release's checksum. A
+  # repository that pins Tuist through mise still runs its own version: the
+  # shim resolves the pin and installs it on first use. See AGENTS.md.
+  # renovate: datasource=github-releases depName=tuist/tuist
+  default = "4.218.2"
+}
+
 variable "bitrise_cli_sha256_darwin_arm64" {
   type        = string
   description = "SHA256 of the bitrise-Darwin-arm64 binary, from the release's checksums.txt."
@@ -798,6 +808,52 @@ build {
     ]
   }
 
+  # The Tuist CLI, installed through mise as runner so its shim exists in
+  # runner's mise data directory. With the shim first on PATH, a repository
+  # that pins Tuist through mise gets its version (mise installs it on first
+  # use), and one without a pin falls through the shim to
+  # /opt/tuist/cli/bin/tuist, which runs this version. That directory is not on
+  # a CI job's PATH, so workflows still install the Tuist they pin; sandbox
+  # commands put it after PATH (server/lib/tuist/sandboxes/commands.ex).
+  # The wrapper execs the installed binary by its real path, because Tuist finds
+  # ProjectDescription.framework next to its executable.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'mise install tuist@${var.tuist_version}'",
+      "test -x /Users/runner/.local/share/mise/shims/tuist",
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/cli/bin",
+      "printf '#!/bin/sh\\nexec /Users/runner/.local/share/mise/installs/tuist/${var.tuist_version}/tuist \"$@\"\\n' | sudo tee /opt/tuist/cli/bin/tuist >/dev/null",
+      "sudo chmod 0755 /opt/tuist/cli/bin/tuist",
+      "[ \"$(sudo -u runner -H /bin/sh -c 'cd /tmp && PATH=$HOME/.local/share/mise/shims:$PATH:/opt/tuist/cli/bin tuist version' | tail -1)\" = '${var.tuist_version}' ] || { echo 'sanity check: the preinstalled Tuist does not run without a pin' >&2; exit 1; }"
+    ]
+  }
+
+  # The guide for coding agents, generated from what the image now holds, and
+  # the instruction files in runner's home that point Claude Code, Codex, Amp
+  # and AGENTS.md readers at it. /Users/runner/work is a volume mounted at boot,
+  # so nothing can be left there for them.
+  provisioner "file" {
+    source      = "${path.root}/agent-guide.sh"
+    destination = "/tmp/agent-guide.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/agent-guide.sh /opt/tuist/agent-guide.sh",
+      "rm -f /tmp/agent-guide.sh",
+      "sudo -u runner -H /bin/zsh -lc '/opt/tuist/agent-guide.sh write /tmp/agent-guide.md'",
+      "sudo install -m 0644 -o root -g wheel /tmp/agent-guide.md /opt/tuist/agent-guide.md",
+      # runner wrote it, and /tmp is sticky, so admin cannot remove it unprivileged.
+      "sudo rm -f /tmp/agent-guide.md",
+      "sudo -u runner -H /opt/tuist/agent-guide.sh link /Users/runner",
+      "grep -q '^- Xcode ' /opt/tuist/agent-guide.md || { echo 'agent guide lists no Xcode' >&2; exit 1; }",
+      "grep -q 'Tuist ${var.tuist_version} is installed' /opt/tuist/agent-guide.md || { echo 'agent guide names the wrong Tuist' >&2; exit 1; }",
+      "cat /opt/tuist/agent-guide.md"
+    ]
+  }
+
   # Sanity check: tools customers expect on a GitHub-parity macOS
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
@@ -815,8 +871,9 @@ build {
   # `xcrun metal --version` proves the base's Metal Toolchain is
   # visible to `runner` and not only to the user that installed it.
   #
-  # Tuist itself isn't in the list — customer workflows install it
-  # via mise / brew so they own the version pin.
+  # Tuist isn't in the list: it is preinstalled for sandboxes outside a
+  # CI job's PATH (see the provisioner above), and workflows install the
+  # version they pin.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",

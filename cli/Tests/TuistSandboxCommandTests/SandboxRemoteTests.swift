@@ -67,6 +67,27 @@ struct SandboxRemoteTests {
     }
 
     @Test
+    func followReturnsAtTheDeadlineWithTheOffsetsItReachedWhileTheCommandRuns() async throws {
+        // The stream sends one line and then nothing, as while a build runs quietly; following must not hang on it.
+        let open = OpenStreams()
+        given(sandboxesService).streamSandboxCommandLogs(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .value(Self.commandID),
+            stdoutOffset: .value(5), stderrOffset: .value(2)
+        ).willReturn(open.stream(try Self.lines(#"{"type":"stdout","data":"abc","offset":8}"#)))
+
+        var offsets = SandboxRemote.Offsets(stdout: 5, stderr: 2)
+        var stdout = ""
+        let started = Date()
+        let deadline = Date().addingTimeInterval(0.5)
+        let exit = try await remote.follow(Self.commandID, offsets: &offsets, until: deadline) { _, data in stdout += data }
+
+        #expect(exit == nil)
+        #expect(offsets == SandboxRemote.Offsets(stdout: 8, stderr: 2))
+        #expect(stdout == "abc")
+        #expect(Date().timeIntervalSince(started) < 5)
+    }
+
+    @Test
     func followStopsAtOnceWhenTheCommandIsGone() async throws {
         given(sandboxesService).streamSandboxCommandLogs(
             accountHandle: .any, serverURL: .any, sandboxID: .any, commandID: .any, stdoutOffset: .any, stderrOffset: .any
@@ -210,6 +231,25 @@ struct SandboxRemoteTests {
         decoded += try decoder.finish()
 
         #expect(decoded == Data((0 ..< 1000).map { UInt8($0 % 256) }))
+    }
+}
+
+/// Streams that send their lines and then stay open, like a log stream of a command that prints nothing for a while.
+final class OpenStreams: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>.Continuation] = []
+
+    func stream(
+        _ lines: AsyncThrowingStream<ServerSandboxCommandLogLine, any Error>
+    ) -> AsyncThrowingStream<ServerSandboxCommandLogLine, any Error> {
+        AsyncThrowingStream { continuation in
+            lock.withLock { continuations.append(continuation) }
+            Task {
+                for try await line in lines {
+                    continuation.yield(line)
+                }
+            }
+        }
     }
 }
 

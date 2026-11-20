@@ -290,6 +290,50 @@ struct SandboxCommandServiceTests {
         #expect(printed["exit_code"] as? Int == 2)
     }
 
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func execAttachingWithAWaitContinuesFromTheOffsetsAndReturnsWhereItStoppedWhileTheCommandRuns() async throws {
+        let commandID = "6a1c0d2e-3b4f-4a5b-9c6d-7e8f90a1b2c3"
+        let open = OpenStreams()
+        let line = try JSONDecoder().decode(
+            ServerSandboxCommandLogLine.self,
+            from: Data(#"{"type":"stdout","data":"Compiling\n","offset":130}"#.utf8)
+        )
+        given(sandboxesService).streamSandboxCommandLogs(
+            accountHandle: .value("resolved-account"), serverURL: .any, sandboxID: .value(Self.id),
+            commandID: .value(commandID), stdoutOffset: .value(120), stderrOffset: .value(7)
+        ).willReturn(open.stream(AsyncThrowingStream { continuation in
+            continuation.yield(line)
+            continuation.finish()
+        }))
+
+        await #expect(throws: ExitCode(75)) {
+            try await subject().exec(
+                options: Self.values(json: true),
+                sandboxID: Self.id,
+                command: "",
+                cwd: nil,
+                environment: [:],
+                timeoutMs: nil,
+                waitSeconds: 1,
+                attach: commandID,
+                offsets: .init(stdout: 120, stderr: 7)
+            )
+        }
+        let output = ui()
+        let json = try #require(output.firstIndex(of: "{").map { output[$0...] })
+        let printed = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        #expect(printed["status"] as? String == "running")
+        #expect(printed["command_id"] as? String == commandID)
+        #expect(printed["stdout"] as? String == "Compiling\n")
+        #expect(printed["stdout_offset"] as? Int == 130)
+        #expect(printed["stderr_offset"] as? Int == 7)
+        #expect(printed["exit_code"] == nil)
+        verify(sandboxesService).startSandboxCommand(
+            accountHandle: .any, serverURL: .any, sandboxID: .any, id: .any, command: .any, cwd: .any,
+            environment: .any, stdin: .any, timeoutMs: .any
+        ).called(0)
+    }
+
     @Test
     func deleteRequiresConfirmationAndCreateRequiresAnOfferedShape() throws {
         #expect(throws: (any Error).self) { try SandboxDeleteCommand.parse([Self.id]) }
@@ -317,6 +361,15 @@ struct SandboxCommandServiceTests {
         #expect(command.environment == ["TOKEN": "a=b"])
         #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--env", "TOKEN", "--", "ls"]) }
         #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--timeout", "21601", "--", "ls"]) }
+        let commandID = "6a1c0d2e-3b4f-4a5b-9c6d-7e8f90a1b2c3"
+        #expect(throws: Never.self) {
+            try SandboxExecCommand.parse([
+                Self.id, "--attach", commandID, "--stdout-offset", "10", "--stderr-offset", "0", "--wait", "100",
+            ])
+        }
+        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--attach", commandID, "--", "ls"]) }
+        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--stdout-offset", "10", "--", "ls"]) }
+        #expect(throws: (any Error).self) { try SandboxExecCommand.parse([Self.id, "--wait", "0", "--", "ls"]) }
     }
 
     @Test

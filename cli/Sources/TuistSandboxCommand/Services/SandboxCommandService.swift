@@ -154,21 +154,35 @@ struct SandboxCommandService {
     /// Streams the command's output as it runs, however long that is, and exits with its status, so scripts can rely
     /// on it as on a local command. An interrupt cancels the command in the sandbox. With `--json`, the output is
     /// printed as one object once the command ends.
+    ///
+    /// `attach` follows a command started earlier, from `offsets`, instead of starting `command`. With `waitSeconds`,
+    /// it stops following once they have passed and leaves the command running, so an agent whose tool calls have a
+    /// time limit comes back to it in its next call: it says how on stderr (or returns `running` with the offsets
+    /// in JSON) and exits with 75 (`EX_TEMPFAIL`).
     func exec(
         options: SandboxOptions.Values,
         sandboxID: String,
         command: String,
         cwd: String?,
         environment: [String: String],
-        timeoutMs: Int?
+        timeoutMs: Int?,
+        waitSeconds: Int? = nil,
+        attach: String? = nil,
+        offsets: SandboxRemote.Offsets = .init()
     ) async throws {
+        let deadline = waitSeconds.map { Date().addingTimeInterval(TimeInterval($0)) }
         let remote = try await remote(options, sandboxID: sandboxID)
-        let started = try await remote.start(command, cwd: cwd, environment: environment, timeoutMs: timeoutMs)
-        let signals = Self.onInterrupt { try? await remote.cancel(started.id) }
+        let commandID = if let attach {
+            attach
+        } else {
+            try await remote.start(command, cwd: cwd, environment: environment, timeoutMs: timeoutMs, until: deadline).id
+        }
+        let signals = Self.onInterrupt { try? await remote.cancel(commandID) }
         defer { signals.forEach { $0.cancel() } }
         var stdout = ""
         var stderr = ""
-        let exit = try await remote.follow(started.id) { isStandardError, data in
+        var offsets = offsets
+        let exit = try await remote.follow(commandID, offsets: &offsets, until: deadline) { isStandardError, data in
             if options.json {
                 if isStandardError { stderr += data } else { stdout += data }
             } else {
@@ -177,11 +191,25 @@ struct SandboxCommandService {
         }
         if options.json {
             try Noora.current.json(SandboxExecOutput(
-                status: exit.status,
-                exitCode: exit.exitCode,
+                commandID: commandID,
+                status: exit?.status ?? "running",
+                exitCode: exit?.exitCode,
                 stdout: stdout,
-                stderr: stderr
+                stderr: stderr,
+                stdoutOffset: offsets.stdout,
+                stderrOffset: offsets.stderr
             ))
+        }
+        guard let exit else {
+            if !options.json {
+                let wait = waitSeconds.map { " --wait \($0)" } ?? ""
+                Self.note(
+                    "The command is still running after \(waitSeconds ?? 0) seconds. Continue it with: tuist sandbox exec "
+                        + "\(sandboxID) --account \(remote.accountHandle) --attach \(commandID) --stdout-offset \(offsets.stdout) "
+                        + "--stderr-offset \(offsets.stderr)\(wait)"
+                )
+            }
+            throw ExitCode(Self.stillRunningExitCode)
         }
         switch (exit.status, exit.exitCode) {
         case (_, 0?): return
@@ -194,15 +222,24 @@ struct SandboxCommandService {
         }
     }
 
+    /// `EX_TEMPFAIL`: `exec --wait` returned before the command ended.
+    static let stillRunningExitCode: Int32 = 75
+
     private struct SandboxExecOutput: Codable {
+        let commandID: String
         let status: String
         let exitCode: Int?
         let stdout: String
         let stderr: String
+        let stdoutOffset: Int
+        let stderrOffset: Int
 
         enum CodingKeys: String, CodingKey {
             case status, stdout, stderr
+            case commandID = "command_id"
             case exitCode = "exit_code"
+            case stdoutOffset = "stdout_offset"
+            case stderrOffset = "stderr_offset"
         }
     }
 

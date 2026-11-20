@@ -31,7 +31,13 @@
   waits up to 25 seconds for the host in each start. While they wait, the
   server's reason is repeated on stderr about once a minute. `exec` exits
   with the command's status (124 on timeout, 130 when cancelled) and cancels it
-  on SIGINT/SIGTERM. Progress notes go to stderr, never stdout. The synchronous
+  on SIGINT/SIGTERM. `exec --wait <seconds>` stops following at that deadline and
+  leaves the command running (it starts no new start attempt past it, and drops a
+  log read mid-request, which is safe), then exits 75 with the `--attach <command-id>
+  --stdout-offset … --stderr-offset …` command that continues it, or, with `--json`,
+  `status: running` and those values: agents' tool calls have time limits, so they
+  run builds in the foreground this way instead of backgrounding and polling.
+  Progress notes go to stderr, never stdout. The synchronous
   `POST .../exec` endpoint stays in the API; the CLI no longer uses it.
 - `cp` takes `<sandbox-id>:<path>` on exactly one side (only a UUID before the
   colon counts) and follows `cp -r`: into an existing directory or one written
