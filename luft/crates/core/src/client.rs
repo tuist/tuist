@@ -68,7 +68,7 @@ pub struct MobileClient {
     dirty: bool,
     attempt: Option<Attempt>,
     threads: Threads,
-    halls: crate::Halls,
+    lounges: crate::Lounges,
     presence: crate::Presence,
     navigation: crate::navigation::Navigation,
     /// The live sockets of the threads the edge shows.
@@ -77,8 +77,8 @@ pub struct MobileClient {
     store: Option<(String, Store)>,
     /// The newer preview `preview_update` last suggested installing, so edges prompt once per build.
     suggested_preview: Option<String>,
-    /// The last `halls` answer and the generation it belongs to, which `palette` searches.
-    palette_halls: Option<(u64, Value)>,
+    /// The last `lounges` answer and the generation it belongs to, which `palette` searches.
+    palette_lounges: Option<(u64, Value)>,
 }
 
 impl MobileClient {
@@ -233,7 +233,7 @@ impl MobileClient {
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
             op @ ("threads" | "start_thread" | "thread" | "send_message" | "answer_question"
-            | "snooze_thread" | "archive_thread") => {
+            | "snooze_thread" | "archive_thread" | "reauthorize_thread") => {
                 let mut view = self.threads_operation(op, args, host)?;
                 crate::threads::present_stored(&mut view, now()?);
                 Ok(view)
@@ -298,14 +298,20 @@ impl MobileClient {
                 self.live.close(text(args, "socket")?);
                 Ok(Value::Null)
             }
-            op @ ("halls" | "hall" | "send_hall_message" | "read_hall" | "create_hall"
-            | "start_direct" | "hall_people" | "invite_hall") => {
+            op @ ("lounges"
+            | "lounge"
+            | "send_lounge_message"
+            | "read_lounge"
+            | "create_lounge"
+            | "start_direct"
+            | "lounge_people"
+            | "invite_lounge") => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
                 let organization = self.vault.profiles[index].organization.is_some();
                 let server = server_url(&self.vault.profiles[index].server)?;
-                let mut halls = std::mem::take(&mut self.halls);
-                let result = halls.call(
+                let mut lounges = std::mem::take(&mut self.lounges);
+                let result = lounges.call(
                     &server,
                     &account,
                     organization,
@@ -317,33 +323,33 @@ impl MobileClient {
                         host,
                     },
                 );
-                self.halls = halls;
+                self.lounges = lounges;
                 // People connected now, which is fresher than the server's answer.
                 let mut result = result;
                 if let (Ok(data), Some(online)) = (&mut result, self.presence.online_ids(&account))
                 {
                     crate::presence::mark_online(data, &online);
                 }
-                if let ("halls", Ok(data)) = (op, &result) {
-                    self.palette_halls = Some((self.vault.generation, data.clone()));
+                if let ("lounges", Ok(data)) = (op, &result) {
+                    self.palette_lounges = Some((self.vault.generation, data.clone()));
                 }
                 result
             }
             // Local only, so edges can call it on every keystroke: the stored
-            // inbox and the halls `halls` last loaded for this generation.
+            // inbox and the lounges `lounges` last loaded for this generation.
             "palette" => {
                 let index = self.active()?;
                 let account = self.account(index).to_string();
                 let threads = self.store(index, host)?.inbox(&account)?;
-                let halls = match &self.palette_halls {
-                    Some((generation, halls)) if *generation == self.vault.generation => halls,
+                let lounges = match &self.palette_lounges {
+                    Some((generation, lounges)) if *generation == self.vault.generation => lounges,
                     _ => &Value::Null,
                 };
                 Ok(crate::palette::palette(
                     args.get("query").and_then(Value::as_str).unwrap_or(""),
                     &args["labels"],
                     &threads,
-                    halls,
+                    lounges,
                 ))
             }
             "presence" => {
@@ -503,6 +509,13 @@ impl MobileClient {
             let id = store.resolve(id)?;
             unsent = store.unsent(&id)?;
             args["id"] = json!(id);
+        }
+        if matches!(op, "send_message" | "answer_question")
+            && let Ok(store) = self.store(index, host)
+            && let Ok(thread) = store.conversation(args["id"].as_str().unwrap_or_default())
+            && thread["reauthorization_required"] == true
+        {
+            return Err("The owner must authorize future messages with their current sign-in");
         }
         if matches!(op, "start_thread" | "send_message" | "answer_question")
             && args.get("request_id").is_none()
@@ -769,7 +782,7 @@ impl MobileClient {
         let discovery = http(
             host,
             "GET",
-            endpoint(&server, ".well-known/tuist.json"),
+            endpoint(&server, ".well-known/luft.json"),
             json!({}),
             None,
         )?;
@@ -1519,7 +1532,12 @@ fn migrate(value: &str) -> Result<(Vault, bool)> {
         .is_some();
     if let Some(profiles) = raw.get_mut("profiles").and_then(Value::as_array_mut) {
         let count = profiles.len();
-        profiles.retain(|p| p.get("shared").is_none_or(Value::is_null));
+        profiles.retain(|p| {
+            p.get("shared").is_none_or(Value::is_null)
+                && p["access"].as_str().is_some_and(|token| {
+                    Claims::parse(token).is_ok_and(|claims| claims.iss.as_deref() == Some("luft"))
+                })
+        });
         migrated |= profiles.len() != count;
     }
     let mut vault: Vault = serde_json::from_value(raw).map_err(|_| "Invalid private vault")?;
@@ -1548,6 +1566,9 @@ fn now() -> Result<i64> {
 /// The identity, handle, and email a profile shows for an access token.
 fn identify(access: &str) -> Result<(String, String, String)> {
     let claims = Claims::parse(access).map_err(|_| "Invalid token identity")?;
+    if claims.iss.as_deref() != Some("luft") {
+        return Err("Sign in through a Luft server");
+    }
     let identity = claims.identity().ok_or("Invalid token identity")?;
     let handle = claims
         .preferred_username

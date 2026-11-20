@@ -80,7 +80,7 @@ impl Accounts {
     }
 
     pub fn session_from_env(&self) -> Result<Session, Error> {
-        self.session_with_override(std::env::var("TUIST_URL").ok().as_deref())
+        self.session_with_override(std::env::var("LUFT_URL").ok().as_deref())
     }
 
     fn session_with_override(&self, explicit: Option<&str>) -> Result<Session, Error> {
@@ -89,7 +89,7 @@ impl Accounts {
         let server = parse_server(
             explicit
                 .or(registry.selected_server.as_deref())
-                .unwrap_or("https://tuist.dev"),
+                .unwrap_or("https://luft.work"),
             true,
         )?;
         let _locks = self.host_locks(&[&server])?;

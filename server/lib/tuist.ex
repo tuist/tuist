@@ -11,13 +11,6 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
-      Halls,
-      Halls.Presence,
-      Threads,
-      Threads.Thread,
-      Threads.Clients,
-      Threads.Runners,
-      Threads.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related
@@ -226,10 +219,12 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.AISubscriptions,
+      Accounts.AISubscriptions.Inference,
       Accounts.OrganizationAI,
       Accounts.OrganizationAI.Schemas,
       Accounts.ClaudeLinkedBilling,
       Accounts.MCPServers,
+      Accounts.MCPServers.Transport,
       Accounts.User,
       Accounts.UserMFA,
       Accounts.UserPasskey,
@@ -357,6 +352,10 @@ defmodule Tuist do
       # Firecracker sandboxes for coding-agent sessions (control plane
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
+      Sandboxes.Workspaces,
+      Sandboxes.RepositoryCheckout,
+      VCS.RepositoryBroker,
+      VCS.Publications,
       RemoteExecution,
       RemoteExecution.Actions,
       RemoteExecution.Analytics,

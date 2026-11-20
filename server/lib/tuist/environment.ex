@@ -36,7 +36,7 @@ defmodule Tuist.Environment do
   # ...) fails the pod fast at boot rather than landing it in `:web`
   # silently — exactly the failure mode that previously masked the
   # xcresult-processor leader-election bug.
-  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync, :agents]
+  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync]
 
   @doc """
   All pod roles `mode/0` may return. Stable list — used by
@@ -158,10 +158,6 @@ defmodule Tuist.Environment do
       back from the same bucket. Booted by
       swift-registry-sync-deployment.yaml. Future ecosystems get
       their own mode (e.g. `:maven_registry_sync`) and Deployment.
-    * `:agents` — no Phoenix listener and no Oban queues. Hosts durable
-      agent sessions (`Tuist.Agents.Runner`), such as Threads', on pods
-      sized and scaled by memory. Booted by agents-deployment.yaml; web
-      pods with `TUIST_DELEGATE_AGENTS=1` leave sessions to them.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -179,7 +175,6 @@ defmodule Tuist.Environment do
   def mode("processor"), do: :processor
   def mode("xcresult_processor"), do: :xcresult_processor
   def mode("swift_registry_sync"), do: :swift_registry_sync
-  def mode("agents"), do: :agents
 
   def mode(other) do
     raise """
@@ -195,8 +190,6 @@ defmodule Tuist.Environment do
   def xcresult_processor_mode?, do: mode() == :xcresult_processor
 
   def swift_registry_sync_mode?, do: mode() == :swift_registry_sync
-
-  def agents_mode?, do: mode() == :agents
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -1735,23 +1728,6 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BAZEL_TESTS", "0"))
   end
 
-  @doc "Whether `:agents` pods host agent sessions, so web pods do not."
-  def delegate_agents? do
-    truthy?(System.get_env("TUIST_DELEGATE_AGENTS", "0"))
-  end
-
-  @doc """
-  The memory the pod may use, from `TUIST_AGENTS_MEMORY_LIMIT_BYTES` (the
-  container's `limits.memory` through the downward API). The agents runner
-  stops claiming sessions as the VM approaches it.
-  """
-  def agents_memory_limit_bytes do
-    case Integer.parse(System.get_env("TUIST_AGENTS_MEMORY_LIMIT_BYTES", "")) do
-      {bytes, ""} when bytes > 0 -> bytes
-      _ -> nil
-    end
-  end
-
   def delegate_process_snapshots? do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_SNAPSHOTS", "0"))
   end
@@ -2335,17 +2311,6 @@ defmodule Tuist.Environment do
   """
   def atlas_support_ingest_token_path do
     System.get_env("TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH")
-  end
-
-  @doc """
-  The NSH command line (https://nsh.dev) that builds and checks the cards a
-  Thread's model writes (`Tuist.Threads.Cards`): `TUIST_NSH_PATH`, else `nsh`
-  on the `PATH`. The release image ships NSH's official release and
-  `mise install` installs it for development; without it the `show_ui` tool
-  is not offered.
-  """
-  def nsh_path do
-    System.get_env("TUIST_NSH_PATH") || System.find_executable("nsh")
   end
 
   def typesense_host do

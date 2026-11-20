@@ -547,6 +547,14 @@ defmodule Tuist.EnvironmentTest do
       assert Environment.mode("xcresult_processor") == :xcresult_processor
     end
 
+    test "rejects the retired conversation runtime role" do
+      refute :agents in Environment.modes()
+
+      assert_raise RuntimeError, ~r/Unknown TUIST_MODE="agents"/, fn ->
+        Environment.mode("agents")
+      end
+    end
+
     test "raises on unknown non-empty TUIST_MODE so a manifest typo fails the pod fast" do
       assert_raise RuntimeError, ~r/Unknown TUIST_MODE="processsor"/, fn ->
         Environment.mode("processsor")

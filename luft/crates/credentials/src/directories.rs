@@ -29,7 +29,14 @@ pub struct Directories {
 
 impl Directories {
     pub fn from_env() -> Self {
-        Self::resolve(Platform::current(), |name| std::env::var(name).ok())
+        let base = Self::resolve(Platform::current(), |name| std::env::var(name).ok());
+        // Luft-issued sessions must not reuse the CLI's tokens or its saved
+        // Tuist origins. Keep the legacy layout untouched for the shipping apps.
+        Self {
+            config: base.config.join("luft"),
+            state: base.state.join("luft"),
+            data: base.data.join("luft"),
+        }
     }
 
     /// Mirrors `Environment.configDirectory`/`stateDirectory` and the Linux

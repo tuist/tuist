@@ -1,8 +1,8 @@
 //! Looping people into a conversation from its composer. Typing `@` offers
 //! the organization's people; what mentioning them does depends on where:
 //! a thread lets them read and prompt it once the message is sent (the server
-//! loops in whoever the message mentions), a hall suggests inviting people who
-//! aren't in it yet, a new hall invites them, and a direct conversation keeps
+//! loops in whoever the message mentions), a lounge suggests inviting people who
+//! aren't in it yet, a new lounge invites them, and a direct conversation keeps
 //! a plain mention.
 //!
 //! `compose` is pure and keeps no state, so edges call it on every edit
@@ -65,8 +65,8 @@ pub fn compose(input: &Value) -> Value {
         .collect();
     let (loop_in, invite) = match context {
         "new_thread" | "thread" => (absent, vec![]),
-        "new_hall" => (mentioned.clone(), vec![]),
-        "hall" => (vec![], absent),
+        "new_lounge" => (mentioned.clone(), vec![]),
+        "lounge" => (vec![], absent),
         _ => (vec![], vec![]),
     };
 
@@ -280,11 +280,11 @@ mod tests {
             handles(&run("new_thread", content, json!({}))["loop_in"]),
             ["ben"]
         );
-        let hall = run("hall", content, json!({}));
-        assert_eq!(handles(&hall["invite"]), ["ben"]);
-        assert_eq!(hall["loop_in"], json!([]));
+        let lounge = run("lounge", content, json!({}));
+        assert_eq!(handles(&lounge["invite"]), ["ben"]);
+        assert_eq!(lounge["loop_in"], json!([]));
         assert_eq!(
-            handles(&run("new_hall", content, json!({}))["loop_in"]),
+            handles(&run("new_lounge", content, json!({}))["loop_in"]),
             ["ben", "rob"]
         );
         let direct = run("direct", content, json!({}));

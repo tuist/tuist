@@ -267,7 +267,7 @@ struct ThreadsView: View {
         #if os(iOS)
             // The iPhone's sidebar: the other destinations above the threads, like Claude's.
             Section {
-                sidebarLink("Halls", systemImage: "number", to: .list(.halls))
+                sidebarLink("Lounges", systemImage: "number", to: .list(.lounges))
                 sidebarLink("DMs", systemImage: "bubble.left.and.text.bubble.right", to: .list(.dms))
             }
             if available {

@@ -796,10 +796,6 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Disk snapshot archive uploads each hold a slot for up to half an hour, so
 # they take turns on their own queue instead of filling :default.
 base_queues = [
-  threads: 10,
-  # A parked thread command's exit watch long-polls its sandbox, so the watches
-  # take turns here instead of holding `threads` slots that runs need.
-  thread_exit_watches: 20,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
@@ -848,10 +844,6 @@ oban_queues =
 
     Tuist.Environment.swift_registry_sync_mode?() ->
       swift_registry_sync_queues
-
-    # Agents pods host sessions, not jobs. They still insert jobs.
-    Tuist.Environment.agents_mode?() ->
-      []
 
     true ->
       base = base_queues
@@ -914,8 +906,6 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron, crontab: crontab}
   ]
-
-config :tuist, Tuist.Agents.Runner, memory_limit_bytes: Tuist.Environment.agents_memory_limit_bytes()
 
 if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false

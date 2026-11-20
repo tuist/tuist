@@ -17,11 +17,6 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 14 }}
-        {{- if include "tuist.agentsEnabled" . }}
-        - podSelector:
-            matchLabels:
-              {{- include "tuist.componentLabels" (dict "root" . "component" "agents") | nindent 14 }}
-        {{- end }}
       ports:
         - protocol: TCP
           port: epmd
@@ -103,11 +98,6 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 14 }}
-        {{- if include "tuist.agentsEnabled" . }}
-        - podSelector:
-            matchLabels:
-              {{- include "tuist.componentLabels" (dict "root" . "component" "agents") | nindent 14 }}
-        {{- end }}
       ports:
         - protocol: TCP
           port: 4369

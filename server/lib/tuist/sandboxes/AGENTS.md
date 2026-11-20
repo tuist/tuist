@@ -450,9 +450,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   builder and fails the build. Never save a sandbox a session used: every
   later session of the environment boots from the snapshot.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs,
-  Claude Code sessions' sandboxes, Tuist threads' sandboxes (provider
-  environment `threads/<id>`, restored by the thread's next run through
-  `prepare_residency/3`) and, on macOS, every evicted paused
+  Claude Code sessions' sandboxes, legacy Tuist threads' sandboxes (provider
+  environment `threads/<id>`, retained for offline conversation export)
+  and, on macOS, every evicted paused
   sandbox, whose disk the Mac shares with CI (other Linux sandboxes are
   archived only off a node CI takes or that refused their resume; their next
   spawn restores them too, since `Router.find_or_create_sandbox/3` keeps an
@@ -558,7 +558,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
   retryable). The admission locks the account row with `SKIP LOCKED`, so any
   transaction holding that row answers `:sandbox_account_busy`; outside a
-  transaction `Concurrency.admit/3` tries again for 3 s first. Tuist threads' sandboxes are hidden from the account and use
+  transaction `Concurrency.admit/3` tries again for 3 s first. Legacy Tuist threads' sandboxes are hidden from the account and use
   none of it (`Sandboxes.not_thread/0`). Disk is not an account limit: each node's disk budget bounds
   it, and archiving frees it, so concurrency analytics chart no disk.
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
@@ -711,12 +711,11 @@ socket, the poller and the caller share a replica:
   freeing.
   Every command gets `STRUO_PROGRESS` (unless its env sets one) naming
   `struo-progress.jsonl` in that directory, and `read/3` returns the file's last
-  line as `progress`, so a thread run shows a Struo build's progress without an
+  line as `progress`, so callers can show a Struo build's progress without an
   extra exec; the guest writes it, so validate it before use. Legacy clients get
   `ONCE_PROGRESS` pointing at the same default file; reads also accept the old
   `once-progress.jsonl` for commands started before the rename.
-  A caller that already holds a residency, such as a thread run
-  (`Tuist.Threads.Sandbox`), passes it as `:residency`: the command joins it
+  A caller that already holds a residency passes it as `:residency`: the command joins it
   instead of `commands`, and `release_if_idle/2` leaves it to its holder.
   `pause_idle/2` skips a sandbox with running commands.
   A command the API starts (`:started_by`, the caller) in a member sandbox

@@ -1,8 +1,6 @@
 alias Ecto.Adapters.SQL.Sandbox
 
 Mimic.copy(Redix)
-Mimic.copy(Tuist.Agents.Lease)
-Mimic.copy(Tuist.Agents.SessionStore)
 Mimic.copy(Sentry)
 Mimic.copy(Sentry.Context)
 Mimic.copy(Base)
@@ -65,14 +63,7 @@ Mimic.copy(Time)
 Mimic.copy(Tuist.API.Pipeline)
 Mimic.copy(Tuist.Accounts)
 Mimic.copy(Tuist.Accounts.AISubscriptions)
-Mimic.copy(Tuist.Threads)
-Mimic.copy(Tuist.Threads.Cards)
-Mimic.copy(Tuist.Threads.Checkout)
 Mimic.copy(Tuist.Sandboxes.Uploads)
-Mimic.copy(Tuist.Threads.Provider)
-Mimic.copy(Tuist.Threads.Repository)
-Mimic.copy(Tuist.Threads.Workspace)
-Mimic.copy(Tuist.Threads.Shipping)
 Mimic.copy(Tuist.Application.EndpointDrainer)
 Mimic.copy(Tuist.Accounts.AgentAuth)
 Mimic.copy(Tuist.Accounts.MCPServers)
@@ -153,7 +144,6 @@ Mimic.copy(Tuist.Sandboxes.Anthropic.Client)
 Mimic.copy(Tuist.Sandboxes.Anthropic.ControlPlane)
 Mimic.copy(Tuist.Sandboxes.Capacity)
 Mimic.copy(Tuist.Sandboxes.Nodes)
-Mimic.copy(Condukt)
 Mimic.copy(Tuist.Sandboxes.Router)
 Mimic.copy(Tuist.Sandboxes.ClaudeCodeRunners)
 Mimic.copy(Tuist.Runners.AirShare)
@@ -334,9 +324,6 @@ end
 # in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1 built the full
 # locale set.
 locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
-
-# The bucket agent sessions store their objects in (config/test.exs).
-{:ok, _} = Condukt.SessionStore.ObjectStore.Memory.start_link(name: Tuist.Agents.TestBucket)
 
 ExUnit.start(capture_log: true, exclude: [:skip, :destructive_clickhouse_migration] ++ locale_exclude)
 Sandbox.mode(Tuist.Repo, :manual)

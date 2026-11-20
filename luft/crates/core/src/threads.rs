@@ -200,6 +200,20 @@ impl Threads {
                 present(&mut thread);
                 Ok(thread)
             }
+            "reauthorize_thread" => {
+                let id = thread_id(args)?;
+                if args["consent"] != true {
+                    return Err("Owner consent is required to authorize future messages");
+                }
+                let mut thread = request(
+                    transport,
+                    "POST",
+                    url(&format!("{id}/reauthorize")),
+                    Some(json!({})),
+                )?;
+                present(&mut thread);
+                Ok(thread)
+            }
             "archive_thread" => {
                 let id = thread_id(args)?;
                 // `archived: false` restores it.
@@ -327,6 +341,13 @@ fn present(thread: &mut Value) {
     thread["state"] = json!(state);
     thread["section"] = json!(section);
     thread["working"] = json!(working && !archived);
+    thread["can_reauthorize"] = json!(
+        thread["can_reauthorize"] == true
+            && thread["reauthorization_required"] == true
+            && !working
+            && !archived
+            && state != Some("outcome_unknown")
+    );
     present_snooze(thread, now());
     let mut activity = Value::Null;
     if let Some(messages) = thread["messages"].as_array_mut() {

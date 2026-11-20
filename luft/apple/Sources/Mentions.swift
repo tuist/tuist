@@ -3,36 +3,36 @@ import LuftCore
 
 /// What the composer's text means for looping people in, decided by the Rust
 /// core's `compose`: the `@` query being typed and its suggestions, and who a
-/// thread would loop in or a hall would suggest inviting.
+/// thread would loop in or a lounge would suggest inviting.
 struct ComposeState: Decodable {
     struct Query: Decodable { var text: String }
 
     var content = ""
     var query: Query?
-    var suggestions: [HallPerson] = []
+    var suggestions: [LoungePerson] = []
     /// How many people match the query; the core suggests none while too many do.
     var matches = 0
-    var mentioned: [HallPerson] = []
-    var loop_in: [HallPerson] = []
-    var invite: [HallPerson] = []
+    var mentioned: [LoungePerson] = []
+    var loop_in: [LoungePerson] = []
+    var invite: [LoungePerson] = []
 }
 
 /// The composer's mention state for one conversation. The people come from the
-/// organization (`hall_people`); a personal account has none, so it suggests nobody.
+/// organization (`lounge_people`); a personal account has none, so it suggests nobody.
 @MainActor @Observable
 final class Mentions {
-    /// `new_thread`, `thread`, `new_hall`, `hall` or `direct`.
+    /// `new_thread`, `thread`, `new_lounge`, `lounge` or `direct`.
     let context: String
     /// Who is already in the conversation, so mentioning them changes nothing.
     var members: [Int] = []
-    private(set) var people: [HallPerson] = []
+    private(set) var people: [LoungePerson] = []
     private(set) var state = ComposeState()
 
     init(context: String) { self.context = context }
 
     func load(_ client: AppClient) async {
-        guard let data = try? await client.call("hall_people"), let list = data["people"],
-              let decoded = try? JSONDecoder().decode([HallPerson].self, from: JSONSerialization.data(withJSONObject: list))
+        guard let data = try? await client.call("lounge_people"), let list = data["people"],
+              let decoded = try? JSONDecoder().decode([LoungePerson].self, from: JSONSerialization.data(withJSONObject: list))
         else { return }
         people = decoded
     }
@@ -61,7 +61,7 @@ final class Mentions {
 struct MentionBar: View {
     let mentions: Mentions
     @Binding var text: String
-    /// A hall's name, for the invite note.
+    /// A lounge's name, for the invite note.
     var place: String?
 
     var body: some View {
@@ -117,17 +117,17 @@ struct MentionBar: View {
     }
 
     private var note: String? {
-        let names = { (people: [HallPerson]) in people.compactMap { $0.handle.map { "@\($0)" } }.formatted(.list(type: .and)) }
+        let names = { (people: [LoungePerson]) in people.compactMap { $0.handle.map { "@\($0)" } }.formatted(.list(type: .and)) }
         switch mentions.context {
         case "new_thread", "thread":
             guard !mentions.state.loop_in.isEmpty else { return nil }
             return String(localized: "Sending loops in \(names(mentions.state.loop_in)): they can read and prompt this thread.")
-        case "new_hall":
+        case "new_lounge":
             guard !mentions.state.loop_in.isEmpty else { return nil }
-            return String(localized: "Creating the hall invites \(names(mentions.state.loop_in)).")
-        case "hall":
+            return String(localized: "Creating the lounge invites \(names(mentions.state.loop_in)).")
+        case "lounge":
             guard !mentions.state.invite.isEmpty else { return nil }
-            return String(localized: "\(names(mentions.state.invite)) isn’t in \(place ?? "this hall") yet. You can invite them after sending.")
+            return String(localized: "\(names(mentions.state.invite)) isn’t in \(place ?? "this lounge") yet. You can invite them after sending.")
         default:
             return nil
         }

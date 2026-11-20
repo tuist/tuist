@@ -14,7 +14,7 @@ pub const GITHUB_DARK: &str = "logos/github-dark.png";
 pub const SERVER_ICON: &str = "logos/server.svg";
 /// Lucide (ISC) outline icons at Zed's 16px size, tinted in place.
 pub const THREADS_ICON: &str = "icons/threads.svg";
-pub const HALLS_ICON: &str = "icons/halls.svg";
+pub const LOUNGES_ICON: &str = "icons/lounges.svg";
 pub const DMS_ICON: &str = "icons/dms.svg";
 pub const PROFILE_ICON: &str = "icons/profile.svg";
 pub const EXTERNAL_LINK_ICON: &str = "icons/external-link.svg";
@@ -51,7 +51,10 @@ const EMBEDDED: &[(&str, &[u8])] = &[
         THREADS_ICON,
         include_bytes!("../resources/icons/threads.svg"),
     ),
-    (HALLS_ICON, include_bytes!("../resources/icons/halls.svg")),
+    (
+        LOUNGES_ICON,
+        include_bytes!("../resources/icons/lounges.svg"),
+    ),
     (DMS_ICON, include_bytes!("../resources/icons/dms.svg")),
     (
         PROFILE_ICON,

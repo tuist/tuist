@@ -1,4 +1,14 @@
 {{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- if and (gt (int .Values.replicaCount) 1) (not .Values.cluster.enabled) -}}
+{{- fail "Multiple Luft replicas require cluster.enabled=true" -}}
+{{- end -}}
+{{- if .Values.cluster.enabled -}}
+{{- $_ := required "cluster.cookieExistingSecret is required when clustering is enabled" (.Values.cluster.cookieExistingSecret | trim) -}}
+{{- $_ := required "cluster.cookieSecretKey is required when clustering is enabled" (.Values.cluster.cookieSecretKey | trim) -}}
+{{- if not .Values.networkPolicy.enabled -}}
+{{- fail "Clustering requires networkPolicy.enabled=true to keep distribution private" -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -47,6 +57,12 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.port }}
+            {{- if .Values.cluster.enabled }}
+            - name: epmd
+              containerPort: 4369
+            - name: erlang-dist
+              containerPort: 9100
+            {{- end }}
           env:
             - name: PORT
               value: {{ .Values.port | quote }}
@@ -54,6 +70,19 @@ spec:
               value: {{ .Values.publicUrl | quote }}
             - name: TUIST_URL
               value: {{ .Values.tuistUrl | quote }}
+            {{- if .Values.cluster.enabled }}
+            - name: DNS_CLUSTER_QUERY
+              value: {{ printf "%s-headless.%s.svc" (include "luft-server.fullname" .) .Release.Namespace | quote }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cluster.cookieExistingSecret | quote }}
+                  key: {{ .Values.cluster.cookieSecretKey | quote }}
+            {{- end }}
             # CNPG's `<cluster>-app` Secret carries a ready postgres:// URL.
             - name: DATABASE_URL
               valueFrom:

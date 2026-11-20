@@ -99,10 +99,20 @@ impl Connection {
     /// Saves the connection and its secret, readable only by this user.
     pub fn save(&self, state: &Path, token: &str) -> Result<(), String> {
         let server = validate_server(&self.server)?;
-        if !token.starts_with("tgr_")
-            || !token[4..]
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        let (secret, wrapped) = if let Some(secret) = token.strip_prefix("luft_runner_") {
+            (secret, true)
+        } else {
+            (
+                token.strip_prefix("tgr_").ok_or("Invalid runner secret")?,
+                false,
+            )
+        };
+        // Luft's opaque Phoenix envelope includes dots as well as base64url.
+        // Neither format may escape the quoted curl header below.
+        if secret.is_empty()
+            || !secret.bytes().all(|b| {
+                b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || (wrapped && b == b'.')
+            })
         {
             return Err("Invalid runner secret".into());
         }
@@ -423,6 +433,7 @@ mod tests {
                 let mut line = String::new();
                 reader.read_line(&mut line).unwrap();
                 let mut length = 0;
+                let mut headers = String::new();
                 loop {
                     let mut header = String::new();
                     reader.read_line(&mut header).unwrap();
@@ -433,19 +444,27 @@ mod tests {
                     if header.trim().is_empty() {
                         break;
                     }
+                    headers.push_str(&header);
                 }
                 let mut body = vec![0; length];
                 reader.read_exact(&mut body).unwrap();
                 sent.send(format!(
-                    "{} {}",
+                    "{} {}\n{}",
                     line.trim(),
-                    String::from_utf8(body).unwrap()
+                    String::from_utf8(body).unwrap(),
+                    headers
                 ))
                 .unwrap();
                 let mut stream = reader.into_inner();
+                let body = if status == 200 {
+                    r#"{"requests":[]}"#
+                } else {
+                    ""
+                };
                 write!(
                     stream,
-                    "HTTP/1.1 {status} X\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                    "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
                 )
                 .unwrap();
             }
@@ -512,6 +531,45 @@ mod tests {
     }
 
     #[test]
+    fn luft_credentials_survive_save_reload_poll_and_response() {
+        let state = std::env::temp_dir().join(format!("runner-luft-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&state);
+        // Phoenix.Token encrypts with an XCP. prefix and unpadded base64url.
+        let token = "luft_runner_XCP.AbC09-_encrypted";
+        let (address, received) = server(vec![200, 204]);
+        let connection = Connection {
+            server: address,
+            runner_id: "r".into(),
+        };
+        connection.save(&state, token).unwrap();
+        let loaded = Connection::load(&state).unwrap();
+        assert_eq!(loaded, connection);
+        assert!(
+            poll(&state, &loaded, &Config::default(), 0)
+                .unwrap()
+                .is_empty()
+        );
+        deliver(&state, &loaded, "abc-123", &json!({"ok": true}));
+
+        for path in [
+            "/api/thread-runner/poll?wait_ms=0",
+            "/api/thread-runner/requests/abc-123/response",
+        ] {
+            let request = received.recv_timeout(Duration::from_secs(10)).unwrap();
+            assert!(
+                request.starts_with(&format!("POST {path} HTTP/1.1")),
+                "{request}"
+            );
+            assert!(
+                request.contains(&format!("\r\nAuthorization: Bearer {token}\r\n")),
+                "{request}"
+            );
+        }
+        Connection::remove(&state).unwrap();
+        std::fs::remove_dir_all(state).unwrap();
+    }
+
+    #[test]
     fn the_secret_is_private_and_well_formed() {
         let state = std::env::temp_dir().join(format!("runner-connection-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&state);
@@ -519,10 +577,23 @@ mod tests {
             server: "https://tuist.dev/".into(),
             runner_id: "r".into(),
         };
-        assert!(
-            connection.save(&state, "tgr_abc\"\nheader = x").is_err(),
-            "a secret can't add curl options"
-        );
+        for token in [
+            "tgr_abc\"\nheader = x",
+            "luft_runner_XCP.abc\"\nheader = x",
+            "luft_runner_XCP.abc\\def",
+            "luft_runner_XCP.abc\r\nheader=x",
+            "luft_runner_XCP.abc def",
+            "luft_runner_XCP.abc\0def",
+            "luft_runner_",
+            "tgr_",
+            "unknown_secret",
+        ] {
+            assert!(
+                connection.save(&state, token).is_err(),
+                "accepted {token:?}"
+            );
+            assert!(Connection::load(&state).is_none());
+        }
         connection.save(&state, "tgr_abc-_9").unwrap();
         assert_eq!(
             Connection::load(&state).unwrap().server,

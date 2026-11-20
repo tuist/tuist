@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// One result of the core's `palette`: a destination, New conversation, a thread, a hall or a DM.
+/// One result of the core's `palette`: a destination, New conversation, a thread, a lounge or a DM.
 struct PaletteItem: Decodable, Equatable {
-    /// `destination`, `action`, `thread`, `hall` or `dm`, decided by the Rust core.
+    /// `destination`, `action`, `thread`, `lounge` or `dm`, decided by the Rust core.
     let kind: String
     let id: String
     let title: String?
@@ -12,7 +12,7 @@ struct PaletteItem: Decodable, Equatable {
 }
 
 /// ⌘K, as in Slack and the Tuist dashboard: type to jump to a destination, a thread,
-/// a hall or a DM. The core decides what matches; this only draws it and navigates.
+/// a lounge or a DM. The core decides what matches; this only draws it and navigates.
 struct CommandPalette: View {
     let client: AppClient
     let close: () -> Void
@@ -27,7 +27,7 @@ struct CommandPalette: View {
                 Image(systemName: "magnifyingglass")
                     .font(.title3)
                     .foregroundStyle(Noora.labelSecondary)
-                TextField("Jump to a thread, hall or DM", text: $query)
+                TextField("Jump to a thread, lounge or DM", text: $query)
                     .textFieldStyle(.plain)
                     .font(.title3)
                     .focused($focused)
@@ -78,9 +78,9 @@ struct CommandPalette: View {
         }
         // The core answers from the device, so this runs on every keystroke.
         .task(id: query) { await search() }
-        // Halls and DMs come from the last `halls` answer; refresh it so they can be found.
+        // Lounges and DMs come from the last `lounges` answer; refresh it so they can be found.
         .task {
-            _ = try? await client.call("halls")
+            _ = try? await client.call("lounges")
             await search()
         }
     }
@@ -121,7 +121,7 @@ struct CommandPalette: View {
     private func icon(_ item: PaletteItem) -> String {
         switch (item.kind, item.id) {
         case ("destination", "threads"): "bubble.left.and.bubble.right"
-        case ("destination", "halls"), ("hall", _): "number"
+        case ("destination", "lounges"), ("lounge", _): "number"
         case ("destination", "dms"): "bubble.left.and.text.bubble.right"
         case ("destination", _): "person.crop.circle"
         case ("action", _): "plus"
@@ -133,7 +133,7 @@ struct CommandPalette: View {
     private func kind(_ item: PaletteItem) -> LocalizedStringKey {
         switch item.kind {
         case "thread": "Thread"
-        case "hall": "Hall"
+        case "lounge": "Lounge"
         case "dm": "DM"
         case "action": "Action"
         default: "Go to"
@@ -151,7 +151,7 @@ struct CommandPalette: View {
         let query = query
         let labels = [
             "threads": String(localized: "Threads"),
-            "halls": String(localized: "Halls"),
+            "lounges": String(localized: "Lounges"),
             "dms": String(localized: "DMs"),
             "profile": String(localized: "Profile"),
             "new_conversation": String(localized: "New conversation"),

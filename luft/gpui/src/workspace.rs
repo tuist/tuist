@@ -11,17 +11,17 @@ use crate::keyboard::KeyboardControl;
 use crate::theme::{Theme, ThemeState};
 use tuist_app_core::theme as theme_catalog;
 
-mod halls;
+mod lounges;
 mod preview;
 mod socket;
 mod threads;
 
-use halls::{HallsPanel, Scope};
+use lounges::{LoungesPanel, Scope};
 use threads::ThreadsPanel;
 
 actions!(
     tuist_workspace,
-    [ShowThreads, ShowHalls, ShowDms, ShowProfile]
+    [ShowThreads, ShowLounges, ShowDms, ShowProfile]
 );
 
 /// Modifier+1 to 4 select the dock's destinations in order, as in chat apps.
@@ -34,7 +34,7 @@ pub fn init(cx: &mut App) {
     };
     cx.bind_keys([
         KeyBinding::new(keys[0], ShowThreads, None),
-        KeyBinding::new(keys[1], ShowHalls, None),
+        KeyBinding::new(keys[1], ShowLounges, None),
         KeyBinding::new(keys[2], ShowDms, None),
         KeyBinding::new(keys[3], ShowProfile, None),
     ]);
@@ -57,7 +57,7 @@ pub enum WorkspaceEvent {
 fn title(destination: Destination) -> &'static str {
     match destination {
         Destination::Threads => "Threads",
-        Destination::Halls => "Halls",
+        Destination::Lounges => "Lounges",
         Destination::Dms => "DMs",
         Destination::Profile => "Profile",
     }
@@ -66,7 +66,7 @@ fn title(destination: Destination) -> &'static str {
 fn icon(destination: Destination) -> &'static str {
     match destination {
         Destination::Threads => assets::THREADS_ICON,
-        Destination::Halls => assets::HALLS_ICON,
+        Destination::Lounges => assets::LOUNGES_ICON,
         Destination::Dms => assets::DMS_ICON,
         Destination::Profile => assets::PROFILE_ICON,
     }
@@ -105,8 +105,8 @@ pub struct Workspace {
     server: SharedString,
     scroll: ScrollHandle,
     threads: Entity<ThreadsPanel>,
-    halls: Entity<HallsPanel>,
-    dms: Entity<HallsPanel>,
+    lounges: Entity<LoungesPanel>,
+    dms: Entity<LoungesPanel>,
     /// One per destination, so closing a preview can return focus to the sidebar.
     destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
@@ -127,9 +127,9 @@ impl Workspace {
     ) -> Self {
         let handle = account.handle.clone();
         let scope = cx.new(|cx| Scope::new(session.clone(), handle.clone(), window, cx));
-        let [halls, dms] = [Destination::Halls, Destination::Dms].map(|tab| {
+        let [lounges, dms] = [Destination::Lounges, Destination::Dms].map(|tab| {
             cx.new(|cx| {
-                HallsPanel::new(tab, session.clone(), scope.clone(), navigation.clone(), cx)
+                LoungesPanel::new(tab, session.clone(), scope.clone(), navigation.clone(), cx)
             })
         });
         let threads =
@@ -141,7 +141,7 @@ impl Workspace {
             server,
             scroll: ScrollHandle::new(),
             threads,
-            halls,
+            lounges,
             dms,
             destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
@@ -532,10 +532,10 @@ impl Workspace {
                     .min_h_0()
                     .child(self.threads.clone())
                     .into_any_element(),
-                (None, Destination::Halls) => div()
+                (None, Destination::Lounges) => div()
                     .flex_1()
                     .min_h_0()
-                    .child(self.halls.clone())
+                    .child(self.lounges.clone())
                     .into_any_element(),
                 (None, Destination::Dms) => div()
                     .flex_1()

@@ -1,8 +1,6 @@
 {{/*
-The server container's environment, shared by the server and agents
-Deployments: the same release needs the same database, vault, ClickHouse,
-cluster and integration settings in every mode. Mode-specific variables
-(TUIST_MODE, delegate flags) are set by each Deployment.
+The server container's database, vault, ClickHouse, cluster and integration
+environment.
 */}}
 {{- define "tuist.serverContainerEnv" }}{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . }}{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . }}{{- $registryRuntimeSecretName := .Values.registry.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "registry-runtime")) }}{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
             {{- if .Values.server.externalSecrets.shardStorage.item }}
@@ -29,9 +27,6 @@ cluster and integration settings in every mode. Mode-specific variables
                   key: targets.json
                   optional: true
             {{- end }}
-            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0, so the
-            # server leaves it unset; the agents Deployment sets it after this
-            # shared list.
             {{- if eq .Values.postgresql.mode "cnpg" }}
             # Managed CNPG uses the least-privilege runtime role
             # (`tuist_web` by default). Self-hosted chart installs without

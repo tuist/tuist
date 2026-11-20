@@ -7,6 +7,9 @@ defmodule LuftServer.Sessions.Session do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sessions" do
     field :token_hash, :binary
+    field :previous_token_hash, :binary, redact: true
+    field :refresh_response, :binary, redact: true
+    field :refresh_replay_expires_at, :utc_datetime
     field :user_sub, :string
     field :email, :string
     field :handle, :string
@@ -19,6 +22,9 @@ defmodule LuftServer.Sessions.Session do
 
   @fields [
     :token_hash,
+    :previous_token_hash,
+    :refresh_response,
+    :refresh_replay_expires_at,
     :user_sub,
     :email,
     :handle,

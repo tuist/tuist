@@ -17,12 +17,12 @@ struct ReplyComposer: View {
     @ObservedObject var voice: VoiceInput
     /// Suggests people after `@` and says what mentioning them does; nil offers no mentions.
     var mentions: Mentions?
-    /// The hall's title, for the invite note.
+    /// The lounge's title, for the invite note.
     var place: String?
     var placeholder: LocalizedStringKey = "Reply"
     /// Lets the caller raise or hide the keyboard.
     var focus: FocusState<Bool>.Binding?
-    /// Nil keeps hall/DM composers text-only.
+    /// Nil keeps lounge/DM composers text-only.
     var attachments: Binding<[PromptAttachment]>?
     let send: () -> Void
     @State private var pickingFiles = false

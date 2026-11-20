@@ -79,19 +79,19 @@
     <string name="thinking">"Thinking…"</string>
     <string name="reply">"Reply"</string>
     <string name="send">"Send"</string>
-    <string name="halls">"Halls"</string>
+    <string name="lounges">"Lounges"</string>
     <string name="dms">"DMs"</string>
-    <string name="new_hall">"New hall"</string>
+    <string name="new_lounge">"New lounge"</string>
     <string name="new_message">"New message"</string>
-    <string name="hall_name">"Name, like releases"</string>
-    <string name="hall_topic">"Topic (optional)"</string>
+    <string name="lounge_name">"Name, like releases"</string>
+    <string name="lounge_topic">"Topic (optional)"</string>
     <string name="create">"Create"</string>
-    <string name="create_hall_failed">"The hall could not be created. Names use letters, digits, hyphens and underscores, up to 64 characters, and must not be taken already."</string>
-    <string name="halls_personal">"Halls belong to organizations. Switch to an organization in Profile to talk with its members."</string>
+    <string name="create_lounge_failed">"The lounge could not be created. Names use letters, digits, hyphens and underscores, up to 64 characters, and must not be taken already."</string>
+    <string name="lounges_personal">"Lounges belong to organizations. Switch to an organization in Profile to talk with its members."</string>
     <string name="dms_personal">"Direct messages belong to organizations. Switch to an organization in Profile to message its members."</string>
-    <string name="halls_disabled">"Halls and direct messages aren't available for this organization yet."</string>
-    <string name="halls_sign_in_required">"Your session is from an earlier version of Luft. Sign in again to use halls and direct messages."</string>
-    <string name="no_halls">"No halls yet. Create one for a topic your organization talks about."</string>
+    <string name="lounges_disabled">"Lounges and direct messages aren't available for this organization yet."</string>
+    <string name="lounges_sign_in_required">"Your session is from an earlier version of Luft. Sign in again to use lounges and direct messages."</string>
+    <string name="no_lounges">"No lounges yet. Create one for a topic your organization talks about."</string>
     <string name="no_dms">"No direct messages yet. Start one with up to seven people from your organization."</string>
     <string name="no_people">"No one else is in this organization yet."</string>
     <string name="too_many_people">"Choose up to seven people."</string>
@@ -99,7 +99,7 @@
     <string name="unread">"%1$d unread"</string>
     <string name="handle">"@%1$s"</string>
     <string name="message_preview">"@%1$s: %2$s"</string>
-    <string name="no_hall_messages">"No messages yet. Write the first one."</string>
+    <string name="no_lounge_messages">"No messages yet. Write the first one."</string>
     <string name="load_earlier">"Load earlier messages"</string>
     <string name="online">"Online"</string>
     <string name="update_available">"New version available"</string>
@@ -107,4 +107,6 @@
     <string name="update">"Update"</string>
     <string name="update_suggestion">"Update Luft to stay on the latest preview."</string>
     <string name="later">"Later"</string>
+    <string name="reauthorize_thread">"Authorize future messages"</string>
+    <string name="reauthorization_required">"The owner must authorize future messages with their current sign-in. This does not resume previous work."</string>
 </resources>

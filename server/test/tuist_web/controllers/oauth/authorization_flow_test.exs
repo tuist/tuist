@@ -636,10 +636,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     end
   end
 
-  test "Luft signs in as a first-party app without a secret and keeps its access through refresh", %{
-    conn: conn,
-    user: user
-  } do
+  test "Luft signs in as a first-party app without a secret and keeps its access through refresh", %{conn: conn} do
     client_id = Clients.luft_client_id()
     verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
@@ -737,12 +734,10 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
     assert "project:previews:read" in claims["scopes"]
 
-    for path <- ["/api/accounts/#{user.account.name}/threads", "/api/me/feature-flags"] do
-      assert build_conn()
-             |> put_req_header("authorization", "Bearer #{access_token}")
-             |> get(path)
-             |> json_response(200)
-    end
+    assert build_conn()
+           |> put_req_header("authorization", "Bearer #{access_token}")
+           |> get("/api/me/feature-flags")
+           |> json_response(200)
   end
 
   test "Luft can't request scopes, so openid fails cleanly instead of at the token endpoint", %{conn: conn} do

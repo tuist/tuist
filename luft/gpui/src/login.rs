@@ -274,7 +274,7 @@ impl Render for LogIn {
                         cx,
                     ))
                     .when(
-                        self.session.server().as_str() == "https://tuist.dev/",
+                        self.session.server().as_str() == "https://luft.work/",
                         |column| {
                             column
                                 .child(self.provider_button(

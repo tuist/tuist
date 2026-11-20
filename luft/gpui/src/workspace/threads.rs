@@ -17,7 +17,7 @@ use crate::components::{Button, Variant, composer, message};
 use crate::input::{Submitted, TextInput};
 use crate::theme::Theme;
 
-/// Sends the core's thread and hall requests with the desktop session's token.
+/// Sends the core's thread and lounge requests with the desktop session's token.
 pub(super) struct Http<'a> {
     pub(super) session: &'a Session,
 }
@@ -426,7 +426,11 @@ impl ThreadsPanel {
         let Some(id) = self.open.as_ref().and_then(|t| t["id"].as_str()) else {
             return;
         };
-        if !self.busy && !content.is_empty() && self.open.as_ref().unwrap()["working"] != true {
+        if !self.busy
+            && !content.is_empty()
+            && self.open.as_ref().unwrap()["working"] != true
+            && self.open.as_ref().unwrap()["reauthorization_required"] != true
+        {
             let args = json!({ "id": id, "content": content });
             self.request("send_message", args, cx);
         }
@@ -568,6 +572,9 @@ impl ThreadsPanel {
                         .child(gpui::text!("Thinking…")),
                 )
             })
+            .when(thread["reauthorization_required"] == true, |column| {
+                column.child(gpui::text!("The owner must authorize future messages with their current sign-in. This does not resume previous work."))
+            })
     }
 
     /// A bar above an open conversation: back to the inbox, and its title.
@@ -619,9 +626,25 @@ impl Render for ThreadsPanel {
                 self.conversation(thread, theme),
                 Some(self.conversation_header(thread, theme, window, cx)),
                 self.reply.clone(),
-                Button::new("send-reply", "Send", Variant::Primary)
-                    .enabled(!self.busy && !working)
-                    .render(None, window, cx, |this, _, cx| this.send(cx)),
+                if thread["reauthorization_required"] == true {
+                    Button::new(
+                        "reauthorize-thread",
+                        "Authorize future messages",
+                        Variant::Primary,
+                    )
+                    .enabled(!self.busy && thread["can_reauthorize"] == true)
+                    .render(None, window, cx, |this, _, cx| {
+                        if let Some(id) = this.open.as_ref().and_then(|t| t["id"].as_str()) {
+                            this.request("reauthorize_thread", json!({"id":id,"consent":true}), cx);
+                        }
+                    })
+                    .debug_selector(|| "reauthorize-thread".into())
+                } else {
+                    Button::new("send-reply", "Send", Variant::Primary)
+                        .enabled(!self.busy && !working)
+                        .render(None, window, cx, |this, _, cx| this.send(cx))
+                        .debug_selector(|| "send-reply".into())
+                },
             ),
             None => (
                 self.inbox(theme, window, cx),
@@ -741,6 +764,55 @@ mod tests {
         for _ in 0..2 {
             cx.update(|window, cx| window.draw(cx).clear(cx));
         }
+    }
+
+    #[gpui::test]
+    fn dormant_history_renders_owner_consent_without_sending_the_draft(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            crate::keyboard::init(cx);
+            crate::input::init(cx);
+        });
+        let directory = tempfile::tempdir().unwrap();
+        let accounts = Accounts::new(Directories {
+            config: directory.path().join("config"),
+            state: directory.path().join("state"),
+            data: directory.path().join("data"),
+        });
+        let session = Arc::new(
+            accounts
+                .current_session(Url::parse("https://example.test").unwrap())
+                .unwrap(),
+        );
+        let navigation = cx.new(|_| Navigation::default());
+        let (panel, cx) = cx.add_window_view(|window, cx| {
+            let mut panel = ThreadsPanel::new(session, None, navigation, window, cx);
+            panel.task = None;
+            panel.open = Some(json!({"id":"example", "working":false, "messages":[],
+                "reauthorization_required":true,"can_reauthorize":true}));
+            panel.reply.update(cx, |input, cx| {
+                input.set_value("Keep this draft".into(), cx)
+            });
+            panel
+        });
+        draw(cx);
+        assert!(cx.debug_bounds("reauthorize-thread").is_some());
+        assert!(cx.debug_bounds("send-reply").is_none());
+        panel.update(cx, |panel, cx| {
+            panel.finish(
+                "reauthorize_thread",
+                Ok(json!({"id":"example", "working":false,
+                "messages":[], "reauthorization_required":false,"can_reauthorize":false})),
+                0,
+                cx,
+            );
+            cx.notify();
+        });
+        draw(cx);
+        assert!(cx.debug_bounds("reauthorize-thread").is_none());
+        assert!(cx.debug_bounds("send-reply").is_some());
+        panel.read_with(cx, |panel, cx| {
+            assert_eq!(panel.reply.read(cx).value(), "Keep this draft")
+        });
     }
 
     #[gpui::test]

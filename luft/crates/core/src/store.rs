@@ -541,7 +541,7 @@ pub fn record(
             Ok(thread)
         }
         // A snooze or archive needs the server; the stored thread and inbox follow it.
-        ("snooze_thread" | "archive_thread", Ok(thread)) => {
+        ("snooze_thread" | "archive_thread" | "reauthorize_thread", Ok(thread)) => {
             store.save_conversation(&thread, now)?;
             store.update_in_inbox(account, &thread)?;
             let mut thread = thread;

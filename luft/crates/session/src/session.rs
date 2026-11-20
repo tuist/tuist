@@ -58,9 +58,9 @@ pub struct Session<S = OAuthClient> {
 }
 
 impl Session<OAuthClient> {
-    /// The server from `TUIST_URL`, or Tuist-hosted, with the shared credential locations.
+    /// The server from `LUFT_URL`, or Luft-hosted, with Luft's credential locations.
     pub fn from_env() -> Result<Self, Error> {
-        let server = std::env::var("TUIST_URL").unwrap_or_else(|_| "https://tuist.dev".into());
+        let server = std::env::var("LUFT_URL").unwrap_or_else(|_| "https://luft.work".into());
         let server = Url::parse(&server).map_err(|_| Error::InvalidServerUrl(server))?;
         Ok(Self::new(
             server,
@@ -244,7 +244,7 @@ impl<S: AuthorizationServer> Session<S> {
             return Ok(credentials.access_token);
         }
         let Some(grant) = grant(&credentials)? else {
-            // Account tokens without an account refresh token cannot be renewed;
+            // Account tokens without a recognized refresh grant cannot be renewed;
             // the server decides whether the current one is still accepted.
             return Ok(credentials.access_token);
         };
@@ -346,10 +346,18 @@ impl Grant {
     }
 }
 
-/// `fetchTokenFromStore` and `refreshTokens`: the refresh token's type picks
-/// the endpoint, and OAuth refreshes present the client that issued the pair.
+/// Persisted issuer metadata selects OAuth even for opaque refresh tokens.
+/// Without it, retain the legacy token-type endpoint selection.
 fn grant(credentials: &Credentials) -> Result<Option<Grant>, Error> {
     let access = Claims::parse(&credentials.access_token).map_err(|_| Error::InvalidCredentials)?;
+    if let (Some(refresh_token), Some(client_id)) =
+        (&credentials.refresh_token, &credentials.oauth_client_id)
+    {
+        return Ok(Some(Grant::OAuth {
+            refresh_token: refresh_token.clone(),
+            client_id: client_id.clone(),
+        }));
+    }
     let refresh = credentials
         .refresh_token
         .as_deref()
@@ -495,6 +503,119 @@ mod tests {
         (credentials, refresh)
     }
 
+    fn luft_credentials(expires_in: i64) -> Credentials {
+        let payload = serde_json::json!({
+            "exp": now() + expires_in,
+            "iss": "luft",
+            "sub": "account-ana",
+            "type": "account",
+            "preferred_username": "ana",
+        });
+        Credentials {
+            access_token: format!("e30.{}.", URL_SAFE_NO_PAD.encode(payload.to_string())),
+            refresh_token: Some("luft_refresh_original".into()),
+            oauth_client_id: Some(LUFT_CLIENT_ID.into()),
+            rejected: None,
+        }
+    }
+
+    #[test]
+    fn expired_luft_account_refreshes_opaque_credentials_and_persists_rotation() {
+        let credentials = luft_credentials(-60);
+        let fixture = fixture("luft-opaque-rotation", credentials);
+        let rotated = Credentials {
+            refresh_token: Some("luft_refresh_rotated".into()),
+            ..luft_credentials(3600)
+        };
+        *fixture.session.authorization.response.lock().unwrap() = Some(Ok(Tokens {
+            access_token: rotated.access_token.clone(),
+            refresh_token: rotated.refresh_token.clone().unwrap(),
+        }));
+
+        assert_eq!(
+            fixture.session.access_token().unwrap(),
+            rotated.access_token
+        );
+        assert_eq!(
+            *fixture.session.authorization.grants.lock().unwrap(),
+            vec![format!("oauth luft_refresh_original {LUFT_CLIENT_ID}")]
+        );
+        assert_eq!(
+            fixture.store.read(&fixture.server).unwrap(),
+            Some(rotated.clone())
+        );
+        // A second read uses the durable rotated pair, without spending it again.
+        assert_eq!(
+            fixture.session.access_token().unwrap(),
+            rotated.access_token
+        );
+        assert_eq!(
+            fixture.session.authorization.grants.lock().unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn a_valid_luft_account_does_not_spend_its_opaque_refresh_token() {
+        let credentials = luft_credentials(3600);
+        let fixture = fixture("luft-opaque-valid", credentials.clone());
+        assert_eq!(
+            fixture.session.access_token().unwrap(),
+            credentials.access_token
+        );
+        assert!(
+            fixture
+                .session
+                .authorization
+                .grants
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            fixture.store.read(&fixture.server).unwrap(),
+            Some(credentials)
+        );
+    }
+
+    #[test]
+    fn account_credentials_without_refresh_or_issuer_keep_the_no_refresh_behavior() {
+        let expired = luft_credentials(-60);
+        for (name, refresh_token, oauth_client_id) in [
+            ("opaque-without-issuer", expired.refresh_token.clone(), None),
+            ("missing-refresh", None, expired.oauth_client_id.clone()),
+            (
+                "legacy-account-refresh",
+                Some(jwt("refresh", 3600, "r1")),
+                None,
+            ),
+        ] {
+            let credentials = Credentials {
+                refresh_token,
+                oauth_client_id,
+                ..expired.clone()
+            };
+            let fixture = fixture(name, credentials.clone());
+            assert_eq!(
+                fixture.session.access_token().unwrap(),
+                credentials.access_token
+            );
+            assert!(
+                fixture
+                    .session
+                    .authorization
+                    .grants
+                    .lock()
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                fixture.store.read(&fixture.server).unwrap(),
+                Some(credentials)
+            );
+        }
+    }
+
     #[test]
     fn another_profile_with_the_same_identity_is_never_read_refreshed_or_deleted() {
         let root =
@@ -573,6 +694,33 @@ mod tests {
         let stored = fixture.store.read(&fixture.server).unwrap().unwrap();
         assert_eq!(stored.refresh_token, Some(new.refresh_token));
         assert_eq!(stored.oauth_client_id.as_deref(), Some("desktop-client"));
+    }
+
+    #[test]
+    fn account_refresh_jwts_without_issuer_metadata_keep_the_default_oauth_client() {
+        let (mut credentials, refresh) = expired_oauth_credentials();
+        credentials.oauth_client_id = None;
+        let fixture = fixture("oauth-default-client", credentials);
+        let tokens = Tokens {
+            access_token: jwt("account", 3600, "a2"),
+            refresh_token: jwt("account", 7200, "r2"),
+        };
+        *fixture.session.authorization.response.lock().unwrap() = Some(Ok(tokens.clone()));
+
+        assert_eq!(fixture.session.access_token().unwrap(), tokens.access_token);
+        assert_eq!(
+            *fixture.session.authorization.grants.lock().unwrap(),
+            vec![format!("oauth {refresh} {}", default_client_id())]
+        );
+        assert_eq!(
+            fixture
+                .store
+                .read(&fixture.server)
+                .unwrap()
+                .unwrap()
+                .oauth_client_id,
+            None
+        );
     }
 
     #[test]

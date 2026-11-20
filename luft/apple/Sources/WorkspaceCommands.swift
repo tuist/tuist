@@ -26,7 +26,7 @@ struct WorkspaceCommands: Commands {
                 .keyboardShortcut("k")
                 .disabled(commandPalette == nil)
             Divider()
-            ForEach(Array([AppNavigation.Tab.threads, .halls, .dms, .profile].enumerated()), id: \.offset) { index, tab in
+            ForEach(Array([AppNavigation.Tab.threads, .lounges, .dms, .profile].enumerated()), id: \.offset) { index, tab in
                 Button(tab.title) { selectTab?.perform(tab) }
                     .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
                     .disabled(selectTab == nil)
@@ -42,7 +42,7 @@ extension AppNavigation.Tab {
     var title: LocalizedStringKey {
         switch self {
         case .threads: "Threads"
-        case .halls: "Halls"
+        case .lounges: "Lounges"
         case .dms: "DMs"
         case .profile: "Profile"
         }
@@ -53,7 +53,7 @@ struct SelectTabAction {
     let perform: (AppNavigation.Tab) -> Void
 }
 
-/// Starts a hall or a direct conversation, depending on the tab that is open.
+/// Starts a lounge or a direct conversation, depending on the tab that is open.
 struct ComposeAction {
     let title: LocalizedStringKey
     let perform: () -> Void

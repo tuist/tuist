@@ -27,3 +27,5 @@ config :luft_server,
 
 config :phoenix, :plug_init_mode, :runtime
 config :luft_server, migrate_on_boot: false
+config :luft_server, start_thread_runtime: false
+config :luft_server, Oban, testing: :manual

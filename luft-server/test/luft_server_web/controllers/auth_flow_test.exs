@@ -42,7 +42,9 @@ defmodule LuftServerWeb.AuthFlowTest do
     provider = FakeTuist.stub(organizations: [%{"id" => 1, "name" => "tuist", "plan" => "pro"}])
     {callback, query} = sign_in(conn, provider)
 
-    assert query["scope"] == "openid profile email account:organizations:write"
+    assert query["scope"] ==
+             "openid profile email account:organizations:write luft:app mcp account:delete account:members:read account:sandboxes:write account:repositories:read account:repositories:write project:admin:read project:previews:read project:previews:write"
+
     assert query["code_challenge_method"] == "S256"
     assert query["redirect_uri"] == @web <> "/auth/callback"
     refute Map.has_key?(query, "prompt")

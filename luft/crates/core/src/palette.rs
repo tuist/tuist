@@ -11,11 +11,11 @@ const LIMIT: usize = 20;
 const RECENT_THREADS: usize = 5;
 
 /// Ranks destinations, New conversation, the inbox's `threads` (shaped like the
-/// `threads` operation) and `halls` (shaped like the `halls` operation, or null
+/// `threads` operation) and `lounges` (shaped like the `lounges` operation, or null
 /// before it loaded) for `query`. `labels` maps destination IDs and
 /// `new_conversation` to the edge's localized titles, which are matched and
 /// returned; missing ones fall back to English.
-pub fn palette(query: &str, labels: &Value, threads: &Value, halls: &Value) -> Value {
+pub fn palette(query: &str, labels: &Value, threads: &Value, lounges: &Value) -> Value {
     let label = |id: &str, fallback: &str| {
         labels
             .get(id)
@@ -28,7 +28,7 @@ pub fn palette(query: &str, labels: &Value, threads: &Value, halls: &Value) -> V
         .map(|tab| {
             let fallback = match tab {
                 Tab::Threads => "Threads",
-                Tab::Halls => "Halls",
+                Tab::Lounges => "Lounges",
                 Tab::Dms => "DMs",
                 Tab::Profile => "Profile",
             };
@@ -52,13 +52,13 @@ pub fn palette(query: &str, labels: &Value, threads: &Value, halls: &Value) -> V
             "section":thread["section"],"url":format!("/threads/{id}")}),
         );
     }
-    for (key, kind) in [("halls", "hall"), ("directs", "dm")] {
-        for hall in halls[key].as_array().into_iter().flatten() {
-            let Some(id) = hall["id"].as_str() else {
+    for (key, kind) in [("lounges", "lounge"), ("directs", "dm")] {
+        for lounge in lounges[key].as_array().into_iter().flatten() {
+            let Some(id) = lounge["id"].as_str() else {
                 continue;
             };
-            items.push(json!({"kind":kind,"id":id,"title":hall["title"],
-                "unread":hall["unread"],"url":format!("/{kind}s/{id}")}));
+            items.push(json!({"kind":kind,"id":id,"title":lounge["title"],
+                "unread":lounge["unread"],"url":format!("/{kind}s/{id}")}));
         }
     }
 
@@ -79,7 +79,7 @@ pub fn palette(query: &str, labels: &Value, threads: &Value, halls: &Value) -> V
         .enumerate()
         .filter_map(|(order, item)| {
             let title = item["title"].as_str().unwrap_or_default().to_lowercase();
-            // "rel" finds #releases, and "#rel" only halls; ranking ignores the #.
+            // "rel" finds #releases, and "#rel" only lounges; ranking ignores the #.
             if !words.iter().all(|w| title.contains(w)) {
                 return None;
             }
@@ -124,9 +124,9 @@ mod tests {
         ]})
     }
 
-    fn halls() -> Value {
+    fn lounges() -> Value {
         json!({"available":true,
-            "halls":[{"id":RELEASE,"kind":"hall","title":"#releases","unread":3}],
+            "lounges":[{"id":RELEASE,"kind":"lounge","title":"#releases","unread":3}],
             "directs":[{"id":DM,"kind":"direct","title":"ana, marek","unread":0}]})
     }
 
@@ -141,12 +141,12 @@ mod tests {
 
     #[test]
     fn an_empty_query_lists_destinations_then_recent_threads() {
-        let result = palette("  ", &json!({}), &threads(), &halls());
+        let result = palette("  ", &json!({}), &threads(), &lounges());
         assert_eq!(
             ids(&result),
             [
                 "threads",
-                "halls",
+                "lounges",
                 "dms",
                 "profile",
                 "new_conversation",
@@ -162,23 +162,23 @@ mod tests {
 
     #[test]
     fn ranks_exact_then_prefix_then_word_then_substring_matches() {
-        let result = palette("Release", &json!({}), &threads(), &halls());
+        let result = palette("Release", &json!({}), &threads(), &lounges());
         // Exact title, then titles starting with it (the goal stands in for a
-        // missing title; the hall matches without its #), then a word starting
+        // missing title; the lounge matches without its #), then a word starting
         // with it, then the substring inside "Prerelease".
         assert_eq!(ids(&result), ["d", "b", RELEASE, "a", "c"]);
         assert_eq!(result["items"][1]["title"], "Release notes for 4.2");
-        assert_eq!(result["items"][2]["url"], format!("/halls/{RELEASE}"));
+        assert_eq!(result["items"][2]["url"], format!("/lounges/{RELEASE}"));
     }
 
     #[test]
     fn every_word_must_match_and_dms_route_to_their_tab() {
-        let result = palette("marek ana", &json!({}), &threads(), &halls());
+        let result = palette("marek ana", &json!({}), &threads(), &lounges());
         assert_eq!(ids(&result), [DM]);
         assert_eq!(result["items"][0]["url"], format!("/dms/{DM}"));
-        assert!(ids(&palette("flaky notes", &json!({}), &threads(), &halls())).is_empty());
+        assert!(ids(&palette("flaky notes", &json!({}), &threads(), &lounges())).is_empty());
         assert_eq!(
-            ids(&palette("#rel", &json!({}), &threads(), &halls())),
+            ids(&palette("#rel", &json!({}), &threads(), &lounges())),
             [RELEASE]
         );
     }

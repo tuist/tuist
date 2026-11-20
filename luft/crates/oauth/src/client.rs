@@ -95,7 +95,7 @@ impl OAuthClient {
     }
 
     /// Fails with [`Error::UnsupportedServer`] unless the server advertises
-    /// Luft's client (`/.well-known/tuist.json`). Servers from before
+    /// Luft's client (`/.well-known/luft.json`). Servers from before
     /// it would otherwise fail in the browser, mid sign-in.
     pub fn ensure_luft_client(&self, server: &Url) -> Result<(), Error> {
         #[derive(Deserialize)]
@@ -105,7 +105,7 @@ impl OAuthClient {
 
         let response = send(|| {
             self.http
-                .get(endpoint(server, ".well-known/tuist.json"))
+                .get(endpoint(server, ".well-known/luft.json"))
                 .header("Accept", "application/json")
         })?;
         if response.status() != StatusCode::OK {

@@ -12,19 +12,19 @@ pub const ROUTES: &[&str] = &[
     "/threads/new/dictation",
     "/threads/{id}",
     "/threads/{id}/snooze",
-    "/halls",
-    "/halls/{id}",
+    "/lounges",
+    "/lounges/{id}",
     "/dms",
     "/dms/{id}",
     "/profile",
 ];
 
 /// The tabs that hold a stack of one conversation, in catalog order.
-const STACKS: [&str; 3] = ["threads", "halls", "dms"];
+const STACKS: [&str; 3] = ["threads", "lounges", "dms"];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
-    /// A tab's root (`threads`, `halls` or `dms`), or one conversation in it.
+    /// A tab's root (`threads`, `lounges` or `dms`), or one conversation in it.
     List(&'static str),
     Conversation(&'static str, String),
     /// A thread with its snooze choices open over it.
@@ -132,7 +132,7 @@ impl Link {
             }
             let pairs: Vec<_> = url.query_pairs().collect();
             let server = match pairs.as_slice() {
-                [] if url.query().is_none() => "https://tuist.dev".into(),
+                [] if url.query().is_none() => "https://luft.work".into(),
                 [(key, value)] if key == "server" => value.to_string(),
                 _ => return Err(INVALID),
             };
@@ -199,7 +199,7 @@ pub struct Navigation {
     pub tab: &'static str,
     /// Each tab's open conversation, kept while another tab is selected.
     pub thread_id: Option<String>,
-    pub hall_id: Option<String>,
+    pub lounge_id: Option<String>,
     pub dm_id: Option<String>,
     /// `text` or `dictation` while Start conversation is open on the Threads root.
     pub compose: Option<&'static str>,
@@ -216,7 +216,7 @@ impl Default for Navigation {
         Self {
             tab: "threads",
             thread_id: None,
-            hall_id: None,
+            lounge_id: None,
             dm_id: None,
             compose: None,
             snooze: false,
@@ -295,7 +295,7 @@ impl Navigation {
 
     fn stack(&mut self, tab: &str) -> &mut Option<String> {
         match tab {
-            "halls" => &mut self.hall_id,
+            "lounges" => &mut self.lounge_id,
             "dms" => &mut self.dm_id,
             _ => &mut self.thread_id,
         }

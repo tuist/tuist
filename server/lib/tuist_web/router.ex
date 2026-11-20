@@ -962,54 +962,11 @@ defmodule TuistWeb.Router do
     get "/cache/endpoint", CacheController, :endpoint
   end
 
-  for collection <- [:threads, :jams] do
-    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{threads_collection: collection} do
-      pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
-
-      # Phoenix's dispatch logs include request params, including private prompts.
-      get "/", ThreadsController, :index, log: false
-      post "/", ThreadsController, :create, log: false
-      get "/repositories", ThreadsController, :repositories, log: false
-      get "/models", ThreadsController, :models, log: false
-      get "/:id", ThreadsController, :show, log: false
-      post "/:id/messages", ThreadsController, :message, log: false
-      patch "/:id", ThreadsController, :update, log: false
-      post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
-      post "/:id/ship", ThreadsController, :ship, log: false
-      post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
-    end
-  end
-
-  scope "/api/accounts/:account_handle/halls", TuistWeb.API do
+  scope "/api/accounts/:account_handle", TuistWeb.API do
     pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
 
-    # Phoenix's dispatch logs include request params, including private messages.
-    get "/", HallsController, :index, log: false
-    post "/", HallsController, :create, log: false
-    get "/people", HallsController, :people, log: false
-    post "/directs", HallsController, :direct, log: false
-    get "/:id", HallsController, :show, log: false
-    post "/:id/messages", HallsController, :message, log: false
-    post "/:id/read", HallsController, :read, log: false
-    post "/:id/members", HallsController, :invite, log: false
-  end
-
-  # A person's runners, which Luft registers for threads to run on.
-  scope "/api/me/thread-runners", TuistWeb.API do
-    pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
-
-    get "/", ThreadRunnersController, :index
-    post "/", ThreadRunnersController, :create, log: false
-    delete "/:id", ThreadRunnersController, :delete
-  end
-
-  # The runner daemon, with its own secret rather than a person's session.
-  # Bodies hold files and command output, so params are never logged.
-  scope "/api/thread-runner", TuistWeb.API do
-    pipe_through [:threads_no_store, :non_authenticated_api, :on_premise_api]
-
-    post "/poll", ThreadRunnerConnectionController, :poll, log: false
-    post "/requests/:id/response", ThreadRunnerConnectionController, :respond, log: false
+    get "/luft-context", LuftContextController, :show, log: false
+    post "/workspace-capabilities", WorkspaceCapabilitiesController, :call_capability, log: false
   end
 
   # Sentry's envelope endpoint, which SDKs derive from a DSN ending in
@@ -1463,7 +1420,13 @@ defmodule TuistWeb.Router do
     patch "/me/notification-rules/:id", NotificationRulesController, :update
 
     get "/me/feature-flags", FeatureFlagsController, :index
+    post "/me/luft-notifications", LuftNotificationsController, :create, log: false
+    get "/me/mcp-servers/transport", MCPTransportController, :index, log: false
+    get "/me/mcp-servers/transport/:server_id/tools", MCPTransportController, :discover, log: false
+    post "/me/mcp-servers/transport/:server_id/tools/call", MCPTransportController, :invoke, log: false
     get "/me/ai-subscriptions", AISubscriptionsController, :index
+    get "/me/ai-subscriptions/models", AIInferenceController, :models, log: false
+    post "/me/ai-subscriptions/chat/completions", AIInferenceController, :complete, log: false
     put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
     post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
     post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login

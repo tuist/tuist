@@ -6,7 +6,8 @@ defmodule TuistWeb.Plugs.AppSessionPlug do
   responses `no-store`. Other OAuth clients, account tokens and agent credentials
   get a 403, whatever their scopes. `apps:` lists the apps an endpoint admits
   (default `["tuist"]`); push devices also admit Luft, and telemetry
-  (`/api/telemetry`) admits the apps that send it.
+  (`/api/telemetry`) admits the apps that send it. Endpoints admitting Luft
+  also accept the configured Luft server's `luft:app` grant as a Luft session.
 
   Writes are limited per user, because unregistering unknown IDs and removing
   devices leave tombstones that outlive the user's devices. `limit_writes: false`
