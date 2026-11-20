@@ -18,7 +18,7 @@ import org.gradle.api.logging.Logging
  * Usage in settings.gradle.kts:
  * ```
  * plugins {
- *     id("dev.tuist") version "0.10.0"
+ *     id("dev.tuist") version "0.22.0"
  * }
  *
  * tuist {

@@ -87,6 +87,22 @@ tuist {
 }
 ```
 
+## Code coverage
+
+JaCoCo writes a coverage report per test task and per machine. Nothing combines the reports of a commit's CI jobs or shows whether a branch's coverage went up or down.
+
+The plugin can measure your JVM and Android unit tests with JaCoCo and upload the coverage with each test run. Tuist folds a commit's runs, shards included, into one figure. Turn it on in the `tuist` extension in `settings.gradle.kts`:
+
+```kotlin
+tuist {
+    coverage {
+        enabled = true
+    }
+}
+```
+
+Open **Code Coverage** on the dashboard to see it per commit and per file. See <.localized_link href="/guides/features/test-code-coverage/gradle">Gradle code coverage</.localized_link> for completing a commit on CI and Robolectric setup.
+
 ## Bundle insights
 
 The Android Gradle Plugin reports the size of the produced `.aab` in the build output. That number disappears with the branch, and comparing sizes across releases is a manual accounting job. Play Console reports the same numbers, but only after the artifact has been uploaded.

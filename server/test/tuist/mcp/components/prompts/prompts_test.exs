@@ -298,7 +298,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "create_project"
       assert text =~ "list_accounts"
       assert text =~ "tuist auth whoami"
-      assert text =~ ~s{id("dev.tuist") version "0.10.0"}
+      assert text =~ ~s{id("dev.tuist") version "0.22.0"}
       assert text =~ "org.gradle.caching=true"
       assert text =~ "CI=1 ./gradlew clean TASK"
       assert text =~ "list_gradle_build_tasks"

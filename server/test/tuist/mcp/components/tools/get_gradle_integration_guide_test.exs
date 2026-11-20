@@ -14,7 +14,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleIntegrationGuideTest do
         })
 
       assert %{
-               "plugin_version" => "0.10.0",
+               "plugin_version" => "0.22.0",
                "guide" => guide
              } = result["structuredContent"]
 
@@ -26,7 +26,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleIntegrationGuideTest do
       assert guide =~ "explicitly ask the user to confirm the email address"
       assert guide =~ ~s{project = "ACCOUNT_HANDLE/PROJECT_HANDLE"}
       refute guide =~ "full_handle ="
-      assert guide =~ ~s{id("dev.tuist") version "0.10.0"}
+      assert guide =~ ~s{id("dev.tuist") version "0.22.0"}
       assert guide =~ "allowInsecureProtocol = true"
       assert guide =~ "Keep it for local or self-hosted servers"
       assert guide =~ "push = System.getenv(\"CI\") != null"

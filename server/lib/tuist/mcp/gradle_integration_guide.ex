@@ -1,7 +1,7 @@
 defmodule Tuist.MCP.GradleIntegrationGuide do
   @moduledoc false
 
-  @plugin_version "0.10.0"
+  @plugin_version "0.22.0"
 
   def plugin_version, do: @plugin_version
 
@@ -141,7 +141,9 @@ defmodule Tuist.MCP.GradleIntegrationGuide do
     TUIST_SHARD_INDEX=0 ./gradlew test
     ```
 
-    Tune the plan with `-PtuistShardMax`, `-PtuistShardMin`, and `-PtuistShardMaxDuration`. Let Tuist derive the shard reference unless the workflow needs `TUIST_SHARD_REFERENCE`.
+    Tune the plan with `-PtuistShardMax`, `-PtuistShardMin`, and `-PtuistShardMaxDuration`. Let Tuist derive the shard reference unless the workflow needs `TUIST_SHARD_REFERENCE`. When the shards run a test task other than `test`, such as `testDebugUnitTest` in Android projects, pass it to the plan with `-PtuistShardTestTask=testDebugUnitTest` and run that same task in each shard.
+
+    For code coverage, turn it on in the `tuist` block with `coverage { enabled = true }`, or for one invocation with `TUIST_TEST_COVERAGE=1`. The plugin measures JVM and Android unit tests with JaCoCo and uploads coverage with each test run. Once every test job for a commit has finished, run `./gradlew tuistCoverageComplete` in continuous integration.
 
     Report the before-and-after duration, executed task count, remote cache hits, files changed, and any tasks that remain uncacheable.
     """
