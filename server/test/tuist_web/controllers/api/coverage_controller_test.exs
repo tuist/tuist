@@ -79,6 +79,26 @@ defmodule TuistWeb.API.CoverageControllerTest do
       assert %{complete: true, completeness: "signal"} = Commits.summary(project.id, "q")
     end
 
+    test "completes a commit only dirty runs measured, whose figure stays a lower bound and says why", %{
+      conn: conn,
+      prefix: prefix,
+      user: user,
+      project: project
+    } do
+      CoverageFixtures.run_with_coverage(project, user.account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        git_commit_sha: "d",
+        git_dirty: true,
+        is_ci: false
+      })
+
+      completed = conn |> post("#{prefix}/commits/d/complete") |> json_response(:ok)
+
+      assert_schema(completed, "CommitCoverage", Spec.spec())
+
+      assert {completed["coverage"], completed["complete"], completed["test_run_ids"], completed["reported"]} ==
+               {0.0, true, [], %{completed["reported"] | "kind" => "partial", "gap_reasons" => ["dirty_run_excluded"]}}
+    end
+
     test "also completes the commit's snapshots", %{conn: conn, prefix: prefix, project: project} do
       sha = String.duplicate("e", 40)
       {:ok, _build, _} = Tuist.Snapshots.create_build(project, %{set_name: "phone", git_commit_sha: sha}, [])
@@ -151,8 +171,13 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
       assert_schema(coverage, "CommitCoverage", Spec.spec())
 
-      assert %{"git_commit_sha" => "b", "complete" => false, "coverage" => 25.0, "targets" => [%{"name" => "App"}]} =
-               coverage
+      assert %{
+               "git_commit_sha" => "b",
+               "complete" => false,
+               "coverage" => 25.0,
+               "reported" => %{"gap_reasons" => []},
+               "targets" => [%{"name" => "App"}]
+             } = coverage
 
       assert %{"message" => "No run of commit c gathered coverage."} =
                conn |> get(prefix <> "/commits/c") |> json_response(:not_found)

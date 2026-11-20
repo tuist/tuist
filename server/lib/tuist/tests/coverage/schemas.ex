@@ -36,6 +36,12 @@ defmodule Tuist.Tests.Coverage.Schemas do
           type: :array,
           items: %Schema{type: :string},
           description: "The commits the carried coverage was observed at."
+        },
+        gap_reasons: %Schema{
+          type: :array,
+          items: %Schema{type: :string},
+          description:
+            "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
         }
       },
       required: [
