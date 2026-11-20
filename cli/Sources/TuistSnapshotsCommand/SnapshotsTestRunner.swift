@@ -13,6 +13,11 @@ public struct SnapshotsTestRunner {
     /// process without the prefix.
     public static let exportDirectoryVariable = "TEST_RUNNER_SNAPSHOTS_EXPORT_DIR"
 
+    /// While snapshots run, the selective-testing hashes of the targets that passed wait here until the
+    /// snapshot verdict passes. A stored hash makes the next run skip its target, and a skipped target
+    /// renders no images, so a rerun would pass the gate without anyone approving the changes.
+    @TaskLocal public static var hashStoresAwaitingVerdict: SnapshotsVerdictDeferrals?
+
     private let uploadService: SnapshotsUploadServicing
     private let configLoader: ConfigLoading
 
@@ -50,20 +55,25 @@ public struct SnapshotsTestRunner {
         try FileManager.default.createDirectory(at: exportDirectory.url, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: exportDirectory.url) }
 
+        let deferrals = SnapshotsVerdictDeferrals()
         var testError: Error?
         do {
-            try await tests([Self.exportDirectoryVariable: exportDirectory.pathString])
+            try await Self.$hashStoresAwaitingVerdict.withValue(deferrals) {
+                try await tests([Self.exportDirectoryVariable: exportDirectory.pathString])
+            }
         } catch {
             testError = error
         }
 
         // Unless asked for explicitly, a run without the library stays quiet.
         guard enabled == true || Self.containsImages(exportDirectory) else {
+            try await deferrals.run()
             if let testError { throw testError }
             return
         }
+        var verdictPassed = false
         do {
-            try await uploadService.upload(
+            let build = try await uploadService.upload(
                 directory: exportDirectory,
                 options: SnapshotsUploadOptions(
                     set: set,
@@ -73,10 +83,13 @@ public struct SnapshotsTestRunner {
                     buildSystem: .xcode
                 )
             )
+            // An unknown verdict leaves the hashes unstored, which only costs the next run these tests.
+            verdictPassed = build.map { ["passed", "baseline", "approved"].contains($0.status) } ?? true
         } catch {
             guard testError != nil else { throw error }
             AlertController.current.warning(.alert("The snapshots couldn't be uploaded: \(error.localizedDescription)"))
         }
+        if verdictPassed { try await deferrals.run() }
         if let testError { throw testError }
     }
 
@@ -91,5 +104,22 @@ public struct SnapshotsTestRunner {
     private static func containsImages(_ directory: AbsolutePath) -> Bool {
         FileManager.default.enumerator(at: directory.url, includingPropertiesForKeys: nil)?
             .contains { ($0 as? URL)?.pathExtension.lowercased() == "png" } ?? false
+    }
+}
+
+/// Work a test run holds back until `SnapshotsTestRunner` knows the snapshot verdict.
+public actor SnapshotsVerdictDeferrals {
+    private var work: [@Sendable () async throws -> Void] = []
+
+    public init() {}
+
+    public func append(_ work: @escaping @Sendable () async throws -> Void) {
+        self.work.append(work)
+    }
+
+    func run() async throws {
+        for work in work {
+            try await work()
+        }
     }
 }

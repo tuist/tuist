@@ -17,6 +17,7 @@ import TuistLoader
 import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
+import TuistSnapshotsCommand
 import TuistSupport
 import TuistXCActivityLog
 import TuistXcodeBuildProducts
@@ -1872,8 +1873,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     /// A hash that didn't reach the remote cache only costs another run the tests it could have skipped,
-    /// so a failed upload doesn't fail the test run.
+    /// so a failed upload doesn't fail the test run. While snapshots run, the hashes wait for the snapshot
+    /// verdict (`SnapshotsTestRunner.hashStoresAwaitingVerdict`).
     private func storeTestHashes(
+        _ items: [CacheStorableItem: [AbsolutePath]],
+        cacheStorage: CacheStoring
+    ) async throws {
+        if let deferrals = SnapshotsTestRunner.hashStoresAwaitingVerdict {
+            await deferrals.append { try await Self.storeTestHashes(items, cacheStorage: cacheStorage) }
+            return
+        }
+        try await Self.storeTestHashes(items, cacheStorage: cacheStorage)
+    }
+
+    private static func storeTestHashes(
         _ items: [CacheStorableItem: [AbsolutePath]],
         cacheStorage: CacheStoring
     ) async throws {
