@@ -94,8 +94,8 @@ msgid "Branch"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
-#: lib/tuist_web/live/bazel_invocation_live.ex:67
-#: lib/tuist_web/live/bazel_invocation_live.ex:95
+#: lib/tuist_web/live/bazel_invocation_live.ex:68
+#: lib/tuist_web/live/bazel_invocation_live.ex:96
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/cargo_build_live.html.heex:47
 #: lib/tuist_web/live/mix_build_live.html.heex:383
@@ -120,7 +120,7 @@ msgstr ""
 msgid "Build Runs"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:620
+#: lib/tuist_web/live/bazel_invocation_live.ex:632
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -183,7 +183,7 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:629
+#: lib/tuist_web/live/bazel_invocation_live.ex:641
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -192,7 +192,7 @@ msgstr ""
 msgid "Built at"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:615
+#: lib/tuist_web/live/bazel_invocation_live.ex:627
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -362,8 +362,9 @@ msgstr ""
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:251
-#: lib/tuist_web/live/bazel_invocation_live.ex:596
+#: lib/tuist_web/live/bazel_invocation_live.ex:252
+#: lib/tuist_web/live/bazel_invocation_live.ex:608
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:157
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
@@ -507,9 +508,10 @@ msgstr ""
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
-#: lib/tuist_web/live/bazel_invocation_live.ex:1442
+#: lib/tuist_web/live/bazel_invocation_live.ex:1467
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:69
 #: lib/tuist_web/live/cargo_build_live.ex:131
 #: lib/tuist_web/live/cargo_build_live.html.heex:323
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
@@ -536,6 +538,7 @@ msgid "Entitlements"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:395
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:261
 #: lib/tuist_web/live/build_entity_live.ex:1158
 #: lib/tuist_web/live/build_entity_live.ex:1220
 #: lib/tuist_web/live/cargo_build_runs_live.ex:62
@@ -555,6 +558,8 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:125
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:131
 #: lib/tuist_web/live/build_run_live.html.heex:196
 #: lib/tuist_web/live/build_run_live.html.heex:361
 #: lib/tuist_web/live/build_run_live.html.heex:788
@@ -587,6 +592,7 @@ msgstr ""
 #: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
+#: lib/tuist_web/live/bazel_remote_action_live.ex:167
 #: lib/tuist_web/live/build_entity_live.ex:517
 #: lib/tuist_web/live/build_entity_live.ex:1193
 #: lib/tuist_web/live/build_entity_live.html.heex:438
@@ -978,6 +984,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:37
 #: lib/tuist_web/live/build_entity_live.html.heex:41
 #: lib/tuist_web/live/build_run_live.html.heex:168
 #: lib/tuist_web/live/cargo_build_live.html.heex:33
@@ -988,7 +995,8 @@ msgid "Overview"
 msgstr ""
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:1335
+#: lib/tuist_web/live/bazel_invocation_live.ex:1347
+#: lib/tuist_web/live/bazel_remote_action_live.ex:166
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
@@ -1142,7 +1150,7 @@ msgstr ""
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:967
+#: lib/tuist_web/live/bazel_invocation_live.ex:979
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1181,7 +1189,7 @@ msgstr ""
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
-#: lib/tuist_web/live/bazel_invocation_live.ex:468
+#: lib/tuist_web/live/bazel_invocation_live.ex:469
 #: lib/tuist_web/live/bazel_invocations_live.ex:524
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
@@ -1214,9 +1222,10 @@ msgstr ""
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:259
-#: lib/tuist_web/live/bazel_invocation_live.ex:347
-#: lib/tuist_web/live/bazel_invocation_live.ex:605
+#: lib/tuist_web/live/bazel_invocation_live.ex:260
+#: lib/tuist_web/live/bazel_invocation_live.ex:348
+#: lib/tuist_web/live/bazel_invocation_live.ex:617
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:57
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
@@ -1434,6 +1443,7 @@ msgstr ""
 #: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
+#: lib/tuist_web/live/bazel_remote_action_live.ex:171
 #: lib/tuist_web/live/build_entity_live.html.heex:607
 #: lib/tuist_web/live/build_run_live.html.heex:58
 #: lib/tuist_web/live/build_run_live.html.heex:245
@@ -1703,6 +1713,7 @@ msgstr ""
 msgid "since last year"
 msgstr ""
 
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:132
 #: lib/tuist_web/live/build_run_live.html.heex:364
 #: lib/tuist_web/live/build_run_live.html.heex:401
 #: lib/tuist_web/live/build_run_live.html.heex:747
@@ -1959,7 +1970,7 @@ msgstr ""
 msgid "Succeeded"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:429
+#: lib/tuist_web/live/bazel_invocation_live.ex:430
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/mix_build_live.html.heex:60
@@ -2037,6 +2048,7 @@ msgid "In"
 msgstr ""
 
 #: lib/tuist_web/components/build_timeline.ex:117
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr ""
@@ -2486,8 +2498,8 @@ msgid "Declared action index"
 msgstr ""
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:65
-#: lib/tuist_web/live/bazel_invocation_live.ex:327
-#: lib/tuist_web/live/bazel_invocation_live.ex:446
+#: lib/tuist_web/live/bazel_invocation_live.ex:328
+#: lib/tuist_web/live/bazel_invocation_live.ex:447
 #: lib/tuist_web/live/build_entity_live.ex:625
 #: lib/tuist_web/live/remote_execution_live.ex:245
 #: lib/tuist_web/live/remote_execution_live.ex:846
@@ -2560,7 +2572,9 @@ msgstr ""
 msgid "Not found in this project."
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1483
+#: lib/tuist_web/live/bazel_invocation_live.ex:1510
+#: lib/tuist_web/live/bazel_remote_action_live.ex:179
+#: lib/tuist_web/live/bazel_remote_action_live.ex:182
 #: lib/tuist_web/live/build_entity_live.ex:518
 #: lib/tuist_web/live/build_entity_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:675
@@ -3354,27 +3368,32 @@ msgstr ""
 msgid "Compiled without consulting the cache because it could not be cached."
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1448
+#: lib/tuist_web/live/bazel_invocation_live.ex:1473
+#: lib/tuist_web/live/bazel_remote_action_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Execution"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1447
+#: lib/tuist_web/live/bazel_invocation_live.ex:1472
+#: lib/tuist_web/live/bazel_remote_action_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Input fetch"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1449
+#: lib/tuist_web/live/bazel_invocation_live.ex:1474
+#: lib/tuist_web/live/bazel_remote_action_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Output upload"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1446
+#: lib/tuist_web/live/bazel_invocation_live.ex:1471
+#: lib/tuist_web/live/bazel_remote_action_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Queue"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:439
+#: lib/tuist_web/live/bazel_invocation_live.ex:440
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr ""
@@ -3487,33 +3506,33 @@ msgstr ""
 msgid "p90 execution"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#: lib/tuist_web/live/bazel_invocation_live.ex:572
 #, elixir-autogen, elixir-format
 msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:558
+#: lib/tuist_web/live/bazel_invocation_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "No remote action timings"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:511
+#: lib/tuist_web/live/bazel_invocation_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Phases"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:505
-#: lib/tuist_web/live/bazel_invocation_live.ex:1441
+#: lib/tuist_web/live/bazel_invocation_live.ex:517
+#: lib/tuist_web/live/bazel_invocation_live.ex:1466
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:365
+#: lib/tuist_web/live/bazel_invocation_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:363
+#: lib/tuist_web/live/bazel_invocation_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Machine"
 msgstr ""
@@ -3523,13 +3542,13 @@ msgstr ""
 msgid "No remote executions in this period"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:352
+#: lib/tuist_web/live/bazel_invocation_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Queued"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:261
-#: lib/tuist_web/live/bazel_invocation_live.ex:351
+#: lib/tuist_web/live/bazel_invocation_live.ex:262
+#: lib/tuist_web/live/bazel_invocation_live.ex:352
 #: lib/tuist_web/live/remote_execution_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Running"
@@ -3551,17 +3570,17 @@ msgstr ""
 msgid "Invocation %{id}"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:277
+#: lib/tuist_web/live/bazel_invocation_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "Running for"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:335
+#: lib/tuist_web/live/bazel_invocation_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "No executions are running or queued"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:334
+#: lib/tuist_web/live/bazel_invocation_live.ex:335
 #, elixir-autogen, elixir-format
 msgid "Running executions are unavailable"
 msgstr ""
@@ -3592,7 +3611,219 @@ msgstr ""
 msgid "Couldn't load"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:371
+#: lib/tuist_web/live/bazel_remote_action_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "%{message} at %{location}"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "%{size} GB"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "Action Details"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Action digest"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Cached"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Client"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Error"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Execution path"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Exit code"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Failed compiling %{path}"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "Leased worker"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:307
+#, elixir-autogen, elixir-format
+msgid "Load earlier lines"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:42
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "No error output was recorded."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:325
+#, elixir-autogen, elixir-format
+msgid "No output was recorded."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Outputs"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:73
+#, elixir-autogen, elixir-format
+msgid "Queued at"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:41
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Remote action"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "Remote action not found."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Sandbox"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:170
+#, elixir-autogen, elixir-format
+msgid "Scheduled"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "Standard error"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Standard output"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Status message"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "The action requested no platform properties."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "The action set no environment variables."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "The command exceeded the recorded size and is incomplete."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:228
+#, elixir-autogen, elixir-format
+msgid "The command exited with code %{code}"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "The command was not recorded."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "The execution failed"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Timeout"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Worker"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:209
+#, elixir-autogen, elixir-format
+msgid "Working directory"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "%{stream}: %{size} skipped. Output over 16 MiB keeps its first 16 KiB and its last 16 MiB."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "%{stream}: the remaining %{size} is not available. It has not been stored yet, could not be stored, or has expired."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Show full command"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Show less"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:182
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:250
+#, elixir-autogen, elixir-format
+msgid "Show all %{count} outputs"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Show fewer"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:219
+#, elixir-autogen, elixir-format
+msgid "Showing %{shown} of %{count} outputs; the rest were not recorded."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Waiting / running for"
 msgstr ""

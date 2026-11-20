@@ -31,6 +31,9 @@ defmodule Tuist.Bazel do
 
   def sanitize_invocation_log(message), do: Sanitizer.sanitize(message)
 
+  @doc "The primary output of each of `event_ids` in the invocation's published profile."
+  defdelegate profile_primary_outputs(invocation, event_ids), to: Tuist.Bazel.ProfileSteps, as: :primary_outputs
+
   def ingest_test_report(project, invocation, test_results, test_summaries) do
     TestReportIngestor.ingest(project, invocation, test_results, test_summaries)
   end

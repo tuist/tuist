@@ -18,6 +18,7 @@ defmodule TuistWeb.BazelInvocationLive do
   alias Tuist.Projects.Project
   alias Tuist.ReapiCache
   alias Tuist.RemoteExecution
+  alias Tuist.RemoteExecution.Actions
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
@@ -489,12 +490,23 @@ defmodule TuistWeb.BazelInvocationLive do
             <.table
               :if={result.steps != []}
               id="remote-actions-table"
-              rows={trace_rows(result.steps)}
+              rows={trace_rows(result)}
               row_key={&("remote-action-" <> &1.action.id)}
             >
               <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
                 <div data-part="trace-action">
+                  <.link
+                    :if={row.operation_id}
+                    navigate={remote_action_path(assigns, row.operation_id)}
+                    data-part="action-link"
+                  >
+                    <.text_and_description_cell
+                      label={row.action.title}
+                      description={row.action.target}
+                    />
+                  </.link>
                   <.text_and_description_cell
+                    :if={!row.operation_id}
                     label={row.action.title}
                     description={row.action.target}
                   />
@@ -1403,12 +1415,25 @@ defmodule TuistWeb.BazelInvocationLive do
             sort_order: sort_order
           })
 
-        {:ok, %{remote_actions: result}}
+        {:ok, %{remote_actions: Map.put(result, :links, remote_action_links(invocation, result.steps))}}
       end
     )
   end
 
   defp load_remote_actions(socket, _, _, _), do: cancel_async(socket, :remote_actions)
+
+  # A profile action links to the gateway's record of its execution when its
+  # primary output was declared by exactly one recorded execution. Several
+  # (retries, or outputs shared by different actions) get no link rather
+  # than a guess.
+  defp remote_action_links(invocation, steps) do
+    outputs = Bazel.profile_primary_outputs(invocation, Enum.map(steps, & &1.id))
+    records = Actions.by_output(invocation.project_id, invocation.invocation_id, outputs |> Map.values() |> Enum.uniq())
+
+    for {event_id, output} <- outputs, [{_hash, operation_id}] <- [Map.get(records, output, [])], into: %{} do
+      {event_id, operation_id}
+    end
+  end
 
   # Pages keep the current sort. Choosing a sort from the dropdown starts at its
   # default order: earliest first for start times, longest first for durations.
@@ -1452,7 +1477,8 @@ defmodule TuistWeb.BazelInvocationLive do
 
   # Bar length is relative to the page's longest action. Segments split the
   # action's duration; time outside recorded server phases stays neutral.
-  defp trace_rows(steps) do
+  defp trace_rows(%{steps: steps} = result) do
+    links = Map.get(result, :links, %{})
     longest = steps |> Enum.map(& &1.duration_ms) |> Enum.max(fn -> 0 end)
 
     Enum.map(steps, fn action ->
@@ -1465,6 +1491,7 @@ defmodule TuistWeb.BazelInvocationLive do
 
       %{
         action: action,
+        operation_id: Map.get(links, action.id),
         width: if(longest > 0, do: max(Float.round((action.duration_ms || 0) / longest * 100, 2), 2), else: 2),
         segments: phase_segments(phases, action.duration_ms || 0),
         phases: phases
@@ -1488,6 +1515,10 @@ defmodule TuistWeb.BazelInvocationLive do
   end
 
   defp tab_path(assigns, tab), do: "#{detail_path(assigns)}?tab=#{tab}"
+
+  defp remote_action_path(assigns, operation_id),
+    do:
+      "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{assigns.invocation.invocation_id}/remote-actions/#{operation_id}"
 
   defp detail_path(assigns),
     do:

@@ -26,6 +26,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.RemoteExecution.Action, as: RemoteExecutionAction
   alias Tuist.RemoteExecution.UsageEvent, as: RemoteExecutionUsageEvent
   alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.UsageEvent, as: SandboxUsageEvent
@@ -374,6 +375,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(SandboxEvent.Buffer, id: SandboxEvent.Buffer),
           Supervisor.child_spec(SandboxUsageEvent.Buffer, id: SandboxUsageEvent.Buffer),
           Supervisor.child_spec(RemoteExecutionUsageEvent.Buffer, id: RemoteExecutionUsageEvent.Buffer),
+          Supervisor.child_spec(RemoteExecutionAction.Buffer, id: RemoteExecutionAction.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,
           {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},

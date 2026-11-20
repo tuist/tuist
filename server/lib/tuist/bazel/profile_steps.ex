@@ -108,6 +108,28 @@ defmodule Tuist.Bazel.ProfileSteps do
     end
   end
 
+  @doc """
+  The primary output of each of `event_ids` in the invocation's published
+  profile, for linking actions to their remote execution records. Steps without
+  an output are left out.
+  """
+  def primary_outputs(_invocation, []), do: %{}
+
+  def primary_outputs(invocation, event_ids) do
+    case Tuist.Bazel.Profile.steps_version(invocation) do
+      version when is_binary(version) and version != "" ->
+        from(s in query(invocation, version),
+          where: s.event_id in ^event_ids and s.primary_output != "",
+          select: {s.event_id, s.primary_output}
+        )
+        |> ClickHouseRepo.all()
+        |> Map.new()
+
+      _ ->
+        %{}
+    end
+  end
+
   def remote_only?(params), do: Map.get(params, :remote_execution, Map.get(params, "remote_execution")) in [true, "true"]
 
   defp remote_filter(query, params) do

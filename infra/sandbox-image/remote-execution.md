@@ -186,6 +186,43 @@ credential, in the background. Publication is best-effort: a gateway restart or
 saturation (256 pending publications) drops it, which only costs a later cache
 miss. Bazel does not depend on the entry; dependent actions read outputs from CAS.
 
+### Action records
+
+After Bazel has an executed action's result (scheduled or leased, not
+`WaitExecution` reconnections), the gateway sends the server a record of it for
+the dashboard's action inspector and the API: the invocation, target, mnemonic
+and configuration from Bazel's `RequestMetadata`, the command's arguments
+(64 KiB), environment (32 KiB), working directory, platform, declared output
+paths (32 KiB) and how many outputs were declared, the exit code and status,
+the executor's phase timestamps, the dispatch path and VM, and the first 16 KiB
+of stdout and stderr. Environment values and
+flag values whose names contain TOKEN, SECRET, PASSWORD or KEY are masked
+before they leave the gateway, and the server masks them again. The command
+comes from the prefetch when it read it; otherwise four background readers read
+the action, command and logs from Kura with the client's credential, off the
+client's path. Records are batched per project and credential (50 records or
+1 MiB, at least every second) and posted to
+`POST /api/remote-execution/:account/:project/actions`. They are best effort:
+a full queue (1,024), a failed read, a refused post or a gateway restart drops
+them (`reapi_gateway_action_records_total{result}`), and records without a
+Bazel invocation ID are not sent. The server never reads Kura for them.
+
+A record also names the digests of streams longer than 16 KiB. The server
+answers with a presigned object-storage upload for each whole stream, or its
+last 16 MiB when it is longer (the server's choice; the gateway accepts up to
+the worker's 64 MiB log bound), and the gateway copies those bytes from Kura
+with the client's credential. Copies must never slow execution down, so they
+share nothing with the client's path: they start after the record is sent, read
+Kura over their own gRPC connections (no shared HTTP/2 flow control with
+prefetches), upload with their own HTTP client, run two at a time from a queue
+of 256 that drops rather than waits, and stream through a pipe one chunk at a
+time at no more than 8 MiB/s per gateway. A short read fails the upload rather
+than storing part of the range. `reapi_gateway_action_log_copies_total{result}`
+counts copied, dropped, refused (out-of-bounds uploads) and failed copies, and
+`reapi_gateway_action_log_copy_bytes_total` the bytes. The server's
+`:remote_action_log_copies_disabled` flag stops issuing uploads, which stops
+copies without a deploy.
+
 ### Guest isolation
 
 A root `sbx-executor` in the guest downloads verified input blobs, drops the
@@ -443,7 +480,8 @@ reads three sources, none labelled by account or project:
 
 - Gateways export `reapi_gateway_*` on port 9090: Execute calls by path (`lease`
   or `server`) and final status, Execute latency, how inputs were prefetched,
-  action-cache publication outcomes and admitted streams.
+  action-cache publication outcomes, action-record delivery and admitted
+  streams.
   `reapi_gateway_action_phase_seconds{phase}` splits each executed action into
   `queued` (admission to worker start, including VM creation), `input_fetch`,
   `execution` and `output_upload` from the executor's metadata; gateways also

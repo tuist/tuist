@@ -126,7 +126,8 @@ Tuist/Dependencies/graph.json
 .amp/portals/
 mise.local.toml
 *.p12
-./minio
+# Dev MinIO data: minio_server keeps it in minio/ under the working directory.
+minio/
 !.github
 cli/Tests/Fixtures/*.xcresult/database.sqlite3
 
