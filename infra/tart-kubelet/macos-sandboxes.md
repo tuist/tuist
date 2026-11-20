@@ -11,6 +11,9 @@ the OS by environment: connect a `claude_code` environment with
 `platform: "darwin"` (`infra/claude-code-runners/README.md`). Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
 10 GB workspace. The other native shapes are 8 vCPU with 16 or 24 GiB RAM.
 The workspace is `/Users/runner/work`; Linux requests retain their existing defaults.
+The image preinstalls the Tuist CLI and carries a generated guide for agents at
+`/opt/tuist/agent-guide.md` ("Tuist CLI and the agent guide" in
+`infra/runner-image/AGENTS.md`).
 
 ## Deployment and enablement
 

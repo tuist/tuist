@@ -492,6 +492,34 @@ added to catch that failed on `admin`'s unwritable cache instead.
   VM at job exit). Single-tenant ephemeral VM — the entire OS is
   the customer's job environment.
 
+## Tuist CLI and the agent guide
+
+Sandboxes boot this image, so it carries what an agent on the Mac needs:
+
+- **Tuist CLI.** `tuist_version` in `runner.pkr.hcl` is installed with
+  `mise install` as `runner`, which leaves its shim in
+  `~/.local/share/mise/shims`. `/opt/tuist/cli/bin/tuist` execs that install
+  by its real path. Sandbox commands put the shims first on `PATH` and
+  `/opt/tuist/cli/bin` last (`server/lib/tuist/sandboxes/commands.ex`): a
+  repository that pins Tuist through mise gets its version (mise installs it on
+  first use), and a shim with no version set falls through to the next `tuist`
+  on `PATH`, the preinstalled one. Measured on a sandbox (2026-11-20): pins in
+  `mise.toml` and `.tool-versions` resolved to their own versions, installed in
+  about 4 s each. CI jobs do not get `/opt/tuist/cli/bin`, so workflows keep
+  installing the Tuist they pin; a job that activates mise and pins no Tuist
+  now finds a `tuist` shim that reports no version instead of no command.
+  Sets no global mise version: a global default would apply to every
+  workflow that activates mise.
+- **Agent guide.** `agent-guide.sh write` generates `/opt/tuist/agent-guide.md`
+  at build time from what the image holds (macOS, Xcodes, simulators, Tuist,
+  tools) plus where the repository is and what a ready snapshot means.
+  `agent-guide.sh link` points Claude Code (`~/.claude/CLAUDE.md`,
+  `~/CLAUDE.md`, both importing it with `@`), Codex (`~/.codex/AGENTS.md`), Amp
+  (`~/.config/amp/AGENTS.md`) and `~/AGENTS.md` at it. Nothing can go under
+  `/Users/runner/work`: the workspace volume is mounted over it at boot. The
+  `create_sandbox` MCP tool tells agents off the Mac to read it, so keep the
+  path stable and keep it in step with that description.
+
 ## Build
 
 From this directory:

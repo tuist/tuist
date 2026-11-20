@@ -125,6 +125,16 @@
       "automerge": true
     },
     {
+      "description": "Tuist CLI preinstalled in the macOS runner image for sandboxes. tuist/tuist tags every component, so only bare versions are CLI releases. Weekly, because each bump rebuilds every runner image.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["tuist/tuist"],
+      "allowedVersions": "/^\\d+\\.\\d+\\.\\d+$/",
+      "schedule": ["before 6am on monday"],
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "preinstalled Tuist CLI"
+    },
+    {
       "description": "Refresh Linux runner base digests through the image release pipeline.",
       "matchManagers": ["dockerfile"],
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
