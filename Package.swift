@@ -2001,6 +2001,7 @@ targets.append(
 #endif
 
 #if TUIST
+    import enum ProjectDescription.Environment
     import struct ProjectDescription.PackageSettings
 
     let packageSettings = PackageSettings(
@@ -2020,7 +2021,15 @@ targets.append(
             "TestCoverageAttribution": .framework,
             "TestCoverageAttributionObserver": .framework,
         ],
-        baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+        // The release build (`mise run cli:bundle`) links the executable statically, and the
+        // linker only loads the archive members some symbol references. Swift looks up
+        // protocol conformances and type descriptors at runtime, so without prelinking each
+        // package into one object, the release executable drops them and crashes. Prelinking
+        // also replaces the objects' DWARF with a debug map to temporary intermediates, which
+        // keeps the cache warm from storing the packages, so it is limited to that build.
+        baseSettings: Environment.forceStaticLinking.getBoolean(default: false)
+            ? .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
+            : .settings()
     )
 #endif
 
