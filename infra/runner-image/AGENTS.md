@@ -496,20 +496,21 @@ added to catch that failed on `admin`'s unwritable cache instead.
 
 Sandboxes boot this image, so it carries what an agent on the Mac needs:
 
-- **Tuist CLI.** `tuist_version` in `runner.pkr.hcl` is installed with
-  `mise install` as `runner`, which leaves its shim in
-  `~/.local/share/mise/shims`. `/opt/tuist/cli/bin/tuist` execs that install
-  by its real path. Sandbox commands put the shims first on `PATH` and
-  `/opt/tuist/cli/bin` last (`server/lib/tuist/sandboxes/commands.ex`): a
-  repository that pins Tuist through mise gets its version (mise installs it on
-  first use), and a shim with no version set falls through to the next `tuist`
-  on `PATH`, the preinstalled one. Measured on a sandbox (2026-11-20): pins in
-  `mise.toml` and `.tool-versions` resolved to their own versions, installed in
-  about 4 s each. CI jobs do not get `/opt/tuist/cli/bin`, so workflows keep
-  installing the Tuist they pin; a job that activates mise and pins no Tuist
-  now finds a `tuist` shim that reports no version instead of no command.
-  Sets no global mise version: a global default would apply to every
-  workflow that activates mise.
+- **Tuist CLI.** `tuist_version` in `runner.pkr.hcl` is installed with mise
+  into a scratch data directory and moved to `/opt/tuist/cli/<version>`
+  (`/opt/tuist/cli/current` links to it). Keep it out of `runner`'s
+  `~/.local/share/mise`: workflows mount `tuist/cache-volume` there, which
+  requires an absent or empty directory, and a Tuist install left there failed
+  every production deploy's acceptance job. The last provisioners remove that
+  directory and assert it is absent. `/opt/tuist/cli/bin/tuist`
+  (`tuist-cli.sh`) runs `mise exec -- tuist` when the working directory pins
+  Tuist through mise (`mise.toml`, `.tool-versions`), which installs the pin
+  on first use, and the preinstalled one otherwise. Sandbox commands put the
+  mise shims first on `PATH` and `/opt/tuist/cli/bin` last
+  (`server/lib/tuist/sandboxes/commands.ex`). CI jobs do not get
+  `/opt/tuist/cli/bin`, so workflows keep installing the Tuist they pin. Sets
+  no global mise version: a global default would apply to every workflow that
+  activates mise.
 - **Agent guide.** `agent-guide.sh write` generates `/opt/tuist/agent-guide.md`
   at build time from what the image holds (macOS, Xcodes, simulators, Tuist,
   tools) plus where the repository is and what a ready snapshot means.
