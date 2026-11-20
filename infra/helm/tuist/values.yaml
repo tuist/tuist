@@ -2345,6 +2345,9 @@ rackLinuxFleet:
     # The site's provisioning address (management.edge.provisioning), which the
     # rack-edge pod puts on the edge node's switch port.
     address: ""
+    # More sites' boot servers, each on its site's edge nodes at the site's
+    # own provisioning address: [{site: larch, address: 192.168.70.1}].
+    sites: []
     httpPort: 8480
     iso:
       url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso

@@ -63,25 +63,30 @@ subjects:
   - kind: ServiceAccount
     name: {{ $bootName }}
     namespace: {{ .Release.Namespace }}
+{{- /* One boot server per site: the env's own (boot.site and boot.address) and
+     each of boot.sites, at that site's provisioning address. */}}
+{{- $sites := prepend ($boot.sites | default list) (dict "site" $bootSite "address" $boot.address) }}
+{{- range $site := $sites }}
+{{- $dsName := ternary $bootName (printf "%s-%s" $bootName $site.site) (eq $site.site $bootSite) }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ $bootName }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ $dsName }}
+  namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "rackNodes.labels" . | nindent 4 }}
+    {{- include "rackNodes.labels" $ | nindent 4 }}
     app.kubernetes.io/component: rack-boot
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: rack-boot
-      tuist.dev/rack-edge: {{ $bootSite }}
+      tuist.dev/rack-edge: {{ $site.site }}
   template:
     metadata:
       labels:
         app.kubernetes.io/component: rack-boot
-        tuist.dev/rack-edge: {{ $bootSite }}
+        tuist.dev/rack-edge: {{ $site.site }}
     spec:
       serviceAccountName: {{ $bootName }}
       hostNetwork: true
@@ -90,11 +95,11 @@ spec:
       dnsPolicy: Default
       enableServiceLinks: false
       nodeSelector:
-        tuist.dev/rack-edge: {{ $bootSite }}
+        tuist.dev/rack-edge: {{ $site.site }}
       tolerations:
         - key: tuist.dev/rack-edge
           operator: Equal
-          value: {{ $bootSite }}
+          value: {{ $site.site }}
           effect: NoSchedule
       securityContext:
         seccompProfile:
@@ -102,16 +107,16 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
         - name: boot
-          image: {{ include "rackNodes.image" . | quote }}
-          imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
+          image: {{ include "rackNodes.image" $ | quote }}
+          imagePullPolicy: {{ $.Values.macosFleet.image.pullPolicy }}
           command: [/usr/local/bin/rack-boot]
           args:
-            - --address={{ required "rackLinuxFleet.boot.address is the site's provisioning address" $boot.address }}
+            - --address={{ required "rackLinuxFleet.boot.address is the site's provisioning address" $site.address }}
             - --http-port={{ $boot.httpPort }}
             - --iso-url={{ required "rackLinuxFleet.boot.iso.url is required" $boot.iso.url }}
             - --iso-sha256={{ required "rackLinuxFleet.boot.iso.sha256 is required" $boot.iso.sha256 }}
             - --secret={{ $bootName }}
-            - --site={{ $bootSite }}
+            - --site={{ $site.site }}
           env:
             - name: POD_NAMESPACE
               valueFrom:
@@ -151,4 +156,5 @@ spec:
           hostPath:
             path: /etc/tuist/kubernetes-api
             type: File
+{{- end }}
 {{- end }}

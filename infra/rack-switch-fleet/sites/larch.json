@@ -15,6 +15,7 @@
       "interface": "mgmt0",
       "address": "192.168.60.10",
       "provisioning": "192.168.70.1/24",
+      "boot_alias": "192.168.50.1",
       "domain": "rack.tuist.dev",
       "vrrp": {
         "vlan": 4000,
@@ -299,7 +300,9 @@
           "port": 30,
           "media": "dac",
           "nic": "n225p-1",
-          "purpose": "data"
+          "purpose": "data",
+          "native_vlan": 20,
+          "note": "Carries the management VLAN untagged until larch-edge-b is installed: its preinstalled installer asks for DHCP untagged, and the provisioning range is on the management VLAN."
         },
         {
           "switch": "larch-tor-b",

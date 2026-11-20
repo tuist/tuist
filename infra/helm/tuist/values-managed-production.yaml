@@ -2007,6 +2007,13 @@ rackLinuxFleet:
       # route to an archive. 2: its WAN goes in its netplan, since the
       # first-boot WAN service did not bring it up.
       reinstallGeneration: 2
+    # larch-edge-b (S/N TCS0CG0000W6, BMC A0:AD:9F:27:88:83), from primeLine's
+    # acceptance report of 3 Nov. Its TPM check code there is the empty key's,
+    # so it is declared without one and installs from larch's own boot server.
+    - uuid: 0e90551e-8825-f0be-d3e4-a0ad9f278881
+      hostname: larch-edge-b
+      role: edge
+      site: larch
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
@@ -2014,6 +2021,12 @@ rackLinuxFleet:
   boot:
     enabled: true
     address: 192.168.50.1
+    # larch's boot server, at its provisioning address. Its edges translate
+    # 192.168.50.1, which the preinstall image asks, to it
+    # (management.edge.boot_alias in larch.json).
+    sites:
+      - site: larch
+        address: 192.168.70.1
     internet:
       enabled: true
       host: rack-boot.tuist.dev

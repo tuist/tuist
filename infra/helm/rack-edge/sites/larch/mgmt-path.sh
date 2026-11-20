@@ -55,6 +55,10 @@ nft -f - <<'NFT'
 table ip tuist_mgmt_path
 delete table ip tuist_mgmt_path
 table ip tuist_mgmt_path {
+  chain prerouting {
+    type nat hook prerouting priority dstnat;
+    iifname "mgmt0" ip saddr 192.168.70.0/24 ip daddr 192.168.50.1 dnat to 192.168.70.1
+  }
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { 192.168.61.6,192.168.61.2,192.168.70.0/24 } masquerade
