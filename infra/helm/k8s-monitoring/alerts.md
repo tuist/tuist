@@ -2011,11 +2011,13 @@ of it.
 **Sizing is the actor, so this pages only once it has had its turn.**
 `Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
 its proposals unattended every ten minutes, within a fleet-wide budget of five
-applies an hour. Its own `retention_floor_days` is 3, so an instance whose
-retention falls under a day is deep inside the band sizing is working on. It
-confirms a sub-day reading over one to five days of the account's own
-rollups, sooner the more of the ring the account cycled, and passes over the
-days the account did not build rather than restarting the count. The step
+applies an hour. Its own `retention_floor_days` is 1.5 (growth lands at the
+floor plus a quarter, about 1.9 days), so an instance whose retention falls
+under a day is inside the band sizing is working on: its middle rungs read
+0.68 of the floor (24.5 hours), so a sub-day reading confirms over one to
+five days of the account's own rollups, sooner the more of the ring the
+account cycled, and passes over the days the account did not build rather
+than restarting the count. The step
 after a resize that landed below its own projection confirms on a single
 qualifying day of the resized ring instead, as long as that day shed at least
 a whole ring and falls within the matching rung's own window of the resize.
@@ -2041,11 +2043,13 @@ larger pin or left short.
 
 **Sizing also shrinks, and lands well clear of this rule.** Besides a ring
 that never fills, a claim shrinks when every region kept what it shed for
-three retention floors (nine days) on every day of a month. It lands where
-the shortest day would keep the floor plus the growth headroom, 3.75 days, one
-step at most halves it (leaving at least 4.5 days), and it never goes under
-the plan's starting claim, so a shrunk ring sits several times above this
-rule's one day and above the longest growth rung's three. Once a lowered
+three retention floors (4.5 days) on every day of a month. It lands where
+the shortest day would keep the floor plus the growth headroom, about 1.9
+days, one step at most halves it (leaving at least 2.25 days), and it never
+goes under the plan's starting claim, so a shrunk ring sits clear of this
+rule's one day and above the longest growth rung's 1.5. The faster
+correction (14 days, at most a quarter off) needs 1.5 floors (2.25 days) and
+lands at the same 1.9. Once a lowered
 claim's pods roll, the ring's first rotation evicts its oldest segments down to
 the new budget: that sheds content older than anything it keeps afterwards,
 and fullness (segments held against the smaller desired total) reads over 100

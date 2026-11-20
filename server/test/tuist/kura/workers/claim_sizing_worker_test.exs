@@ -55,7 +55,9 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
           evicted_artifact_count: 400,
           min_shed_age_seconds: 3_600,
           median_shed_age_seconds: 12 * 3_600,
-          median_ring_span_seconds: div(3 * 86_400, 2),
+          # Half the 1.5-day floor, so the projection asks for 2.5 times the
+          # claim.
+          median_ring_span_seconds: div(3 * 86_400, 4),
           snapshot_count: 96,
           max_occupancy_percent: 98,
           max_live_segment_bytes: 28 * @gibibyte,

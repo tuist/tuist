@@ -107,7 +107,9 @@ defmodule Tuist.Kura.ClaimProposalsTest do
           evicted_artifact_count: 400,
           min_shed_age_seconds: 3_600,
           median_shed_age_seconds: 12 * 3_600,
-          median_ring_span_seconds: div(3 * 86_400, 2),
+          # Half the 1.5-day floor: the projection asks for two and a half
+          # times the claim, past the one-day step bound.
+          median_ring_span_seconds: div(3 * 86_400, 4),
           snapshot_count: 96,
           max_occupancy_percent: 98,
           max_live_segment_bytes: 28 * @gibibyte,
@@ -138,8 +140,8 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     server |> Ecto.Changeset.change(storage_claim_size: claim_size) |> Repo.update!()
   end
 
-  # A full ring that rotates and sheds content ten days after it was written,
-  # every day of the retention shrink window.
+  # A full ring that rotates and sheds content five days after it was written,
+  # every day of the retention shrink window: past its 4.5-day line.
   defp seed_long_retention_rollups(account, region) do
     seed_churn_rollups(account, 30, @today, region)
 
@@ -149,14 +151,14 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       set: [
         eviction_count: 6,
         evicted_bytes: 4 * @gibibyte,
-        median_shed_age_seconds: 10 * 86_400,
-        median_ring_span_seconds: round(10.5 * 86_400)
+        median_shed_age_seconds: 5 * 86_400,
+        median_ring_span_seconds: round(5.25 * 86_400)
       ]
     )
   end
 
   # us-east kept the 50Gi the pin migration grandfathered; eu-west was built
-  # later at 16Gi. Both keep ten days, so eu-west shows the account needs far
+  # later at 16Gi. Both keep five days, so eu-west shows the account needs far
   # less than 50Gi, while us-east's own ring still asks for 18Gi.
   defp mixed_retention_account(account, server) do
     us_east = pin!(server, "50Gi")
