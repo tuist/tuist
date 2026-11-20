@@ -640,7 +640,7 @@ func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 		"uplinks='enp2s0f1np1 enp2s0f0np0' vlan=4001 address='149.6.170.31/31' gateway='149.6.170.30'",
 		"state=" + EdgeFirstWANState + " metric=50",
 		"compgen -G '/etc/kubernetes/manifests/rack-edge-*.yaml'",
-		`arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}"`,
+		EdgeFirstWANBusybox + ` arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}"`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("the first-boot WAN lacks %q:\n%s", want, script)
@@ -663,8 +663,16 @@ func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 	if strings.Contains(fmt.Sprint(seed.Autoinstall.Network), "149.6.170.31") {
 		t.Errorf("netplan carries the WAN: %+v", seed.Autoinstall.Network)
 	}
-	if !strings.Contains(out, "    - iputils-arping\n") {
-		t.Errorf("the install does not bring arping")
+	// The first edge installs with no route to an archive, so its arping is
+	// the installer's busybox, not a package the image lacks.
+	if strings.Contains(out, "iputils-arping") {
+		t.Errorf("the install needs a package from the archive for arping")
+	}
+	if !strings.Contains(late, `install -D -m 0755 "$(command -v busybox)" /target`+EdgeFirstWANBusybox) {
+		t.Errorf("late-commands do not copy the installer's busybox:\n%s", late)
+	}
+	if !strings.Contains(script, EdgeFirstWANBusybox+` arping -q -c 2 -w 3 -I "$dev" "$gateway"`) {
+		t.Errorf("the first-boot WAN does not use the copied busybox's arping:\n%s", script)
 	}
 
 	_, seed = renderEdgeNetwork(t, ber1EdgeB())

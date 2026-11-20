@@ -261,7 +261,6 @@ autoinstall:
     - jq
     - ethtool
     - lvm2
-    - iputils-arping
   updates: security
   shutdown: reboot
   early-commands:
@@ -397,6 +396,10 @@ func edgeResolvers(e *EdgeNetwork) string {
 const (
 	EdgeFirstWANPath  = "/usr/local/sbin/tuist-edge-first-wan"
 	EdgeFirstWANState = "/run/rack-edge/first-wan"
+	// EdgeFirstWANBusybox is the installer's busybox, copied onto the edge for
+	// its arping: the first edge of a site installs with no route to an
+	// archive, so the install can bring no package the image lacks.
+	EdgeFirstWANBusybox = "/usr/local/sbin/tuist-busybox"
 	// EdgeFirstWANMetric is the metric of its default route, below the route
 	// through the other edge (EdgeVRRPMetric).
 	EdgeFirstWANMetric = 50
@@ -423,6 +426,7 @@ func edgeFirstWAN(e *EdgeNetwork) string {
 		"@GATEWAY@", e.WAN.Gateway,
 		"@STATE@", EdgeFirstWANState,
 		"@METRIC@", fmt.Sprint(EdgeFirstWANMetric),
+		"@BUSYBOX@", EdgeFirstWANBusybox,
 	).Replace(`#!/usr/bin/env bash
 set -u
 uplinks='@UPLINKS@' vlan=@VLAN@ address='@ADDRESS@' gateway='@GATEWAY@'
@@ -455,8 +459,8 @@ wan_bond() {
 take() {
   dev=$1
   pod && return 1
-  if arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}" && ip addr add "$address" dev "$dev"; then
-    if arping -q -c 2 -w 3 -I "$dev" "$gateway" && ip route add default via "$gateway" dev "$dev" metric "$metric"; then
+  if @BUSYBOX@ arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}" && ip addr add "$address" dev "$dev"; then
+    if @BUSYBOX@ arping -q -c 2 -w 3 -I "$dev" "$gateway" && ip route add default via "$gateway" dev "$dev" metric "$metric"; then
       echo "$dev" >"$state"
       log "took the site's WAN $address on $dev, through $gateway"
       return 0
@@ -482,7 +486,7 @@ misses=0
 while ! pod; do
   if [ -s "$state" ]; then
     read -r dev <"$state"
-    if arping -q -c 2 -w 3 -I "$dev" "$gateway"; then
+    if @BUSYBOX@ arping -q -c 2 -w 3 -I "$dev" "$gateway"; then
       misses=0
     elif [ $((misses += 1)) -ge 3 ]; then
       release
@@ -507,10 +511,11 @@ RestartSec=20
 [Install]
 WantedBy=multi-user.target
 `
-	return fmt.Sprintf("    - |\n      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n      chmod 755 /target%s\n"+
+	return fmt.Sprintf("    - install -D -m 0755 \"$(command -v busybox)\" /target%s\n"+
+		"    - |\n      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n      chmod 755 /target%s\n"+
 		"    - |\n      cat > /target/etc/systemd/system/tuist-edge-first-wan.service <<'TUIST_EOF'\n%s      TUIST_EOF\n"+
 		"    - curtin in-target --target=/target -- systemctl enable tuist-edge-first-wan.service\n",
-		EdgeFirstWANPath, indent(script, "      "), EdgeFirstWANPath, indent(unit, "      "))
+		EdgeFirstWANBusybox, EdgeFirstWANPath, indent(script, "      "), EdgeFirstWANPath, indent(unit, "      "))
 }
 
 // sshStartLimit takes sshd out of systemd's start rate limit (internal/sshd)
