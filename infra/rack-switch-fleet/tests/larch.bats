@@ -99,8 +99,10 @@ larch_ready() {
     [ "$status" -eq 0 ]
     ports="$(yq -o=json '.spec.config.ports' <<<"$output")"
     port() { jq -c --argjson n "$1" '.[] | select(.port == $n) | [.nativeVlan, .taggedVlans]' <<<"$ports"; }
-    # A mini's port, not yet recorded: on no segment.
-    [ "$(port 1)" = '[1,[]]' ]
+    # A mini's port: untagged on the machines VLAN, not management.
+    [ "$(port 1)" = '[10,[]]' ]
+    # A port with nothing recorded on it: on no segment.
+    [ "$(port 6)" = '[1,[]]' ]
     # larch-pdu-b's card and larch-edge-b's BMC.
     [ "$(port 23)" = '[20,[]]' ]
     [ "$(port 28)" = '[20,[]]' ]
