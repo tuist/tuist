@@ -71,13 +71,24 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
             gitCommitSHA: sha
         )
 
+        // Raw URLs rather than link components, so CI logs, which aren't terminals, show them.
+        let commits = serverURL.appendingPathComponent(fullHandle).appendingPathComponent("tests/coverage/commits")
+
         guard case let .complete(coverage) = completion else {
             if json {
                 try Noora.current.json(CoverageCompletePendingOutput(gitCommitSHA: sha, complete: false, pending: true))
             } else {
+                // Usually the runs are still being processed, but a signal kept for a commit the
+                // runs didn't report never applies, so name the commit and how to signal another.
+                let resolved = commit == nil ? ", the checkout's HEAD," : ""
                 AlertController.current.success(
                     .alert(
-                        "No run of commit \(sha.prefix(7)) has reported coverage yet. Its coverage is marked complete once one does."
+                        "No run of commit \(sha.prefix(7))\(resolved) has reported coverage yet. That's expected while its runs are still being processed: the signal is kept, and the commit's coverage is marked complete once one is.",
+                        takeaways: [
+                            "If your test runs reported another commit, signal that one with \(.command("tuist coverage complete --commit <sha>"))",
+                            // The commit's own page is a 404 until one of its runs is processed.
+                            "See the commits your runs reported coverage for at \(commits.absoluteString)",
+                        ]
                     )
                 )
             }
@@ -111,7 +122,8 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
 
         AlertController.current.success(
             .alert(
-                "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%\(over)\(partial).\(incomplete)"
+                "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%\(over)\(partial).\(incomplete)",
+                takeaways: ["See the commit's coverage at \(commits.appendingPathComponent(sha).absoluteString)"]
             )
         )
     }
