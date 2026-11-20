@@ -33,16 +33,25 @@ defmodule LuftServer.MixProject do
   defp deps do
     [
       {:bandit, "~> 1.5"},
+      {:boruta,
+       git: "https://github.com/malach-it/boruta_auth",
+       ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
+      {:condukt, path: "../condukt"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dns_cluster, "~> 0.2"},
       {:ecto_sql, "~> 3.10"},
+      {:gun, "~> 2.8", only: [:dev, :test]},
       {:jason, "~> 1.4"},
       {:jose, "~> 1.11"},
-      {:phoenix, "~> 1.7.12"},
+      {:muontrap, "~> 1.8"},
+      {:oban, "~> 2.21.0"},
+      {:phoenix, "~> 1.8"},
       {:phoenix_ecto, "~> 4.4"},
       {:plug, "~> 1.18"},
       {:postgrex, "~> 0.20"},
       {:req, "~> 0.5"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:websock_adapter, "~> 0.5"},
       {:tuist_ex, path: "../tuist_ex", only: [:dev, :test], runtime: false}
     ]
   end

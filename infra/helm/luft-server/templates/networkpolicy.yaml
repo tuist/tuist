@@ -1,6 +1,6 @@
 {{- if .Values.networkPolicy.enabled }}
-# Ingress only from the ingress controller. Egress: DNS, its own PostgreSQL,
-# and public HTTPS to the Tuist server (never cluster-internal Tuist services).
+# HTTP ingress from the ingress controller; distribution only between release pods.
+# Egress: DNS, its own PostgreSQL, peers and public HTTPS (never internal Tuist).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -20,7 +20,27 @@ spec:
           podSelector:
             matchLabels:
               {{- toYaml .Values.networkPolicy.ingressControllerPodLabels | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.port }} }
+    {{- if .Values.cluster.enabled }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "luft-server.selectorLabels" . | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 4369 }
+        - { protocol: TCP, port: 9100 }
+    {{- end }}
   egress:
+    {{- if .Values.cluster.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "luft-server.selectorLabels" . | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: 4369 }
+        - { protocol: TCP, port: 9100 }
+    {{- end }}
     - to:
         - namespaceSelector: {}
           podSelector:

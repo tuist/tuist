@@ -186,7 +186,6 @@ defmodule Tuist.Application do
       :processor -> "tuist-processor"
       :xcresult_processor -> "tuist-xcresult-processor"
       :swift_registry_sync -> "tuist-swift-registry-sync"
-      :agents -> "tuist-agents"
     end
   end
 
@@ -398,8 +397,6 @@ defmodule Tuist.Application do
           # Subscribe only after PubSub is running, not while dependencies boot.
           FunWithFlags.Supervisor,
           Tuist.Sandboxes.NodePresence,
-          Tuist.Threads.Clients,
-          Tuist.Halls.Presence,
           {DynamicSupervisor, name: Tuist.RemoteExecution.Schedulers, strategy: :one_for_one},
           {Task.Supervisor, name: Tuist.RemoteExecution.Tasks},
           Tuist.KeyValueStore.Invalidator,
@@ -419,15 +416,8 @@ defmodule Tuist.Application do
         [
           TuistWeb.Draining,
           TuistWeb.Endpoint,
-          {Task.Supervisor, name: Tuist.Threads.Tasks},
-          Tuist.Threads.Cards,
           {Oban, Application.fetch_env!(:tuist, Oban)}
         ] ++
-        RuntimeChildren.agents(
-          Environment.mode(),
-          Environment.delegate_agents?(),
-          Application.get_env(:tuist, Tuist.Agents.Runner, [])
-        ) ++
         once_events_grpc_children() ++
         RuntimeChildren.readiness_server(Environment.mode())
 

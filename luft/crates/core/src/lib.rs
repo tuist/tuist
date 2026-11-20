@@ -3,8 +3,8 @@ use core::ffi::{c_char, c_void};
 mod bridge;
 mod client;
 pub mod compose;
-mod halls;
 mod live;
+mod lounges;
 pub mod navigation;
 mod palette;
 mod presence;
@@ -14,8 +14,8 @@ mod threads;
 mod updates;
 pub use bridge::{tuist_app_call, tuist_app_free};
 pub use client::{Host, MobileClient};
-pub use halls::{Halls, organizations};
 pub use live::{INBOX, Live};
+pub use lounges::{Lounges, organizations};
 pub use presence::{Presence, Socket};
 pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};
 
@@ -25,18 +25,18 @@ pub use threads::{THREADS_UNAVAILABLE, Threads, Transport};
 pub enum Tab {
     #[default]
     Threads = 0,
-    Halls = 1,
+    Lounges = 1,
     Dms = 2,
     Profile = 3,
 }
 
 impl Tab {
-    pub const ALL: [Self; 4] = [Self::Threads, Self::Halls, Self::Dms, Self::Profile];
+    pub const ALL: [Self; 4] = [Self::Threads, Self::Lounges, Self::Dms, Self::Profile];
 
     pub fn id(self) -> &'static str {
         match self {
             Self::Threads => "threads",
-            Self::Halls => "halls",
+            Self::Lounges => "lounges",
             Self::Dms => "dms",
             Self::Profile => "profile",
         }
@@ -50,7 +50,7 @@ impl Tab {
 fn tab_id(index: i32) -> Option<&'static core::ffi::CStr> {
     match index {
         0 => Some(c"threads"),
-        1 => Some(c"halls"),
+        1 => Some(c"lounges"),
         2 => Some(c"dms"),
         3 => Some(c"profile"),
         _ => None,
@@ -99,6 +99,11 @@ mod tests {
     #[test]
     fn native_frontends_share_the_navigation_catalog() {
         assert_eq!(tuist_app_tab_count(), 4);
+        // Native callers persist these numeric values; renaming a tab must not reorder them.
+        assert_eq!(
+            Tab::ALL.map(|tab| (tab as i32, tab.id())),
+            [(0, "threads"), (1, "lounges"), (2, "dms"), (3, "profile")]
+        );
         for (index, tab) in Tab::ALL.iter().enumerate() {
             let id = tab_id(index as i32).unwrap().to_str().unwrap();
             assert_eq!(id, tab.id());

@@ -3,9 +3,9 @@ import SwiftUI
 /// A screen the core's navigation opens: pushed onto a stack, or picked in the iPhone's sidebar.
 enum WorkspaceRoute: Hashable {
     case thread(String)
-    /// A hall, or a DM in the DMs stack.
-    case hall(String)
-    /// Halls, DMs or Profile, picked in the iPhone's sidebar.
+    /// A lounge, or a DM in the DMs stack.
+    case lounge(String)
+    /// Lounges, DMs or Profile, picked in the iPhone's sidebar.
     case list(AppNavigation.Tab)
 }
 
@@ -96,7 +96,7 @@ struct AppWorkspace: View {
         .onChange(of: client.view.navigation.tab, initial: true) { _, coreTab in tab = coreTab }
         // Deep links, notification taps and Back change the open conversations in the core too.
         .onChange(of: client.view.navigation.thread_id, initial: true) { _, _ in followCore(.threads) }
-        .onChange(of: client.view.navigation.hall_id, initial: true) { _, _ in followCore(.halls) }
+        .onChange(of: client.view.navigation.lounge_id, initial: true) { _, _ in followCore(.lounges) }
         .onChange(of: client.view.navigation.dm_id, initial: true) { _, _ in followCore(.dms) }
         .focusedSceneValue(\.selectTab, client.view.active == nil ? nil : SelectTabAction { tab = $0 })
         .focusedSceneValue(\.commandPalette, client.view.active == nil ? nil : CommandPaletteAction {
@@ -116,7 +116,7 @@ struct AppWorkspace: View {
                 }
             }
         }
-        // Another account has other threads and halls.
+        // Another account has other threads and lounges.
         .onChange(of: client.view.generation) { _, _ in showingPalette = false }
         .tint(Noora.primary)
         // Omarchy themes have one appearance; system controls and bars follow it.
@@ -206,15 +206,15 @@ struct AppWorkspace: View {
         }
     }
 
-    /// The Halls or DMs list, and the conversation the core says is open in it.
-    private func hallsStack(_ tab: AppNavigation.Tab) -> some View {
+    /// The Lounges or DMs list, and the conversation the core says is open in it.
+    private func loungesStack(_ tab: AppNavigation.Tab) -> some View {
         NavigationStack(path: Binding(
-            get: { openConversations[tab].map { [WorkspaceRoute.hall($0)] } ?? [] },
+            get: { openConversations[tab].map { [WorkspaceRoute.lounge($0)] } ?? [] },
             set: { routes in
-                if case let .hall(id) = routes.last { show(id, in: tab) } else { show(nil, in: tab) }
+                if case let .lounge(id) = routes.last { show(id, in: tab) } else { show(nil, in: tab) }
             }
         )) {
-            HallsView(client: client, tab: tab.rawValue, inbox: inboxes.halls(client.view.generation))
+            LoungesView(client: client, tab: tab.rawValue, inbox: inboxes.lounges(client.view.generation))
             #if os(iOS)
                 .toolbar { sidebarButton }
             #endif
@@ -226,7 +226,7 @@ struct AppWorkspace: View {
         private var sidebar: some View {
             List(selection: $tab) {
                 Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(AppNavigation.Tab.threads)
-                Label("Halls", systemImage: "number").tag(AppNavigation.Tab.halls)
+                Label("Lounges", systemImage: "number").tag(AppNavigation.Tab.lounges)
                 Label("DMs", systemImage: "bubble.left.and.text.bubble.right").tag(AppNavigation.Tab.dms)
                 Label("Profile", systemImage: "person.crop.circle").tag(AppNavigation.Tab.profile)
             }
@@ -249,10 +249,10 @@ struct AppWorkspace: View {
                     client: client, starting: $startingConversation,
                     inbox: inboxes.threads(client.view.generation), selection: selection
                 )
-            case .halls, .dms:
-                HallsView(
+            case .lounges, .dms:
+                LoungesView(
                     client: client, tab: tab.rawValue,
-                    inbox: inboxes.halls(client.view.generation), selection: selection
+                    inbox: inboxes.lounges(client.view.generation), selection: selection
                 )
             case .profile: EmptyView()
             }
@@ -260,7 +260,7 @@ struct AppWorkspace: View {
 
         @ViewBuilder private var openConversation: some View {
             if let id = openID {
-                NavigationStack { destination(tab == .threads ? .thread(id) : .hall(id)) }
+                NavigationStack { destination(tab == .threads ? .thread(id) : .lounge(id)) }
             } else {
                 ContentUnavailableView(
                     tab == .threads ? "No Thread Selected" : "No Conversation Selected",
@@ -283,7 +283,7 @@ struct AppWorkspace: View {
                     // Destinations stay mounted once visited, like tabs, so going back to one keeps its
                     // list and scroll instead of loading it again.
                     ZStack {
-                        ForEach([AppNavigation.Tab.threads, .halls, .dms, .profile], id: \.self) { tab in
+                        ForEach([AppNavigation.Tab.threads, .lounges, .dms, .profile], id: \.self) { tab in
                             if visitedTabs.contains(tab) {
                                 let current = tab == client.view.navigation.tab
                                 destinationStack(tab)
@@ -293,7 +293,7 @@ struct AppWorkspace: View {
                             }
                         }
                     }
-                    // Swiping in from the edge pulls the sidebar out under the finger; once a hall
+                    // Swiping in from the edge pulls the sidebar out under the finger; once a lounge
                     // is open, the edge goes Back instead. It stays while the finger drags from it.
                     .overlay(alignment: .leading) {
                         if !sidebarOpen, canOpenSidebarFromEdge {
@@ -342,8 +342,8 @@ struct AppWorkspace: View {
             switch tab {
             case .threads:
                 NavigationStack { threadsRoot.toolbar { sidebarButton } }
-            case .halls, .dms:
-                hallsStack(tab)
+            case .lounges, .dms:
+                loungesStack(tab)
             case .profile:
                 NavigationStack { destination(.list(.profile)).toolbar { sidebarButton } }
             }
@@ -370,7 +370,7 @@ struct AppWorkspace: View {
         private var canOpenSidebarFromEdge: Bool {
             let navigation = client.view.navigation
             return switch navigation.tab {
-            case .halls: navigation.hall_id == nil
+            case .lounges: navigation.lounge_id == nil
             case .dms: navigation.dm_id == nil
             case .threads, .profile: true
             }
@@ -400,8 +400,8 @@ struct AppWorkspace: View {
             setSidebar(open: false)
             let url = switch route {
             case let .thread(id): "/threads/\(id)"
-            case let .hall(id): "/\(client.view.navigation.tab.rawValue)/\(id)"
-            // Halls and DMs open at their list, not a conversation left open there.
+            case let .lounge(id): "/\(client.view.navigation.tab.rawValue)/\(id)"
+            // Lounges and DMs open at their list, not a conversation left open there.
             case let .list(tab): "/\(tab.rawValue)"
             }
             Task { await client.perform("navigate", ["url": url]) }
@@ -411,14 +411,14 @@ struct AppWorkspace: View {
     @ViewBuilder private func destination(_ route: WorkspaceRoute) -> some View {
         switch route {
         case let .thread(id): ConversationView(client: client, id: id).id(id)
-        case let .hall(id):
-            HallConversationView(client: client, id: id, listedTitle: listedHallTitle(id)).id(id)
+        case let .lounge(id):
+            LoungeConversationView(client: client, id: id, listedTitle: listedLoungeTitle(id)).id(id)
         case .list(.profile):
             ProfileView(client: client, updater: updater, addingProfile: $addingProfile)
             #if os(iOS)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
             #endif
-        case let .list(tab): HallsView(client: client, tab: tab.rawValue, inbox: inboxes.halls(client.view.generation))
+        case let .list(tab): LoungesView(client: client, tab: tab.rawValue, inbox: inboxes.lounges(client.view.generation))
         }
     }
 
@@ -448,15 +448,15 @@ struct AppWorkspace: View {
         let navigation = client.view.navigation
         openConversations[tab] = switch tab {
         case .threads: navigation.thread_id
-        case .halls: navigation.hall_id
+        case .lounges: navigation.lounge_id
         case .dms: navigation.dm_id
         case .profile: nil
         }
     }
 
-    private func listedHallTitle(_ id: String) -> String? {
-        let page = inboxes.halls(client.view.generation).page
-        return (page?.halls ?? []).first { $0.id == id }?.title ?? (page?.directs ?? []).first { $0.id == id }?.title
+    private func listedLoungeTitle(_ id: String) -> String? {
+        let page = inboxes.lounges(client.view.generation).page
+        return (page?.lounges ?? []).first { $0.id == id }?.title ?? (page?.directs ?? []).first { $0.id == id }?.title
     }
 
     /// Switches between the personal accounts and organizations of every saved
@@ -500,23 +500,23 @@ struct AppWorkspace: View {
 @MainActor private final class Inboxes {
     private var generation: UInt64?
     private var threadInbox = ThreadInbox()
-    private var hallInbox = HallInbox()
+    private var loungeInbox = LoungeInbox()
 
     func threads(_ generation: UInt64) -> ThreadInbox {
         reset(generation)
         return threadInbox
     }
 
-    func halls(_ generation: UInt64) -> HallInbox {
+    func lounges(_ generation: UInt64) -> LoungeInbox {
         reset(generation)
-        return hallInbox
+        return loungeInbox
     }
 
     private func reset(_ generation: UInt64) {
         guard generation != self.generation else { return }
         self.generation = generation
         threadInbox = ThreadInbox()
-        hallInbox = HallInbox()
+        loungeInbox = LoungeInbox()
     }
 }
 

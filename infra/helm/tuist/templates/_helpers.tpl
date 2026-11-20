@@ -1837,15 +1837,6 @@ http://{{ $p.user }}:{{ printf "{{ .%s | trim }}" .key }}@{{ $p.host }}/v1/sentr
 {{- end }}
 
 {{/*
-Whether the agents Deployment runs. Its pods join the server's Erlang cluster
-for session wakes and the Condukt session registry, so without clustering the
-server pods host agent sessions themselves.
-*/}}
-{{- define "tuist.agentsEnabled" -}}
-{{- if and .Values.server.enabled .Values.agents.enabled .Values.server.cluster.enabled }}true{{- end }}
-{{- end }}
-
-{{/*
 Which keys Tuist.Vault holds and which one it encrypts new values with. Plain
 env vars on every workload that reads the server config Secret, rather than
 keys in that Secret, so changing either rolls the pods. A pod refuses to boot

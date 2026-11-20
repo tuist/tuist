@@ -13,7 +13,7 @@ struct AppMessage: Decodable, Identifiable {
     var toolStatus: String?
     var createdAt: String?
     /// Who wrote a prompt, in a thread someone was looped into.
-    var author: HallPerson?
+    var author: LoungePerson?
     var attachments: [PromptAttachment]?
 
     var createdDate: Date? {
@@ -106,6 +106,8 @@ struct AppConversation: Decodable {
     let working: Bool
     let state: String?
     let messages: [AppMessage]
+    var reauthorization_required: Bool?
+    var can_reauthorize: Bool?
     /// Set while the person snoozed it, decided by the Rust core.
     var snooze: AppSnooze?
     /// The current step of the answering run's plan, when it shared one.
@@ -113,8 +115,8 @@ struct AppConversation: Decodable {
     /// The core exposes this only for a live, ready sandbox residency.
     var workspace_ready_id: String?
     /// The thread's owner and the people looped into it by a mention.
-    var owner: HallPerson?
-    var participants: [HallPerson]?
+    var owner: LoungePerson?
+    var participants: [LoungePerson]?
     /// Earlier messages stay on the server; `next_before` loads the page before these.
     var has_more: Bool?
     var next_before: Int?
@@ -395,7 +397,7 @@ struct ConversationView: View {
                         // A card can call `reply` without a tap (on mount, from a timer),
                         // so its text goes to the composer and the person sends it.
                         case let .message(message):
-                            MessageRow(message: message, showAuthor: shared, answering: sending, answer: { option in
+                            MessageRow(message: message, showAuthor: shared, answering: sending || thread?.reauthorization_required == true, answer: { option in
                                 Task { await answer(message, option: option) }
                             }) { text in reply = text }.id(message.id)
                         case let .tools(tools): ToolActivity(tools: tools).id(tools[0].id)
@@ -452,6 +454,16 @@ struct ConversationView: View {
         .overlay { if thread == nil, error == nil { ProgressView() } }
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .trailing, spacing: 8) {
+                if thread?.reauthorization_required == true {
+                    Text("The owner must authorize future messages with their current sign-in. This does not resume previous work.")
+                        .font(.callout).foregroundStyle(Noora.labelSecondary)
+                    if thread?.can_reauthorize == true {
+                        Button("Authorize future messages") {
+                            Task { await reauthorize() }
+                        }
+                        .disabled(sending)
+                    }
+                }
                 #if os(iOS)
                     if thread?.workspace_ready_id != nil {
                         Label("Sandbox ready", systemImage: "checkmark.circle")
@@ -500,7 +512,7 @@ struct ConversationView: View {
                             .padding(.trailing, 4)
                     #endif
                 }
-                ReplyComposer(reply: $reply, disabled: thread?.working != false, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments) {
+                ReplyComposer(reply: $reply, disabled: thread?.working != false || thread?.reauthorization_required == true, sending: sending, voice: voice, mentions: mentions, focus: $replyFocused, attachments: $attachments) {
                     Task { await send() }
                 }
             }
@@ -679,6 +691,18 @@ struct ConversationView: View {
         } catch {
             self.error = error.localizedDescription
             leaveSnoozeChoices()
+        }
+    }
+
+    private func reauthorize() async {
+        guard !sending else { return }
+        sending = true
+        defer { sending = false }
+        do {
+            show(try await client.conversation("reauthorize_thread", ["id": id, "consent": true]))
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
@@ -1166,8 +1190,8 @@ private var audioInterruption: Notification.Name {
 
 /// Who is in a shared thread: its owner, whose subscription runs it, and the people looped in.
 private struct ParticipantsLabel: View {
-    let owner: HallPerson?
-    let participants: [HallPerson]
+    let owner: LoungePerson?
+    let participants: [LoungePerson]
 
     var body: some View {
         let names = ([owner] + participants).compactMap { $0?.handle }

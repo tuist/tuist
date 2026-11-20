@@ -8,10 +8,10 @@ Struo workspace: Cargo owns the dependency graph and `struo.toml` seeds it with 
 `tuist/luft` for caching and insights;
 sign in once per machine with `struo auth login --provider tuist`.
 
-The app signs in with the browser and shows a Threads/Halls/DMs/Profile shell laid
+The app signs in with the browser and shows a Threads/Lounges/DMs/Profile shell laid
 out like Zed's workspace; Threads lists, starts and continues server-side conversations
 through the core's `Threads` operations (`gpui/src/workspace/threads.rs`), and
-Halls and DMs use its `Halls` operations (`gpui/src/workspace/halls.rs`).
+Lounges and DMs use its `Lounges` operations (`gpui/src/workspace/lounges.rs`).
 
 ## Crates
 
@@ -21,8 +21,7 @@ only its dependants. Only `gpui` depends on gpui; never pull UI or gpui types
 into the library crates.
 
 - `crates/jwt`: unverified JWT claim reading (expiry, type, account).
-- `crates/credentials`: the credential files and refresh lock shared with the
-  CLI and the Swift app.
+- `crates/credentials`: Luft's credential files and refresh lock, isolated from CLI and shipping-app storage.
 - `crates/oauth`: blocking calls to the server's OAuth endpoints, PKCE, and the
   loopback redirect listener.
 - `crates/session`: composes the three into status, access tokens, sign-in,
@@ -42,22 +41,15 @@ into the library crates.
 Add a crate when a real dependency boundary appears (a new server API, a
 feature with its own state), not for every module.
 
-## Shared session
+## Luft session
 
-Sign-in must interoperate with `tuist auth login`, which reads the same files.
-The shipping macOS app and the native Swift client keep their own sessions in
-the Keychain. Treat these as a frozen contract with
-`cli/Sources/TuistServer/Utilities/ServerCredentialsStore.swift`,
-`ServerAuthenticationController.swift`, and `CachedValueStore.swift`:
+Keep desktop sessions separate from `tuist auth login` and shipping-app credentials. The credential JSON format remains compatible with the existing Rust crates; its storage namespace and issuer are Luft's:
 
 - Credentials live in `<config>/credentials/<lowercased host, trailing dots
   removed>.json` as Swift's `ServerCredentials` JSON (`accessToken`,
   `refreshToken`, `oauthClientID`, `rejected`). Read legacy host aliases; sign
   out deletes all of them. Corrupt files are errors, never "signed out".
-- `<config>`/`<state>` follow `Environment.configDirectory`/`stateDirectory`
-  on macOS (`TUIST_`-prefixed then plain XDG variables). The Linux CLI keeps
-  credentials under `$HOME/.config/tuist`. Windows has no Swift client and uses
-  non-roaming `%LOCALAPPDATA%` for credentials, desktop account data, and locks.
+- `Directories::from_env` appends `/luft` to config/state/data bases. Preserve this suffix even with directory overrides, so no legacy CLI credentials or selected Tuist origin are reused. Default credentials live in `~/.config/tuist/luft/credentials/` on macOS/Linux and `%LOCALAPPDATA%/tuist/luft/credentials/` on Windows. See the parent README for account and lock paths.
 - Rotation holds an exclusive file lock at
   `<state>/cached_value_store/credential-refresh-<unpadded FNV-1a 64 hex of the
   credentials path>.lock`, rereads the store under the lock, keeps a peer's
@@ -65,10 +57,7 @@ the Keychain. Treat these as a frozen contract with
   when nobody rotated them meanwhile. Transient failures keep credentials.
 - Browser sign-in uses Luft's static public PKCE client
   (`tuist_oauth::LUFT_CLIENT_ID`) with a `127.0.0.1` loopback redirect
-  (RFC 8252), after checking that `/.well-known/tuist.json` advertises it; the server asks the person to approve it on a consent page. The
-  issuing client ID is stored so every client refreshes with it. Account
-  refresh tokens use `/oauth2/token`; legacy CLI tokens use
-  `/api/auth/refresh_token`.
+  (RFC 8252), after checking that `/.well-known/luft.json` advertises it. Use Luft's `/oauth2/authorize`, `/oauth2/apple`, `/oauth2/google`, `/oauth2/github` and `/oauth2/token`; the server brokers Tuist OIDC and returns Luft credentials. Keep the issuing client ID for refreshes. Do not import legacy CLI tokens.
 - `Accounts` owns additional login snapshots and the selected full server URL,
   separate from the frozen canonical file. Use it for desktop sign-in,
   switching, and sign-out; never restore archived tokens over a fresher shared
@@ -76,8 +65,8 @@ the Keychain. Treat these as a frozen contract with
   Workspace sessions bind their identity and full server profile. Credential use
   holds the registry lock before the host lock through refresh and its writes,
   so old work cannot use another profile's login even with the same account ID.
-- The account/server form accepts HTTPS URLs. `TUIST_URL` overrides the saved
-  startup selection; internal development resolution also allows HTTP loopback.
+- The account/server form accepts HTTPS Luft server URLs and defaults to `https://luft.work`. `LUFT_URL` overrides the saved
+  startup selection; `TUIST_URL` does not. Internal development resolution also allows HTTP loopback.
   See `README.md` for platform storage paths and the browser account contract.
 
 ## UI references

@@ -28,28 +28,33 @@ defmodule LuftServerWeb.WebControllerTest do
     end)
   end
 
-  test "client-side routes get the HTML shell, revalidated on every load", %{conn: conn} do
-    conn = get(conn, "/organizations/tuist")
-
-    assert html_response(conn, 200) =~ "<title>Luft</title>"
-    assert get_resp_header(conn, "cache-control") == ["no-cache"]
-    assert [csp] = get_resp_header(conn, "content-security-policy")
-    assert csp =~ "script-src 'self' 'wasm-unsafe-eval'"
-    assert csp =~ "frame-ancestors 'none'"
+  test "root and client-side routes are JSON 404s even with a built HTML shell", %{conn: conn} do
+    for path <- ["/", "/index.html", "/organizations/tuist"] do
+      conn = conn |> put_req_header("accept", "text/html") |> get(path)
+      assert json_response(conn, 404) == %{"error" => "not_found"}
+      refute response(conn, 404) =~ "<title>Luft</title>"
+    end
   end
 
-  test "hashed assets are immutable and served gzipped when accepted", %{conn: conn} do
-    plain = get(conn, "/assets/main-abc123.js")
-    assert response(plain, 200) == "console.log(1)"
-    assert get_resp_header(plain, "cache-control") == ["public, max-age=31536000, immutable"]
-
-    gzipped = conn |> put_req_header("accept-encoding", "gzip") |> get("/assets/main-abc123.js")
-    assert get_resp_header(gzipped, "content-encoding") == ["gzip"]
-    assert :zlib.gunzip(response(gzipped, 200)) == "console.log(1)"
+  test "built assets are never served, including compressed copies", %{conn: conn} do
+    for path <- ["/assets/main-abc123.js", "/assets/main-abc123.js.gz"],
+        encoding <- ["identity", "gzip"] do
+      conn = conn |> put_req_header("accept-encoding", encoding) |> get(path)
+      assert json_response(conn, 404) == %{"error" => "not_found"}
+      assert get_resp_header(conn, "content-encoding") == []
+      refute get_resp_header(conn, "cache-control") == ["public, max-age=31536000, immutable"]
+    end
   end
 
-  test "missing assets, API routes and dotfiles are JSON 404s, never the shell", %{conn: conn} do
-    for path <- ["/assets/missing.js", "/api/missing", "/auth/missing", "/.env"] do
+  test "missing assets, auth routes and dotfiles are JSON 404s, never the shell", %{conn: conn} do
+    for path <- [
+          "/assets/missing.js",
+          "/auth/missing",
+          "/.env",
+          "/@vite/client",
+          "/src/main.ts",
+          "/node_modules/.vite/deps/example.js"
+        ] do
       assert json_response(get(conn, path), 404) == %{"error" => "not_found"}
     end
   end

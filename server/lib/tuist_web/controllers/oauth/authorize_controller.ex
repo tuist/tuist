@@ -44,10 +44,10 @@ defmodule TuistWeb.Oauth.AuthorizeController do
         # approve it on the page `preauthorize_success/2` renders, which posts
         # back here with the same query.
         #
-        # The Luft server is a confidential client with fixed HTTPS
-        # redirects, so it needs no consent page, but it goes through the same
-        # preauthorization: Boruta lets any client have the scopes marked
-        # public, and only `Clients.luft_server_scopes/0` are the Luft server's.
+        # The Luft server brokers those same claimable native redirects, so
+        # its confidential upstream client also requires fresh approval.
+        # Enforce it even without prompt=consent, and preauthorize to restrict
+        # the public scopes Boruta would otherwise allow this client to have.
         cond do
           query["client_id"] == Clients.luft_client_id() ->
             conn
@@ -56,7 +56,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
 
           is_binary(query["client_id"]) and query["client_id"] == Clients.luft_server_client_id() ->
             conn
-            |> put_private(:oauth_consent, {:allow, resource_owner, Clients.luft_server_scopes()})
+            |> put_private(:oauth_consent, {consent(conn), resource_owner, Clients.luft_server_scopes()})
             |> Oauth.preauthorize(resource_owner, __MODULE__)
 
           true ->

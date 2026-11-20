@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - luft-server/**
+      - condukt/**
       - tuist_ex/**
       - .github/workflows/luft-server.yml
   push:
@@ -12,6 +13,7 @@ on:
       - main
     paths:
       - luft-server/**
+      - condukt/**
       - tuist_ex/**
       - .github/workflows/luft-server.yml
   merge_group: {}
@@ -27,6 +29,8 @@ concurrency:
 env:
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_CEILING_PATHS: ${{ github.workspace }}
+  CONDUKT_MICROSANDBOX_DISABLE: 1
+  CONDUKT_BASHKIT_DISABLE: 1
 
 defaults:
   run:

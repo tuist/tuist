@@ -461,9 +461,9 @@ defmodule Tuist.Sandboxes.Archives do
              s.archive_attempted_at < s.paused_at)
   end
 
-  # Orbs, Claude Code sessions' and Tuist threads' sandboxes: their next
-  # spawn or run restores an archived one (`AmpOrbs`,
-  # `Router.find_or_create_sandbox/3`, `Tuist.Threads.Workspace`). On macOS,
+  # Orbs, Claude Code sessions' and legacy Tuist threads' sandboxes.
+  # Active consumers restore an archive through `AmpOrbs` or
+  # `Router.find_or_create_sandbox/3`. On macOS,
   # every source's: a paused VM holds its disk on a Mac it shares with CI,
   # and a resume restores an archived one (`Sandboxes.resume/1`).
   defp idle_paused_sessions do

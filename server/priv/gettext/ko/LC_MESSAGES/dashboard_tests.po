@@ -29,7 +29,7 @@ msgstr "모든 테스트가 통과했습니다!"
 
 #: lib/tuist_web/live/coverage/components.ex:556
 #: lib/tuist_web/live/coverage/components.ex:766
-#: lib/tuist_web/live/coverage_detail_live.html.heex:100
+#: lib/tuist_web/live/coverage_detail_live.html.heex:117
 #: lib/tuist_web/live/coverage_file_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:65
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:58
@@ -41,8 +41,8 @@ msgstr "모든 테스트가 통과했습니다!"
 msgid "Analytics"
 msgstr "분석"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:384
-#: lib/tuist_web/live/coverage_detail_live.html.heex:394
+#: lib/tuist_web/live/coverage_detail_live.html.heex:401
+#: lib/tuist_web/live/coverage_detail_live.html.heex:411
 #: lib/tuist_web/live/flaky_tests_live.ex:291
 #: lib/tuist_web/live/flaky_tests_live.html.heex:10
 #: lib/tuist_web/live/once_runs_live.ex:1350
@@ -246,7 +246,7 @@ msgid "Command duration"
 msgstr "명령어 실행 시간"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:29
-#: lib/tuist_web/live/coverage_detail_live.html.heex:422
+#: lib/tuist_web/live/coverage_detail_live.html.heex:439
 #: lib/tuist_web/live/coverage_live.html.heex:93
 #: lib/tuist_web/live/once_test_run_live.html.heex:124
 #: lib/tuist_web/live/test_case_run_live.html.heex:205
@@ -477,8 +477,8 @@ msgid "File"
 msgstr "파일"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:126
-#: lib/tuist_web/live/coverage_detail_live.html.heex:191
-#: lib/tuist_web/live/coverage_detail_live.html.heex:510
+#: lib/tuist_web/live/coverage_detail_live.html.heex:208
+#: lib/tuist_web/live/coverage_detail_live.html.heex:527
 #: lib/tuist_web/live/flaky_tests_live.html.heex:415
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:316
 #: lib/tuist_web/live/shards_live.html.heex:546
@@ -965,7 +965,7 @@ msgstr "격리자"
 msgid "Quarantined tests"
 msgstr "격리된 테스트"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:543
+#: lib/tuist_web/live/coverage_detail_live.html.heex:560
 #: lib/tuist_web/live/coverage_live.html.heex:157
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:124
 #: lib/tuist_web/live/once_test_run_live.html.heex:109
@@ -1020,10 +1020,10 @@ msgstr "스킴"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:118
 #: lib/tuist_web/live/coverage/components.ex:40
-#: lib/tuist_web/live/coverage_detail_live.html.heex:160
-#: lib/tuist_web/live/coverage_detail_live.html.heex:284
-#: lib/tuist_web/live/coverage_detail_live.html.heex:372
-#: lib/tuist_web/live/coverage_detail_live.html.heex:501
+#: lib/tuist_web/live/coverage_detail_live.html.heex:177
+#: lib/tuist_web/live/coverage_detail_live.html.heex:301
+#: lib/tuist_web/live/coverage_detail_live.html.heex:389
+#: lib/tuist_web/live/coverage_detail_live.html.heex:518
 #: lib/tuist_web/live/coverage_file_live.html.heex:108
 #: lib/tuist_web/live/flaky_tests_live.html.heex:362
 #: lib/tuist_web/live/once_runs_live.ex:836
@@ -1126,8 +1126,8 @@ msgstr "건너뜀"
 msgid "Slowest test cases"
 msgstr "가장 느린 테스트 케이스"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:174
-#: lib/tuist_web/live/coverage_detail_live.html.heex:298
+#: lib/tuist_web/live/coverage_detail_live.html.heex:191
+#: lib/tuist_web/live/coverage_detail_live.html.heex:315
 #: lib/tuist_web/live/coverage_file_live.html.heex:122
 #: lib/tuist_web/live/flaky_tests_live.html.heex:378
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:287
@@ -1141,7 +1141,7 @@ msgid "Sort by:"
 msgstr "정렬 기준:"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:43
-#: lib/tuist_web/live/coverage_detail_live.html.heex:436
+#: lib/tuist_web/live/coverage_detail_live.html.heex:453
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:82
 #: lib/tuist_web/live/once_test_run_live.html.heex:52
 #: lib/tuist_web/live/once_test_run_live.html.heex:218
@@ -1256,7 +1256,7 @@ msgid "Test Run"
 msgstr "테스트 실행"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:632
-#: lib/tuist_web/live/coverage_detail_live.html.heex:478
+#: lib/tuist_web/live/coverage_detail_live.html.heex:495
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
 #: lib/tuist_web/live/test_runs_live.ex:28
@@ -1429,8 +1429,8 @@ msgid "Try changing your search term"
 msgstr "검색어를 변경해 보세요"
 
 #: lib/tuist_web/live/coverage/components.ex:682
-#: lib/tuist_web/live/coverage_detail_live.html.heex:249
-#: lib/tuist_web/live/coverage_detail_live.html.heex:550
+#: lib/tuist_web/live/coverage_detail_live.html.heex:266
+#: lib/tuist_web/live/coverage_detail_live.html.heex:567
 #: lib/tuist_web/live/coverage_file_live.html.heex:198
 #: lib/tuist_web/live/test_case_live.html.heex:1065
 #: lib/tuist_web/live/test_run_live.html.heex:1375
@@ -2183,7 +2183,7 @@ msgstr "이 타겟의 러너가 test.xml을 생성하지 않아 테스트 케이
 #: lib/tuist_web/live/coverage_commits_live.html.heex:3
 #: lib/tuist_web/live/coverage_detail_live.ex:52
 #: lib/tuist_web/live/coverage_detail_live.ex:132
-#: lib/tuist_web/live/coverage_detail_live.html.heex:108
+#: lib/tuist_web/live/coverage_detail_live.html.heex:125
 #: lib/tuist_web/live/coverage_file_live.ex:242
 #: lib/tuist_web/live/coverage_live.ex:52
 #, elixir-autogen, elixir-format
@@ -2192,9 +2192,9 @@ msgstr "코드 커버리지"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:40
 #: lib/tuist_web/live/coverage_detail_live.ex:469
-#: lib/tuist_web/live/coverage_detail_live.html.heex:211
-#: lib/tuist_web/live/coverage_detail_live.html.heex:425
-#: lib/tuist_web/live/coverage_detail_live.html.heex:533
+#: lib/tuist_web/live/coverage_detail_live.html.heex:228
+#: lib/tuist_web/live/coverage_detail_live.html.heex:442
+#: lib/tuist_web/live/coverage_detail_live.html.heex:550
 #: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:180
 #: lib/tuist_web/live/coverage_live.html.heex:96
@@ -2206,7 +2206,7 @@ msgstr "커버리지"
 #: lib/tuist_web/live/coverage/components.ex:575
 #: lib/tuist_web/live/coverage/components.ex:794
 #: lib/tuist_web/live/coverage/components.ex:947
-#: lib/tuist_web/live/coverage_detail_live.html.heex:120
+#: lib/tuist_web/live/coverage_detail_live.html.heex:137
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
 #, elixir-autogen, elixir-format
@@ -2215,7 +2215,7 @@ msgstr "커버된 라인"
 
 #: lib/tuist_web/live/coverage/components.ex:811
 #: lib/tuist_web/live/coverage/components.ex:948
-#: lib/tuist_web/live/coverage_detail_live.html.heex:128
+#: lib/tuist_web/live/coverage_detail_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
 msgstr "실행 가능한 라인"
@@ -2234,8 +2234,8 @@ msgstr "실행 횟수"
 #: lib/tuist_web/live/coverage/components.ex:103
 #: lib/tuist_web/live/coverage_detail_live.ex:470
 #: lib/tuist_web/live/coverage_detail_live.ex:631
-#: lib/tuist_web/live/coverage_detail_live.html.heex:235
-#: lib/tuist_web/live/coverage_detail_live.html.heex:271
+#: lib/tuist_web/live/coverage_detail_live.html.heex:252
+#: lib/tuist_web/live/coverage_detail_live.html.heex:288
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:175
 #, elixir-autogen, elixir-format
 msgid "Files"
@@ -2337,7 +2337,7 @@ msgstr "통과와 실패가 모두 발생한 테스트 케이스 수입니다."
 
 #: lib/tuist_web/helpers/test_labels.ex:44
 #: lib/tuist_web/live/coverage_detail_live.ex:555
-#: lib/tuist_web/live/coverage_detail_live.html.heex:536
+#: lib/tuist_web/live/coverage_detail_live.html.heex:553
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -2385,7 +2385,7 @@ msgstr "브랜치 %{name}"
 msgid "Branch:"
 msgstr "브랜치:"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:433
+#: lib/tuist_web/live/coverage_detail_live.html.heex:450
 #: lib/tuist_web/live/coverage_live.html.heex:99
 #: lib/tuist_web/live/test_selection/run_tab.ex:562
 #, elixir-autogen, elixir-format
@@ -2405,13 +2405,13 @@ msgid "Commit %{sha} has no coverage for this file"
 msgstr "커밋 %{sha}에는 이 파일에 대한 커버리지가 없습니다"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:629
-#: lib/tuist_web/live/coverage_detail_live.html.heex:336
+#: lib/tuist_web/live/coverage_detail_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Commits"
 msgstr "커밋"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:51
-#: lib/tuist_web/live/coverage_detail_live.html.heex:444
+#: lib/tuist_web/live/coverage_detail_live.html.heex:461
 #: lib/tuist_web/live/coverage_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Committed"
@@ -2450,23 +2450,23 @@ msgid "File: %{name}"
 msgstr "파일: %{name}"
 
 #: lib/tuist_web/live/coverage/components.ex:797
-#: lib/tuist_web/live/coverage_detail_live.html.heex:122
+#: lib/tuist_web/live/coverage_detail_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
 msgstr "커밋의 테스트가 최소 한 번 실행된 라인"
 
 #: lib/tuist_web/live/coverage/components.ex:813
-#: lib/tuist_web/live/coverage_detail_live.html.heex:130
+#: lib/tuist_web/live/coverage_detail_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
 msgstr "해당 커밋에서 커버리지를 위해 컴파일러가 계측한 라인"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:468
+#: lib/tuist_web/live/coverage_detail_live.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "No commit gathered coverage in this period"
 msgstr "이 기간 동안 커버리지를 수집한 커밋이 없습니다"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:462
+#: lib/tuist_web/live/coverage_detail_live.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "No commit matches these filters"
 msgstr "이 필터와 일치하는 커밋이 없습니다"
@@ -2491,7 +2491,7 @@ msgstr "이 기간 동안 %{branch}에서 변경된 커버리지가 없습니다
 msgid "No file matches this search"
 msgstr "이 검색과 일치하는 파일이 없습니다"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:326
+#: lib/tuist_web/live/coverage_detail_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "No file was measured at this commit"
 msgstr "이 커밋에서 측정된 파일이 없습니다"
@@ -2501,7 +2501,7 @@ msgstr "이 커밋에서 측정된 파일이 없습니다"
 msgid "No function matches this search"
 msgstr "검색과 일치하는 함수가 없습니다"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:566
+#: lib/tuist_web/live/coverage_detail_live.html.heex:583
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
 msgstr "여기서 커버리지를 수집한 실행이 없습니다"
@@ -2511,7 +2511,7 @@ msgstr "여기서 커버리지를 수집한 실행이 없습니다"
 msgid "No run gathered coverage on %{branch} in this period"
 msgstr "이번 기간 동안 %{branch} 브랜치에서 커버리지를 수집한 실행이 없습니다"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:549
+#: lib/tuist_web/live/coverage_detail_live.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "No run matches these filters"
 msgstr "필터와 일치하는 실행이 없습니다"
@@ -2531,19 +2531,19 @@ msgstr "이 커밋의 실행 중 커버리지를 수집한 것이 없어 자체 
 msgid "No run on branch %{branch} gathered coverage."
 msgstr "%{branch} 브랜치의 실행 중 커버리지를 수집한 것이 없습니다."
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:248
+#: lib/tuist_web/live/coverage_detail_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "No target matches these filters"
 msgstr "이 필터와 일치하는 대상 없음"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:263
+#: lib/tuist_web/live/coverage_detail_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "No target was measured at this commit"
 msgstr "이 커밋에서는 측정된 대상이 없습니다"
 
 #: lib/tuist_web/live/coverage/components.ex:425
 #: lib/tuist_web/live/coverage_detail_live.ex:379
-#: lib/tuist_web/live/coverage_detail_live.html.heex:223
+#: lib/tuist_web/live/coverage_detail_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Not measured"
 msgstr "측정되지 않음"
@@ -2565,12 +2565,12 @@ msgstr "선택적 테스팅 또는 필터로 인해 일부 테스트가 실행�
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
 msgstr "%{branch}, %{sha}의 최신 측정 커밋에서 이를 측정한 스킴을 종합한 실행 가능 라인의 커버리지 비율입니다."
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:110
+#: lib/tuist_web/live/coverage_detail_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines some run's tests ran at least once, across %{schemes}."
 msgstr "%{schemes} 전체에서 한 번 이상 실행된 테스트가 다룬 실행 가능 라인의 비율입니다."
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:390
+#: lib/tuist_web/live/coverage_detail_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Status:"
 msgstr "상태:"
@@ -2585,7 +2585,7 @@ msgstr "타겟 이름"
 msgid "The latest complete commit on %{branch} in this period has no coverage for this file"
 msgstr "이 기간 동안 %{branch}의 최신 완료 커밋은 이 파일에 대한 커버리지가 없습니다"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:355
+#: lib/tuist_web/live/coverage_detail_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
 msgstr "이러한 커밋은 리포지토리 기록상의 순서가 아닌 측정된 순서대로 나열됩니다."
@@ -2675,7 +2675,7 @@ msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
 msgstr[0] "그 중 %{count}개는 매크로가 생성한 코드와 같이 어떤 함수에도 속하지 않습니다."
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:226
+#: lib/tuist_web/live/coverage_detail_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
 msgstr "이 타겟의 테스트를 실행한 모든 실행은 커버리지 카운터 없이 빌드된 바이너리를 바이너리 캐시에서 가져왔기 때문에, 어떤 부분을 커버했는지 알 수 없습니다."
@@ -3334,3 +3334,13 @@ msgstr "아직 커버리지를 수집한 실행이 없습니다"
 #, elixir-autogen, elixir-format
 msgid "See recent coverage commits"
 msgstr "최근 커버리지 커밋 보기"
+
+#: lib/tuist_web/live/coverage_detail_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Runs from a checkout with uncommitted changes don't count"
+msgstr "커밋되지 않은 변경 사항이 있는 체크아웃에서 실행된 테스트는 집계되지 않습니다"
+
+#: lib/tuist_web/live/coverage_detail_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
+msgstr "해당 테스트는 현재 커밋과 무관한 코드를 측정했으므로, 커밋의 커버리지에서 제외되며 실제 커버리지는 더 높을 수 있습니다. 정확한 커밋 측정을 위해 테스트 전에 변경 사항을 커밋하거나 삭제하거나, CI 작업이 생성하는 파일을 체크아웃 외부에 두거나 Git에서 무시하도록 설정하세요. 테스트 실행 탭에서는 이러한 항목이 '삭제됨'으로 표시됩니다."

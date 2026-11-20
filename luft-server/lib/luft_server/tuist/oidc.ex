@@ -13,9 +13,8 @@ defmodule LuftServer.Tuist.OIDC do
 
   alias LuftServer.Config
 
-  # Who the person is, and creating organizations for them; Tuist grants the
-  # Luft server nothing else.
-  @scope "openid profile email account:organizations:write"
+  # Explicit confidential-client grants; this is not Tuist's first-party native client.
+  @scope "openid profile email account:organizations:write luft:app mcp account:delete account:members:read account:sandboxes:write account:repositories:read account:repositories:write project:admin:read project:previews:read project:previews:write"
   @metadata_ttl to_timeout(minute: 15)
   @clock_skew 60
 
@@ -48,7 +47,17 @@ defmodule LuftServer.Tuist.OIDC do
           fn {_key, value} -> is_nil(value) end
         )
 
-      {:ok, metadata["authorization_endpoint"] <> "?" <> URI.encode_query(params)}
+      endpoint =
+        case opts[:provider] do
+          provider when provider in ["apple", "google", "github"] ->
+            uri = URI.parse(metadata["authorization_endpoint"])
+            URI.to_string(%{uri | path: Path.join(Path.dirname(uri.path), provider)})
+
+          _ ->
+            metadata["authorization_endpoint"]
+        end
+
+      {:ok, endpoint <> "?" <> URI.encode_query(params)}
     end
   end
 
@@ -206,7 +215,7 @@ defmodule LuftServer.Tuist.OIDC do
   end
 
   defp request_options(options \\ []) do
-    Keyword.merge([receive_timeout: 10_000], Config.req_options()) |> Keyword.merge(options)
+    [receive_timeout: 10_000] |> Keyword.merge(Config.req_options()) |> Keyword.merge(options)
   end
 
   defp cached(key, fun) do

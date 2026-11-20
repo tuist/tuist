@@ -29,7 +29,7 @@ msgstr "所有測試皆通過！"
 
 #: lib/tuist_web/live/coverage/components.ex:556
 #: lib/tuist_web/live/coverage/components.ex:766
-#: lib/tuist_web/live/coverage_detail_live.html.heex:100
+#: lib/tuist_web/live/coverage_detail_live.html.heex:117
 #: lib/tuist_web/live/coverage_file_live.html.heex:66
 #: lib/tuist_web/live/once_tests_live.html.heex:65
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:58
@@ -41,8 +41,8 @@ msgstr "所有測試皆通過！"
 msgid "Analytics"
 msgstr "分析資料"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:384
-#: lib/tuist_web/live/coverage_detail_live.html.heex:394
+#: lib/tuist_web/live/coverage_detail_live.html.heex:401
+#: lib/tuist_web/live/coverage_detail_live.html.heex:411
 #: lib/tuist_web/live/flaky_tests_live.ex:291
 #: lib/tuist_web/live/flaky_tests_live.html.heex:10
 #: lib/tuist_web/live/once_runs_live.ex:1350
@@ -246,7 +246,7 @@ msgid "Command duration"
 msgstr "指令持續時間"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:29
-#: lib/tuist_web/live/coverage_detail_live.html.heex:422
+#: lib/tuist_web/live/coverage_detail_live.html.heex:439
 #: lib/tuist_web/live/coverage_live.html.heex:93
 #: lib/tuist_web/live/once_test_run_live.html.heex:124
 #: lib/tuist_web/live/test_case_run_live.html.heex:205
@@ -477,8 +477,8 @@ msgid "File"
 msgstr "檔案"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:126
-#: lib/tuist_web/live/coverage_detail_live.html.heex:191
-#: lib/tuist_web/live/coverage_detail_live.html.heex:510
+#: lib/tuist_web/live/coverage_detail_live.html.heex:208
+#: lib/tuist_web/live/coverage_detail_live.html.heex:527
 #: lib/tuist_web/live/flaky_tests_live.html.heex:415
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:316
 #: lib/tuist_web/live/shards_live.html.heex:546
@@ -965,7 +965,7 @@ msgstr "隔離者"
 msgid "Quarantined tests"
 msgstr "已隔離的測試"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:543
+#: lib/tuist_web/live/coverage_detail_live.html.heex:560
 #: lib/tuist_web/live/coverage_live.html.heex:157
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:124
 #: lib/tuist_web/live/once_test_run_live.html.heex:109
@@ -1020,10 +1020,10 @@ msgstr "Scheme"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:118
 #: lib/tuist_web/live/coverage/components.ex:40
-#: lib/tuist_web/live/coverage_detail_live.html.heex:160
-#: lib/tuist_web/live/coverage_detail_live.html.heex:284
-#: lib/tuist_web/live/coverage_detail_live.html.heex:372
-#: lib/tuist_web/live/coverage_detail_live.html.heex:501
+#: lib/tuist_web/live/coverage_detail_live.html.heex:177
+#: lib/tuist_web/live/coverage_detail_live.html.heex:301
+#: lib/tuist_web/live/coverage_detail_live.html.heex:389
+#: lib/tuist_web/live/coverage_detail_live.html.heex:518
 #: lib/tuist_web/live/coverage_file_live.html.heex:108
 #: lib/tuist_web/live/flaky_tests_live.html.heex:362
 #: lib/tuist_web/live/once_runs_live.ex:836
@@ -1126,8 +1126,8 @@ msgstr "已略過"
 msgid "Slowest test cases"
 msgstr "最耗時的測試案例"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:174
-#: lib/tuist_web/live/coverage_detail_live.html.heex:298
+#: lib/tuist_web/live/coverage_detail_live.html.heex:191
+#: lib/tuist_web/live/coverage_detail_live.html.heex:315
 #: lib/tuist_web/live/coverage_file_live.html.heex:122
 #: lib/tuist_web/live/flaky_tests_live.html.heex:378
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:287
@@ -1141,7 +1141,7 @@ msgid "Sort by:"
 msgstr "排序依據："
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:43
-#: lib/tuist_web/live/coverage_detail_live.html.heex:436
+#: lib/tuist_web/live/coverage_detail_live.html.heex:453
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:82
 #: lib/tuist_web/live/once_test_run_live.html.heex:52
 #: lib/tuist_web/live/once_test_run_live.html.heex:218
@@ -1256,7 +1256,7 @@ msgid "Test Run"
 msgstr "測試執行"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:632
-#: lib/tuist_web/live/coverage_detail_live.html.heex:478
+#: lib/tuist_web/live/coverage_detail_live.html.heex:495
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
 #: lib/tuist_web/live/test_runs_live.ex:28
@@ -1429,8 +1429,8 @@ msgid "Try changing your search term"
 msgstr "嘗試變更搜尋詞彙"
 
 #: lib/tuist_web/live/coverage/components.ex:682
-#: lib/tuist_web/live/coverage_detail_live.html.heex:249
-#: lib/tuist_web/live/coverage_detail_live.html.heex:550
+#: lib/tuist_web/live/coverage_detail_live.html.heex:266
+#: lib/tuist_web/live/coverage_detail_live.html.heex:567
 #: lib/tuist_web/live/coverage_file_live.html.heex:198
 #: lib/tuist_web/live/test_case_live.html.heex:1065
 #: lib/tuist_web/live/test_run_live.html.heex:1375
@@ -2183,7 +2183,7 @@ msgstr "此目標的執行器未產生 test.xml，因此無法提供每個測試
 #: lib/tuist_web/live/coverage_commits_live.html.heex:3
 #: lib/tuist_web/live/coverage_detail_live.ex:52
 #: lib/tuist_web/live/coverage_detail_live.ex:132
-#: lib/tuist_web/live/coverage_detail_live.html.heex:108
+#: lib/tuist_web/live/coverage_detail_live.html.heex:125
 #: lib/tuist_web/live/coverage_file_live.ex:242
 #: lib/tuist_web/live/coverage_live.ex:52
 #, elixir-autogen, elixir-format
@@ -2192,9 +2192,9 @@ msgstr "程式碼涵蓋率"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:40
 #: lib/tuist_web/live/coverage_detail_live.ex:469
-#: lib/tuist_web/live/coverage_detail_live.html.heex:211
-#: lib/tuist_web/live/coverage_detail_live.html.heex:425
-#: lib/tuist_web/live/coverage_detail_live.html.heex:533
+#: lib/tuist_web/live/coverage_detail_live.html.heex:228
+#: lib/tuist_web/live/coverage_detail_live.html.heex:442
+#: lib/tuist_web/live/coverage_detail_live.html.heex:550
 #: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:180
 #: lib/tuist_web/live/coverage_live.html.heex:96
@@ -2206,7 +2206,7 @@ msgstr "涵蓋率"
 #: lib/tuist_web/live/coverage/components.ex:575
 #: lib/tuist_web/live/coverage/components.ex:794
 #: lib/tuist_web/live/coverage/components.ex:947
-#: lib/tuist_web/live/coverage_detail_live.html.heex:120
+#: lib/tuist_web/live/coverage_detail_live.html.heex:137
 #: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
 #, elixir-autogen, elixir-format
@@ -2215,7 +2215,7 @@ msgstr "已涵蓋行數"
 
 #: lib/tuist_web/live/coverage/components.ex:811
 #: lib/tuist_web/live/coverage/components.ex:948
-#: lib/tuist_web/live/coverage_detail_live.html.heex:128
+#: lib/tuist_web/live/coverage_detail_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Executable lines"
 msgstr "可執行行數"
@@ -2234,8 +2234,8 @@ msgstr "執行次數"
 #: lib/tuist_web/live/coverage/components.ex:103
 #: lib/tuist_web/live/coverage_detail_live.ex:470
 #: lib/tuist_web/live/coverage_detail_live.ex:631
-#: lib/tuist_web/live/coverage_detail_live.html.heex:235
-#: lib/tuist_web/live/coverage_detail_live.html.heex:271
+#: lib/tuist_web/live/coverage_detail_live.html.heex:252
+#: lib/tuist_web/live/coverage_detail_live.html.heex:288
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:175
 #, elixir-autogen, elixir-format
 msgid "Files"
@@ -2337,7 +2337,7 @@ msgstr "同時通過與失敗的測試案例數量。"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
 #: lib/tuist_web/live/coverage_detail_live.ex:555
-#: lib/tuist_web/live/coverage_detail_live.html.heex:536
+#: lib/tuist_web/live/coverage_detail_live.html.heex:553
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Run"
@@ -2385,7 +2385,7 @@ msgstr "分支 %{name}"
 msgid "Branch:"
 msgstr "分支："
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:433
+#: lib/tuist_web/live/coverage_detail_live.html.heex:450
 #: lib/tuist_web/live/coverage_live.html.heex:99
 #: lib/tuist_web/live/test_selection/run_tab.ex:562
 #, elixir-autogen, elixir-format
@@ -2405,13 +2405,13 @@ msgid "Commit %{sha} has no coverage for this file"
 msgstr "提交 %{sha} 未涵蓋此檔案"
 
 #: lib/tuist_web/live/coverage_detail_live.ex:629
-#: lib/tuist_web/live/coverage_detail_live.html.heex:336
+#: lib/tuist_web/live/coverage_detail_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Commits"
 msgstr "提交"
 
 #: lib/tuist_web/live/coverage_commits_live.html.heex:51
-#: lib/tuist_web/live/coverage_detail_live.html.heex:444
+#: lib/tuist_web/live/coverage_detail_live.html.heex:461
 #: lib/tuist_web/live/coverage_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Committed"
@@ -2450,23 +2450,23 @@ msgid "File: %{name}"
 msgstr "檔案：%{name}"
 
 #: lib/tuist_web/live/coverage/components.ex:797
-#: lib/tuist_web/live/coverage_detail_live.html.heex:122
+#: lib/tuist_web/live/coverage_detail_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Lines that commit's tests ran at least once."
 msgstr "該提交的測試至少執行過一次的程式碼行數。"
 
 #: lib/tuist_web/live/coverage/components.ex:813
-#: lib/tuist_web/live/coverage_detail_live.html.heex:130
+#: lib/tuist_web/live/coverage_detail_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Lines the compiler instrumented for coverage at that commit."
 msgstr "在該提交中，編譯器為涵蓋率檢測所插樁的程式碼行數。"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:468
+#: lib/tuist_web/live/coverage_detail_live.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "No commit gathered coverage in this period"
 msgstr "在此期間沒有提交收集到涵蓋率資料"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:462
+#: lib/tuist_web/live/coverage_detail_live.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "No commit matches these filters"
 msgstr "沒有符合這些篩選條件的提交"
@@ -2491,7 +2491,7 @@ msgstr "在此期間，%{branch} 上的涵蓋率未發生變化"
 msgid "No file matches this search"
 msgstr "沒有符合此搜尋條件的檔案"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:326
+#: lib/tuist_web/live/coverage_detail_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "No file was measured at this commit"
 msgstr "此提交未測量任何檔案"
@@ -2501,7 +2501,7 @@ msgstr "此提交未測量任何檔案"
 msgid "No function matches this search"
 msgstr "沒有函式符合此搜尋條件"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:566
+#: lib/tuist_web/live/coverage_detail_live.html.heex:583
 #, elixir-autogen, elixir-format
 msgid "No run gathered coverage here"
 msgstr "此處沒有任何測試執行收集涵蓋率"
@@ -2511,7 +2511,7 @@ msgstr "此處沒有任何測試執行收集涵蓋率"
 msgid "No run gathered coverage on %{branch} in this period"
 msgstr "在此期間，%{branch} 分支上沒有任何測試執行收集涵蓋率"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:549
+#: lib/tuist_web/live/coverage_detail_live.html.heex:566
 #, elixir-autogen, elixir-format
 msgid "No run matches these filters"
 msgstr "沒有測試執行符合這些篩選條件"
@@ -2531,19 +2531,19 @@ msgstr "此提交沒有任何測試執行收集涵蓋率，因此沒有自己的
 msgid "No run on branch %{branch} gathered coverage."
 msgstr "%{branch} 分支上沒有任何測試執行收集涵蓋率。"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:248
+#: lib/tuist_web/live/coverage_detail_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "No target matches these filters"
 msgstr "沒有符合這些篩選條件的目標"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:263
+#: lib/tuist_web/live/coverage_detail_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "No target was measured at this commit"
 msgstr "此提交未測量任何目標"
 
 #: lib/tuist_web/live/coverage/components.ex:425
 #: lib/tuist_web/live/coverage_detail_live.ex:379
-#: lib/tuist_web/live/coverage_detail_live.html.heex:223
+#: lib/tuist_web/live/coverage_detail_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Not measured"
 msgstr "未測量"
@@ -2565,12 +2565,12 @@ msgstr "選擇性測試或篩選器排除了部分測試，因此僅測量了該
 msgid "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it."
 msgstr "在 %{branch}、%{sha} 的最新測量提交中，涵蓋的可執行程式碼比例（匯總自測量過它的所有方案）。"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:110
+#: lib/tuist_web/live/coverage_detail_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Share of executable lines some run's tests ran at least once, across %{schemes}."
 msgstr "在 %{schemes} 中，至少有一次測試執行跑過的可執行程式碼比例。"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:390
+#: lib/tuist_web/live/coverage_detail_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "Status:"
 msgstr "狀態："
@@ -2585,7 +2585,7 @@ msgstr "目標名稱"
 msgid "The latest complete commit on %{branch} in this period has no coverage for this file"
 msgstr "此期間 %{branch} 分支上最新的完整提交未涵蓋此檔案"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:355
+#: lib/tuist_web/live/coverage_detail_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "These commits are listed in the order they were measured, not the order the repository's history puts them in."
 msgstr "這些提交依測量順序列出，而非儲存庫歷史記錄中的順序。"
@@ -2675,7 +2675,7 @@ msgid "%{count} of them belongs to no function, such as code a macro generates."
 msgid_plural "%{count} of them belong to no function, such as code a macro generates."
 msgstr[0] "其中有 %{count} 個不屬於任何函式，例如巨集產生的程式碼。"
 
-#: lib/tuist_web/live/coverage_detail_live.html.heex:226
+#: lib/tuist_web/live/coverage_detail_live.html.heex:243
 #, elixir-autogen, elixir-format
 msgid "Every run that executed this target's tests took it from the binary cache as a binary built without coverage counters, so what they covered in it is unknown."
 msgstr "每次執行此目標的測試時，都是從二進位快取中取得未包含覆蓋率計數器的二進位檔，因此無法得知其涵蓋範圍。"
@@ -3334,3 +3334,13 @@ msgstr "尚無執行收集到覆蓋率"
 #, elixir-autogen, elixir-format
 msgid "See recent coverage commits"
 msgstr "查看最近的覆蓋率提交"
+
+#: lib/tuist_web/live/coverage_detail_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Runs from a checkout with uncommitted changes don't count"
+msgstr "包含未提交變更的簽出所執行的測試不會計入"
+
+#: lib/tuist_web/live/coverage_detail_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
+msgstr "這些測試衡量的是非該提交的程式碼，因此其涵蓋率不會納入該提交的計算，實際涵蓋率可能更高。若要衡量該提交，請在測試前提交或捨棄這些變更，或將 CI 工作寫入的檔案排除在簽出目錄之外，或由 Git 忽略。測試執行分頁會將它們列為已捨棄。"

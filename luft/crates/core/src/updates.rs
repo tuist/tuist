@@ -5,7 +5,7 @@ use url::Url;
 use crate::client::Result;
 
 /// Luft publishes its previews here (`luft/tuist.toml`).
-pub(crate) const SERVER: &str = "https://tuist.dev/";
+pub(crate) const SERVER: &str = "https://luft.work/";
 pub(crate) const PATH: &str = "api/projects/tuist/luft/previews";
 pub(crate) const TRACK: &str = "internal";
 

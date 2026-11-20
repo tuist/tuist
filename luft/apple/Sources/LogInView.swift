@@ -76,16 +76,16 @@ struct LogInView: View {
     private func providers(bottomInset: CGFloat) -> some View {
         VStack(spacing: 12) {
             SocialButton(title: "Sign in with Tuist", icon: "TuistLogo", primary: true) {
-                signIn(server: "https://tuist.dev", provider: "tuist")
+                signIn(server: "https://luft.work", provider: "tuist")
             }
             SocialButton(title: "Sign in with Apple", icon: "AppleLogo") {
-                signIn(server: "https://tuist.dev", provider: "apple")
+                signIn(server: "https://luft.work", provider: "apple")
             }
             SocialButton(title: "Sign in with Google", icon: "GoogleLogo") {
-                signIn(server: "https://tuist.dev", provider: "google")
+                signIn(server: "https://luft.work", provider: "google")
             }
             SocialButton(title: "Sign in with GitHub", icon: "GitHubLogo") {
-                signIn(server: "https://tuist.dev", provider: "github")
+                signIn(server: "https://luft.work", provider: "github")
             }
             HStack(spacing: 8) {
                 divider
@@ -95,7 +95,7 @@ struct LogInView: View {
             .accessibilityHidden(true)
             SocialButton(title: "Self-hosted server", icon: "ServerIcon") {
                 // Like the shipping app, prefill the last self-hosted server the user signed in to.
-                server = client.view.profiles.map(\.server).last { !$0.hasPrefix("https://tuist.dev") } ?? ""
+                server = client.view.profiles.map(\.server).last { !$0.hasPrefix("https://luft.work") } ?? ""
                 selfHosted = true
             }
         }

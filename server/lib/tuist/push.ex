@@ -12,8 +12,9 @@ defmodule Tuist.Push do
 
   Two first-party apps register, each through its own fixed OAuth client: the
   Tuist app (`app: "tuist"`, `Tuist.Environment.oauth_client_id/0`) and Tuist
-  Luft (`app: "luft"`, `Tuist.OAuth.Clients.luft_client_id/0`), so a row's
-  app also says which client its grant belongs to. Each app only receives its own
+  Luft (`app: "luft"`, `Tuist.OAuth.Clients.luft_client_id/0`). The configured
+  Luft server may also register Luft installations with a `luft:app` grant.
+  Each app only receives its own
   notifications (previews for the Tuist app, finished threads for Luft), on its
   own APNs topic; Luft's macOS app registers as the `macos` platform.
 
@@ -51,8 +52,9 @@ defmodule Tuist.Push do
   alias Tuist.Push.APNs
   alias Tuist.Push.FCM
   alias Tuist.Push.Installation
+  alias Tuist.Push.LiveActivities
+  alias Tuist.Push.Workers.DeliveryWorker
   alias Tuist.Push.Workers.NewPreviewWorker
-  alias Tuist.Push.Workers.ThreadFinishedWorker
   alias Tuist.Repo
 
   @max_live_per_user 10
@@ -69,13 +71,15 @@ defmodule Tuist.Push do
   `apps`. Only unrevoked sign-ins with a refresh token qualify: through the
   Tuist app client (`Tuist.Environment.oauth_client_id/0`) for `"tuist"`, and
   through Luft's first-party client (`Tuist.OAuth.Clients.luft_client_id/0`)
-  for `"luft"`. Other OAuth clients, account tokens and other
+  for `"luft"`, or the configured Luft server with `luft:app` for `"luft"`.
+  Other OAuth clients, account tokens and other
   credentials return `{:error, :oauth_session_required}`. `bearer` must already
   be authenticated as `user` (`TuistWeb.AuthenticationPlug` verifies its
   signature and expiry).
   """
   def oauth_session(bearer, %User{} = user, apps \\ ["tuist"]) when is_binary(bearer) do
-    Enum.find_value(apps, {:error, :oauth_session_required}, &app_session(&1, bearer, user))
+    Enum.find_value(apps, &app_session(&1, bearer, user)) ||
+      ("luft" in apps && luft_server_session(bearer, user)) || {:error, :oauth_session_required}
   end
 
   defp app_session("tuist", bearer, %User{id: user_id}) do
@@ -97,13 +101,29 @@ defmodule Tuist.Push do
     end
   end
 
+  @doc "Whether this is the configured Luft server's explicitly scoped app grant."
+  def luft_app_session?(bearer, %User{} = user), do: not is_nil(luft_server_session(bearer, user))
+
+  defp luft_server_session(bearer, %User{id: user_id}) do
+    with client_id when is_binary(client_id) <- Clients.luft_server_client_id(),
+         %Token{scope: scope} = grant <- OAuthGrants.find_bearer(bearer, client_id, user_id),
+         true <- luft_app_scope?(scope),
+         {:ok, grant_id} <- OAuthGrants.root_id(grant) do
+      {:ok, %{app: "luft", oauth_grant_id: grant_id}}
+    else
+      _ -> nil
+    end
+  end
+
+  defp luft_app_scope?(scope), do: Clients.luft_app_scope() in String.split(scope || "", " ", trim: true)
+
   @doc """
   Whether `bearer` belongs to an unrevoked sign-in through a first-party app:
   the Tuist app or Luft (`oauth_session/3`). The server trusts those as
   the signed-in user rather than through scopes.
   """
   def first_party_session?(bearer, %User{} = user) when is_binary(bearer) do
-    match?({:ok, _session}, oauth_session(bearer, user, ["tuist", "luft"]))
+    Enum.any?(["tuist", "luft"], &match?({:ok, _session}, app_session(&1, bearer, user)))
   end
 
   @doc """
@@ -201,6 +221,55 @@ defmodule Tuist.Push do
   end
 
   @doc """
+  The server URL each Luft registration's profile belongs to, keyed by its ID.
+  Call only after checking the registration's grant is active. Native sign-ins
+  belong to this Tuist server; brokered ones belong to the fixed OIDC callback
+  saved on their root grant. Read roots in one batch, not once per device, and
+  never take a destination from registration parameters or a refreshed token.
+  """
+  def luft_server_urls(registrations) do
+    roots =
+      with [_ | _] <- registrations,
+           client_id when is_binary(client_id) <- Clients.luft_server_client_id(),
+           %Client{} = client <- Clients.get_client(client_id) do
+        grant_ids = Enum.map(registrations, & &1.oauth_grant_id)
+
+        Token
+        |> where([t], t.id in ^grant_ids and t.client_id == ^client_id and t.type == "access_token")
+        |> Repo.all()
+        |> Map.new(fn grant ->
+          {{grant.id, grant.sub}, callback_server_url(grant, client)}
+        end)
+      else
+        _ -> %{}
+      end
+
+    Map.new(registrations, fn registration ->
+      url = Map.get(roots, {registration.oauth_grant_id, to_string(registration.user_id)})
+      {registration.id, url || Environment.app_url()}
+    end)
+  end
+
+  defp callback_server_url(%Token{redirect_uri: callback, scope: scope}, %Client{redirect_uris: callbacks})
+       when is_binary(callback) do
+    with true <- luft_app_scope?(scope) and callback in callbacks,
+         %URI{scheme: scheme, host: host, path: path, userinfo: nil, query: nil, fragment: nil} = uri <-
+           URI.parse(callback),
+         true <- is_binary(path) and String.ends_with?(path, "/auth/callback"),
+         true <- is_binary(host) and host != "" and not String.contains?(host, "*"),
+         true <- scheme == "https" or (scheme == "http" and host in ["localhost", "127.0.0.1", "::1"]),
+         false <- Regex.match?(~r/[\s\p{Cc}\\]/u, callback) do
+      # Config.redirect_uri appends this suffix to Luft's public URL, which
+      # may itself include a deployment prefix. Keep that prefix in profiles.
+      URI.to_string(%{uri | path: String.replace_suffix(path, "/auth/callback", "")})
+    else
+      _ -> nil
+    end
+  end
+
+  defp callback_server_url(_grant, _client), do: nil
+
+  @doc """
   Queues a new-preview notification for `preview` (see
   `Tuist.Push.Workers.NewPreviewWorker`). Does nothing on servers with neither
   an APNs key nor FCM credentials.
@@ -213,33 +282,62 @@ defmodule Tuist.Push do
     :ok
   end
 
-  @doc """
-  Queues a notification to the owner's Luft devices that `thread` stopped
-  working with `status` (see `Tuist.Push.Workers.ThreadFinishedWorker`). Call it
-  in the transaction that sets the status, so the notification is queued only
-  when the status is. Does nothing on servers without an APNs key, since Luft
-  registers only Apple devices.
-  """
-  def notify_thread_finished(%{id: thread_id}, status) do
-    if APNs.configured?() do
-      {:ok, _job} = %{"thread_id" => thread_id, "status" => status} |> ThreadFinishedWorker.new() |> Oban.insert()
-    end
+  @doc "Compatibility no-op while old callers drain; Luft owns conversation notifications."
+  def notify_thread_finished(_thread, _status), do: :ok
 
-    :ok
+  @doc "Dispatches Luft-rendered notifications as the exact authenticated owning user, never a recipient ID."
+  def dispatch_luft(%User{} = user, bearer, input) do
+    with {:ok, %{app: "luft"} = session} <- luft_server_session(bearer, user),
+         true <- grant_active?("luft", session.oauth_grant_id, user.id) do
+      case input do
+        %{"kind" => "liveactivity"} ->
+          LiveActivities.dispatch(user, session, input)
+
+        %{"kind" => "alert", "notification_id" => id, "payload" => payload}
+        when is_binary(id) and byte_size(id) in 1..200 and is_map(payload) ->
+          dispatch_alert(user, session, id, payload)
+
+        _ ->
+          {:error, :invalid}
+      end
+    else
+      _ -> {:error, :forbidden}
+    end
   end
 
-  @doc """
-  The title a lock screen may show for `thread`. `Tuist.Threads` titles a new
-  thread with the start of its first message, which is conversation content, so
-  only a title the agent gave it is shown; otherwise "Your thread".
-  """
-  def thread_title(%{title: title, goal: goal}) do
-    title = title |> to_string() |> String.trim()
+  defp dispatch_alert(user, session, id, payload) do
+    with %{"aps" => %{"alert" => %{"title" => title, "body" => body}}, "url" => path} <- payload,
+         true <- is_binary(title) and is_binary(body) and byte_size(JSON.encode!(payload)) <= 4096,
+         true <- is_binary(path) and String.starts_with?(path, "/") and not String.starts_with?(path, "//") do
+      installations = Enum.filter(live_installations(user.id, "luft"), &(&1.oauth_grant_id == session.oauth_grant_id))
+      urls = luft_server_urls(installations)
 
-    if title == "" or title == String.trim(String.slice(to_string(goal), 0, 80)) do
-      "Your thread"
+      Enum.each(installations, fn installation ->
+        # Only the validated root callback chooses the origin, never a request parameter.
+        payload = Map.put(payload, "url", String.trim_trailing(Map.fetch!(urls, installation.id), "/") <> path)
+
+        args = %{
+          "registration_id" => installation.id,
+          "oauth_grant_id" => session.oauth_grant_id,
+          "notification_id" => id,
+          "payload" => payload
+        }
+
+        {:ok, _} =
+          args
+          |> DeliveryWorker.new(
+            unique: [
+              period: :infinity,
+              keys: [:registration_id, :oauth_grant_id, :notification_id],
+              states: [:available, :scheduled, :executing, :retryable, :completed]
+            ]
+          )
+          |> Oban.insert()
+      end)
+
+      :ok
     else
-      String.slice(title, 0, 100)
+      _ -> {:error, :invalid}
     end
   end
 
@@ -297,19 +395,34 @@ defmodule Tuist.Push do
     do: grant_active?(installation.app, installation.oauth_grant_id, installation.user_id)
 
   @doc """
-  Whether the sign-in `grant_id` of `user_id` through `app`'s first-party OAuth
-  client is still active. Raises on database errors, so a transient failure
+  Whether the sign-in `grant_id` of `user_id` through `app`'s native OAuth
+  client or the scoped Luft server grant is still active. Raises on database errors, so a transient failure
   never retires a live registration.
   """
   def grant_active?(app, grant_id, user_id) do
     client_id = if app == "luft", do: Clients.luft_client_id(), else: Environment.oauth_client_id()
 
+    native_grant_active?(client_id, grant_id, user_id) or
+      (app == "luft" and luft_server_grant_active?(grant_id, user_id))
+  end
+
+  defp native_grant_active?(client_id, grant_id, user_id) do
     case Clients.get_client(client_id) do
       %Client{refresh_token_ttl: ttl} ->
         match?({:ok, _scope}, OAuthGrants.active_scope(grant_id, client_id, user_id, ttl))
 
       nil ->
         false
+    end
+  end
+
+  defp luft_server_grant_active?(grant_id, user_id) do
+    with client_id when is_binary(client_id) <- Clients.luft_server_client_id(),
+         %Client{refresh_token_ttl: ttl} <- Clients.get_client(client_id),
+         {:ok, scope} <- OAuthGrants.active_scope(grant_id, client_id, user_id, ttl) do
+      luft_app_scope?(scope)
+    else
+      _ -> false
     end
   end
 

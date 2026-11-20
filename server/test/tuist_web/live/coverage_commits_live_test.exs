@@ -63,6 +63,22 @@ defmodule TuistWeb.CoverageCommitsLiveTest do
            ]
   end
 
+  test "lists a commit only dirty CI runs measured as incomplete", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    run(project, organization, "aaaaaaa1", [1, 0], 3)
+    run(project, organization, "ddddddd4", [1, 1], 2, %{git_dirty: true})
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits")
+
+    assert rows(lv) == [
+             ["ddddddd", "main", "0.0%", "In Progress"],
+             ["aaaaaaa", "main", "50.0%", "In Progress"]
+           ]
+  end
+
   test "opens a commit's page, whose back button leads here", %{
     conn: conn,
     organization: organization,

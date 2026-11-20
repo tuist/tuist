@@ -244,7 +244,7 @@ impl Presence {
 }
 
 /// Sets `online` on every person (an object with `id` and `handle`) in a
-/// halls response from the live presence state.
+/// lounges response from the live presence state.
 pub(crate) fn mark_online(value: &mut Value, online: &BTreeSet<u64>) {
     match value {
         Value::Object(map) => {
@@ -464,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn marks_people_online_anywhere_in_a_halls_response() {
+    fn marks_people_online_anywhere_in_a_lounges_response() {
         let mut value = json!({"members":[{"id":7,"handle":"ana","online":false}],
             "messages":[{"id":"m","author":{"id":9,"handle":"ben","online":true}}]});
         mark_online(&mut value, &BTreeSet::from([7]));

@@ -12,9 +12,6 @@ defmodule LuftServer.Config do
 
   def redirect_uri, do: public_url() <> "/auth/callback"
 
-  @doc "Vite's dev server, which serves the web app in development; `nil` serves the release's build."
-  def vite_dev_server, do: Application.get_env(:luft_server, :vite_dev_server)
-
   def req_options, do: Application.get_env(:luft_server, :req_options, [])
 
   def cache_provider_metadata?,

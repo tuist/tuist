@@ -534,9 +534,9 @@ defmodule Tuist.Sandboxes do
         is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
   @doc """
-  A query condition that leaves out Tuist threads' sandboxes (provider
+  A query condition that leaves out legacy Tuist threads' sandboxes (provider
   environment `threads/<id>`). Each belongs to its owner's private thread,
-  which reaches it through `Tuist.Threads`: the account's sandbox list,
+  retained for offline conversation export: the account's sandbox list,
   dashboard, API, MCP and concurrency usage never show, touch or count it.
   Correlated, so each row is one primary-key lookup of its own environment.
   The query names the sandbox binding `:sandbox`.

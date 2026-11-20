@@ -10,6 +10,7 @@ use serde::Deserialize;
 pub struct Claims {
     /// Expiry as Unix seconds.
     pub exp: i64,
+    pub iss: Option<String>,
     pub sub: Option<String>,
     /// OAuth subjects identify accounts; this claim identifies the issuing user.
     pub user_id: Option<u64>,
@@ -103,6 +104,7 @@ mod tests {
     fn identity_prefers_subject_and_only_falls_back_for_legacy_tokens() {
         let mut claims = Claims {
             exp: 1,
+            iss: None,
             sub: Some("123".into()),
             user_id: None,
             email: None,

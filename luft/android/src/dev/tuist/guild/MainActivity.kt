@@ -44,9 +44,9 @@ class MainActivity : Activity() {
         get() = if (previewsSelected) "previews" else view.optJSONObject("navigation")?.optString("tab", "threads") ?: "threads"
     private val threadId: String?
         get() = view.optJSONObject("navigation")?.string("thread_id")?.takeIf { it.isNotBlank() }
-    /** The hall or direct conversation open in the selected Halls or DMs tab. */
+    /** The lounge or direct conversation open in the selected Lounges or DMs tab. */
     private val roomId: String?
-        get() = when (screen) { "halls" -> "hall_id"; "dms" -> "dm_id"; else -> null }
+        get() = when (screen) { "lounges" -> "lounge_id"; "dms" -> "dm_id"; else -> null }
             ?.let { view.optJSONObject("navigation")?.string(it) }?.takeIf { it.isNotBlank() }
     private var intentConsumed = false
     // Adding another profile shows the login screen over the signed-in workspace.
@@ -70,14 +70,14 @@ class MainActivity : Activity() {
     private var conversation: JSONObject? = null
     private var reply = ""
     private var follow: Runnable? = null
-    private var halls: JSONObject? = null
+    private var lounges: JSONObject? = null
     private var room: JSONObject? = null
     private var poll: Runnable? = null
     private var readSent = 0L
-    /** Messages before the open hall's latest page, oldest first, and where the next earlier page starts. */
+    /** Messages before the open lounge's latest page, oldest first, and where the next earlier page starts. */
     private var older = emptyList<JSONObject>()
     private var olderBefore: Any? = null
-    /** The last rendered scroll view and the Halls or DMs screen it showed, and how the next render places it. */
+    /** The last rendered scroll view and the Lounges or DMs screen it showed, and how the next render places it. */
     private var lastScroll: ScrollView? = null
     private var scrolledPlace: String? = null
     private var scrollToLatest = false
@@ -127,7 +127,7 @@ class MainActivity : Activity() {
         syncInboxLive()
     }
 
-    // Halls are only polled, and the person only shows online, while someone can see them.
+    // Lounges are only polled, and the person only shows online, while someone can see them.
     override fun onPause() {
         visible = false
         poll?.let(handler::removeCallbacks)
@@ -140,8 +140,8 @@ class MainActivity : Activity() {
 
     /**
      * Keeps the person joined to their organization's presence about every 5 s. The core
-     * owns the connection and marks people online in halls answers; when who is online
-     * changes, the open Halls or DMs list is fetched again for its dots.
+     * owns the connection and marks people online in lounges answers; when who is online
+     * changes, the open Lounges or DMs list is fetched again for its dots.
      */
     private fun schedulePresence(delay: Long) {
         presence?.let(handler::removeCallbacks)
@@ -156,7 +156,7 @@ class MainActivity : Activity() {
                     if (ids != null && ids != online) {
                         val changed = online != null
                         online = ids
-                        if (changed) { roomStale = true; refreshHalls() }
+                        if (changed) { roomStale = true; refreshLounges() }
                     }
                     schedulePresence(5000)
                 }
@@ -165,22 +165,22 @@ class MainActivity : Activity() {
         handler.postDelayed(presence!!, delay)
     }
 
-    /** Who the last presence answer said is online; null before the first. The open hall's dots wait for its next poll. */
+    /** Who the last presence answer said is online; null before the first. The open lounge's dots wait for its next poll. */
     private var online: Set<Long>? = null
     private var roomStale = false
 
-    /** Fetches the Halls or DMs list beside screen requests, like the hall poll, so it never cancels them. */
-    private fun refreshHalls() {
-        if (screen != "halls" && screen != "dms" || roomId != null || halls == null || busy) return
+    /** Fetches the Lounges or DMs list beside screen requests, like the lounge poll, so it never cancels them. */
+    private fun refreshLounges() {
+        if (screen != "lounges" && screen != "dms" || roomId != null || lounges == null || busy) return
         val generation = view.optLong("generation", -1)
         val profile = view.optString("active_profile_id")
         val revision = view.optJSONObject("navigation")?.optLong("revision")
-        AppCore.submit("halls", JSONObject(), host) { result ->
+        AppCore.submit("lounges", JSONObject(), host) { result ->
             runOnUiThread {
                 if (isDestroyed || busy || roomId != null || generation != view.optLong("generation", -1) ||
                     profile != view.optString("active_profile_id") ||
                     revision != view.optJSONObject("navigation")?.optLong("revision")) return@runOnUiThread
-                halls = result.optJSONObject("data") ?: return@runOnUiThread
+                lounges = result.optJSONObject("data") ?: return@runOnUiThread
                 render()
             }
         }
@@ -290,7 +290,7 @@ class MainActivity : Activity() {
         project = null; track = null; search = ""; page = 0
         projects = emptyList(); previews.clear(); tracks = null; detail = null
         threads = emptyList(); threadsSignInRequired = false; threadsAvailable = true; conversation = null; reply = ""
-        halls = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
+        lounges = null; room = null; readSent = 0; older = emptyList(); olderBefore = null
     }
 
     /** Loads the current screen's data. */
@@ -300,7 +300,7 @@ class MainActivity : Activity() {
         when (screen) {
             "previews" -> loadProjects()
             "threads" -> threadId?.let { fetchThread(it) } ?: loadThreads()
-            "halls", "dms" -> roomId?.let { fetchHall(it) } ?: loadHalls()
+            "lounges", "dms" -> roomId?.let { fetchLounge(it) } ?: loadLounges()
         }
     }
 
@@ -320,9 +320,9 @@ class MainActivity : Activity() {
         // Rendering rebuilds the screen; keep typing in the search or reply field going.
         val focusedInput = (currentFocus as? EditText)?.takeIf { it.id == searchInputId || it.id == replyInputId }
         val selection = focusedInput?.selectionStart ?: -1
-        // Halls and DMs re-render as messages and presence arrive; keep the reader where they were.
+        // Lounges and DMs re-render as messages and presence arrive; keep the reader where they were.
         // The threads list reloads as threads change, so it keeps its place too.
-        val place = if (screen == "halls" || screen == "dms") "$screen/${roomId.orEmpty()}"
+        val place = if (screen == "lounges" || screen == "dms") "$screen/${roomId.orEmpty()}"
             else if (screen == "threads" && threadId == null && conversation == null) "threads" else null
         val previous = lastScroll?.takeIf { place != null && place == scrolledPlace }
         val previousY = previous?.scrollY ?: 0
@@ -347,14 +347,14 @@ class MainActivity : Activity() {
         when (screen) {
             "profile" -> profileScreen()
             "threads" -> threadsScreen()
-            "halls" -> hallsScreen(direct = false)
-            "dms" -> hallsScreen(direct = true)
+            "lounges" -> loungesScreen(direct = false)
+            "dms" -> loungesScreen(direct = true)
             else -> previewScreen()
         }
         // A conversation takes the whole screen, as on iOS; Back returns to the inbox.
         if (!(screen == "threads" && threadId != null) && roomId == null) root.addView(tabBar())
         setContentView(root)
-        // Halls read like a chat: the newest messages are at the bottom. Follow them only when
+        // Lounges read like a chat: the newest messages are at the bottom. Follow them only when
         // the reader was already there or just sent one; earlier messages load above the reader.
         val shown = content
         when {
@@ -374,7 +374,7 @@ class MainActivity : Activity() {
 
     private fun tabLabel(tab: String): Int? = when (tab) {
         "threads" -> R.string.threads
-        "halls" -> R.string.halls
+        "lounges" -> R.string.lounges
         "dms" -> R.string.dms
         "previews" -> R.string.previews
         "profile" -> R.string.profile
@@ -542,7 +542,7 @@ class MainActivity : Activity() {
             setSingleLine(true)
             // Like the shipping app, prefill the last self-hosted server the user signed in to.
             view.optJSONArray("profiles").objects().map { it.optString("server") }
-                .lastOrNull { !it.startsWith("https://tuist.dev") }?.let(::setText)
+                .lastOrNull { !it.startsWith("https://luft.work") }?.let(::setText)
         }
         AlertDialog.Builder(this).setTitle(R.string.self_hosted).setMessage(R.string.self_hosted_message).setView(input)
             .setPositiveButton(R.string.sign_in) { _, _ ->
@@ -615,16 +615,16 @@ class MainActivity : Activity() {
             })
         } else {
             card.addView(socialButton(getString(R.string.sign_in_tuist), R.drawable.tuist_logo, true, dark) {
-                launchSignIn("https://tuist.dev", "tuist")
+                launchSignIn("https://luft.work", "tuist")
             })
             card.addView(socialButton(getString(R.string.sign_in_apple), R.drawable.apple_logo, false, dark) {
-                launchSignIn("https://tuist.dev", "apple")
+                launchSignIn("https://luft.work", "apple")
             })
             card.addView(socialButton(getString(R.string.sign_in_google), R.drawable.google_logo, false, dark) {
-                launchSignIn("https://tuist.dev", "google")
+                launchSignIn("https://luft.work", "google")
             })
             card.addView(socialButton(getString(R.string.sign_in_github), R.drawable.github_logo, false, dark) {
-                launchSignIn("https://tuist.dev", "github")
+                launchSignIn("https://luft.work", "github")
             })
             card.addView(LinearLayout(this).apply {
                 gravity = Gravity.CENTER_VERTICAL
@@ -761,7 +761,7 @@ class MainActivity : Activity() {
         inboxLive = key?.let { InboxLive(host) { runOnUiThread(::refreshThreads) } }
     }
 
-    /** Reloads the threads list beside screen requests, like the hall poll, so it never cancels them. */
+    /** Reloads the threads list beside screen requests, like the lounge poll, so it never cancels them. */
     private fun refreshThreads() {
         if (isDestroyed || busy || screen != "threads" || threadId != null) return
         val generation = view.optLong("generation", -1)
@@ -979,6 +979,18 @@ class MainActivity : Activity() {
                 })
             }
         }
+        if (thread.optBoolean("reauthorization_required")) {
+            text(getString(R.string.reauthorization_required))
+            if (thread.optBoolean("can_reauthorize")) {
+                button(getString(R.string.reauthorize_thread)) {
+                    call("reauthorize_thread", JSONObject().put("id", thread.optString("id")).put("consent", true)) { data ->
+                        conversation = data
+                        render()
+                    }
+                }
+            }
+            return
+        }
         if (thread.optBoolean("working")) { text(getString(R.string.thinking)); return }
         val suggestions = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1038,16 +1050,16 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadHalls() {
+    private fun loadLounges() {
         if (active() == null) return
-        call("halls") { data ->
-            halls = data as? JSONObject
+        call("lounges") { data ->
+            lounges = data as? JSONObject
             render()
         }
     }
 
-    /** Halls or DMs: an organization's conversations between people, with no agent. */
-    private fun hallsScreen(direct: Boolean) {
+    /** Lounges or DMs: an organization's conversations between people, with no agent. */
+    private fun loungesScreen(direct: Boolean) {
         if (active() == null) return
         if (roomId != null && room == null) {
             button(R.string.back) { closeConversation() }
@@ -1055,28 +1067,28 @@ class MainActivity : Activity() {
             return
         }
         room?.let { roomScreen(it); return }
-        val data = halls
+        val data = lounges
         if (data != null && !data.optBoolean("available")) {
             when (data.string("reason")) {
-                "personal" -> text(getString(if (direct) R.string.dms_personal else R.string.halls_personal))
+                "personal" -> text(getString(if (direct) R.string.dms_personal else R.string.lounges_personal))
                 "sign_in_required" -> {
-                    text(getString(R.string.halls_sign_in_required))
+                    text(getString(R.string.lounges_sign_in_required))
                     active()?.let { profile ->
                         if (!browserPending) button(R.string.sign_in_again, primary = true) { launchSignIn(profile.getString("server"), "tuist") }
                     }
                 }
                 else -> {
-                    text(getString(R.string.halls_disabled))
-                    button(R.string.refresh) { loadHalls() }
+                    text(getString(R.string.lounges_disabled))
+                    button(R.string.refresh) { loadLounges() }
                 }
             }
             return
         }
         if (direct) button(R.string.new_message, primary = true) { startDirect() }
-        else button(R.string.new_hall, primary = true) { createHall() }
-        button(R.string.refresh) { loadHalls() }
-        val rows = data?.optJSONArray(if (direct) "directs" else "halls").objects()
-        if (data != null && rows.isEmpty() && !busy) text(getString(if (direct) R.string.no_dms else R.string.no_halls))
+        else button(R.string.new_lounge, primary = true) { createLounge() }
+        button(R.string.refresh) { loadLounges() }
+        val rows = data?.optJSONArray(if (direct) "directs" else "lounges").objects()
+        if (data != null && rows.isEmpty() && !busy) text(getString(if (direct) R.string.no_dms else R.string.no_lounges))
         rows.forEach { item ->
             val unread = item.optInt("unread")
             val online = item.optJSONArray("members").objects().any { it.optBoolean("online") }
@@ -1105,21 +1117,21 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun createHall() {
+    private fun createLounge() {
         val unchanged = unchanged()
-        val name = EditText(this).apply { hint = getString(R.string.hall_name); setSingleLine(true) }
-        val topic = EditText(this).apply { hint = getString(R.string.hall_topic); setSingleLine(true) }
+        val name = EditText(this).apply { hint = getString(R.string.lounge_name); setSingleLine(true) }
+        val topic = EditText(this).apply { hint = getString(R.string.lounge_topic); setSingleLine(true) }
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
             addView(name); addView(topic)
         }
-        AlertDialog.Builder(this).setTitle(R.string.new_hall).setView(form)
+        AlertDialog.Builder(this).setTitle(R.string.new_lounge).setView(form)
             .setPositiveButton(R.string.create) { _, _ ->
                 val value = name.text.toString().trim()
                 if (value.isBlank() || !unchanged()) return@setPositiveButton
-                call("create_hall", JSONObject().put("name", value).put("topic", topic.text.toString().trim()), onFailure = {
-                    toast(R.string.create_hall_failed); render()
+                call("create_lounge", JSONObject().put("name", value).put("topic", topic.text.toString().trim()), onFailure = {
+                    toast(R.string.create_lounge_failed); render()
                 }) { data ->
                     val id = (data as? JSONObject)?.string("id")
                     if (!id.isNullOrBlank()) openRoom(false, id) else { render(); load() }
@@ -1130,7 +1142,7 @@ class MainActivity : Activity() {
     /** Picks people from the organization, then opens the conversation with them. */
     private fun startDirect() {
         val unchanged = unchanged()
-        call("hall_people") { data ->
+        call("lounge_people") { data ->
             render()
             val people = (data as? JSONObject)?.optJSONArray("people").objects()
             if (people.isEmpty()) { toast(R.string.no_people); return@call }
@@ -1152,47 +1164,47 @@ class MainActivity : Activity() {
     }
 
     private fun openRoom(direct: Boolean, id: String) {
-        navigate("navigate", JSONObject().put("url", if (direct) "/dms/$id" else "/halls/$id"))
+        navigate("navigate", JSONObject().put("url", if (direct) "/dms/$id" else "/lounges/$id"))
     }
 
-    /** Whether a hall answer still belongs to the conversation on screen. */
+    /** Whether a lounge answer still belongs to the conversation on screen. */
     private fun showing(id: String, generation: Long, profile: String, revision: Long?): Boolean =
         !isDestroyed && roomId == id && generation == view.optLong("generation", -1) &&
             profile == view.optString("active_profile_id") && revision == view.optJSONObject("navigation")?.optLong("revision")
 
-    private fun fetchHall(id: String) {
+    private fun fetchLounge(id: String) {
         val generation = view.optLong("generation", -1)
         val profile = view.optString("active_profile_id")
         val revision = view.optJSONObject("navigation")?.optLong("revision")
-        call("hall", JSONObject().put("id", id)) { data ->
+        call("lounge", JSONObject().put("id", id)) { data ->
             if (showing(id, generation, profile, revision)) showRoom(data as? JSONObject)
         }
     }
 
-    /** Shows a hall's latest page, marks what it shows as read while it is visible, and keeps polling it. */
-    private fun showRoom(hall: JSONObject?) {
+    /** Shows a lounge's latest page, marks what it shows as read while it is visible, and keeps polling it. */
+    private fun showRoom(lounge: JSONObject?) {
         val id = roomId ?: return
-        if (hall == null || hall.optString("id") != id) return
+        if (lounge == null || lounge.optString("id") != id) return
         // Messages that left the latest page stay below the earlier ones already loaded.
         if (older.isNotEmpty()) room?.let { previous ->
-            val kept = (hall.optJSONArray("messages").objects() + older).map { it.optString("id") }.toSet()
+            val kept = (lounge.optJSONArray("messages").objects() + older).map { it.optString("id") }.toSet()
             older = older + previous.optJSONArray("messages").objects().filter { it.optString("id") !in kept }
         }
-        room = hall
+        room = lounge
         render()
         markRead()
         schedulePoll()
     }
 
-    /** Moves the read position to the open hall's latest message, only while someone can see it. */
+    /** Moves the read position to the open lounge's latest message, only while someone can see it. */
     private fun markRead() {
         val id = roomId ?: return
-        val hall = room?.takeIf { it.optString("id") == id } ?: return
+        val lounge = room?.takeIf { it.optString("id") == id } ?: return
         if (!visible) return
-        val position = hall.optLong("last_position")
-        if (position > hall.optLong("read_position") && position > readSent) {
+        val position = lounge.optLong("last_position")
+        if (position > lounge.optLong("read_position") && position > readSent) {
             readSent = position
-            AppCore.submit("read_hall", JSONObject().put("id", id).put("position", position), host) { }
+            AppCore.submit("read_lounge", JSONObject().put("id", id).put("position", position), host) { }
         }
     }
 
@@ -1206,7 +1218,7 @@ class MainActivity : Activity() {
         val generation = view.optLong("generation", -1)
         val profile = view.optString("active_profile_id")
         val revision = view.optJSONObject("navigation")?.optLong("revision")
-        call("hall", JSONObject().put("id", id).put("before", before)) { data ->
+        call("lounge", JSONObject().put("id", id).put("before", before)) { data ->
             if (!showing(id, generation, profile, revision)) return@call
             val page = data as? JSONObject
             if (page != null && page.optString("id") == id) {
@@ -1220,7 +1232,7 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Fetches the open hall every few seconds while it is visible. Like the update
+     * Fetches the open lounge every few seconds while it is visible. Like the update
      * check, it runs beside screen requests rather than through [call], so it never
      * cancels them or blocks the reply button, and it re-renders only for new messages.
      */
@@ -1233,14 +1245,14 @@ class MainActivity : Activity() {
         val revision = view.optJSONObject("navigation")?.optLong("revision")
         poll = Runnable {
             if (!showing(id, generation, profile, revision)) return@Runnable
-            AppCore.submit("hall", JSONObject().put("id", id), host) { result ->
+            AppCore.submit("lounge", JSONObject().put("id", id), host) { result ->
                 runOnUiThread {
                     if (!visible || !showing(id, generation, profile, revision)) return@runOnUiThread
-                    val hall = result.optJSONObject("data")?.takeIf { it.optString("id") == id }
+                    val lounge = result.optJSONObject("data")?.takeIf { it.optString("id") == id }
                     when {
-                        hall == null -> schedulePoll()
-                        roomStale || hall.optLong("last_position") > (room?.optLong("last_position") ?: -1) -> {
-                            roomStale = false; showRoom(hall)
+                        lounge == null -> schedulePoll()
+                        roomStale || lounge.optLong("last_position") > (room?.optLong("last_position") ?: -1) -> {
+                            roomStale = false; showRoom(lounge)
                         }
                         else -> schedulePoll()
                     }
@@ -1250,17 +1262,17 @@ class MainActivity : Activity() {
         handler.postDelayed(poll!!, 3000)
     }
 
-    private fun roomScreen(hall: JSONObject) {
+    private fun roomScreen(lounge: JSONObject) {
         button(R.string.back) { closeConversation() }
-        text(hall.string("title"), 22f)
-        hall.string("topic").takeIf { it.isNotBlank() }?.let { topic ->
+        text(lounge.string("title"), 22f)
+        lounge.string("topic").takeIf { it.isNotBlank() }?.let { topic ->
             content.addView(TextView(this).apply {
                 text = topic; textSize = 14f; setPadding(0, 0, 0, dp(8))
                 setTextColor(noora("surface-label-secondary"))
             })
         }
-        if (hall.optString("kind") == "direct") {
-            val members = hall.optJSONArray("members").objects()
+        if (lounge.optString("kind") == "direct") {
+            val members = lounge.optJSONArray("members").objects()
             if (members.isNotEmpty()) content.addView(TextView(this).apply {
                 text = members.fold(SpannableStringBuilder()) { line, member ->
                     if (line.isNotEmpty()) line.append(", ")
@@ -1270,11 +1282,11 @@ class MainActivity : Activity() {
                 setTextColor(noora("surface-label-secondary"))
             })
         }
-        val latest = hall.optJSONArray("messages").objects()
+        val latest = lounge.optJSONArray("messages").objects()
         val ids = latest.map { it.optString("id") }.toSet()
         val messages = older.filter { it.optString("id") !in ids } + latest
         if (earlierBefore() != null) button(R.string.load_earlier) { loadEarlier() }
-        else if (messages.isEmpty()) text(getString(R.string.no_hall_messages))
+        else if (messages.isEmpty()) text(getString(R.string.no_lounge_messages))
         messages.forEach { message ->
             content.addView(TextView(this).apply {
                 val author = message.optJSONObject("author")
@@ -1302,11 +1314,11 @@ class MainActivity : Activity() {
         })
         button(R.string.send, primary = true) {
             if (reply.isBlank()) return@button
-            val id = hall.optString("id")
+            val id = lounge.optString("id")
             val generation = view.optLong("generation", -1)
             val profile = view.optString("active_profile_id")
             val revision = view.optJSONObject("navigation")?.optLong("revision")
-            call("send_hall_message", JSONObject().put("id", id).put("content", reply)) { data ->
+            call("send_lounge_message", JSONObject().put("id", id).put("content", reply)) { data ->
                 if (!showing(id, generation, profile, revision)) return@call
                 reply = ""; scrollToLatest = true; showRoom(data as? JSONObject)
             }

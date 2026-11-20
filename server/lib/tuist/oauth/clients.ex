@@ -24,9 +24,23 @@ defmodule Tuist.OAuth.Clients do
   # The OpenID Connect scopes (OIDC Core 5.4).
   @oidc_scopes ["openid", "profile", "email"]
   @organizations_write_scope "account:organizations:write"
-  # Everything the Luft server may request: who the person is, and creating
-  # organizations for them. Listing their organizations needs no scope.
-  @luft_server_scopes @oidc_scopes ++ [@organizations_write_scope]
+  @luft_app_scope "luft:app"
+  # App capabilities are separate from project/preview reads and organization
+  # creation. None grant access beyond the user's existing permissions.
+  @luft_server_scopes @oidc_scopes ++
+                        [
+                          @organizations_write_scope,
+                          @luft_app_scope,
+                          "mcp",
+                          "account:delete",
+                          "account:members:read",
+                          "account:sandboxes:write",
+                          "account:repositories:read",
+                          "account:repositories:write",
+                          "project:admin:read",
+                          "project:previews:read",
+                          "project:previews:write"
+                        ]
 
   @impl Clients
   def get_client(client_id) do
@@ -75,6 +89,9 @@ defmodule Tuist.OAuth.Clients do
 
   @doc "The scope that lets an OAuth client create organizations for the user."
   def organizations_write_scope, do: @organizations_write_scope
+
+  @doc "The scope for the configured Luft server's existing app capabilities."
+  def luft_app_scope, do: @luft_app_scope
 
   @impl Clients
   def public! do

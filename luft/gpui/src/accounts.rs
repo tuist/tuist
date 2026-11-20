@@ -42,7 +42,7 @@ impl AccountsPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let input = cx.new(|cx| {
-            let mut input = TextInput::new("https://tuist.dev", cx);
+            let mut input = TextInput::new("https://luft.work", cx);
             input.set_value(server.clone(), cx);
             input
         });
@@ -311,7 +311,7 @@ impl Render for AccountsPanel {
                                     .text_xs()
                                     .text_color(theme.text_muted)
                                     .child(gpui::text!(
-                                        "Use https://tuist.dev or your self-hosted Tuist URL."
+                                        "Use https://luft.work or your self-hosted Luft URL."
                                     )),
                             )
                             .child(

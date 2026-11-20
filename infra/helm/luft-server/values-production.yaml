@@ -1,5 +1,10 @@
 replicaCount: 2
 
+cluster:
+  enabled: true
+  # Must exist in namespace luft before deployment. See README.md.
+  cookieExistingSecret: luft-server-cluster-cookie
+
 externalSecret:
   enabled: true
 

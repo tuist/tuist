@@ -186,10 +186,38 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     status = lv |> element("#coverage-detail [data-part='badges']") |> render()
     assert status =~ "Incomplete"
     assert status =~ "uncommitted changes"
+    assert has_element?(lv, "#coverage-dirty-runs", "commit or discard those changes")
     assert has_element?(lv, "#widget-coverage", "66.7%")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs")
     assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Discarded")
+  end
+
+  test "shows a commit only dirty CI runs measured as incomplete, with the same banner, and its runs", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    dirty =
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/A.swift", [1, 0])], %{
+        git_commit_sha: "d",
+        git_dirty: true
+      })
+
+    Commits.signal_complete(project, "d")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/d")
+    assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Incomplete"
+    assert has_element?(lv, "#coverage-dirty-runs", "commit or discard those changes")
+    assert has_element?(lv, "#widget-coverage", "0.0%")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/d?tab=runs")
+    assert has_element?(lv, "#coverage-run-kind-#{dirty.id}", "Discarded")
+
+    # A clean commit shows no banner.
+    {:ok, lv, _html} = live(conn, base <> "/commits/b")
+    refute has_element?(lv, "#coverage-dirty-runs")
   end
 
   test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{

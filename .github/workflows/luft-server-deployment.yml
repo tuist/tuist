@@ -5,13 +5,7 @@ on:
   pull_request:
     paths:
       - luft-server/**
-      # The web app the image serves (luft/web and the core it compiles to wasm).
-      - luft/**
-      - "!luft/apple/**"
-      - "!luft/ios/**"
-      - "!luft/macos/**"
-      - "!luft/android/**"
-      - "!luft/gpui/**"
+      - condukt/**
       - infra/helm/luft-server/**
       - .github/workflows/luft-server-deployment.yml
   push:
@@ -19,12 +13,7 @@ on:
       - main
     paths:
       - luft-server/**
-      - luft/**
-      - "!luft/apple/**"
-      - "!luft/ios/**"
-      - "!luft/macos/**"
-      - "!luft/android/**"
-      - "!luft/gpui/**"
+      - condukt/**
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - infra/helm/luft-server/**
@@ -81,12 +70,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # Only this job: Struo's hosted cache signs in with the GitHub OIDC token.
-      id-token: write
-    env:
-      MISE_CEILING_PATHS: ${{ github.workspace }}
-      MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
-      STRUO_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
@@ -96,33 +79,6 @@ jobs:
           persist-credentials: false
       - id: tag
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      # The web app the release serves: Struo compiles the core to wasm, runs
-      # wasm-bindgen, then Vite (luft/modules/web.star).
-      - uses: ./.github/actions/mise
-        with:
-          working_directory: luft
-          install_args: rust github:tuist/struo node cargo:wasm-bindgen-cli
-          cache: "false"
-      # struo links libasound; sqlite-wasm-rs compiles SQLite for wasm32 with clang.
-      # Azure's Ubuntu mirror, which GitHub-hosted runners use: Canonical's own
-      # mirrors were unreachable from these runners on 2026-11-19 and apt hung
-      # until the job timed out. The timeout makes a mirror outage fail fast.
-      - name: Install Struo runtime libraries and clang
-        run: |
-          sudo sed -i -E 's#https?://([a-z]{2}\.)?(archive|security)\.ubuntu\.com#http://azure.archive.ubuntu.com#g' \
-            /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
-          sudo apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=3 update -y
-          sudo apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=3 install -y --no-install-recommends libasound2t64 clang
-      - name: Authenticate hosted cache and insights
-        if: github.event.pull_request.head.repo.fork != true
-        working-directory: luft
-        run: struo auth login --provider tuist --no-browser
-      - name: Build the web app with Struo
-        working-directory: luft
-        run: |
-          rustup target add wasm32-unknown-unknown
-          python3 prepare-native.py
-          struo build LuftWeb
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         if: github.event_name != 'pull_request'
@@ -134,7 +90,6 @@ jobs:
         with:
           context: .
           file: luft-server/Dockerfile
-          build-contexts: site=./luft/.struo/out/LuftWeb/dist
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: |

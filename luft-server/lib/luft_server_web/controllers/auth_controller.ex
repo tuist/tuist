@@ -10,6 +10,7 @@ defmodule LuftServerWeb.AuthController do
   """
   use LuftServerWeb, :controller
 
+  alias LuftServer.NativeAuth
   alias LuftServer.Sessions
   alias LuftServer.Tuist.OIDC
   alias LuftServerWeb.Auth
@@ -38,6 +39,9 @@ defmodule LuftServerWeb.AuthController do
       not match?(%{"state" => ^state}, transaction) ->
         conn |> put_status(:bad_request) |> json(%{error: "invalid_state"})
 
+      is_map(transaction["native"]) ->
+        native_callback(configure_session(conn, drop: true), params, transaction)
+
       error = params["error"] ->
         redirect(conn, to: with_query(transaction["return_to"], error: error))
 
@@ -60,6 +64,30 @@ defmodule LuftServerWeb.AuthController do
 
   def callback(conn, _params),
     do: conn |> put_status(:bad_request) |> json(%{error: "invalid_request"})
+
+  defp native_callback(conn, params, transaction) do
+    if Sessions.consume_native_transaction(transaction["native_pending"]) do
+      cond do
+        is_binary(params["error"]) ->
+          redirect(conn,
+            external: NativeAuth.callback_url(transaction["native"], error: "access_denied")
+          )
+
+        is_binary(params["code"]) ->
+          with {:ok, signin} <- OIDC.exchange_code(params["code"], transaction),
+               {:ok, url} <- NativeAuth.complete(signin, transaction["native"]) do
+            redirect(conn, external: url)
+          else
+            _ -> conn |> put_status(:bad_gateway) |> json(%{error: "sign_in_failed"})
+          end
+
+        true ->
+          conn |> put_status(:bad_request) |> json(%{error: "invalid_request"})
+      end
+    else
+      conn |> put_status(:bad_request) |> json(%{error: "invalid_state"})
+    end
+  end
 
   def logout(conn, _params) do
     Sessions.delete(conn.assigns.session)

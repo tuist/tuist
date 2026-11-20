@@ -99,8 +99,10 @@ larch_ready() {
     [ "$status" -eq 0 ]
     ports="$(yq -o=json '.spec.config.ports' <<<"$output")"
     port() { jq -c --argjson n "$1" '.[] | select(.port == $n) | [.nativeVlan, .taggedVlans]' <<<"$ports"; }
-    # A mini's port, not yet recorded: on no segment.
-    [ "$(port 1)" = '[1,[]]' ]
+    # A mini's port: untagged on the machines VLAN, not management.
+    [ "$(port 1)" = '[10,[]]' ]
+    # A port with nothing recorded on it: on no segment.
+    [ "$(port 6)" = '[1,[]]' ]
     # larch-pdu-b's card and larch-edge-b's BMC.
     [ "$(port 23)" = '[20,[]]' ]
     [ "$(port 28)" = '[20,[]]' ]
@@ -137,7 +139,8 @@ larch_ready() {
 @test "the power devices on the ToRs are reached through mgmt0 once installed" {
     site="$(larch_with '(.nodes[] | select(.name == "larch-pdu-a")) |= (.status = "installed" | .mac = "00:20:85:00:00:01")')"
     run edge_sh "fleet_edge_power_devices '$site'"
-    [ "$output" = "larch-pdu-a|00:20:85:00:00:01|192.168.60.16" ]
+    [[ "$output" == *"larch-pdu-a|00:20:85:00:00:01|192.168.60.16"* ]]
+    [[ "$output" != *"larch-pdu-b"* ]]
     run edge_sh "fleet_edge_keepalived '$site' larch-edge-a"
     [[ "$output" == *"192.168.60.16/32 dev mgmt0 src 192.168.60.10"* ]]
 }

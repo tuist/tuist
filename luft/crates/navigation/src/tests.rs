@@ -138,7 +138,8 @@ fn pending_links_wait_for_authentication_and_oauth_does_not_replace_them() {
 fn luft_links_select_the_tab_and_reconstruct_the_conversation_stack() {
     let mut nav = Navigation::default();
     let path = "/threads/12345678-1234-5678-9abc-123456789abc";
-    nav.receive(&format!("luft://app{path}"), &server());
+    let luft_server = Url::parse("https://luft.work").unwrap();
+    nav.receive(&format!("luft://app{path}"), &luft_server);
     assert!(nav.luft.thread_id.is_none());
     nav.resume();
     assert_eq!(nav.luft.path, path);
@@ -152,7 +153,22 @@ fn luft_links_select_the_tab_and_reconstruct_the_conversation_stack() {
         route.url(&server()).unwrap().as_str(),
         format!("https://tuist.dev/luft{path}")
     );
-    nav.receive("luft://app/profile", &server());
+    for (tab, destination) in [("lounges", Tab::Lounges), ("dms", Tab::Dms)] {
+        let path = format!("/{tab}/12345678-1234-5678-9abc-123456789abc");
+        nav.receive(&format!("luft://app{path}"), &luft_server);
+        nav.resume();
+        assert_eq!(nav.tab, destination);
+        assert_eq!(nav.luft.path, path);
+        nav.select(Tab::Threads);
+        nav.select(destination);
+        assert_eq!(nav.luft.path, path);
+        let route = Route::parse(&format!("https://luft.work/luft{path}"), &luft_server).unwrap();
+        assert_eq!(
+            route.url(&luft_server).unwrap().as_str(),
+            format!("https://luft.work/luft{path}")
+        );
+    }
+    nav.receive("luft://app/profile", &luft_server);
     nav.reset();
     nav.resume();
     assert_eq!(nav.luft.path, "/threads");

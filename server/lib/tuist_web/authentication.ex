@@ -127,7 +127,9 @@ defmodule TuistWeb.Authentication do
 
   The apps' OAuth access tokens authenticate as the user's account with the user as
   issuer. Other OAuth clients have the same token shape, so the grant's client is
-  checked (`Tuist.Push.first_party_session?/2`).
+  checked (`Tuist.Push.first_party_session?/2`). The configured Luft server is
+  also admitted, but only with an active `luft:app` grant. This does not turn
+  it into a first-party client or grant project/account API permissions.
   Account and project tokens return `nil`.
   """
   def app_user(conn) do
@@ -137,7 +139,7 @@ defmodule TuistWeb.Authentication do
 
       %AuthenticatedAccount{issued_by: %User{} = user} ->
         with ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
-             true <- Push.first_party_session?(bearer, user) do
+             true <- Push.first_party_session?(bearer, user) or Push.luft_app_session?(bearer, user) do
           user
         else
           _ -> nil

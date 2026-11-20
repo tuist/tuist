@@ -19,13 +19,13 @@ struct AppProfile: Decodable, Identifiable {
 
 struct AppNavigation: Decodable {
     enum Tab: String, Decodable, Hashable {
-        case threads, halls, dms, profile
+        case threads, lounges, dms, profile
     }
 
     var tab: Tab = .threads
     var thread_id: String?
-    /// The Halls and DMs tabs' open conversations, kept while another tab is selected.
-    var hall_id: String?
+    /// The Lounges and DMs tabs' open conversations, kept while another tab is selected.
+    var lounge_id: String?
     var dm_id: String?
     /// `text` or `dictation` while Start conversation is open, decided by the Rust core.
     var compose: String?

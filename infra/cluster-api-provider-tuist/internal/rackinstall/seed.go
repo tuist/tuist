@@ -30,8 +30,12 @@ type Seed struct {
 	// ConsolePassword is the console account's password. The installed
 	// system hashes it: cloud-init sets it on the first boot.
 	ConsolePassword string
-	AuthorizedKeys  []string
-	TailnetTags     []string
+	// ConsolePasswordHash, when set, is a SHA-512 crypt hash cloud-init sets
+	// as the console account's password instead of ConsolePassword, for a
+	// password kept where its operators can read it.
+	ConsolePasswordHash string
+	AuthorizedKeys      []string
+	TailnetTags         []string
 	// TailnetKey is the single-use join key, and TailnetKeyID its ID, which
 	// the install records so a second boot of the same installer hands over
 	// to the system it installed instead of wiping it.
@@ -77,6 +81,12 @@ type EdgeNetwork struct {
 	// WAN, when the site has a static uplink, is what the edge takes on its
 	// own while no rack-edge pod runs on it (EdgeFirstWANPath). Site is unused.
 	WAN *StaticWAN
+	// WANInNetplan puts the WAN in the install's netplan instead, untagged on the
+	// first uplink, for the first edge of a site, which has no other edge to
+	// go out through: the WAN address as a /32 and a default route on-link
+	// through the gateway at EdgeFirstWANMetric. Once the rack-edge pod holds
+	// the WAN on its VLAN, the pod's connected /31 and default route win.
+	WANInNetplan bool
 }
 
 // ModprobePath holds ModprobeConf, which keeps the MS-01's Bluetooth driver
@@ -115,6 +125,7 @@ var (
 	hostPattern         = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	keyIDPattern        = regexp.MustCompile(`^[A-Za-z0-9]+$`)
 	consolePassword     = regexp.MustCompile(`^[A-Za-z0-9]{16,128}$`)
+	consolePasswordHash = regexp.MustCompile(`^\$6\$[./A-Za-z0-9]{1,16}\$[./A-Za-z0-9]{86}$`)
 	tailnetKeyPattern   = regexp.MustCompile(`^tskey-auth-[A-Za-z0-9-]+$`)
 	tagPattern          = regexp.MustCompile(`^tag:[a-z0-9-]+$`)
 	authorizedKeyPrefix = regexp.MustCompile(`^(ssh-|ecdsa-|sk-ssh-|sk-ecdsa-)`)
@@ -182,6 +193,9 @@ func (s Seed) validate() error {
 	if !keyIDPattern.MatchString(s.TailnetKeyID) {
 		return fmt.Errorf("%q is not a tailnet key ID", s.TailnetKeyID)
 	}
+	if s.ConsolePasswordHash != "" && !consolePasswordHash.MatchString(s.ConsolePasswordHash) {
+		return fmt.Errorf("console password hash is not a SHA-512 crypt hash")
+	}
 	if !consolePassword.MatchString(s.ConsolePassword) {
 		return fmt.Errorf("the console password is not 16 to 128 letters and digits")
 	}
@@ -232,6 +246,10 @@ func UserData(s Seed) (string, error) {
 		hostKey = "    - |\n" + indent(hostKeyCommand(s.HostKey), "      ")
 	}
 	built := s.Built.UTC().Format("2006-01-02T15:04:05Z")
+	password, passwordType := s.ConsolePassword, "text"
+	if s.ConsolePasswordHash != "" {
+		password, passwordType = s.ConsolePasswordHash, "hash"
+	}
 
 	return fmt.Sprintf(`#cloud-config
 # tuist-install-id: %[7]s
@@ -250,7 +268,7 @@ autoinstall:
       users:
         - name: %[2]s
           password: "%[3]s"
-          type: text
+          type: %[19]s
   ssh:
     install-server: true
     allow-pw: false
@@ -261,7 +279,6 @@ autoinstall:
     - jq
     - ethtool
     - lvm2
-    - iputils-arping
   updates: security
   shutdown: reboot
   early-commands:
@@ -324,11 +341,11 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, password, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
 		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayoutForSeed(s), dataMounts(s.Role),
-		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit()), nil
+		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit(), passwordType), nil
 }
 
 // UplinkDrivers are the drivers of the rack hosts' uplinks: the MS-01's X710
@@ -359,6 +376,10 @@ func networkConfig(e *EdgeNetwork) string {
 	for i, uplink := range e.Uplinks {
 		id, member := fmt.Sprintf("uplink-%d", i+1), EdgeUplinkMember(EdgeVRRPBond, i+1)
 		fmt.Fprintf(&ethernets, "      %s:\n        match:\n          name: %s\n        dhcp4: false\n%s        optional: true\n", id, uplink, quiet)
+		if i == 0 && e.WANInNetplan && e.WAN != nil {
+			fmt.Fprintf(&ethernets, "        addresses:\n          - %s/32\n        routes:\n          - to: default\n            via: %s\n            on-link: true\n            metric: %d\n",
+				strings.SplitN(e.WAN.Address, "/", 2)[0], e.WAN.Gateway, EdgeFirstWANMetric)
+		}
 		fmt.Fprintf(&vlans, "      %s:\n        id: %d\n        link: %s\n%s        optional: true\n", member, e.VLAN, id, quiet)
 		fmt.Fprintf(&members, "          - %s\n", member)
 	}
@@ -397,6 +418,10 @@ func edgeResolvers(e *EdgeNetwork) string {
 const (
 	EdgeFirstWANPath  = "/usr/local/sbin/tuist-edge-first-wan"
 	EdgeFirstWANState = "/run/rack-edge/first-wan"
+	// EdgeFirstWANBusybox is the installer's busybox, copied onto the edge for
+	// its arping: the first edge of a site installs with no route to an
+	// archive, so the install can bring no package the image lacks.
+	EdgeFirstWANBusybox = "/usr/local/sbin/tuist-busybox"
 	// EdgeFirstWANMetric is the metric of its default route, below the route
 	// through the other edge (EdgeVRRPMetric).
 	EdgeFirstWANMetric = 50
@@ -413,7 +438,7 @@ const (
 // stops answering, and exits once the pod's manifest is on the node; the pod
 // gives up what it holds before keepalived starts.
 func edgeFirstWAN(e *EdgeNetwork) string {
-	if e == nil || e.WAN == nil {
+	if e == nil || e.WAN == nil || e.WANInNetplan {
 		return ""
 	}
 	script := strings.NewReplacer(
@@ -423,6 +448,7 @@ func edgeFirstWAN(e *EdgeNetwork) string {
 		"@GATEWAY@", e.WAN.Gateway,
 		"@STATE@", EdgeFirstWANState,
 		"@METRIC@", fmt.Sprint(EdgeFirstWANMetric),
+		"@BUSYBOX@", EdgeFirstWANBusybox,
 	).Replace(`#!/usr/bin/env bash
 set -u
 uplinks='@UPLINKS@' vlan=@VLAN@ address='@ADDRESS@' gateway='@GATEWAY@'
@@ -455,8 +481,8 @@ wan_bond() {
 take() {
   dev=$1
   pod && return 1
-  if arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}" && ip addr add "$address" dev "$dev"; then
-    if arping -q -c 2 -w 3 -I "$dev" "$gateway" && ip route add default via "$gateway" dev "$dev" metric "$metric"; then
+  if @BUSYBOX@ arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}" && ip addr add "$address" dev "$dev"; then
+    if @BUSYBOX@ arping -q -c 2 -w 3 -I "$dev" "$gateway" && ip route add default via "$gateway" dev "$dev" metric "$metric"; then
       echo "$dev" >"$state"
       log "took the site's WAN $address on $dev, through $gateway"
       return 0
@@ -482,7 +508,7 @@ misses=0
 while ! pod; do
   if [ -s "$state" ]; then
     read -r dev <"$state"
-    if arping -q -c 2 -w 3 -I "$dev" "$gateway"; then
+    if @BUSYBOX@ arping -q -c 2 -w 3 -I "$dev" "$gateway"; then
       misses=0
     elif [ $((misses += 1)) -ge 3 ]; then
       release
@@ -507,10 +533,11 @@ RestartSec=20
 [Install]
 WantedBy=multi-user.target
 `
-	return fmt.Sprintf("    - |\n      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n      chmod 755 /target%s\n"+
+	return fmt.Sprintf("    - install -D -m 0755 \"$(command -v busybox)\" /target%s\n"+
+		"    - |\n      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n      chmod 755 /target%s\n"+
 		"    - |\n      cat > /target/etc/systemd/system/tuist-edge-first-wan.service <<'TUIST_EOF'\n%s      TUIST_EOF\n"+
 		"    - curtin in-target --target=/target -- systemctl enable tuist-edge-first-wan.service\n",
-		EdgeFirstWANPath, indent(script, "      "), EdgeFirstWANPath, indent(unit, "      "))
+		EdgeFirstWANBusybox, EdgeFirstWANPath, indent(script, "      "), EdgeFirstWANPath, indent(unit, "      "))
 }
 
 // sshStartLimit takes sshd out of systemd's start rate limit (internal/sshd)

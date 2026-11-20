@@ -289,6 +289,8 @@ jobs:
       # Check cookie ownership after the full manifest render validation.
       - name: Test cluster cookie ownership and managed environment wiring
         run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: Test Luft realtime clustering and private distribution
+        run: python3 infra/helm/luft-server/test-clustering.py
       - name: Test SSO domain verification deployment policy
         run: python3 infra/helm/tuist/test-sso-domain-verification.py
       - name: Test ClickHouse tailnet Service exposure

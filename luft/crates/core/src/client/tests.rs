@@ -166,7 +166,7 @@ fn token(exp: i64, user: u64) -> String {
     format!(
         "header.{}.sig",
         URL_SAFE_NO_PAD.encode(
-            json!({"exp":exp,"sub":"account-1","user_id":user,
+            json!({"exp":exp,"iss":"luft","sub":"account-1","user_id":user,
         "type":"account","email":"ana@example.com",
         "preferred_username":if user == 1 { "ana" } else { "ben" }})
             .to_string()
@@ -204,7 +204,7 @@ fn begin(c: &mut MobileClient, h: &mut Fake, server: &str) -> String {
     assert!(url.query_pairs().all(|(k, _)| k != "scope"));
     assert_eq!(
         h.actions.last().unwrap()["url"],
-        endpoint(&server_url(server).unwrap(), ".well-known/tuist.json").as_str()
+        endpoint(&server_url(server).unwrap(), ".well-known/luft.json").as_str()
     );
     url.query_pairs()
         .find(|(k, _)| k == "state")
@@ -940,10 +940,10 @@ fn preview(id: &str, kind: &str, platform: &str, binary_id: Value) -> Value {
 }
 
 #[test]
-fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
+fn preview_updates_compare_the_newest_identified_build_through_luft() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
-    login(&mut c, &mut h, "https://tuist.dev", 1, i64::MAX);
-    // The selected profile is self-hosted; Luft's previews still come from tuist.dev.
+    login(&mut c, &mut h, "https://luft.work", 1, i64::MAX);
+    // The selected profile is self-hosted; updates still use the hosted Luft API.
     login(&mut c, &mut h, "https://one.test", 2, i64::MAX);
     let page = json!({"previews":[
         // Newest first: an unidentifiable build and another platform's build are skipped.
@@ -971,7 +971,7 @@ fn preview_updates_compare_the_newest_identified_build_on_tuist_dev() {
     let request = h.actions.last().unwrap();
     assert_eq!(
         request["url"],
-        "https://tuist.dev/api/projects/tuist/luft/previews?track=internal&supported_platforms=android&page=1&page_size=20"
+        "https://luft.work/api/projects/tuist/luft/previews?track=internal&supported_platforms=android&page=1&page_size=20"
     );
     assert_eq!(
         request["headers"]["Authorization"],
@@ -1155,6 +1155,14 @@ fn profiles_that_used_the_tuist_app_session_are_dropped_on_load() {
     legacy["refresh"] = json!("");
     legacy["shared"] = json!("https://tuist.dev");
     vault["profiles"].as_array_mut().unwrap().push(legacy);
+    let mut direct = vault["profiles"][0].clone();
+    direct["id"] = json!("direct-tuist");
+    direct["server"] = json!("https://tuist.dev/");
+    direct["access"] = json!(format!(
+        "e30.{}.signature",
+        URL_SAFE_NO_PAD.encode(json!({"sub":"2","type":"account","exp":i64::MAX}).to_string())
+    ));
+    vault["profiles"].as_array_mut().unwrap().push(direct);
     vault["active_profile_id"] = json!("legacy");
     vault["unlinked"] = json!([["https://tuist.dev", "account-2"]]);
     h.vault = Some(vault.to_string());
@@ -1353,7 +1361,11 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
             "/threads/12345678-1234-5678-9abc-123456789abc",
             Destination::Conversation("threads", "12345678-1234-5678-9abc-123456789abc".into()),
         ),
-        ("/halls", Destination::List("halls")),
+        ("/lounges", Destination::List("lounges")),
+        (
+            "/lounges/12345678-1234-5678-9abc-123456789abc",
+            Destination::Conversation("lounges", "12345678-1234-5678-9abc-123456789abc".into()),
+        ),
         (
             "/dms/12345678-1234-5678-9abc-123456789abc",
             Destination::Conversation("dms", "12345678-1234-5678-9abc-123456789abc".into()),
@@ -1390,10 +1402,10 @@ fn luft_route_catalog_roundtrips_and_rejects_ambiguous_urls() {
         "/threads/new/voice",
         "/threads/------------------------------------",
         "/threads/",
-        "/halls/not-an-id",
+        "/lounges/not-an-id",
         "/threads/new/snooze",
         "/threads/snooze",
-        "/halls/12345678-1234-5678-9abc-123456789abc/snooze",
+        "/lounges/12345678-1234-5678-9abc-123456789abc/snooze",
         "/threads/12345678-1234-5678-9abc-123456789abc/snooze/",
         "/channels",
         "/profile?",
@@ -1922,10 +1934,147 @@ fn an_inbox_the_server_refuses_keeps_what_was_stored() {
 }
 
 #[test]
+fn lounge_operations_use_the_luft_api_and_keep_direct_conversations_private() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    let profile = login(&mut c, &mut h, "https://luft.work", 1, i64::MAX);
+    h.responses
+        .push_back((200, json!({"organizations":[{"name":"team"}]})));
+    call(&mut c, &mut h, "organizations", json!({}));
+    call(
+        &mut c,
+        &mut h,
+        "select_organization",
+        json!({"id":profile,"name":"team"}),
+    );
+
+    let lounge =
+        json!({"id":SERVER_ID,"kind":"lounge","name":"releases","members":[],"messages":[]});
+    let direct =
+        json!({"id":SERVER_ID,"kind":"direct","members":[{"id":2,"handle":"ana"}],"messages":[]});
+    for (operation, args, response, method, suffix) in [
+        (
+            "lounges",
+            json!({}),
+            json!({"lounges":[lounge.clone()],"directs":[direct.clone()]}),
+            "GET",
+            String::new(),
+        ),
+        (
+            "create_lounge",
+            json!({"name":"releases","user_ids":[2]}),
+            lounge.clone(),
+            "POST",
+            String::new(),
+        ),
+        (
+            "lounge",
+            json!({"id":SERVER_ID,"before":7}),
+            lounge.clone(),
+            "GET",
+            format!("/{SERVER_ID}?before=7"),
+        ),
+        (
+            "send_lounge_message",
+            json!({"id":SERVER_ID,"content":"Hello"}),
+            lounge.clone(),
+            "POST",
+            format!("/{SERVER_ID}/messages"),
+        ),
+        (
+            "read_lounge",
+            json!({"id":SERVER_ID,"position":7}),
+            json!({"ok":true}),
+            "POST",
+            format!("/{SERVER_ID}/read"),
+        ),
+        (
+            "invite_lounge",
+            json!({"id":SERVER_ID,"user_ids":[2]}),
+            lounge.clone(),
+            "POST",
+            format!("/{SERVER_ID}/members"),
+        ),
+        (
+            "lounge_people",
+            json!({}),
+            json!({"people":[{"id":2,"handle":"ana"}]}),
+            "GET",
+            "/people".into(),
+        ),
+        (
+            "start_direct",
+            json!({"user_ids":[2]}),
+            direct.clone(),
+            "POST",
+            "/directs".into(),
+        ),
+        // Reading, sending and marking read use the same operations for a DM,
+        // without changing its server kind or exposing it as a public lounge.
+        (
+            "lounge",
+            json!({"id":SERVER_ID}),
+            direct.clone(),
+            "GET",
+            format!("/{SERVER_ID}"),
+        ),
+        (
+            "send_lounge_message",
+            json!({"id":SERVER_ID,"content":"Private"}),
+            direct.clone(),
+            "POST",
+            format!("/{SERVER_ID}/messages"),
+        ),
+        (
+            "read_lounge",
+            json!({"id":SERVER_ID,"position":8}),
+            json!({"ok":true}),
+            "POST",
+            format!("/{SERVER_ID}/read"),
+        ),
+    ] {
+        let expected_kind = response.get("kind").cloned();
+        h.responses.push_back((200, response));
+        let result = call(&mut c, &mut h, operation, args);
+        assert!(result.get("error").is_none(), "{operation}: {result}");
+        if let Some(kind) = expected_kind {
+            assert_eq!(result["data"]["kind"], kind, "{operation}");
+        }
+        let request = h
+            .actions
+            .iter()
+            .rev()
+            .find(|action| action["type"] == "http")
+            .unwrap();
+        assert_eq!(request["method"], method, "{operation}");
+        assert_eq!(
+            request["url"],
+            format!("https://luft.work/api/accounts/team/lounges{suffix}"),
+            "{operation}"
+        );
+        match operation {
+            "lounges" => {
+                assert_eq!(result["data"]["lounges"][0]["kind"], "lounge");
+                assert_eq!(result["data"]["lounges"][0]["title"], "#releases");
+                assert_eq!(result["data"]["directs"][0]["kind"], "direct");
+                assert_eq!(result["data"]["directs"][0]["title"], "ana");
+            }
+            "create_lounge" => assert_eq!(sent_body(&h)["name"], "releases"),
+            "start_direct" => {
+                assert_eq!(sent_body(&h)["user_ids"], json!([2]));
+                assert!(sent_body(&h).get("kind").is_none());
+                assert_eq!(result["data"]["kind"], "direct");
+            }
+            _ => {}
+        }
+    }
+    assert!(h.responses.is_empty());
+}
+
+#[test]
 fn each_conversation_tab_keeps_its_own_stack_and_back_stays_in_it() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
-    let hall = "aaaaaaaa-1234-5678-9abc-123456789abc";
+    let lounge = "aaaaaaaa-1234-5678-9abc-123456789abc";
     let thread = "bbbbbbbb-1234-5678-9abc-123456789abc";
     call(
         &mut c,
@@ -1937,26 +2086,29 @@ fn each_conversation_tab_keeps_its_own_stack_and_back_stays_in_it() {
         &mut c,
         &mut h,
         "navigate",
-        json!({"url":format!("/halls/{hall}")}),
+        json!({"url":format!("/lounges/{lounge}")}),
     )["view"]["navigation"]
         .clone();
     assert_eq!(
-        (nav["tab"].as_str(), nav["hall_id"].as_str()),
-        (Some("halls"), Some(hall))
+        (nav["tab"].as_str(), nav["lounge_id"].as_str()),
+        (Some("lounges"), Some(lounge))
     );
     assert_eq!(nav["thread_id"], thread);
 
     let dms =
         call(&mut c, &mut h, "select_tab", json!({"tab":"dms"}))["view"]["navigation"].clone();
     assert_eq!(dms["path"], "/dms");
-    let back = call(&mut c, &mut h, "select_tab", json!({"tab":"halls"}));
-    assert_eq!(back["view"]["navigation"]["path"], format!("/halls/{hall}"));
+    let back = call(&mut c, &mut h, "select_tab", json!({"tab":"lounges"}));
+    assert_eq!(
+        back["view"]["navigation"]["path"],
+        format!("/lounges/{lounge}")
+    );
 
-    // Back leaves the hall for the halls list; the thread stays open in its tab.
+    // Back leaves the lounge for the lounges list; the thread stays open in its tab.
     let nav = call(&mut c, &mut h, "navigation_back", json!({}))["view"]["navigation"].clone();
     assert_eq!(
-        (nav["path"].as_str(), nav["hall_id"].is_null()),
-        (Some("/halls"), true)
+        (nav["path"].as_str(), nav["lounge_id"].is_null()),
+        (Some("/lounges"), true)
     );
     let threads = call(&mut c, &mut h, "select_tab", json!({"tab":"threads"}));
     assert_eq!(
@@ -1967,7 +2119,7 @@ fn each_conversation_tab_keeps_its_own_stack_and_back_stays_in_it() {
 }
 
 #[test]
-fn presence_joins_the_selected_organization_and_marks_halls_people_online() {
+fn presence_joins_the_selected_organization_and_marks_lounges_people_online() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
     // A personal account has no presence and opens nothing.
@@ -2011,7 +2163,7 @@ fn presence_joins_the_selected_organization_and_marks_halls_people_online() {
     assert!(!joined.to_string().contains("base64url.bearer"));
 
     h.responses.push_back((200, json!({"people":[{"id":2,"handle":"ben","online":false},{"id":3,"handle":"cai","online":true}]})));
-    let people = call(&mut c, &mut h, "hall_people", json!({}));
+    let people = call(&mut c, &mut h, "lounge_people", json!({}));
     assert_eq!(people["data"]["people"][0]["online"], true);
     assert_eq!(people["data"]["people"][1]["online"], false);
 
@@ -2881,6 +3033,71 @@ fn snoozed_threads_leave_their_section_until_the_snooze_ends() {
 }
 
 #[test]
+fn reauthorization_requires_explicit_online_consent_and_never_sends_a_message() {
+    let (mut c, mut h) = (MobileClient::new(), Fake::default());
+    login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
+    h.responses.push_back((
+        200,
+        json!({"id":SERVER_ID,"status":"idle","messages":[],
+        "reauthorization_required":true,"can_reauthorize":true}),
+    ));
+    let thread = call(&mut c, &mut h, "thread", json!({"id":SERVER_ID}));
+    assert_eq!(thread["data"]["can_reauthorize"], true);
+    let count = h.actions.len();
+    let denied = call(
+        &mut c,
+        &mut h,
+        "reauthorize_thread",
+        json!({"id":SERVER_ID}),
+    );
+    assert!(denied["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+    h.offline = true;
+    assert!(
+        call(
+            &mut c,
+            &mut h,
+            "send_message",
+            json!({"id":SERVER_ID,"content":"draft"})
+        )["error"]
+            .is_string()
+    );
+    let consent = json!({"id":SERVER_ID,"consent":true});
+    assert!(call(&mut c, &mut h, "reauthorize_thread", consent.clone())["error"].is_string());
+    assert_eq!(
+        call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}))["data"]["reauthorization_required"],
+        true
+    );
+    h.offline = false;
+    h.responses.push_back((403, json!({})));
+    assert!(call(&mut c, &mut h, "reauthorize_thread", consent.clone())["error"].is_string());
+    h.responses.push_back((
+        200,
+        json!({"id":SERVER_ID,"status":"idle","messages":[],
+        "reauthorization_required":false,"can_reauthorize":true}),
+    ));
+    let authorized = call(&mut c, &mut h, "reauthorize_thread", consent);
+    assert_eq!(authorized["data"]["reauthorization_required"], false);
+    assert_eq!(authorized["data"]["can_reauthorize"], false);
+    let request = h.actions.last().unwrap();
+    assert_eq!(request["method"], "POST");
+    assert_eq!(
+        request["url"],
+        format!("https://one.test/api/accounts/ana/threads/{SERVER_ID}/reauthorize")
+    );
+    assert_eq!(sent_body(&h), json!({}));
+    assert_eq!(
+        call(&mut c, &mut h, "flush_outbox", json!({}))["data"]["sent"],
+        0
+    );
+    h.offline = true;
+    assert_eq!(
+        call(&mut c, &mut h, "cached_thread", json!({"id":SERVER_ID}))["data"]["reauthorization_required"],
+        false
+    );
+}
+
+#[test]
 fn archiving_and_restoring_a_thread_moves_it_in_the_stored_inbox() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
@@ -2939,7 +3156,7 @@ fn archiving_and_restoring_a_thread_moves_it_in_the_stored_inbox() {
 }
 
 #[test]
-fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
+fn palette_searches_the_stored_inbox_and_the_lounges_of_the_selected_account() {
     let (mut c, mut h) = (MobileClient::new(), Fake::default());
     let id = login(&mut c, &mut h, "https://one.test", 1, i64::MAX);
     h.responses
@@ -2956,12 +3173,12 @@ fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
         json!({"threads":[{"id":SERVER_ID,"title":"Release plan","status":"idle","archive_status":"active"}],"next_cursor":null}),
     ));
     call(&mut c, &mut h, "threads", json!({}));
-    let hall = "11111111-1111-1111-1111-111111111111";
+    let lounge = "11111111-1111-1111-1111-111111111111";
     h.responses.push_back((
         200,
-        json!({"halls":[{"id":hall,"kind":"hall","name":"releases","members":[],"unread":0}],"directs":[]}),
+        json!({"lounges":[{"id":lounge,"kind":"lounge","name":"releases","members":[],"unread":0}],"directs":[]}),
     ));
-    call(&mut c, &mut h, "halls", json!({}));
+    call(&mut c, &mut h, "lounges", json!({}));
 
     // Offline and without requests: the palette reads only what is stored.
     h.offline = true;
@@ -2976,14 +3193,17 @@ fn palette_searches_the_stored_inbox_and_the_halls_of_the_selected_account() {
         .collect();
     assert_eq!(
         urls,
-        [format!("/threads/{SERVER_ID}"), format!("/halls/{hall}")]
+        [
+            format!("/threads/{SERVER_ID}"),
+            format!("/lounges/{lounge}")
+        ]
     );
     // Navigating to a result opens it like any link.
     call(&mut c, &mut h, "navigate", json!({"url":urls[1]}));
     let view = call(&mut c, &mut h, "snapshot", json!({}));
-    assert_eq!(view["view"]["navigation"]["hall_id"], hall);
+    assert_eq!(view["view"]["navigation"]["lounge_id"], lounge);
 
-    // Another account's halls are not offered.
+    // Another account's lounges are not offered.
     call(
         &mut c,
         &mut h,

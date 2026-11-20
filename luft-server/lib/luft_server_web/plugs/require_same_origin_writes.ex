@@ -22,7 +22,10 @@ defmodule LuftServerWeb.Plugs.RequireSameOriginWrites do
   def call(conn, _opts) do
     origin = conn |> get_req_header("origin") |> List.first()
 
-    if origin == Config.public_url() do
+    # Bearer credentials are explicit, not ambient cookies. Authenticate still
+    # validates them; an invalid bearer must never fall back to a cookie.
+    if match?(["Bearer " <> _], get_req_header(conn, "authorization")) or
+         origin == Config.public_url() do
       conn
     else
       conn

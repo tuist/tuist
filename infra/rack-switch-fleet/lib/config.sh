@@ -577,7 +577,9 @@ fleet_prefix_mask() {
 # it. Every other port's untagged VLAN is 1, which reaches nothing: a mini
 # racked before its node is recorded sits on no segment rather than on the
 # management one, and a port facing an edge or the other ToR carries the
-# management VLAN tagged with the rest.
+# management VLAN tagged with the rest. A node link's `native_vlan` overrides
+# its port's untagged VLAN and drops it from the tagged ones, such as the
+# management VLAN on the port of an edge whose installer asks for DHCP untagged.
 fleet_port_settings() {
   local site_file="$1" device="$2" spec="$3"
   jq -r --argjson d "$device" --argjson spec "$spec" '
@@ -592,6 +594,7 @@ fleet_port_settings() {
     ([(.node_roles // {}) | to_entries[] | select(.value.segment == "machines") | .key]) as $machine_roles |
     ([.nodes[]? | select(.role as $r | $machine_roles | index($r)) | .links[] |
       select(.purpose == "data" and .switch == $d.name and .port != null) | .port]) as $machine_ports |
+    ([.nodes[]? | .links[] | select(.switch == $d.name and .port != null and .native_vlan != null) | {key: (.port | tostring), value: .native_vlan}] | from_entries) as $link_natives |
     ($d.lags // []) as $lags |
     $spec.port_groups[] as $g |
     range($g.first; $g.last + 1) as $n |
@@ -609,8 +612,9 @@ fleet_port_settings() {
       ((if $wan_facing then []
         elif $machine_facing then ((if $lag then $lag.vlans else $p.vlans end) // [])
         else (if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) +
-          (if $edge_facing then $edge_vlans else [] end) end) | unique | map(tostring) | join(",")),
-      (if $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
+          (if $edge_facing then $edge_vlans else [] end) end) - [$link_natives[($n | tostring)]] | unique | map(tostring) | join(",")),
+      (if $link_natives[($n | tostring)] != null then ($link_natives[($n | tostring)] | tostring)
+       elif $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
        elif $management_on_uplinks and ($members | any(. as $m | $management_ports | index($m)) | not) then "1"
        else "" end)
     ] | join("\u001f")

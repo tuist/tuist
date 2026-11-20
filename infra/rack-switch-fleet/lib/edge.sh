@@ -859,6 +859,19 @@ SCRIPT
     power_nat="    iifname \"tailscale0\" oifname \"$interface\" ip daddr { $power } masquerade"
     power_clamp="    oifname \"tailscale0\" ip saddr { $power } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu"
   fi
+  # A preinstalled installer asks the boot server at the address its image was
+  # written with, the env's (rackLinuxFleet.boot.address), before the
+  # internet's. At a site whose provisioning address is another one,
+  # management.edge.boot_alias names that address, and the edge translates it
+  # to its own, where the site's boot server listens.
+  local boot_alias boot_dnat=""
+  boot_alias="$(jq -r '.management.edge.boot_alias // ""' "$site_file")"
+  if [ -n "$boot_alias" ]; then
+    boot_dnat="  chain prerouting {
+    type nat hook prerouting priority dstnat;
+    iifname \"$interface\" ip saddr $(fleet_network "$provisioning") ip daddr $boot_alias dnat to ${provisioning%/*}
+  }"
+  fi
   # The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
   # ignores broadcast replies, so the netdev table addresses each known
   # switch's replies to its MAC, matched on the client hardware address in the
@@ -868,7 +881,8 @@ nft -f - <<'NFT'
 table ip tuist_mgmt_path
 delete table ip tuist_mgmt_path
 table ip tuist_mgmt_path {
-  chain postrouting {
+${boot_dnat:+$boot_dnat
+}  chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { $sources } masquerade
 ${power_nat:+$power_nat

@@ -40,8 +40,8 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     another test of its process (Swift Testing running in parallel), so
     nothing could be attributed to it.
   - `dirty_run_excluded`: a scheme's coverage only came from CI runs on a
-    dirty checkout, which measured code that is not the commit's and never
-    count.
+    dirty checkout, or the commit's only from dirty runs, local or CI, which
+    measured code that is not the commit's and never count.
   - `target_without_history`: selective testing skipped a test target that
     no run was recorded under with its hash and the commit's baseline did
     not execute, so which tests it holds is unknown.

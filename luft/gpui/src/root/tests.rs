@@ -25,7 +25,7 @@ fn accounts(path: &std::path::Path, signed_in: bool) -> (Accounts, Arc<Session>)
         state: path.join("state"),
         data: path.join("data"),
     };
-    let server = Url::parse("https://tuist.dev").unwrap();
+    let server = Url::parse("https://luft.work").unwrap();
     let owner = if signed_in {
         server.clone()
     } else {
@@ -132,7 +132,7 @@ fn account_menu_keyboard_exit_restore_settings_and_sign_out(cx: &mut TestAppCont
     root.read_with(cx, |root, _| assert!(root.menu.is_some()));
     press(cx, "tab"); // Close and leave, rather than trap focus on the opener.
     root.read_with(cx, |root, _| assert!(root.menu.is_none()));
-    // Threads, Halls, DMs, then Profile.
+    // Threads, Lounges, DMs, then Profile.
     for _ in 0..3 {
         press(cx, "tab");
     }
@@ -185,7 +185,7 @@ fn closing_a_preview_returns_focus_to_the_sidebar(cx: &mut TestAppContext) {
         cx.add_window_view(|window, cx| Root::new(session, accounts, status, window, cx));
     cx.update(|window, _| window.activate_window());
     root.update(cx, |root, cx| {
-        root.receive_urls(vec!["tuist://app/team/app/previews/p1".into()], cx)
+        root.receive_urls(vec!["https://luft.work/team/app/previews/p1".into()], cx)
     });
     draw(cx);
     let back = cx.debug_bounds("close-preview").unwrap();
@@ -194,7 +194,7 @@ fn closing_a_preview_returns_focus_to_the_sidebar(cx: &mut TestAppContext) {
     root.read_with(cx, |root, cx| {
         assert!(root.navigation.read(cx).preview.is_none())
     });
-    // Focus sits on the Threads row; Halls and DMs come before Profile.
+    // Focus sits on the Threads row; Lounges and DMs come before Profile.
     for _ in 0..3 {
         press(cx, "tab");
     }
@@ -225,7 +225,7 @@ fn destination_shortcuts_select_and_focus_the_dock_row(cx: &mut TestAppContext) 
         "ctrl"
     };
     for (key, tab) in [
-        ("2", tuist_navigation::Tab::Halls),
+        ("2", tuist_navigation::Tab::Lounges),
         ("3", tuist_navigation::Tab::Dms),
         ("4", tuist_navigation::Tab::Profile),
         ("1", tuist_navigation::Tab::Threads),
@@ -241,9 +241,9 @@ fn destination_shortcuts_select_and_focus_the_dock_row(cx: &mut TestAppContext) 
     draw(cx);
     root.read_with(cx, |root, cx| {
         assert!(root.menu.is_none());
-        assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Halls)
+        assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Lounges)
     });
-    // Focus moved to the Halls row: the next stop is DMs.
+    // Focus moved to the Lounges row: the next stop is DMs.
     press(cx, "tab");
     press(cx, "enter");
     root.read_with(cx, |root, cx| {

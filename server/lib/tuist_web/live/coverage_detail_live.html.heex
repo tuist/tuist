@@ -59,6 +59,23 @@
     </div>
   </div>
 
+  <.alert
+    :if={@subject.kind == :commit and :dirty_run_excluded in Commits.gap_reasons(@summary)}
+    id="coverage-dirty-runs"
+    status="warning"
+    type="secondary"
+    size="large"
+    title={
+      dgettext("dashboard_tests", "Runs from a checkout with uncommitted changes don't count")
+    }
+    description={
+      dgettext(
+        "dashboard_tests",
+        "They measured code that isn't the commit's, so their coverage is left out of the commit's and the actual coverage may be higher. To measure the commit, commit or discard those changes before testing, or keep files your CI job writes out of the checkout or ignored by Git. The Test Runs tab lists them as Discarded."
+      )
+    }
+  />
+
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
       :for={tab <- tabs(@subject)}

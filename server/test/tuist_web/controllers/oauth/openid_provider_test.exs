@@ -10,9 +10,16 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Boruta.Ecto.Token
+  alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.OAuth.Clients
+  alias Tuist.Push
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @client_id "0b2f5c0e-7a3d-4c6e-9a51-2d4f8e1b6c37"
   @client_secret "luft-server-secret"
@@ -45,6 +52,58 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
       stub(Environment, :luft_server_oauth_client_secret, fn -> @client_secret end)
       stub(Environment, :luft_server_oauth_redirect_uris, fn -> [@redirect_uri] end)
       :ok
+    end
+
+    test "brokered sign-in requires fresh browser-bound consent even without prompt=consent", %{conn: conn, user: user} do
+      params = authorize_params()
+      path = "/oauth2/authorize?" <> URI.encode_query(params)
+      before = Repo.aggregate(Token, :count)
+      page = get(conn, path)
+      html = html_response(page, 200)
+      assert html =~ "Sign in to Luft?"
+      assert get_resp_header(page, "cache-control") == ["no-store"]
+      assert Repo.aggregate(Token, :count) == before
+
+      csrf =
+        html
+        |> Floki.parse_document!()
+        |> Floki.find("input[name='_csrf_token']")
+        |> Floki.attribute("value")
+        |> hd()
+
+      assert %{"error" => "access_denied", "state" => "state-1"} =
+               page
+               |> recycle()
+               |> put_private(:plug_skip_csrf_protection, false)
+               |> post(path, %{"consent" => "deny", "_csrf_token" => csrf})
+               |> redirect_query()
+
+      assert Repo.aggregate(Token, :count) == before
+
+      assert_raise InvalidCSRFTokenError, fn ->
+        conn
+        |> recycle()
+        |> put_private(:plug_skip_csrf_protection, false)
+        |> post(path, %{"consent" => "allow"})
+      end
+
+      other_browser = log_in_user(build_conn(), user)
+
+      assert_raise InvalidCSRFTokenError, fn ->
+        other_browser
+        |> put_private(:plug_skip_csrf_protection, false)
+        |> post(path, %{"consent" => "allow", "_csrf_token" => csrf})
+      end
+
+      assert %{"code" => _, "state" => "state-1"} =
+               page
+               |> recycle()
+               |> put_private(:plug_skip_csrf_protection, false)
+               |> post(path, %{"consent" => "allow", "_csrf_token" => csrf})
+               |> redirect_query()
+
+      assert Repo.aggregate(Token, :count) > before
+      assert conn |> get(path) |> html_response(200) =~ "Sign in to Luft?"
     end
 
     test "signs in, verifies the ID token, and manages organizations", %{conn: conn, user: user} do
@@ -104,6 +163,171 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
       assert build_conn() |> bearer.() |> get("/api/me/feature-flags") |> json_response(403)
     end
 
+    test "scoped app grants preserve flags and push grant checks", %{conn: conn, user: user} do
+      tokens = sign_in(conn, authorize_params(%{"scope" => "openid luft:app"}))
+      bearer = tokens["access_token"]
+      request = fn path -> build_conn() |> put_req_header("authorization", "Bearer " <> bearer) |> get(path) end
+      refute Push.first_party_session?(bearer, user)
+      assert {:ok, session} = Push.oauth_session(bearer, user, ["luft"])
+      assert {:error, :oauth_session_required} = Push.oauth_session(bearer, user, ["tuist"])
+      assert "/api/me/feature-flags" |> request.() |> json_response(200)
+
+      id = Ecto.UUID.generate()
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer " <> bearer)
+             |> put_req_header("content-type", "application/json")
+             |> put(
+               "/api/me/push-devices/#{id}",
+               JSON.encode!(%{
+                 platform: "macos",
+                 token: String.duplicate("ab", 32),
+                 environment: "production"
+               })
+             )
+             |> json_response(200)
+
+      assert [%{installation_id: ^id}] = Push.live_installations(user.id, "luft")
+      assert Push.grant_active?("luft", session.oauth_grant_id, user.id)
+
+      # Removing the scope is authoritative even while the signed JWT lives.
+      grant = Repo.get_by!(Token, value: bearer)
+      grant |> Ecto.Changeset.change(scope: "openid") |> Repo.update!()
+      assert "/api/me/feature-flags" |> request.() |> json_response(403)
+      refute Push.grant_active?("luft", session.oauth_grant_id, user.id)
+      assert Push.live_installations(user.id, "luft") == []
+    end
+
+    test "app grants require the configured client and exact scope", %{conn: conn, user: user} do
+      for scope <- ["openid", "openid profile email account:organizations:write"] do
+        tokens = sign_in(conn, authorize_params(%{"scope" => scope}))
+        refute Push.luft_app_session?(tokens["access_token"], user)
+      end
+
+      tokens = sign_in(conn, authorize_params(%{"scope" => "openid luft:app"}))
+      bearer = tokens["access_token"]
+      grant = Repo.get_by!(Token, value: bearer)
+      other = AccountsFixtures.user_fixture()
+      refute Push.luft_app_session?(bearer, other)
+      grant |> Ecto.Changeset.change(scope: "openid luft:app:extra") |> Repo.update!()
+      refute Push.luft_app_session?(bearer, user)
+
+      grant
+      |> Repo.reload!()
+      |> Ecto.Changeset.change(scope: "luft:app", revoked_at: DateTime.utc_now())
+      |> Repo.update!()
+
+      refute Push.luft_app_session?(bearer, user)
+
+      grant
+      |> Repo.reload!()
+      |> Ecto.Changeset.change(scope: "luft:app", revoked_at: nil, refresh_token: nil)
+      |> Repo.update!()
+
+      refute Push.luft_app_session?(bearer, user)
+
+      grant
+      |> Repo.reload!()
+      |> Ecto.Changeset.change(
+        scope: "luft:app",
+        refresh_token: grant.refresh_token,
+        refresh_token_revoked_at: DateTime.utc_now()
+      )
+      |> Repo.update!()
+
+      refute Push.luft_app_session?(bearer, user)
+
+      {:ok, client} = Clients.create_client(%{redirect_uris: [@redirect_uri], name: "not Luft"})
+
+      grant
+      |> Repo.reload!()
+      |> Ecto.Changeset.change(client_id: client.id, scope: "luft:app", refresh_token_revoked_at: nil)
+      |> Repo.update!()
+
+      refute Push.luft_app_session?(bearer, user)
+    end
+
+    test "project, organization details and preview deletion keep their separate permissions", %{conn: conn, user: user} do
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      foreign = AccountsFixtures.organization_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      other_project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      path = "/api/projects/#{user.account.name}/#{project.name}"
+      foreign_path = "/api/projects/#{other_project.account.name}/#{other_project.name}"
+      app_only = sign_in(conn, authorize_params(%{"scope" => "openid luft:app"}))
+      app_api = fn -> put_req_header(build_conn(), "authorization", "Bearer " <> app_only["access_token"]) end
+      assert app_api.() |> get(path) |> json_response(403)
+      assert app_api.() |> get(path <> "/previews") |> json_response(403)
+      assert app_api.() |> get("/api/organizations/#{organization.account.name}") |> json_response(403)
+
+      scope = "openid luft:app project:admin:read project:previews:read account:members:read"
+      tokens = sign_in(conn, authorize_params(%{"scope" => scope}))
+      api = fn -> put_req_header(build_conn(), "authorization", "Bearer " <> tokens["access_token"]) end
+
+      assert api.() |> get(path) |> json_response(200)
+      assert api.() |> get(foreign_path) |> json_response(403)
+      assert api.() |> get(path <> "/previews") |> json_response(200)
+      assert api.() |> get(path <> "/previews/tracks") |> json_response(200)
+      assert api.() |> get(path <> "/previews/#{preview.id}") |> json_response(200)
+      assert api.() |> delete(path <> "/previews/#{preview.id}") |> json_response(403)
+      assert api.() |> get("/api/organizations/#{organization.account.name}") |> json_response(200)
+      assert api.() |> get("/api/organizations/#{foreign.account.name}") |> json_response(403)
+
+      tokens = sign_in(conn, authorize_params(%{"scope" => scope <> " project:previews:write"}))
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer " <> tokens["access_token"])
+             |> delete(path <> "/previews/#{preview.id}")
+             |> response(204)
+    end
+
+    test "push delivery follows refresh rotation and downscoping", %{conn: conn, user: user} do
+      tokens = sign_in(conn, authorize_params(%{"scope" => "openid luft:app"}))
+      assert {:ok, session} = Push.oauth_session(tokens["access_token"], user, ["luft"])
+
+      refresh = fn tokens, scope ->
+        build_conn()
+        |> put_req_header("authorization", "Basic " <> Base.encode64("#{@client_id}:#{@client_secret}"))
+        |> post("/oauth2/token", %{
+          "grant_type" => "refresh_token",
+          "refresh_token" => tokens["refresh_token"],
+          "scope" => scope
+        })
+        |> json_response(200)
+      end
+
+      refreshed = refresh.(tokens, "openid luft:app")
+      assert {:ok, ^session} = Push.oauth_session(refreshed["access_token"], user, ["luft"])
+      assert Push.grant_active?("luft", session.oauth_grant_id, user.id)
+      _downscoped = refresh.(refreshed, "openid")
+      refute Push.grant_active?("luft", session.oauth_grant_id, user.id)
+    end
+
+    test "account deletion needs its own scope and existing account permission", %{conn: conn, user: user} do
+      foreign = AccountsFixtures.user_fixture(preload: [:account])
+      tokens = sign_in(conn, authorize_params(%{"scope" => "openid luft:app"}))
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer " <> tokens["access_token"])
+             |> delete("/api/accounts/#{user.account.name}")
+             |> json_response(403)
+
+      tokens = sign_in(conn, authorize_params(%{"scope" => "openid account:delete"}))
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer " <> tokens["access_token"])
+             |> delete("/api/accounts/#{foreign.account.name}")
+             |> json_response(403)
+
+      assert build_conn()
+             |> put_req_header("authorization", "Bearer " <> tokens["access_token"])
+             |> delete("/api/accounts/#{user.account.name}")
+             |> response(204)
+
+      assert Accounts.get_account_by_handle(user.account.name) == nil
+    end
+
     test "creates organizations only with account:organizations:write", %{conn: conn, user: user} do
       tokens = sign_in(conn, authorize_params(%{"scope" => "openid profile email"}))
 
@@ -118,7 +342,7 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
 
     test "refuses a wrong secret, a missing PKCE verifier, and scopes it was not given", %{conn: conn} do
       exchange = fn secret, extra ->
-        %{"code" => code} = conn |> get("/oauth2/authorize", authorize_params()) |> redirect_query()
+        %{"code" => code} = conn |> approve(authorize_params()) |> redirect_query()
 
         build_conn()
         |> put_req_header("authorization", "Basic " <> Base.encode64("#{@client_id}:#{secret}"))
@@ -132,7 +356,9 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
       assert exchange.(@client_secret, %{}).status == 400
 
       assert %{"error" => "invalid_scope"} =
-               conn |> get("/oauth2/authorize", authorize_params(%{"scope" => "openid mcp"})) |> redirect_query()
+               conn
+               |> get("/oauth2/authorize", authorize_params(%{"scope" => "openid project:admin:write"}))
+               |> redirect_query()
 
       # Tokens without a scope get Tuist's default user scopes, so an empty
       # request must not slip through as "nothing beyond what it may have".
@@ -190,7 +416,7 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
   end
 
   defp sign_in(conn, params) do
-    %{"code" => code, "state" => "state-1"} = conn |> get("/oauth2/authorize", params) |> redirect_query()
+    %{"code" => code, "state" => "state-1"} = conn |> approve(params) |> redirect_query()
 
     build_conn()
     |> put_req_header("authorization", "Basic " <> Base.encode64("#{@client_id}:#{@client_secret}"))
@@ -201,6 +427,15 @@ defmodule TuistWeb.Oauth.OpenidProviderTest do
       "code_verifier" => @verifier
     })
     |> json_response(200)
+  end
+
+  defp approve(conn, params) do
+    page = get(conn, "/oauth2/authorize", params)
+    assert html_response(page, 200) =~ "Sign in to Luft?"
+
+    page
+    |> recycle()
+    |> post("/oauth2/authorize?" <> URI.encode_query(params), %{"consent" => "allow"})
   end
 
   defp redirect_query(conn) do
