@@ -1566,6 +1566,13 @@ jobs:
           submodules: recursive
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
+      # Runner images built from 14c975eeae until 70b3fb8b45 left a Tuist
+      # install in ~/.local/share/mise, and cache-volume needs that path absent
+      # or empty. Production runners only get the fixed image from a deploy
+      # this job gates, so clear it here. Remove once no production runner pool
+      # serves one of those images.
+      - name: Clear the runner image's mise data directory
+        run: rm -rf ~/.local/share/mise
       # mise's data directory and the Rust toolchain share one volume: mise
       # records an installed Rust as a link to ~/.cargo/bin, so the two are only
       # consistent when they are restored together.
