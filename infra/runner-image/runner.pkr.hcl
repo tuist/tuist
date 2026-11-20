@@ -174,9 +174,9 @@ variable "bitrise_cli_version" {
 variable "tuist_version" {
   type        = string
   description = "Tuist CLI preinstalled for runner. https://github.com/tuist/tuist/releases (bare-version tags only)."
-  # Installed through mise, which verifies the release's checksum. A
-  # repository that pins Tuist through mise still runs its own version: the
-  # shim resolves the pin and installs it on first use. See AGENTS.md.
+  # Installed to /opt/tuist/cli, outside runner's mise data directory. A
+  # repository that pins Tuist through mise still runs its own version. See
+  # AGENTS.md.
   # renovate: datasource=github-releases depName=tuist/tuist
   default = "4.218.2"
 }
@@ -808,23 +808,34 @@ build {
     ]
   }
 
-  # The Tuist CLI, installed through mise as runner so its shim exists in
-  # runner's mise data directory. With the shim first on PATH, a repository
-  # that pins Tuist through mise gets its version (mise installs it on first
-  # use), and one without a pin falls through the shim to
-  # /opt/tuist/cli/bin/tuist, which runs this version. That directory is not on
-  # a CI job's PATH, so workflows still install the Tuist they pin; sandbox
-  # commands put it after PATH (server/lib/tuist/sandboxes/commands.ex).
-  # The wrapper execs the installed binary by its real path, because Tuist finds
-  # ProjectDescription.framework next to its executable.
+  # The Tuist CLI, installed with mise (which verifies the release's
+  # checksum) into a scratch data directory and moved to
+  # /opt/tuist/cli/<version>. It stays out of runner's mise data directory
+  # because workflows mount cache volumes over ~/.local/share/mise, and
+  # tuist/cache-volume requires an absent or empty directory there (see the
+  # cleanup provisioner at the end). /opt/tuist/cli/bin/tuist (tuist-cli.sh)
+  # runs the version a repository pins through mise, installing it on first
+  # use, and this one otherwise. That directory is not on a CI job's PATH, so
+  # workflows still install the Tuist they pin; sandbox commands put it after
+  # PATH (server/lib/tuist/sandboxes/commands.ex).
+  provisioner "file" {
+    source      = "${path.root}/tuist-cli.sh"
+    destination = "/tmp/tuist-cli.sh"
+  }
+
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner -H /bin/zsh -lc 'mise install tuist@${var.tuist_version}'",
-      "test -x /Users/runner/.local/share/mise/shims/tuist",
+      "sudo rm -rf /tmp/tuist-cli-mise",
+      "sudo -u runner -H /bin/zsh -lc 'MISE_DATA_DIR=/tmp/tuist-cli-mise MISE_CACHE_DIR=/tmp/tuist-cli-mise/cache mise install tuist@${var.tuist_version}'",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist/cli/bin",
-      "printf '#!/bin/sh\\nexec /Users/runner/.local/share/mise/installs/tuist/${var.tuist_version}/tuist \"$@\"\\n' | sudo tee /opt/tuist/cli/bin/tuist >/dev/null",
-      "sudo chmod 0755 /opt/tuist/cli/bin/tuist",
+      "sudo rm -rf /opt/tuist/cli/${var.tuist_version}",
+      "sudo mv /tmp/tuist-cli-mise/installs/tuist/${var.tuist_version} /opt/tuist/cli/${var.tuist_version}",
+      "sudo rm -rf /tmp/tuist-cli-mise",
+      "sudo chown -R root:wheel /opt/tuist/cli/${var.tuist_version}",
+      "sudo ln -sfn ${var.tuist_version} /opt/tuist/cli/current",
+      "sudo install -m 0755 -o root -g wheel /tmp/tuist-cli.sh /opt/tuist/cli/bin/tuist",
+      "rm -f /tmp/tuist-cli.sh",
       "[ \"$(sudo -u runner -H /bin/sh -c 'cd /tmp && PATH=$HOME/.local/share/mise/shims:$PATH:/opt/tuist/cli/bin tuist version' | tail -1)\" = '${var.tuist_version}' ] || { echo 'sanity check: the preinstalled Tuist does not run without a pin' >&2; exit 1; }"
     ]
   }
@@ -903,6 +914,18 @@ build {
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
+    ]
+  }
+
+  # Workflows mount tuist/cache-volume over ~/.local/share/mise, which requires
+  # the path to be absent or an empty directory. Build steps that run mise as
+  # runner (the Tuist wrapper's pin check, for one) leave its bookkeeping
+  # there, so remove the directory and assert it is gone.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo rm -rf /Users/runner/.local/share/mise",
+      "[ ! -e /Users/runner/.local/share/mise ] || { echo 'sanity check: runner mise data directory must be absent for cache volumes' >&2; exit 1; }"
     ]
   }
 
