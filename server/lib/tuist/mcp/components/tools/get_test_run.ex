@@ -35,7 +35,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         "flaky_test_count" => %{"type" => "integer"},
         "avg_test_duration" => %{"type" => "number"},
         "result_bundle_url" => %{"type" => "string"},
-        "session_url" => %{"type" => "string"},
+        "session_url" => %{"type" => ["string", "null"]},
         "coverage" => Tuist.MCP.Tool.json_schema(Tuist.Tests.Coverage.Schemas.run_coverage()),
         "selective_testing" => Tuist.MCP.Tool.json_schema(Tuist.Tests.Selections.Schemas.test_run()),
         "side_quests" => Tuist.MCP.SideQuests.schema()
@@ -83,8 +83,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       "Get detailed metrics for a specific test run, including its own code coverage, its selective testing " <>
         "summary (strategy, baseline, and requested, selected, skipped and estimated test counts, the ones test selection effectiveness is computed from), and temporary download URLs (valid for 15 minutes) for its " <>
         "result bundle — the .xcresult holding the failure details, attachments and timings Xcode recorded — and " <>
-        "its session archive. Those URLs are presigned and not checked for existence: a run whose artifacts were " <>
-        "never uploaded, or have since been pruned, answers 404 on download."
+        "the session archive (CLI logs) of the command that ran it, or null when no command is linked to the run. " <>
+        "Those URLs are presigned and not checked for existence: a run whose artifacts were never uploaded, or " <>
+        "have since been pruned, answers 404 on download."
 
   def execute(conn, %{"test_run_id" => test_run_id}) do
     with {:ok, run, project} <-
@@ -115,7 +116,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
            flaky_test_count: metrics.flaky_count,
            avg_test_duration: metrics.avg_duration,
            result_bundle_url: artifact_url(CommandEvents.get_result_bundle_key(run.id, project), project.account),
-           session_url: artifact_url(CommandEvents.get_session_key(run.id, project), project.account),
+           session_url: session_url(run, project),
            coverage: CoverageQuery.test_run(run),
            selective_testing: SelectionQuery.test_run(run)
          },
@@ -124,6 +125,15 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
          run,
          metrics.flaky_count
        )}
+    end
+  end
+
+  # The CLI uploads the session archive under the ID of the command event that
+  # ran the tests, not the test run's, the same lookup the dashboard makes.
+  defp session_url(run, project) do
+    case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
+      {:ok, command_event} -> artifact_url(CommandEvents.get_session_key(command_event.id, project), project.account)
+      {:error, :not_found} -> nil
     end
   end
 

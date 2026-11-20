@@ -11,12 +11,19 @@ defmodule Tuist.MCP.Components.Tools.SandboxTools do
          {:enabled, true} <- {:enabled, FeatureFlags.sandboxes_enabled?(account)} do
       case Query.run(action, account, args) do
         {:ok, data} -> {:ok, data}
-        {:error, reason} -> {:error, reason |> Query.error() |> elem(1)}
+        {:error, reason} -> {:error, error_text(Query.error(reason))}
       end
     else
       {:enabled, false} -> {:error, "Agent sandboxes are not enabled for this account."}
       {:error, _message} = error -> error
     end
+  end
+
+  # The code leads the text, so an agent branches on it as it would on the
+  # API's `code`; the message after it says what to do.
+  defp error_text(%{code: code, message: message} = error) do
+    retry = if seconds = error[:retry_after], do: "\nretry_after_seconds: #{seconds}", else: ""
+    "code: #{code}\n#{message}#{retry}"
   end
 end
 

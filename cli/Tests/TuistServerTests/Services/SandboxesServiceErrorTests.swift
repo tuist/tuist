@@ -15,6 +15,15 @@ struct SandboxesServiceErrorTests {
         )
     }
 
+    @Test func theServersCodeComesWithItsMessage() async {
+        let payload = UndocumentedPayload(body: HTTPBody(#"{"message":"Every sandbox host is busy.","code":"fleet_busy"}"#))
+        let error = await SandboxesServiceError.undocumented(503, payload)
+
+        #expect(error == .unavailable(.init(message: "Every sandbox host is busy.", code: "fleet_busy")))
+        #expect(error.code == "fleet_busy")
+        #expect(error.errorDescription == "Every sandbox host is busy. (fleet_busy)")
+    }
+
     @Test func aBodyWithoutAMessageFallsBackToTheStatus() async {
         #expect(await SandboxesServiceError
             .undocumented(502, UndocumentedPayload(body: HTTPBody("<html>Bad gateway</html>"))) == .unknownError(502))

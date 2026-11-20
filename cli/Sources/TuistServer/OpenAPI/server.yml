@@ -1154,13 +1154,13 @@ components:
           x-struct:
           x-validate:
       required:
-        - page_size
         - page
-        - end_at
-        - total_count
         - total_pages
+        - total_count
+        - page_size
         - has_next_page
         - has_previous_page
+        - end_at
       title: PulsePagination
       type: object
       x-struct:
@@ -4605,6 +4605,11 @@ components:
     SandboxCommandLogLine:
       description: One line of the ND-JSON log stream. `stdout` and `stderr` lines carry output and `offset`, the byte offset the stream reached, which a reconnect passes back as `stdout_offset` or `stderr_offset`. The last line is `exit`, with the command's final state, or `error`.
       properties:
+        code:
+          description: An `error` line's machine-readable code, as in error responses.
+          type: string
+          x-struct:
+          x-validate:
         data:
           type: string
           x-struct:
@@ -7424,13 +7429,13 @@ components:
               x-struct:
               x-validate:
           required:
-            - page_size
             - page
-            - end_at
-            - total_count
             - total_pages
+            - total_count
+            - page_size
             - has_next_page
             - has_previous_page
+            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -9923,7 +9928,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+          description: 'With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -9938,7 +9943,7 @@ components:
           x-struct:
           x-validate:
         xcode_version:
-          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
           nullable: true
           type: string
           x-struct:
@@ -10933,7 +10938,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+          description: 'With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -10948,7 +10953,7 @@ components:
           x-struct:
           x-validate:
         xcode_version:
-          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
           nullable: true
           type: string
           x-struct:
@@ -11301,8 +11306,8 @@ components:
         - release
         - environment
         - account_handle
-        - trace_id
         - event_id
+        - trace_id
       title: PulseErrorEvent
       type: object
       x-struct:
@@ -14303,8 +14308,8 @@ components:
               - release
               - environment
               - account_handle
-              - trace_id
               - event_id
+              - trace_id
             title: PulseErrorEvent
             type: object
             x-struct:
@@ -14491,13 +14496,13 @@ components:
               x-struct:
               x-validate:
           required:
-            - page_size
             - page
-            - end_at
-            - total_count
             - total_pages
+            - total_count
+            - page_size
             - has_next_page
             - has_previous_page
+            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -14536,8 +14541,8 @@ components:
         - events
         - warnings
         - issue
-        - occurrence_series
         - latest_event
+        - occurrence_series
       title: PulseErrorIssue
       type: object
       x-struct:
@@ -15568,7 +15573,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+          description: 'With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -15583,7 +15588,7 @@ components:
           x-struct:
           x-validate:
         xcode_version:
-          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+          description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
           nullable: true
           type: string
           x-struct:
@@ -17630,6 +17635,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
+          description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
           type: integer
           x-struct:
           x-validate:
@@ -19427,6 +19433,7 @@ components:
                 x-struct:
                 x-validate:
               vcpus:
+                description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                 type: integer
                 x-struct:
                 x-validate:
@@ -19889,6 +19896,24 @@ components:
       type: integer
       x-struct:
       x-validate:
+    SandboxError:
+      properties:
+        code:
+          description: A stable, machine-readable error code, such as `fleet_busy` or `account_limit`. Branch on it rather than on the message, which may change. Errors from before the sandbox code ran, such as authorization, have none.
+          type: string
+          x-struct:
+          x-validate:
+        message:
+          description: The error message
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - message
+      title: SandboxError
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.SandboxError
+      x-validate:
     RunnerJobStep:
       properties:
         completed_at:
@@ -20054,6 +20079,11 @@ components:
             - trend
           title: SandboxAnalyticsCount
           type: object
+          x-struct:
+          x-validate:
+        memory_gib_hours:
+          description: "GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs."
+          type: number
           x-struct:
           x-validate:
         period:
@@ -20380,7 +20410,7 @@ components:
           x-struct:
           x-validate:
         vcpu_hours:
-          description: 'vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.'
+          description: vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour.
           type: number
           x-struct:
           x-validate:
@@ -20388,6 +20418,7 @@ components:
         - bucket
         - concurrency
         - created
+        - memory_gib_hours
         - period
         - session_duration
         - setup
@@ -23925,6 +23956,7 @@ paths:
                           x-struct:
                           x-validate:
                         vcpus:
+                          description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                           type: integer
                           x-struct:
                           x-validate:
@@ -23960,20 +23992,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Invalid parameters
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -23994,7 +24026,7 @@ paths:
         - Sandboxes
     post:
       callbacks: {}
-      description: Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.
+      description: Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.
       operationId: createSandbox
       parameters:
         - description: The account handle.
@@ -24041,7 +24073,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+                  description: 'With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -24056,7 +24088,7 @@ paths:
                   x-struct:
                   x-validate:
                 xcode_version:
-                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
                   nullable: true
                   type: string
                   x-struct:
@@ -24198,6 +24230,7 @@ paths:
                     x-struct:
                     x-validate:
                   vcpus:
+                    description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                     type: integer
                     x-struct:
                     x-validate:
@@ -24223,26 +24256,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Invalid params
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -24262,19 +24295,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Create a sandbox.
       tags:
@@ -25080,7 +25113,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+                  description: 'With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -25095,7 +25128,7 @@ paths:
                   x-struct:
                   x-validate:
                 xcode_version:
-                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
                   nullable: true
                   type: string
                   x-struct:
@@ -25115,26 +25148,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Invalid job
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -25154,19 +25187,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Dispatch a self-hosted Amp Orb lifecycle job.
       tags:
@@ -28940,26 +28973,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox or command was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -28979,19 +29012,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Stop a sandbox command.
       tags:
@@ -29729,26 +29762,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -29768,19 +29801,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Delete a sandbox.
       tags:
@@ -29936,6 +29969,7 @@ paths:
                     x-struct:
                     x-validate:
                   vcpus:
+                    description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                     type: integer
                     x-struct:
                     x-validate:
@@ -29961,20 +29995,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -32009,6 +32043,11 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  memory_gib_hours:
+                    description: "GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs."
+                    type: number
+                    x-struct:
+                    x-validate:
                   period:
                     additionalProperties: false
                     properties:
@@ -32333,7 +32372,7 @@ paths:
                     x-struct:
                     x-validate:
                   vcpu_hours:
-                    description: 'vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.'
+                    description: vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour.
                     type: number
                     x-struct:
                     x-validate:
@@ -32341,6 +32380,7 @@ paths:
                   - bucket
                   - concurrency
                   - created
+                  - memory_gib_hours
                   - period
                   - session_duration
                   - setup
@@ -32355,20 +32395,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Invalid parameters
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -34870,26 +34910,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox or command was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -34909,19 +34949,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Get a sandbox command.
       tags:
@@ -35458,20 +35498,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -35645,32 +35685,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The parameters are invalid
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -35690,19 +35730,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Start a command in a sandbox.
       tags:
@@ -36342,32 +36382,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The data is not base64 or is too large
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox or command was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -36387,19 +36427,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Write to a sandbox command's stdin.
       tags:
@@ -36556,6 +36596,7 @@ paths:
                     x-struct:
                     x-validate:
                   vcpus:
+                    description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                     type: integer
                     x-struct:
                     x-validate:
@@ -36581,26 +36622,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -36620,19 +36661,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Resume a paused sandbox.
       tags:
@@ -39375,8 +39416,8 @@ paths:
                         - release
                         - environment
                         - account_handle
-                        - trace_id
                         - event_id
+                        - trace_id
                       title: PulseErrorEvent
                       type: object
                       x-struct:
@@ -39563,13 +39604,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - page_size
                       - page
-                      - end_at
-                      - total_count
                       - total_pages
+                      - total_count
+                      - page_size
                       - has_next_page
                       - has_previous_page
+                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -39608,8 +39649,8 @@ paths:
                   - events
                   - warnings
                   - issue
-                  - occurrence_series
                   - latest_event
+                  - occurrence_series
                 title: PulseErrorIssue
                 type: object
                 x-struct:
@@ -46720,6 +46761,7 @@ paths:
                     x-struct:
                     x-validate:
                   vcpus:
+                    description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                     type: integer
                     x-struct:
                     x-validate:
@@ -46745,26 +46787,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -46784,19 +46826,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Archive a paused sandbox.
       tags:
@@ -47410,14 +47452,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -47570,7 +47612,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
+                  description: 'With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -47585,7 +47627,7 @@ paths:
                   x-struct:
                   x-validate:
                 xcode_version:
-                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+                  description: "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
                   nullable: true
                   type: string
                   x-struct:
@@ -47774,20 +47816,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Invalid params
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -48369,13 +48411,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - page_size
                       - page
-                      - end_at
-                      - total_count
                       - total_pages
+                      - total_count
+                      - page_size
                       - has_next_page
                       - has_previous_page
+                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -54284,6 +54326,7 @@ paths:
                     x-struct:
                     x-validate:
                   vcpus:
+                    description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                     type: integer
                     x-struct:
                     x-validate:
@@ -54309,26 +54352,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -54348,19 +54391,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Pause a sandbox.
       tags:
@@ -54393,20 +54436,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The agent environment was not found
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -54427,7 +54470,7 @@ paths:
         - Sandboxes
     patch:
       callbacks: {}
-      description: "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one."
+      description: "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one."
       operationId: updateSandboxAgentEnvironment
       parameters:
         - description: The account handle.
@@ -54693,26 +54736,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Invalid params
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The agent environment was not found
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -59416,6 +59459,11 @@ paths:
               schema:
                 description: One line of the ND-JSON log stream. `stdout` and `stderr` lines carry output and `offset`, the byte offset the stream reached, which a reconnect passes back as `stdout_offset` or `stderr_offset`. The last line is `exit`, with the command's final state, or `error`.
                 properties:
+                  code:
+                    description: An `error` line's machine-readable code, as in error responses.
+                    type: string
+                    x-struct:
+                    x-validate:
                   data:
                     type: string
                     x-struct:
@@ -59457,26 +59505,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox or command was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -59496,19 +59544,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Stream a sandbox command's output.
       tags:
@@ -59962,26 +60010,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '409':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox is not in a state that allows the operation
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.
@@ -60001,19 +60049,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node rejected the operation
         '503':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: No sandbox node is available
         '504':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox node did not answer in time
       summary: Run a shell command in a sandbox.
       tags:
@@ -73030,20 +73078,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: Forbidden
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/SandboxError'
           description: The sandbox was not found
         '429':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-          description: You've made too many unauthorized requests.
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
           headers:
             retry-after:
               description: Whole seconds to wait before retrying.

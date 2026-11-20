@@ -176,7 +176,7 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
     stub(Tuist.Authorization, :authorize, fn _action, :subject, _account -> :ok end)
     reject(&Nodes.call/4)
 
-    assert %{"isError" => true, "content" => [%{"text" => "Sandbox not found."}]} =
+    assert %{"isError" => true, "content" => [%{"text" => "code: not_found\nSandbox not found."}]} =
              DeleteSandbox.call(conn, %{"account_handle" => account.name, "sandbox_id" => foreign.id})
 
     assert Repo.get(Sandbox, foreign.id)

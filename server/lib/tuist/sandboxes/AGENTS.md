@@ -556,7 +556,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
-  retryable). Tuist threads' sandboxes are hidden from the account and use
+  retryable). The admission locks the account row with `SKIP LOCKED`, so any
+  transaction holding that row answers `:sandbox_account_busy`; outside a
+  transaction `Concurrency.admit/3` tries again for 3 s first. Tuist threads' sandboxes are hidden from the account and use
   none of it (`Sandboxes.not_thread/0`). Disk is not an account limit: each node's disk budget bounds
   it, and archiving frees it, so concurrency analytics chart no disk.
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
@@ -803,13 +805,27 @@ socket, the poller and the caller share a replica:
   resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
   with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
   It account-scopes every lookup, serializes the dashboard status, and maps
-  errors to one HTTP status and message (`Query.error/1`). The API sends
-  every 503 with a `retry-after` longer than the CLI's retry budget: the
-  server has already waited for the node, so replays only repeat the wait.
+  errors to one HTTP status, a stable `code` and a message (`Query.error/1`);
+  the API sends `{message, code}` and MCP tools lead their error text with
+  `code: <code>`. Codes are a contract: never change one's meaning, add new
+  ones to `Query.error_codes/0`. The API sends every 503 with a
+  `retry-after` (300 s) longer than the CLI's retry budget: the server has
+  already waited for the node, so replays only repeat the wait. A create
+  is limited per account (10 a minute, `rate_limited` with its own
+  `retry-after`) and, when every host refuses it for room, places the same
+  row again every 2 s for 25 s (`create_sandbox/3`'s `capacity_wait_ms:`)
+  before it answers `fleet_busy`, which tells agents not to loop. The account's
+  CPU and memory limit is a separate 429 (`account_limit`). A create refused
+  for room records no `created` or `failed` event (its row stays `error`,
+  which callers replace and the warm-pool signals count as demand). We
+  considered accepting such a create as `queued` and placing it later: it
+  needs a new state every node report, quota and retention path handles,
+  while the wait reuses the commands path's own wait and fits a Mac boot
+  inside MCP clients' 60 s tool timeout.
   Every caller
   requires an account administrator and the sandboxes flag, read-only
   calls included, because sandboxes run arbitrary commands. MCP does not
-  expose `exec` or create.
+  expose `exec`.
 
 ## Related Context
 

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "46b70ba48f53c80259c6b58609678c9e60dd1cb53442ff44be5cd4f56a645e4c",
+  "hash": "4ae9395f83c0ba0d20c7c30e827db11eaf352fdcc08682c0687d619c1eb12405",
   "hash_tree": {
     "root": {
       "children": [
@@ -62,7 +62,7 @@
                   "content_hash": "81dc3faabc79be2849c0d8766b9d9d7551dc192cdd9af8868f40c0d4f82f4d63"
                 },
                 "#### Cache runs": {
-                  "content_hash": "843cc77b69c8e4b937452a751ee35cb988c1790851167f82a7ff87d6dbe5623f"
+                  "content_hash": "5bcf02125579d69910a3ca70e1300642771fa9564d58ce938bf121354eb44ccb"
                 },
                 "#### Cargo builds": {
                   "content_hash": "ed44687f9af41f66d81ee390965cc33edcff710946d610e04f541e2cc6394fb7"
@@ -110,7 +110,7 @@
                   "content_hash": "6ba7bb74667b20e2ad055b6a82a6ded2f22156fa772af48be7b530e521b381a7"
                 },
                 "#### Sandboxes": {
-                  "content_hash": "1604d3a7e1e849a3f482f4b053f76922db96c77347d45264ea132ff3987c44e5"
+                  "content_hash": "090cddc2eee35e9b7bdfc3ee883b08baa947670f5084f4093a666ce673b73257"
                 },
                 "#### Source-backed answers": {
                   "content_hash": "c49cd881ec13ebd3498414893a10faebd03e291e1d58d284520bef22b2f3f722"
@@ -122,7 +122,7 @@
                   "content_hash": "c977e2419a6cbdda002dc96a42dc686b99f6417e26357c7ebe05d879209592e6"
                 },
                 "#### Tests": {
-                  "content_hash": "a750b530769a827a8beeca33c49366d4cc504f326b30d473c77cc24b4364a30d"
+                  "content_hash": "4fdc0fd950ca1581a017049e2f13b00d231f0adfecec1b762c3ad3f482c06329"
                 },
                 "#### Webhooks": {
                   "content_hash": "83d476067a0febb7df544db0cfb6daa591a296bfed799a8bb9d91e9a94b5c3d1"
@@ -140,11 +140,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "c6b19e51e2d573134323de88470d122a6f02e02abe41a14b1d27724b7889c2d1",
+          "hash": "433d9d4bc748bb9d049665f79d5c9e831bb6e9957ababe83a0da4f45680f57e1",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "bc9e478f16e1d2d1a2455850f3799566a94825ff7552bbfbbc65ad604e07f6a0"
+            "content_hash": "1ea682ba4a9c6118ce2cd2d3e52fbb9c8e79683fefd04acb77cdfdcf29f73cf3"
           }
         },
         {
@@ -386,14 +386,14 @@
         }
       ],
       "details": {},
-      "hash": "46b70ba48f53c80259c6b58609678c9e60dd1cb53442ff44be5cd4f56a645e4c",
+      "hash": "4ae9395f83c0ba0d20c7c30e827db11eaf352fdcc08682c0687d619c1eb12405",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "83b9efcc9b7c61fbe0b7b2ec9d0d71a5208db95fa7d4cec3b16584878f66c509",
+  "output_hash": "ab36fe5b7ed3a25ca31e940cf1e8f2a20f8ee317238d4efc32cb7c62e52a9227",
   "output_path": "server/priv/docs/es/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -421,8 +421,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "0b9170c316005321d83391a75993a3bfc04c2e7e",
+  "source_commit_sha": "8fdbe02a754a6d32910a35093cf5fd32c7323315",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-20T09:14:28.930937Z",
-  "translation_session_id": "01a1f83a-f112-750b-b469-cdebb2c0d4d4"
+  "translated_at": "2026-11-20T09:56:47.812116Z",
+  "translation_session_id": "01a1f861-6631-7a1b-8b2a-88744f990a8d"
 }

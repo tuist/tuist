@@ -34,7 +34,8 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
         "cacheable_targets" => %{"type" => "array", "items" => %{"type" => "string"}},
         "local_cache_target_hits" => %{"type" => "array", "items" => %{"type" => "string"}},
         "remote_cache_target_hits" => %{"type" => "array", "items" => %{"type" => "string"}},
-        "ran_at" => %{"type" => "string"}
+        "ran_at" => %{"type" => "string"},
+        "session_url" => %{"type" => "string"}
       },
       "required" => [
         "id",
@@ -51,7 +52,8 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
         "cacheable_targets",
         "local_cache_target_hits",
         "remote_cache_target_hits",
-        "ran_at"
+        "ran_at",
+        "session_url"
       ],
       "additionalProperties" => false
     }
@@ -59,16 +61,23 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
   alias Tuist.CommandEvents
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Storage
+
+  # As in `get_test_run`: the URL rides along with metadata, so it expires soon.
+  @session_url_expires_in 900
 
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific cache run. The cache_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
+      "Get detailed information about a specific cache run, including a temporary download URL (valid for 15 minutes) " <>
+        "for its session archive, the CLI's logs of the run. The URL is presigned and not checked for existence: a " <>
+        "run whose session was never uploaded, or has since been pruned, answers 404 on download. The cache_run_id " <>
+        "can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   def execute(conn, %{"cache_run_id" => cache_run_id}) do
     cache_run_id = MCPTool.resource_id(cache_run_id)
 
-    with {:ok, event, _project} <-
+    with {:ok, event, project} <-
            MCPTool.load_and_authorize(
              get_cache_run(cache_run_id),
              conn.assigns,
@@ -92,9 +101,19 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
          cacheable_targets: event.cacheable_targets,
          local_cache_target_hits: event.local_cache_target_hits,
          remote_cache_target_hits: event.remote_cache_target_hits,
-         ran_at: Formatter.iso8601(event.created_at, naive: :utc)
+         ran_at: Formatter.iso8601(event.created_at, naive: :utc),
+         session_url: session_url(event, project)
        }}
     end
+  end
+
+  defp session_url(event, project) do
+    object_key = CommandEvents.get_session_key(event.id, project)
+
+    Storage.generate_download_url(object_key, project.account,
+      expires_in: @session_url_expires_in,
+      content_disposition: ~s(attachment; filename="session.zip")
+    )
   end
 
   defp get_cache_run(id) do

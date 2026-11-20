@@ -2679,21 +2679,16 @@ runnersFleetLinux:
     # the same 67.5 GiB continuously and removes both the cold start and
     # the drain, against ~4 jobs/day at a 46-minute median.
     #
-    # Raised to 3 when the pool also took PR matrices that enqueue two jobs
-    # at once, 70 to 80 a day with up to six running together (2026-11-18).
-    # One warm Pod served the first job of each pair; the second waited on a
-    # seat no host could give, at a p90 of 147 s. Replaying that day, 3 warm
-    # Pods hold a 2 s p90 even when a replacement Pod needs a 3-minute drain.
-    # The minimum counts busy Pods too, so the learned floor (2 for these
-    # pairs) is what keeps idle Pods ahead of load during a burst. Each Pod
-    # holds one of the fleet's ten 16 vCPU seats, which `16vcpu-32gb`
-    # shares; raise this as the fleet grows.
+    # Briefly 3 and 3 (2026-11-19) while a customer's PR matrices ran here.
+    # They moved back to `16vcpu-32gb` the same day, and the idle Pods this
+    # pool then held took 16 vCPU seats that pool needed. Only raise these
+    # again for sustained demand on this shape.
     - vcpus: 16
       memoryGb: 64
       exclusiveCPUs: true
       autoscaling:
-        minWarmPoolFloor: 3
-        maxLearnedWarmPoolFloor: 3
+        minWarmPoolFloor: 1
+        maxLearnedWarmPoolFloor: 1
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

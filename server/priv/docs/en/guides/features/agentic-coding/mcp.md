@@ -424,6 +424,8 @@ Sandbox tools expose the same data and actions as the Sandboxes dashboard, with 
 | `archive_sandbox` | Queue moving a paused sandbox's disks to object storage. | `account_handle`, `sandbox_id` |
 | `delete_sandbox` | Delete a sandbox and its disks, after user confirmation. | `account_handle`, `sandbox_id` |
 
+A sandbox tool's error starts with a stable code on its own line, such as `code: fleet_busy`, followed by what to do; codes that come with a wait add a `retry_after_seconds:` line. The API sends the same `code` in its error body. When every host is busy, `create_sandbox` waits up to 25 seconds for one before it answers `fleet_busy`.
+
 #### Amp workspaces
 
 These tools manage the <.localized_link href="/guides/server/authentication#amp-orbs">Amp workspace connections</.localized_link> that let orbs sign in to Tuist without a token. They use the same administrator-only permission as the dashboard's Integrations page. An agent in an orb can read its own IDs from `$AMP_WORKSPACE_ID` and `$AMP_PROJECT_ID`. Every orb a connection admits gets CI access to all projects in the account, so agents should confirm with the user before connecting.
@@ -612,7 +614,7 @@ New observations are indexed after deployment; this feature does not backfill ex
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_test_runs` | List test runs for a project, each with its `selective_testing_strategy`. Filter by `selective_testing` (`coverage`, which includes coverage-based selection's fallbacks, or `module_hash`). The `query` fields are `git_branch`, `scheme`, `status`, and `selective_testing`: `field:"value"` matches exactly, `field~"value"` matches a case-insensitive substring (not on `selective_testing`), and a leading `-` negates either operator. For example, `-git_branch~"gh-readonly-queue"` excludes merge-queue branches. Whitespace-separated query filters and explicit arguments combine with AND semantics. | `account_handle`, `project_handle` |
-| `get_test_run` | Get detailed metrics for a test run, including its own code coverage (`coverage`: whether it measured any, its lines and figure, and whether it was partial or ran from a dirty checkout), its selective testing summary (`selective_testing`: strategy, baseline commit, and requested, selected, skipped and estimated test counts, the ones test selection effectiveness is computed from), and temporary download URLs for its result bundle (`.xcresult`) and session archive. | `test_run_id` |
+| `get_test_run` | Get detailed metrics for a test run, including its own code coverage (`coverage`: whether it measured any, its lines and figure, and whether it was partial or ran from a dirty checkout), its selective testing summary (`selective_testing`: strategy, baseline commit, and requested, selected, skipped and estimated test counts, the ones test selection effectiveness is computed from), and temporary download URLs for its result bundle (`.xcresult`) and for the session archive (CLI logs) of the command that ran it, or `null` when no command is linked to the run. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
@@ -657,7 +659,7 @@ The code coverage tools are available to accounts with code coverage enabled.
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_cache_runs` | List cache runs for a project. | `account_handle`, `project_handle` |
-| `get_cache_run` | Get detailed information about a specific cache run. | `cache_run_id` |
+| `get_cache_run` | Get detailed information about a specific cache run, including a temporary download URL for its session archive (CLI logs). | `cache_run_id` |
 | `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status and diagnostic component hashes, including additional hashing inputs. | `run_id` |
 
 #### Previews

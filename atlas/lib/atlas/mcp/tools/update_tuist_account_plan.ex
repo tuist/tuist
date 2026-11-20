@@ -19,6 +19,11 @@ defmodule Atlas.MCP.Tools.UpdateTuistAccountPlan do
       "customer's name, email and address: pass billing_details only when the customer lacks them " <>
       "(error billing_details_required). start_open_source works only without a live subscription. cancel_at_period_end " <>
       "cancels a live Pro, Enterprise or Open Source subscription at the end of its period; access is kept until then. " <>
+      "schedule_pro switches a live Enterprise or Open Source subscription to Pro at starts_at (a future UTC timestamp " <>
+      "ending in Z, at most 366 days ahead), through a Stripe subscription schedule: the plan stays as it is until then, " <>
+      "and from starts_at the subscription carries the Pro prices, starts a new billing cycle and charges the customer's " <>
+      "default payment method. It is refused without a default payment method (error payment_method_required, ask the " <>
+      "customer to add a card) and when the subscription is already Pro or set to cancel (no_schedulable_subscription). " <>
       "Requires feature_flags:write. Read get_tuist_account_plan first and supply its revision as expected_revision, a reason " <>
       "and a unique change_id UUID. A stale revision is rejected (409), including after a Stripe webhook or ops page change: " <>
       "re-read before deciding again. Writes never retry automatically; after an ambiguous failure, re-read the plan, and " <>

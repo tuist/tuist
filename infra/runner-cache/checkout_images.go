@@ -189,13 +189,29 @@ func (e *Ext4CheckoutImages) Detach(ctx context.Context, image, mount string) er
 			return err
 		}
 	}
-	// A busy loop device is only marked for removal; never install an image a
-	// mount can still write to.
-	if remaining, err := e.devices(ctx, image); err != nil || len(remaining) > 0 {
-		return errors.Join(errors.New("loop device still attached after detach"), err)
+	// A busy loop device is only marked for removal and goes once its last
+	// opener closes it; never install an image a mount can still write to.
+	deadline := time.Now().Add(checkoutReleaseWait)
+	for {
+		remaining, err := e.devices(ctx, image)
+		if err == nil && len(remaining) == 0 {
+			return nil
+		}
+		if err != nil || !time.Now().Before(deadline) {
+			return errors.Join(errors.New("loop device still attached after detach"), err)
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(errors.New("loop device still attached after detach"), ctx.Err())
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
-	return nil
 }
+
+// checkoutReleaseWait bounds how long Detach waits for a loop device that
+// LOOP_CLR_FD only marked for removal (production, 2026-11-19: a restore failed
+// this check three times in a row, then succeeded unchanged).
+var checkoutReleaseWait = 5 * time.Second
 
 func (e *Ext4CheckoutImages) Abandon(ctx context.Context, image, mount string) {
 	if mounted(mount) {

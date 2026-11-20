@@ -12,7 +12,7 @@ defmodule TuistWeb.API.SandboxesController do
   alias Tuist.Sandboxes.Uploads
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
-  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.SandboxError, as: Error
 
   plug(TuistWeb.Plugs.LoaderPlug)
 
@@ -210,7 +210,12 @@ defmodule TuistWeb.API.SandboxesController do
 
   @error_responses %{
     forbidden: {"Forbidden", "application/json", Error},
-    too_many_requests: Responses.authorization_throttled()
+    too_many_requests: %{
+      Responses.authorization_throttled()
+      | description:
+          "The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.",
+        content: %{"application/json" => %OpenApiSpex.MediaType{schema: Error}}
+    }
   }
 
   @node_error_responses %{
@@ -504,7 +509,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:create,
     summary: "Create a sandbox.",
     description:
-      "Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.",
+      "Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.",
     operation_id: "createSandbox",
     parameters: @account_parameters,
     request_body:
@@ -617,7 +622,8 @@ defmodule TuistWeb.API.SandboxesController do
       offset: %Schema{type: :integer},
       status: %Schema{type: :string},
       exit_code: %Schema{type: :integer, nullable: true},
-      message: %Schema{type: :string}
+      message: %Schema{type: :string},
+      code: %Schema{type: :string, description: "An `error` line's machine-readable code, as in error responses."}
     },
     required: [:type]
   }
@@ -830,8 +836,9 @@ defmodule TuistWeb.API.SandboxesController do
         stream_logs(conn, sandbox, id, next, deadline)
 
       {:error, reason} ->
-        message = if reason == :not_found, do: "Command not found.", else: reason |> Query.error() |> elem(1)
-        {_result, conn} = send_lines(conn, [%{type: "error", message: message}])
+        %{code: code, message: message} = Query.error(reason)
+        message = if reason == :not_found, do: "Command not found.", else: message
+        {_result, conn} = send_lines(conn, [%{type: "error", message: message, code: code}])
         conn
     end
   end
@@ -1046,24 +1053,20 @@ defmodule TuistWeb.API.SandboxesController do
     end
   end
 
-  defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
+  defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message, code: "not_found"})
 
-  # Every sandbox 503 comes after the server has already waited for a node or
-  # for capacity, so an immediate retry only repeats that wait. The hint is
-  # longer than any client retry budget (`RetryMiddleware` waits at most 30
-  # seconds per retry, 10 retries at most), so the CLI reports it at once.
-  @service_unavailable_retry_after_seconds 300
-
+  # `Query.error/1` decides the status, the code and the `retry-after`.
   defp sandbox_error(conn, reason) do
-    {status, message} = Query.error(reason)
+    %{status: status, code: code, message: message} = error = Query.error(reason)
 
-    conn |> retry_after(status) |> put_status(status) |> json(%{message: message})
+    conn
+    |> retry_after(error)
+    |> put_status(status)
+    |> json(%{message: message, code: code})
   end
 
-  defp retry_after(conn, :service_unavailable),
-    do: put_resp_header(conn, "retry-after", "#{@service_unavailable_retry_after_seconds}")
-
-  defp retry_after(conn, _status), do: conn
+  defp retry_after(conn, %{retry_after: seconds}), do: put_resp_header(conn, "retry-after", "#{seconds}")
+  defp retry_after(conn, _error), do: conn
 
   defp serialize_agent_environment(%AgentEnvironment{} = agent_environment) do
     agent_environment

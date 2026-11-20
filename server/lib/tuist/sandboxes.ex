@@ -49,6 +49,8 @@ defmodule Tuist.Sandboxes do
   @default_pause_grace_seconds 30
   @shared_command_pause_grace_seconds 20
   @create_timeout to_timeout(second: 120)
+  # How often a create waiting for room (`capacity_wait_ms:`) places again.
+  @capacity_poll_ms 2_000
   @resume_timeout to_timeout(second: 120)
   # A restore downloads the archive before it boots. Amp's dispatch allows
   # 240 seconds per request.
@@ -603,6 +605,17 @@ defmodule Tuist.Sandboxes do
   `cache:` (`Tuist.Runners.CacheVolumes.sandbox_cache/2`) gives a new Linux
   sandbox a copy of a CI cache volume as its cache drive, on a node that can
   attach it (`create_call/3`); elsewhere the sandbox starts without it.
+
+  `capacity_wait_ms:` keeps placing the sandbox, every few seconds, while
+  every node or host refuses it for room, for up to that long, before it
+  answers `:no_capacity` (by default it answers at once). The row holds the
+  account's quota while it waits, as it does while it boots.
+
+  A create every node refused for room records no event: it never ran, and
+  counting it as a created and then failed sandbox made refusals look like
+  crashes in the analytics. Its row is still kept in `error` like any failed
+  create, since callers such as Amp Orbs and threads replace it on their
+  next attempt, and `Tuist.Runners.MacosSandboxWarmPools` counts it as demand.
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
@@ -616,14 +629,20 @@ defmodule Tuist.Sandboxes do
 
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, sandbox} <- Concurrency.admit(account_id, requested, fn -> Repo.insert(changeset) end) do
-      Events.record(sandbox, "created")
+      created_at = NaiveDateTime.utc_now()
 
-      boot(
-        sandbox,
-        Keyword.get(opts, :from_disk_snapshot),
-        Keyword.get(opts, :prefer_nodes, []),
-        Keyword.get(opts, :cache)
-      )
+      result =
+        boot(
+          sandbox,
+          Keyword.get(opts, :from_disk_snapshot),
+          Keyword.get(opts, :prefer_nodes, []),
+          Keyword.get(opts, :cache),
+          Keyword.get(opts, :capacity_wait_ms, 0)
+        )
+
+      # Dated when the row was inserted, ahead of the boot's `started` event.
+      if result != {:error, :no_capacity}, do: Events.record(sandbox, "created", %{inserted_at: created_at})
+      result
     end
   end
 
@@ -640,7 +659,7 @@ defmodule Tuist.Sandboxes do
         do: name
   end
 
-  defp boot(%Sandbox{} = sandbox, source, prefer \\ [], cache \\ nil) do
+  defp boot(%Sandbox{} = sandbox, source, prefer \\ [], cache \\ nil, capacity_wait_ms \\ 0) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
     started_at = System.monotonic_time(:millisecond)
 
@@ -656,7 +675,9 @@ defmodule Tuist.Sandboxes do
 
     args = with_cache(args, sandbox, source, cache)
 
-    case place_and_create(sandbox, args, source, prefer) do
+    deadline = System.monotonic_time(:millisecond) + capacity_wait_ms
+
+    case place_and_create_waiting(sandbox, args, source, prefer, deadline) do
       {:ok, node_name, data} ->
         attached_cache = data["cache"]
 
@@ -722,12 +743,54 @@ defmodule Tuist.Sandboxes do
 
         {:error, reason}
 
+      # A refusal for room started nothing, so it records no `failed` event,
+      # as `create_sandbox/3` records no `created` one (see its docs).
+      {:error, :no_capacity} ->
+        Logger.info("sandboxes: no node had room for the sandbox", sandbox_id: sandbox.id)
+
+        sandbox
+        |> Repo.reload!()
+        |> Sandbox.update_changeset(%{
+          state: :error,
+          node_name: nil,
+          hostname: hostname,
+          error_message: error_message(:no_capacity)
+        })
+        |> Repo.update!()
+
+        {:error, :no_capacity}
+
       {:error, reason} ->
         Logger.warning("sandboxes: sandbox creation failed", sandbox_id: sandbox.id, reason: inspect(reason))
         {:ok, _} = update_sandbox(sandbox, %{state: :error, hostname: hostname, error_message: error_message(reason)})
         {:error, reason}
     end
   end
+
+  # Places and boots the sandbox, placing it again every few seconds while
+  # every node refuses it for room, until `deadline`. A refused placement
+  # holds no node (a refusing macOS host is released before the next is
+  # tried), so each attempt starts from the row as it is. Restores are never
+  # retried here: their callers keep the archive and retry themselves.
+  defp place_and_create_waiting(sandbox, args, source, prefer, deadline) do
+    case place_and_create(sandbox, args, source, prefer) do
+      {:error, :no_capacity} = refused when not (is_tuple(source) and elem(source, 0) == :archive) ->
+        poll_ms = capacity_poll_ms()
+
+        if System.monotonic_time(:millisecond) + poll_ms < deadline do
+          Process.sleep(poll_ms)
+          sandbox |> Repo.reload!() |> release_node() |> place_and_create_waiting(args, source, prefer, deadline)
+        else
+          refused
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp capacity_poll_ms,
+    do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:capacity_poll_ms, @capacity_poll_ms)
 
   # Only a new Linux sandbox takes a cache; `create_call/3` attaches it on a
   # node that can.

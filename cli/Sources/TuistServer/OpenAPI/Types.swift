@@ -53,7 +53,7 @@ public protocol APIProtocol: Sendable {
     func listSandboxes(_ input: Operations.listSandboxes.Input) async throws -> Operations.listSandboxes.Output
     /// Create a sandbox.
     ///
-    /// Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.
+    /// Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/post(createSandbox)`.
@@ -1090,7 +1090,7 @@ public protocol APIProtocol: Sendable {
     func pauseSandbox(_ input: Operations.pauseSandbox.Input) async throws -> Operations.pauseSandbox.Output
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -1908,7 +1908,7 @@ extension APIProtocol {
     }
     /// Create a sandbox.
     ///
-    /// Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.
+    /// Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/post(createSandbox)`.
@@ -4413,7 +4413,7 @@ extension APIProtocol {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -12703,6 +12703,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/SandboxCommandLogLine`.
         public struct SandboxCommandLogLine: Codable, Hashable, Sendable {
+            /// An `error` line's machine-readable code, as in error responses.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxCommandLogLine/code`.
+            public var code: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxCommandLogLine/data`.
             public var data: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxCommandLogLine/exit_code`.
@@ -12725,6 +12729,7 @@ public enum Components {
             /// Creates a new `SandboxCommandLogLine`.
             ///
             /// - Parameters:
+            ///   - code: An `error` line's machine-readable code, as in error responses.
             ///   - data:
             ///   - exit_code:
             ///   - message:
@@ -12732,6 +12737,7 @@ public enum Components {
             ///   - status:
             ///   - _type:
             public init(
+                code: Swift.String? = nil,
                 data: Swift.String? = nil,
                 exit_code: Swift.Int? = nil,
                 message: Swift.String? = nil,
@@ -12739,6 +12745,7 @@ public enum Components {
                 status: Swift.String? = nil,
                 _type: Components.Schemas.SandboxCommandLogLine._typePayload
             ) {
+                self.code = code
                 self.data = data
                 self.exit_code = exit_code
                 self.message = message
@@ -12747,6 +12754,7 @@ public enum Components {
                 self._type = _type
             }
             public enum CodingKeys: String, CodingKey {
+                case code
                 case data
                 case exit_code
                 case message
@@ -20588,6 +20596,8 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/kind`.
             public var kind: Components.Schemas.SandboxAgentEnvironment.kindPayload?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/macos_setup_script`.
+            public var macos_setup_script: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/max_idle_seconds`.
             public var max_idle_seconds: Swift.Int
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/memory_mb`.
@@ -20635,6 +20645,7 @@ public enum Components {
             ///   - id:
             ///   - inserted_at:
             ///   - kind:
+            ///   - macos_setup_script:
             ///   - max_idle_seconds:
             ///   - memory_mb:
             ///   - name:
@@ -20662,6 +20673,7 @@ public enum Components {
                 id: Swift.Int,
                 inserted_at: Foundation.Date,
                 kind: Components.Schemas.SandboxAgentEnvironment.kindPayload? = nil,
+                macos_setup_script: Swift.String? = nil,
                 max_idle_seconds: Swift.Int,
                 memory_mb: Swift.Int,
                 name: Swift.String? = nil,
@@ -20689,6 +20701,7 @@ public enum Components {
                 self.id = id
                 self.inserted_at = inserted_at
                 self.kind = kind
+                self.macos_setup_script = macos_setup_script
                 self.max_idle_seconds = max_idle_seconds
                 self.memory_mb = memory_mb
                 self.name = name
@@ -20717,6 +20730,7 @@ public enum Components {
                 case id
                 case inserted_at
                 case kind
+                case macos_setup_script
                 case max_idle_seconds
                 case memory_mb
                 case name
@@ -20923,7 +20937,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/template`.
             public var template: Swift.String?
-            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -20931,13 +20945,13 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/vcpus`.
             public var vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/workspace_gb`.
             public var workspace_gb: Swift.Int?
-            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/xcode_version`.
             public var xcode_version: Swift.String?
@@ -20951,9 +20965,9 @@ public enum Components {
             ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
             ///   - template: Sandbox template name.
-            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            ///   - vcpus: With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
-            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 amp_url: Swift.String? = nil,
                 memory_mb: Components.Schemas.DispatchAmpOrb.memory_mbPayload? = nil,
@@ -22226,6 +22240,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/kind`.
             public var kind: Components.Schemas.CreateSandboxAgentEnvironment.kindPayload?
+            /// Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/macos_setup_script`.
+            public var macos_setup_script: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/max_idle_seconds`.
             public var max_idle_seconds: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/memory_mb`.
@@ -22260,7 +22278,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
             public var template: Swift.String?
-            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -22268,13 +22286,13 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/workspace_gb`.
             public var workspace_gb: Swift.Int?
-            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/xcode_version`.
             public var xcode_version: Swift.String?
@@ -22291,6 +22309,7 @@ public enum Components {
             ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
             ///   - environment_key: The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
             ///   - kind: managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform.
+            ///   - macos_setup_script: Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
             ///   - max_idle_seconds:
             ///   - memory_mb:
             ///   - name:
@@ -22298,9 +22317,9 @@ public enum Components {
             ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - setup_script: Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB.
             ///   - template: Sandbox template name.
-            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            ///   - vcpus: With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
-            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 agent_model: Swift.String? = nil,
                 agent_system_prompt: Swift.String? = nil,
@@ -22312,6 +22331,7 @@ public enum Components {
                 anthropic_workspace_id: Swift.String? = nil,
                 environment_key: Swift.String,
                 kind: Components.Schemas.CreateSandboxAgentEnvironment.kindPayload? = nil,
+                macos_setup_script: Swift.String? = nil,
                 max_idle_seconds: Swift.Int? = nil,
                 memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload? = nil,
                 name: Swift.String? = nil,
@@ -22333,6 +22353,7 @@ public enum Components {
                 self.anthropic_workspace_id = anthropic_workspace_id
                 self.environment_key = environment_key
                 self.kind = kind
+                self.macos_setup_script = macos_setup_script
                 self.max_idle_seconds = max_idle_seconds
                 self.memory_mb = memory_mb
                 self.name = name
@@ -22355,6 +22376,7 @@ public enum Components {
                 case anthropic_workspace_id
                 case environment_key
                 case kind
+                case macos_setup_script
                 case max_idle_seconds
                 case memory_mb
                 case name
@@ -29749,7 +29771,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/template`.
             public var template: Swift.String?
-            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -29757,13 +29779,13 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/workspace_gb`.
             public var workspace_gb: Swift.Int?
-            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/xcode_version`.
             public var xcode_version: Swift.String?
@@ -29774,9 +29796,9 @@ public enum Components {
             ///   - memory_mb:
             ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - template: Sandbox template name.
-            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+            ///   - vcpus: With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
-            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 guaranteed_vcpus: Swift.Double? = nil,
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
@@ -32500,6 +32522,8 @@ public enum Components {
             public var template_tag: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/updated_at`.
             public var updated_at: Foundation.Date
+            /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+            ///
             /// - Remark: Generated from `#/components/schemas/Sandbox/vcpus`.
             public var vcpus: Swift.Int
             /// - Remark: Generated from `#/components/schemas/Sandbox/workspace_gb`.
@@ -32529,7 +32553,7 @@ public enum Components {
             ///   - template:
             ///   - template_tag:
             ///   - updated_at:
-            ///   - vcpus:
+            ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
             ///   - workspace_gb:
             public init(
                 agent_environment_id: Swift.Int? = nil,
@@ -34921,6 +34945,8 @@ public enum Components {
                 public var template_tag: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/updated_at`.
                 public var updated_at: Foundation.Date
+                /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                ///
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/vcpus`.
                 public var vcpus: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/workspace_gb`.
@@ -34950,7 +34976,7 @@ public enum Components {
                 ///   - template:
                 ///   - template_tag:
                 ///   - updated_at:
-                ///   - vcpus:
+                ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                 ///   - workspace_gb:
                 public init(
                     agent_environment_id: Swift.Int? = nil,
@@ -35392,6 +35418,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_workspace_id`.
             public var anthropic_workspace_id: Swift.String?
+            /// Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/macos_setup_script`.
+            public var macos_setup_script: Swift.String?
             /// Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB.
             ///
             /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/setup_script`.
@@ -35410,6 +35440,7 @@ public enum Components {
             ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
             ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
             ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+            ///   - macos_setup_script: Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
             ///   - setup_script: Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB.
             ///   - xcode_version: A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
             public init(
@@ -35420,6 +35451,7 @@ public enum Components {
                 anthropic_organization_id: Swift.String? = nil,
                 anthropic_service_account_id: Swift.String? = nil,
                 anthropic_workspace_id: Swift.String? = nil,
+                macos_setup_script: Swift.String? = nil,
                 setup_script: Swift.String? = nil,
                 xcode_version: Swift.String? = nil
             ) {
@@ -35430,6 +35462,7 @@ public enum Components {
                 self.anthropic_organization_id = anthropic_organization_id
                 self.anthropic_service_account_id = anthropic_service_account_id
                 self.anthropic_workspace_id = anthropic_workspace_id
+                self.macos_setup_script = macos_setup_script
                 self.setup_script = setup_script
                 self.xcode_version = xcode_version
             }
@@ -35441,6 +35474,7 @@ public enum Components {
                 case anthropic_organization_id
                 case anthropic_service_account_id
                 case anthropic_workspace_id
+                case macos_setup_script
                 case setup_script
                 case xcode_version
             }
@@ -35592,6 +35626,33 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/ModuleCacheTargetsPageSize`.
         public typealias ModuleCacheTargetsPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/SandboxError`.
+        public struct SandboxError: Codable, Hashable, Sendable {
+            /// A stable, machine-readable error code, such as `fleet_busy` or `account_limit`. Branch on it rather than on the message, which may change. Errors from before the sandbox code ran, such as authorization, have none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxError/code`.
+            public var code: Swift.String?
+            /// The error message
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxError/message`.
+            public var message: Swift.String
+            /// Creates a new `SandboxError`.
+            ///
+            /// - Parameters:
+            ///   - code: A stable, machine-readable error code, such as `fleet_busy` or `account_limit`. Branch on it rather than on the message, which may change. Errors from before the sandbox code ran, such as authorization, have none.
+            ///   - message: The error message
+            public init(
+                code: Swift.String? = nil,
+                message: Swift.String
+            ) {
+                self.code = code
+                self.message = message
+            }
+            public enum CodingKeys: String, CodingKey {
+                case code
+                case message
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/RunnerJobStep`.
         public struct RunnerJobStep: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RunnerJobStep/completed_at`.
@@ -35916,6 +35977,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created`.
             public var created: Components.Schemas.SandboxAnalytics.createdPayload
+            /// GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/memory_gib_hours`.
+            public var memory_gib_hours: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period`.
             public struct periodPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period/end`.
@@ -36595,7 +36660,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start`.
             public var time_to_start: Components.Schemas.SandboxAnalytics.time_to_startPayload
-            /// vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+            /// vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour.
             ///
             /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/vcpu_hours`.
             public var vcpu_hours: Swift.Double
@@ -36605,15 +36670,17 @@ public enum Components {
             ///   - bucket: `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
             ///   - concurrency:
             ///   - created:
+            ///   - memory_gib_hours: GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs.
             ///   - period:
             ///   - session_duration: Run sessions that ended in the range. Points without any have null figures.
             ///   - setup: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
             ///   - time_to_start: How long sandboxes took to boot (create or restore). Points without any have null figures.
-            ///   - vcpu_hours: vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+            ///   - vcpu_hours: vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour.
             public init(
                 bucket: Swift.String,
                 concurrency: Components.Schemas.SandboxAnalytics.concurrencyPayload,
                 created: Components.Schemas.SandboxAnalytics.createdPayload,
+                memory_gib_hours: Swift.Double,
                 period: Components.Schemas.SandboxAnalytics.periodPayload,
                 session_duration: Components.Schemas.SandboxAnalytics.session_durationPayload,
                 setup: Components.Schemas.SandboxAnalytics.setupPayload,
@@ -36623,6 +36690,7 @@ public enum Components {
                 self.bucket = bucket
                 self.concurrency = concurrency
                 self.created = created
+                self.memory_gib_hours = memory_gib_hours
                 self.period = period
                 self.session_duration = session_duration
                 self.setup = setup
@@ -36633,6 +36701,7 @@ public enum Components {
                 case bucket
                 case concurrency
                 case created
+                case memory_gib_hours
                 case period
                 case session_duration
                 case setup
@@ -36652,6 +36721,10 @@ public enum Components {
                 self.created = try container.decode(
                     Components.Schemas.SandboxAnalytics.createdPayload.self,
                     forKey: .created
+                )
+                self.memory_gib_hours = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gib_hours
                 )
                 self.period = try container.decode(
                     Components.Schemas.SandboxAnalytics.periodPayload.self,
@@ -36677,6 +36750,7 @@ public enum Components {
                     "bucket",
                     "concurrency",
                     "created",
+                    "memory_gib_hours",
                     "period",
                     "session_duration",
                     "setup",
@@ -43127,6 +43201,8 @@ public enum Operations {
                             public var template_tag: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/updated_at`.
                             public var updated_at: Foundation.Date
+                            /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                            ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/vcpus`.
                             public var vcpus: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/workspace_gb`.
@@ -43156,7 +43232,7 @@ public enum Operations {
                             ///   - template:
                             ///   - template_tag:
                             ///   - updated_at:
-                            ///   - vcpus:
+                            ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                             ///   - workspace_gb:
                             public init(
                                 agent_environment_id: Swift.Int? = nil,
@@ -43324,12 +43400,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -43375,12 +43451,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -43451,12 +43527,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -43480,7 +43556,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)/responses/429`.
             ///
@@ -43536,7 +43612,7 @@ public enum Operations {
     }
     /// Create a sandbox.
     ///
-    /// Boots a bare sandbox VM from the template. Useful to validate a template before connecting an environment.
+    /// Boots a bare sandbox VM from the template and answers once it runs. When every host is busy it waits up to 25 seconds for one to free up before it answers 503 with the code `fleet_busy` and a `retry-after`; don't retry that in a loop. Every error carries a stable `code`.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/post(createSandbox)`.
@@ -43602,7 +43678,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -43610,13 +43686,13 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
-                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/xcode_version`.
                     public var xcode_version: Swift.String?
@@ -43627,9 +43703,9 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    ///   - vcpus: With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
-                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         guaranteed_vcpus: Swift.Double? = nil,
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
@@ -43754,6 +43830,8 @@ public enum Operations {
                         public var template_tag: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/vcpus`.
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/workspace_gb`.
@@ -43783,7 +43861,7 @@ public enum Operations {
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
-                        ///   - vcpus:
+                        ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
@@ -43915,12 +43993,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -43966,12 +44044,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -44017,12 +44095,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -44093,12 +44171,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -44122,7 +44200,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/post(createSandbox)/responses/429`.
             ///
@@ -44149,12 +44227,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -44200,12 +44278,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -44251,12 +44329,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -46870,7 +46948,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -46878,13 +46956,13 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
-                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/xcode_version`.
                     public var xcode_version: Swift.String?
@@ -46898,9 +46976,9 @@ public enum Operations {
                     ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    ///   - vcpus: With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
-                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         amp_url: Swift.String? = nil,
                         memory_mb: Operations.dispatchAmpOrb.Input.Body.jsonPayload.memory_mbPayload? = nil,
@@ -46997,12 +47075,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -47048,12 +47126,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -47099,12 +47177,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -47175,12 +47253,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -47204,7 +47282,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/post(dispatchAmpOrb)/responses/429`.
             ///
@@ -47231,12 +47309,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -47282,12 +47360,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -47333,12 +47411,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58079,12 +58157,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58130,12 +58208,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58181,12 +58259,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58257,12 +58335,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58286,7 +58364,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/post(cancelSandboxCommand)/responses/429`.
             ///
@@ -58313,12 +58391,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58364,12 +58442,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -58415,12 +58493,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/cancel/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -60579,6 +60657,8 @@ public enum Operations {
                         public var template_tag: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/vcpus`.
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/workspace_gb`.
@@ -60608,7 +60688,7 @@ public enum Operations {
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
-                        ///   - vcpus:
+                        ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
@@ -60740,12 +60820,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -60791,12 +60871,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -60867,12 +60947,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -60896,7 +60976,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/get(getSandbox)/responses/429`.
             ///
@@ -61046,12 +61126,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61097,12 +61177,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61148,12 +61228,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61224,12 +61304,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61253,7 +61333,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/delete(deleteSandbox)/responses/429`.
             ///
@@ -61280,12 +61360,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61331,12 +61411,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -61382,12 +61462,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/DELETE/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -67787,6 +67867,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created`.
                         public var created: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload
+                        /// GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/memory_gib_hours`.
+                        public var memory_gib_hours: Swift.Double
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period`.
                         public struct periodPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period/end`.
@@ -68466,7 +68550,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start`.
                         public var time_to_start: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload
-                        /// vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+                        /// vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/vcpu_hours`.
                         public var vcpu_hours: Swift.Double
@@ -68476,15 +68560,17 @@ public enum Operations {
                         ///   - bucket: `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
                         ///   - concurrency:
                         ///   - created:
+                        ///   - memory_gib_hours: GiB-hours of memory sandboxes were billed for in the range: each running sandbox's memory for every hour it runs.
                         ///   - period:
                         ///   - session_duration: Run sessions that ended in the range. Points without any have null figures.
                         ///   - setup: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
                         ///   - time_to_start: How long sandboxes took to boot (create or restore). Points without any have null figures.
-                        ///   - vcpu_hours: vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+                        ///   - vcpu_hours: vCPU-hours sandboxes were billed for in the range. A Linux sandbox counts the larger of the CPU it used and a quarter vCPU per GiB of its memory; a macOS sandbox counts its vCPUs for each running hour.
                         public init(
                             bucket: Swift.String,
                             concurrency: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload,
                             created: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload,
+                            memory_gib_hours: Swift.Double,
                             period: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload,
                             session_duration: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload,
                             setup: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload,
@@ -68494,6 +68580,7 @@ public enum Operations {
                             self.bucket = bucket
                             self.concurrency = concurrency
                             self.created = created
+                            self.memory_gib_hours = memory_gib_hours
                             self.period = period
                             self.session_duration = session_duration
                             self.setup = setup
@@ -68504,6 +68591,7 @@ public enum Operations {
                             case bucket
                             case concurrency
                             case created
+                            case memory_gib_hours
                             case period
                             case session_duration
                             case setup
@@ -68523,6 +68611,10 @@ public enum Operations {
                             self.created = try container.decode(
                                 Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.self,
                                 forKey: .created
+                            )
+                            self.memory_gib_hours = try container.decode(
+                                Swift.Double.self,
+                                forKey: .memory_gib_hours
                             )
                             self.period = try container.decode(
                                 Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload.self,
@@ -68548,6 +68640,7 @@ public enum Operations {
                                 "bucket",
                                 "concurrency",
                                 "created",
+                                "memory_gib_hours",
                                 "period",
                                 "session_duration",
                                 "setup",
@@ -68608,12 +68701,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -68659,12 +68752,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -68735,12 +68828,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -68764,7 +68857,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/429`.
             ///
@@ -76527,12 +76620,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -76578,12 +76671,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -76629,12 +76722,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -76705,12 +76798,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -76734,7 +76827,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/get(getSandboxCommand)/responses/429`.
             ///
@@ -76761,12 +76854,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -76812,12 +76905,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -76863,12 +76956,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/GET/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78299,12 +78392,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78350,12 +78443,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/GET/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78426,12 +78519,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78455,7 +78548,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/get(listSandboxCommands)/responses/429`.
             ///
@@ -78800,12 +78893,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78851,12 +78944,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78902,12 +78995,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -78953,12 +79046,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -79029,12 +79122,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -79058,7 +79151,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/post(startSandboxCommand)/responses/429`.
             ///
@@ -79085,12 +79178,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -79136,12 +79229,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -79187,12 +79280,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -80965,12 +81058,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81016,12 +81109,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81067,12 +81160,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81118,12 +81211,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81194,12 +81287,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81223,7 +81316,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/post(writeSandboxCommandStdin)/responses/429`.
             ///
@@ -81250,12 +81343,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81301,12 +81394,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81352,12 +81445,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81563,6 +81656,8 @@ public enum Operations {
                         public var template_tag: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/vcpus`.
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/workspace_gb`.
@@ -81592,7 +81687,7 @@ public enum Operations {
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
-                        ///   - vcpus:
+                        ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
@@ -81724,12 +81819,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81775,12 +81870,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81826,12 +81921,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81902,12 +81997,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -81931,7 +82026,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/post(resumeSandbox)/responses/429`.
             ///
@@ -81958,12 +82053,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -82009,12 +82104,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -82060,12 +82155,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -108524,6 +108619,8 @@ public enum Operations {
                         public var template_tag: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/vcpus`.
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/workspace_gb`.
@@ -108553,7 +108650,7 @@ public enum Operations {
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
-                        ///   - vcpus:
+                        ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
@@ -108685,12 +108782,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -108736,12 +108833,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -108787,12 +108884,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -108863,12 +108960,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -108892,7 +108989,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/429`.
             ///
@@ -108919,12 +109016,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -108970,12 +109067,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -109021,12 +109118,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -110606,6 +110703,8 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/kind`.
                             public var kind: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.kindPayload?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/macos_setup_script`.
+                            public var macos_setup_script: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/max_idle_seconds`.
                             public var max_idle_seconds: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/memory_mb`.
@@ -110653,6 +110752,7 @@ public enum Operations {
                             ///   - id:
                             ///   - inserted_at:
                             ///   - kind:
+                            ///   - macos_setup_script:
                             ///   - max_idle_seconds:
                             ///   - memory_mb:
                             ///   - name:
@@ -110680,6 +110780,7 @@ public enum Operations {
                                 id: Swift.Int,
                                 inserted_at: Foundation.Date,
                                 kind: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.kindPayload? = nil,
+                                macos_setup_script: Swift.String? = nil,
                                 max_idle_seconds: Swift.Int,
                                 memory_mb: Swift.Int,
                                 name: Swift.String? = nil,
@@ -110707,6 +110808,7 @@ public enum Operations {
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.kind = kind
+                                self.macos_setup_script = macos_setup_script
                                 self.max_idle_seconds = max_idle_seconds
                                 self.memory_mb = memory_mb
                                 self.name = name
@@ -110735,6 +110837,7 @@ public enum Operations {
                                 case id
                                 case inserted_at
                                 case kind
+                                case macos_setup_script
                                 case max_idle_seconds
                                 case memory_mb
                                 case name
@@ -110815,12 +110918,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -110891,12 +110994,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -110920,7 +111023,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/get(listSandboxAgentEnvironments)/responses/429`.
             ///
@@ -111061,6 +111164,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/kind`.
                     public var kind: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.kindPayload?
+                    /// Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/macos_setup_script`.
+                    public var macos_setup_script: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/max_idle_seconds`.
                     public var max_idle_seconds: Swift.Int?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/memory_mb`.
@@ -111095,7 +111202,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -111103,13 +111210,13 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    /// With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
-                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/xcode_version`.
                     public var xcode_version: Swift.String?
@@ -111126,6 +111233,7 @@ public enum Operations {
                     ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
                     ///   - environment_key: The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
                     ///   - kind: managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform.
+                    ///   - macos_setup_script: Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
                     ///   - max_idle_seconds:
                     ///   - memory_mb:
                     ///   - name:
@@ -111133,9 +111241,9 @@ public enum Operations {
                     ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - setup_script: Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB.
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
+                    ///   - vcpus: With `memory_mb`, the shape. Linux: 2x4096, 4x8192 or 8x16384; the shape picks the memory, and every Linux sandbox boots with 16 vCPUs it bursts into. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
-                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Pass the Xcode the repository builds with: another one, even another patch release, misses its caches and ready snapshot. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         agent_model: Swift.String? = nil,
                         agent_system_prompt: Swift.String? = nil,
@@ -111147,6 +111255,7 @@ public enum Operations {
                         anthropic_workspace_id: Swift.String? = nil,
                         environment_key: Swift.String,
                         kind: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.kindPayload? = nil,
+                        macos_setup_script: Swift.String? = nil,
                         max_idle_seconds: Swift.Int? = nil,
                         memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         name: Swift.String? = nil,
@@ -111168,6 +111277,7 @@ public enum Operations {
                         self.anthropic_workspace_id = anthropic_workspace_id
                         self.environment_key = environment_key
                         self.kind = kind
+                        self.macos_setup_script = macos_setup_script
                         self.max_idle_seconds = max_idle_seconds
                         self.memory_mb = memory_mb
                         self.name = name
@@ -111190,6 +111300,7 @@ public enum Operations {
                         case anthropic_workspace_id
                         case environment_key
                         case kind
+                        case macos_setup_script
                         case max_idle_seconds
                         case memory_mb
                         case name
@@ -111273,6 +111384,8 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/kind`.
                         public var kind: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.kindPayload?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/macos_setup_script`.
+                        public var macos_setup_script: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/max_idle_seconds`.
                         public var max_idle_seconds: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/memory_mb`.
@@ -111320,6 +111433,7 @@ public enum Operations {
                         ///   - id:
                         ///   - inserted_at:
                         ///   - kind:
+                        ///   - macos_setup_script:
                         ///   - max_idle_seconds:
                         ///   - memory_mb:
                         ///   - name:
@@ -111347,6 +111461,7 @@ public enum Operations {
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
                             kind: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.kindPayload? = nil,
+                            macos_setup_script: Swift.String? = nil,
                             max_idle_seconds: Swift.Int,
                             memory_mb: Swift.Int,
                             name: Swift.String? = nil,
@@ -111374,6 +111489,7 @@ public enum Operations {
                             self.id = id
                             self.inserted_at = inserted_at
                             self.kind = kind
+                            self.macos_setup_script = macos_setup_script
                             self.max_idle_seconds = max_idle_seconds
                             self.memory_mb = memory_mb
                             self.name = name
@@ -111402,6 +111518,7 @@ public enum Operations {
                             case id
                             case inserted_at
                             case kind
+                            case macos_setup_script
                             case max_idle_seconds
                             case memory_mb
                             case name
@@ -111467,12 +111584,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -111518,12 +111635,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -111594,12 +111711,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -111623,7 +111740,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/post(createSandboxAgentEnvironment)/responses/429`.
             ///
@@ -130249,6 +130366,8 @@ public enum Operations {
                         public var template_tag: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                        ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/vcpus`.
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/workspace_gb`.
@@ -130278,7 +130397,7 @@ public enum Operations {
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
-                        ///   - vcpus:
+                        ///   - vcpus: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
                         ///   - workspace_gb:
                         public init(
                             agent_environment_id: Swift.Int? = nil,
@@ -130410,12 +130529,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130461,12 +130580,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130512,12 +130631,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130588,12 +130707,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130617,7 +130736,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/post(pauseSandbox)/responses/429`.
             ///
@@ -130644,12 +130763,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130695,12 +130814,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130746,12 +130865,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -130826,7 +130945,7 @@ public enum Operations {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup scripts and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -130901,6 +131020,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_workspace_id`.
                     public var anthropic_workspace_id: Swift.String?
+                    /// Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/macos_setup_script`.
+                    public var macos_setup_script: Swift.String?
                     /// Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/setup_script`.
@@ -130919,6 +131042,7 @@ public enum Operations {
                     ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
                     ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
                     ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+                    ///   - macos_setup_script: Linux Claude Code environments: a Bash script that prepares the Macs the environment's sessions create with the `create_sandbox` MCP tool for a repository connected to one of the account's projects, such as `mise install`, generating the project and building the scheme the session will run. When such a Mac finds no snapshot for its repository and Xcode, a builder Mac clones the default branch to `$HOME/work/<name>`, runs the script there for up to an hour and saves the disks; later Macs of that Xcode boot from that snapshot. A build starts only on a host with no other VM and both VM slots free. At most 64 KB.
                     ///   - setup_script: Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB.
                     ///   - xcode_version: A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
                     public init(
@@ -130929,6 +131053,7 @@ public enum Operations {
                         anthropic_organization_id: Swift.String? = nil,
                         anthropic_service_account_id: Swift.String? = nil,
                         anthropic_workspace_id: Swift.String? = nil,
+                        macos_setup_script: Swift.String? = nil,
                         setup_script: Swift.String? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
@@ -130939,6 +131064,7 @@ public enum Operations {
                         self.anthropic_organization_id = anthropic_organization_id
                         self.anthropic_service_account_id = anthropic_service_account_id
                         self.anthropic_workspace_id = anthropic_workspace_id
+                        self.macos_setup_script = macos_setup_script
                         self.setup_script = setup_script
                         self.xcode_version = xcode_version
                     }
@@ -130950,6 +131076,7 @@ public enum Operations {
                         case anthropic_organization_id
                         case anthropic_service_account_id
                         case anthropic_workspace_id
+                        case macos_setup_script
                         case setup_script
                         case xcode_version
                     }
@@ -131025,6 +131152,8 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/kind`.
                         public var kind: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.kindPayload?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/macos_setup_script`.
+                        public var macos_setup_script: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/max_idle_seconds`.
                         public var max_idle_seconds: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/memory_mb`.
@@ -131072,6 +131201,7 @@ public enum Operations {
                         ///   - id:
                         ///   - inserted_at:
                         ///   - kind:
+                        ///   - macos_setup_script:
                         ///   - max_idle_seconds:
                         ///   - memory_mb:
                         ///   - name:
@@ -131099,6 +131229,7 @@ public enum Operations {
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
                             kind: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.kindPayload? = nil,
+                            macos_setup_script: Swift.String? = nil,
                             max_idle_seconds: Swift.Int,
                             memory_mb: Swift.Int,
                             name: Swift.String? = nil,
@@ -131126,6 +131257,7 @@ public enum Operations {
                             self.id = id
                             self.inserted_at = inserted_at
                             self.kind = kind
+                            self.macos_setup_script = macos_setup_script
                             self.max_idle_seconds = max_idle_seconds
                             self.memory_mb = memory_mb
                             self.name = name
@@ -131154,6 +131286,7 @@ public enum Operations {
                             case id
                             case inserted_at
                             case kind
+                            case macos_setup_script
                             case max_idle_seconds
                             case memory_mb
                             case name
@@ -131219,12 +131352,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131270,12 +131403,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131321,12 +131454,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131397,12 +131530,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131426,7 +131559,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)/responses/429`.
             ///
@@ -131576,12 +131709,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/DELETE/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/DELETE/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131627,12 +131760,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/DELETE/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/DELETE/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131703,12 +131836,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/DELETE/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/DELETE/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -131732,7 +131865,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/delete(deleteSandboxAgentEnvironment)/responses/429`.
             ///
@@ -143961,12 +144094,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -144012,12 +144145,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -144063,12 +144196,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -144139,12 +144272,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -144168,7 +144301,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/get(streamSandboxCommandLogs)/responses/429`.
             ///
@@ -144195,12 +144328,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -144246,12 +144379,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -144297,12 +144430,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/logs/GET/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -145708,12 +145841,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -145759,12 +145892,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -145810,12 +145943,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/409/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/409/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -145886,12 +146019,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -145915,7 +146048,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/post(execSandboxCommand)/responses/429`.
             ///
@@ -145942,12 +146075,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/502/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/502/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -145993,12 +146126,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/503/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -146044,12 +146177,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/504/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/exec/POST/responses/504/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -182352,12 +182485,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -182403,12 +182536,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -182479,12 +182612,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
+                    case json(Components.Schemas.SandboxError)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
+                    public var json: Components.Schemas.SandboxError {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -182508,7 +182641,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// You've made too many unauthorized requests.
+            /// The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/429`.
             ///

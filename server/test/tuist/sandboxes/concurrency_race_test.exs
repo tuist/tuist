@@ -1,10 +1,12 @@
 defmodule Tuist.Sandboxes.ConcurrencyRaceTest do
   use ExUnit.Case, async: false
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Ecto.Adapters.SQL.Sandbox, as: SQLSandbox
+  alias Tuist.Accounts.Account
   alias Tuist.Repo
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.Sandbox
@@ -61,5 +63,30 @@ defmodule Tuist.Sandboxes.ConcurrencyRaceTest do
       send(task.pid, :commit)
       Task.shutdown(task)
     end
+  end
+
+  test "an admission waits out another transaction briefly holding the account row", %{account: account} do
+    paused = sandbox_fixture(account: account, state: :paused)
+    parent = self()
+
+    task =
+      Task.async(fn ->
+        :ok = SQLSandbox.checkout(Repo, sandbox: false)
+
+        try do
+          Repo.transaction(fn ->
+            Repo.one!(from a in Account, where: a.id == ^account.id, lock: "FOR UPDATE")
+            send(parent, :row_held)
+            Process.sleep(50)
+          end)
+        after
+          SQLSandbox.checkin(Repo)
+        end
+      end)
+
+    assert_receive :row_held, 5_000
+    reserve_resume = fn -> paused |> Sandbox.update_changeset(%{state: :resuming}) |> Repo.update() end
+    assert {:ok, %Sandbox{state: :resuming}} = Concurrency.admit(account.id, paused, reserve_resume)
+    Task.await(task)
   end
 end

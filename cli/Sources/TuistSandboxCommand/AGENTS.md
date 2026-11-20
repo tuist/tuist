@@ -16,6 +16,11 @@
   already paused succeeds. Deleting requires `--yes`.
 - An error status whose body is not the server's `{"message": …}`, such as a
   proxy's error page, reports the status, not the generated client's decoding error.
+- The server's error bodies carry a stable `code` (`Query.error/1`), which
+  `SandboxServerError` keeps beside the message; branch on it, never on the
+  message, and keep working with servers that send none. `create` does not
+  retry `fleet_busy`: the server already waited 25 seconds for a host and says
+  when to try again.
 - Show the dashboard `status` and fall back to `state` for servers that do not
   send it. `status` and `bucket` are open strings: never switch on them exhaustively.
 - Test through the generated Xcode workspace and Swift Testing, not SwiftPM.
@@ -27,7 +32,9 @@
   again after a 5xx or transport error: a proxy 502 can hide an answer whose
   effect happened, so each start carries an `id` the CLI picks and each stdin
   write the `offset` it continues, which the server uses to act once. Never
-  retry them without those. Retries come within 5 seconds: the server already
+  retry them without those. A 503 whose code says waiting won't help
+  (`host_replaced`, `archive_unavailable`, `snapshot_not_saved`) is final.
+  Retries come within 5 seconds: the server already
   waits up to 25 seconds for the host in each start. While they wait, the
   server's reason is repeated on stderr about once a minute. `exec` exits
   with the command's status (124 on timeout, 130 when cancelled) and cancels it

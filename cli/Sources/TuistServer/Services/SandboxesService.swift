@@ -97,21 +97,51 @@ public protocol SandboxesServicing: Sendable {
     func uploadSandboxFile(accountHandle: String, serverURL: URL, sandboxID: String, file: URL) async throws -> URL
 }
 
+/// The server's answer to a refused sandbox request: its message, and the stable `code` clients branch on
+/// (`Tuist.Sandboxes.Query.error/1`), which servers from before codes leave out.
+public struct SandboxServerError: Equatable, Sendable, CustomStringConvertible, ExpressibleByStringInterpolation {
+    public let message: String
+    public let code: String?
+
+    public init(message: String, code: String? = nil) {
+        self.message = message
+        self.code = code
+    }
+
+    public init(stringLiteral value: String) {
+        self.init(message: value)
+    }
+
+    init(_ body: Components.Schemas.SandboxError) {
+        self.init(message: body.message, code: body.code)
+    }
+
+    public var description: String { message }
+}
+
 public enum SandboxesServiceError: LocalizedError, Equatable {
-    /// The server's own message for a refused request.
-    case refused(String)
+    /// The server's own answer for a refused request.
+    case refused(SandboxServerError)
     /// The server has no node for the sandbox right now (503), such as while CI holds a shared macOS host.
-    case unavailable(String)
+    case unavailable(SandboxServerError)
     /// The sandbox or command no longer exists (404).
-    case notFound(String)
+    case notFound(SandboxServerError)
     case limited
     case invalidShape
     case unknownError(Int)
 
+    /// The server's stable error code, such as `fleet_busy` or `account_limit`, when it sent one.
+    public var code: String? {
+        switch self {
+        case let .refused(error), let .unavailable(error), let .notFound(error): return error.code
+        case .limited, .invalidShape, .unknownError: return nil
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
-        case let .refused(message), let .unavailable(message), let .notFound(message):
-            return message
+        case let .refused(error), let .unavailable(error), let .notFound(error):
+            return error.code.map { "\(error.message) (\($0))" } ?? error.message
         case .limited:
             return "Tuist refused the request for now: the account may have reached its sandbox CPU or memory limit, or sent too many requests. Retry later."
         case .invalidShape:
@@ -124,12 +154,11 @@ public enum SandboxesServiceError: LocalizedError, Equatable {
     /// Sandbox errors carry `{"message": …}` whatever their status, so one the spec does not list, such as a 500,
     /// still shows the server's reason. A body without one falls back to the status code.
     static func undocumented(_ statusCode: Int, _ payload: UndocumentedPayload) async -> SandboxesServiceError {
-        struct Body: Decodable { let message: String }
         guard let body = payload.body,
               let data = try? await Data(collecting: body, upTo: 1_048_576),
-              let message = try? JSONDecoder().decode(Body.self, from: data).message
+              let error = try? JSONDecoder().decode(Components.Schemas.SandboxError.self, from: data)
         else { return .unknownError(statusCode) }
-        return statusCode == 503 ? .unavailable(message) : .refused(message)
+        return statusCode == 503 ? .unavailable(.init(error)) : .refused(.init(error))
     }
 
     /// The generated client decodes a documented error status as `{"message": …}` before answering, so an error page
@@ -175,8 +204,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case let .ok(value): return try value.body.json
-        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badRequest(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -190,8 +219,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case let .ok(value): return try Self.convert(value.body.json)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -211,8 +240,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case let .ok(value): return try value.body.json
-        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badRequest(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -250,13 +279,15 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case let .created(value): return try Self.convert(value.body.json)
-        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case .tooManyRequests: throw SandboxesServiceError.limited
+        case let .badRequest(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .serviceUnavailable(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        // `account_limit` (the account's CPU and memory) and `rate_limited` (creates per minute) say what to do.
+        case let .tooManyRequests(value):
+            throw (try? value.body.json).map { SandboxesServiceError.refused(.init($0)) } ?? SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
@@ -275,12 +306,12 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
             }
             switch response {
             case let .ok(value): return try Self.convert(value.body.json)
-            case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+            case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .serviceUnavailable(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
             case .tooManyRequests: throw SandboxesServiceError.limited
             case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
@@ -290,12 +321,12 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
             }
             switch response {
             case let .ok(value): return try Self.convert(value.body.json)
-            case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+            case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .serviceUnavailable(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
             case .tooManyRequests: throw SandboxesServiceError.limited
             case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
@@ -305,12 +336,12 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
             }
             switch response {
             case let .accepted(value): return try Self.convert(value.body.json)
-            case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
-            case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+            case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .serviceUnavailable(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+            case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
             case .tooManyRequests: throw SandboxesServiceError.limited
             case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
@@ -325,12 +356,12 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case .noContent: return
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .serviceUnavailable(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -362,13 +393,13 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case let .accepted(value): return try Self.convert(value.body.json)
-        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badRequest(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(.init(try value.body.json))
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -391,12 +422,12 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         let body: HTTPBody
         switch response {
         case let .ok(value): body = try value.body.application_x_hyphen_ndjson
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.notFound(.init(try value.body.json))
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(.init(try value.body.json))
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -441,13 +472,13 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case .ok: return
-        case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .badRequest(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.notFound(.init(try value.body.json))
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(.init(try value.body.json))
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -466,12 +497,12 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
         }
         switch response {
         case let .ok(value): return try Self.convert(value.body.json)
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
-        case let .conflict(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .badGateway(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(try value.body.json.message)
-        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.notFound(.init(try value.body.json))
+        case let .conflict(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .badGateway(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .serviceUnavailable(value): throw SandboxesServiceError.unavailable(.init(try value.body.json))
+        case let .gatewayTimeout(value): throw SandboxesServiceError.refused(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
@@ -499,8 +530,8 @@ public struct SandboxesService: SandboxesServicing { // swiftlint:disable:this t
                 throw SandboxesServiceError.refused("Uploading to the account's storage failed with status \(statusCode).")
             }
             return downloadURL
-        case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
-        case let .notFound(value): throw SandboxesServiceError.notFound(try value.body.json.message)
+        case let .forbidden(value): throw SandboxesServiceError.refused(.init(try value.body.json))
+        case let .notFound(value): throw SandboxesServiceError.notFound(.init(try value.body.json))
         case .tooManyRequests: throw SandboxesServiceError.limited
         case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }

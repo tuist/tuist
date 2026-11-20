@@ -135,7 +135,14 @@ struct SandboxCommandService {
         guaranteedVCPUs: Double? = nil
     ) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
-        let sandbox = try await step("Booting sandbox...", done: "Sandbox booted", options: options) {
+        // The server waits up to 25 seconds for a host when every one is busy. When they stay busy it answers
+        // `fleet_busy` with a `retry-after` of several minutes and a message saying not to retry in a loop, which the
+        // error shows as is: the CLI does not retry it either.
+        let sandbox = try await step(
+            "Booting sandbox (waiting up to 25 seconds if every host is busy)...",
+            done: "Sandbox booted",
+            options: options
+        ) {
             try await sandboxesService.createSandbox(
                 accountHandle: accountHandle,
                 serverURL: serverURL,

@@ -50,20 +50,27 @@ defmodule Tuist.Kura.ClaimSizing do
   @seconds_per_day 86_400
 
   @default_policy %{
-    retention_floor_days: 3,
+    # The retention growth aims at: shed age under it grows the claim, which
+    # then lands at the floor plus the headroom (1.9 days). Promotion keeps
+    # what is read alive past its segment, so shed age measures content left
+    # unread through that much writing, not time since it was last used.
+    retention_floor_days: 1.5,
     ceiling: %{air: "64Gi", pro: "256Gi", enterprise: "256Gi"},
     # Ordered shortest window first; the first rung a reading satisfies wins.
-    # The absolute arm does not move when the floor is recalibrated. A tier
-    # appears twice where volume can stand in for elapsed time: the ring the
-    # account cycled is evidence the same reading held all day. Turnover counts
-    # rings across the whole window, so two over two days is one a day.
+    # The absolute arm does not move when the floor is recalibrated, and the
+    # middle tier sits at 0.68 of the 1.5-day floor (24.5 hours) so a sub-day
+    # reading still confirms within five days, before the one-day retention
+    # alert's three-day window runs out. A tier appears twice where volume can
+    # stand in for elapsed time: the ring the account cycled is evidence the
+    # same reading held all day. Turnover counts rings across the whole
+    # window, so two over two days is one a day.
     grow_windows: [
       %{shed_age_under: {:seconds, 3_600}, window_days: 1, min_ring_turnover: 1.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 2},
       %{shed_age_under: {:floor_fraction, 0.1}, window_days: 2},
-      %{shed_age_under: {:floor_fraction, 0.34}, window_days: 2, min_ring_turnover: 2.0},
-      %{shed_age_under: {:floor_fraction, 0.34}, window_days: 5},
+      %{shed_age_under: {:floor_fraction, 0.68}, window_days: 2, min_ring_turnover: 2.0},
+      %{shed_age_under: {:floor_fraction, 0.68}, window_days: 5},
       %{shed_age_under: {:floor_fraction, 1.0}, window_days: 14}
     ],
     grow_headroom_factor: 1.25,
@@ -188,7 +195,7 @@ defmodule Tuist.Kura.ClaimSizing do
 
   defp evaluate_region(region, rollups, {claim, claim_bytes}, context, policy) do
     by_date = Map.new(rollups, &{&1.date, &1})
-    floor_seconds = policy.retention_floor_days * @seconds_per_day
+    floor_seconds = round(policy.retention_floor_days * @seconds_per_day)
 
     cond do
       grow = grow_verdict(by_date, floor_seconds, claim_bytes, context, policy) ->
@@ -620,7 +627,7 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # The bound scales with the confirmation behind the reading: one day buys a
   # doubling, a tier proven across days buys the projection's own answer. It
-  # binds only under 45 hours of retention at 2x and 22.5 hours at 4x, so an
+  # binds only under 22.5 hours of retention at 2x and 11.25 hours at 4x, so an
   # account near the floor is sized by the projection either way and the one
   # furthest under it arrives in a single rebuild rather than three.
   defp max_step_factor(%{window_days: 1}, policy), do: policy.max_step_factor
