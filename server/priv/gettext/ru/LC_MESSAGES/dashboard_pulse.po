@@ -138,7 +138,7 @@ msgstr "Нет измерений за этот период"
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "Нет данных телеметрии, соответствующих этому запросу и временному диапазону."
+msgstr "Нет телеметрии, соответствующей этому запросу и временному диапазону."
 
 #: lib/tuist_web/live/pulse_live.ex:257
 #, elixir-autogen, elixir-format
@@ -173,7 +173,7 @@ msgstr "Выполнить запрос"
 #: lib/tuist_web/live/pulse_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
-msgstr "Поиск по телеметрии"
+msgstr "Поиск телеметрии"
 
 #: lib/tuist_web/live/pulse_live.ex:387
 #, elixir-autogen, elixir-format
@@ -207,7 +207,7 @@ msgstr "Начало (UTC)"
 #: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
-msgstr "Цели, сообщившие up = 0 в конце периода. Пропущенные сэмплы не считаются признаком нездоровья."
+msgstr "Цели, сообщившие up = 0 в конце периода. Пропущенные выборки не считаются признаком неисправности."
 
 #: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
@@ -217,7 +217,7 @@ msgstr "Цели, сообщившие up = 1 в конце периода."
 #: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
-msgstr "Цели с сэмплом up в конце периода. На графике показано изменение количества целей во времени."
+msgstr "Цели, имевшие выборку up в конце периода. На графике показано количество целей во времени."
 
 #: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
@@ -232,7 +232,7 @@ msgstr "Телеметрия недоступна"
 #: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
-msgstr "Соединение с Pulse не настроено. Обратитесь к администратору."
+msgstr "Подключение Pulse не настроено. Обратитесь к администратору."
 
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
@@ -251,7 +251,7 @@ msgstr "Время (UTC)"
 #: lib/tuist_web/live/pulse_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Trace ID"
-msgstr "Идентификатор трассировки"
+msgstr "ID трассировки"
 
 #: lib/tuist_web/live/pulse_live.ex:907
 #, elixir-autogen, elixir-format
@@ -332,7 +332,7 @@ msgstr "Ошибки"
 #: lib/tuist_web/live/pulse_error_live.ex:273
 #, elixir-autogen, elixir-format
 msgid "Event ID"
-msgstr "ID события"
+msgstr "Идентификатор события"
 
 #: lib/tuist_web/live/pulse_error_live.ex:220
 #: lib/tuist_web/live/pulse_live.ex:574
@@ -432,7 +432,7 @@ msgstr "Затронутые сервисы"
 #: lib/tuist_web/live/pulse_error_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Back to issue"
-msgstr "Вернуться к проблеме"
+msgstr "Вернуться к задаче"
 
 #: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
@@ -469,7 +469,7 @@ msgstr "Критические события"
 #: lib/tuist_web/live/pulse_error_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "No occurrences in this period"
-msgstr "За этот период событий не зафиксировано"
+msgstr "Нет событий за этот период"
 
 #: lib/tuist_web/live/pulse_error_live.ex:182
 #: lib/tuist_web/live/pulse_live.ex:731
@@ -505,7 +505,7 @@ msgstr "События Sentry с меткой fatal за выбранный пе
 #: lib/tuist_web/live/pulse_error_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Span ID"
-msgstr "ID спана"
+msgstr "Span ID"
 
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
@@ -520,12 +520,12 @@ msgstr "Тренд"
 #: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
-msgstr "Посмотреть событие"
+msgstr "Просмотреть событие"
 
 #: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
-msgstr "Это событие записало сообщение, а не исключение."
+msgstr "В этом событии записано сообщение, а не исключение."
 
 #: lib/tuist_web/live/pulse_error_live.ex:524
 #, elixir-autogen, elixir-format
@@ -561,6 +561,6 @@ msgstr "Недоступно"
 #, elixir-autogen, elixir-format
 msgid "Seen in %{count} environment"
 msgid_plural "Seen in %{count} environments"
-msgstr[0] "Обнаружено в %{count} окружении"
-msgstr[1] "Встречается в %{count} средах"
-msgstr[2] "Встречается в %{count} средах"
+msgstr[0] "Замечено в %{count} окружении"
+msgstr[1] "Обнаружено в %{count} средах"
+msgstr[2] "Обнаружено в %{count} средах"
