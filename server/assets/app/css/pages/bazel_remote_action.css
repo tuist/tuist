@@ -4,9 +4,9 @@
   & > [data-part="header"] > [data-part="title-group"] > [data-part="target"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-code-medium);
-    overflow-wrap: anywhere;
     direction: ltr;
     unicode-bidi: isolate;
+    overflow-wrap: anywhere;
   }
 
   & [data-part="metadata-grid"] [data-field="wide"] {
@@ -32,9 +32,9 @@
 
   & code {
     font: var(--noora-font-code-medium);
-    overflow-wrap: anywhere;
     direction: ltr;
     unicode-bidi: isolate;
+    overflow-wrap: anywhere;
   }
 
   & [data-part="sections"] [data-part="section"] {
@@ -66,15 +66,15 @@
     padding: var(--noora-spacing-5);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-code-medium);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
     direction: ltr;
     unicode-bidi: isolate;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 
     &[data-state="closed"] {
+      mask-image: linear-gradient(to bottom, black 70%, transparent);
       max-height: 9rem;
       overflow: hidden;
-      mask-image: linear-gradient(to bottom, black 70%, transparent);
     }
   }
 
@@ -127,10 +127,10 @@
   /* An action without recognised diagnostics shows the end of its stderr. */
   & .issue-card [data-part="issue"][data-output="true"] {
     font: var(--noora-font-code-medium);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
     direction: ltr;
     unicode-bidi: isolate;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   /* Logs follow the runner job log view: a recessed scrolling surface with
@@ -225,5 +225,4 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
   }
-
 }
