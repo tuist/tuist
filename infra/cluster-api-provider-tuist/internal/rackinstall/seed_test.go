@@ -689,3 +689,66 @@ func TestStorageLayoutDefaultsToFullSharedXFS(t *testing.T) {
 		}
 	}
 }
+
+// The first edge of a site carries the WAN in its netplan, untagged on its
+// first uplink, as a /32 with an on-link default route below the route through
+// the other edge, so it is out on first boot with no service to bring it up.
+// A console password hash replaces the minted password.
+func TestUserDataPutsTheFirstEdgesWANInItsNetplan(t *testing.T) {
+	e := ber1EdgeB()
+	e.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
+	e.WANInNetplan = true
+	s := edgeSeed()
+	s.Edge = e
+	s.ConsolePasswordHash = "$6$abcdefgh$" + strings.Repeat("A", 86)
+	out, err := UserData(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seed struct {
+		Autoinstall struct {
+			Network struct {
+				Ethernets map[string]struct {
+					Addresses []string
+					Routes    []struct {
+						To, Via string
+						OnLink  bool `json:"on-link"`
+						Metric  int
+					}
+				}
+			}
+			UserData struct {
+				Chpasswd struct {
+					Users []struct{ Name, Password, Type string }
+				}
+			} `json:"user-data"`
+			LateCommands []string `json:"late-commands"`
+		}
+	}
+	if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
+		t.Fatal(err)
+	}
+	first, second := seed.Autoinstall.Network.Ethernets["uplink-1"], seed.Autoinstall.Network.Ethernets["uplink-2"]
+	if strings.Join(first.Addresses, " ") != "149.6.170.31/32" || len(first.Routes) != 1 ||
+		first.Routes[0].To != "default" || first.Routes[0].Via != "149.6.170.30" || !first.Routes[0].OnLink || first.Routes[0].Metric != EdgeFirstWANMetric {
+		t.Errorf("uplink-1 does not carry the WAN: %+v", first)
+	}
+	if len(second.Addresses) != 0 || len(second.Routes) != 0 {
+		t.Errorf("uplink-2 carries the WAN too: %+v", second)
+	}
+	if EdgeFirstWANMetric >= EdgeVRRPMetric {
+		t.Errorf("the WAN's default route does not beat the route through the other edge")
+	}
+	if strings.Contains(strings.Join(seed.Autoinstall.LateCommands, "\n"), EdgeFirstWANPath) {
+		t.Errorf("the first-boot WAN service is installed beside the netplan WAN")
+	}
+	users := seed.Autoinstall.UserData.Chpasswd.Users
+	if len(users) != 1 || users[0].Password != s.ConsolePasswordHash || users[0].Type != "hash" {
+		t.Errorf("chpasswd does not set the hash: %+v", users)
+	}
+
+	s.ConsolePasswordHash = "plain"
+	if _, err := UserData(s); err == nil {
+		t.Errorf("a console password hash that is not SHA-512 crypt rendered")
+	}
+}
