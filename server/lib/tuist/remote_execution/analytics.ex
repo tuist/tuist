@@ -20,6 +20,8 @@ defmodule Tuist.RemoteExecution.Analytics do
     ]
   ]
   @page_size 20
+  # Bounds the OFFSET a page URL can request.
+  @max_page 500
   @phases [queue: :remote_queue_ms, execution: :remote_execution_ms]
   @stats [:avg, :p50, :p90, :p99]
   @sort_fields ~w(ran-at duration actions execution execution-p50 execution-p90 status)
@@ -77,7 +79,7 @@ defmodule Tuist.RemoteExecution.Analytics do
   `:actions`; `:sort_by` is one of `@sort_fields` and defaults to `"ran-at"`.
   """
   def activity(project_id, opts) do
-    page = Keyword.get(opts, :page, 1)
+    page = min(Keyword.get(opts, :page, 1), @max_page)
     search = Keyword.get(opts, :search, "")
     filters = Keyword.get(opts, :filters, [])
     sort_by = if(Keyword.get(opts, :sort_by) in @sort_fields, do: Keyword.get(opts, :sort_by), else: "ran-at")
@@ -113,16 +115,17 @@ defmodule Tuist.RemoteExecution.Analytics do
       end
 
     query = Enum.reduce(filters, query, &filter_activity/2)
-    total = ClickHouseRepo.one(from(r in subquery(query), select: count()), @query_opts)
 
+    # One extra row tells whether a next page exists without counting every
+    # invocation in the period.
     rows =
       query
       |> order_by(^[{direction, sort_expression(sort_by)}, {:asc, dynamic([_s, _p, i], i.invocation_id)}])
-      |> limit(@page_size)
+      |> limit(@page_size + 1)
       |> offset(^((page - 1) * @page_size))
       |> ClickHouseRepo.all(@query_opts)
 
-    %{rows: rows, page: page, total_pages: max(1, ceil(total / @page_size))}
+    %{rows: Enum.take(rows, @page_size), page: page, has_next_page?: length(rows) > @page_size and page < @max_page}
   end
 
   defp sort_expression("status"), do: dynamic([_s, _p, i], i.status)

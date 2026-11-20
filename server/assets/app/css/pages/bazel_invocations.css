@@ -70,7 +70,8 @@
         visibility: hidden;
       }
 
-      & .noora-pagination-group {
+      & .noora-pagination-group,
+      & .tuist-pagination {
         margin-top: var(--noora-spacing-7);
       }
     }

@@ -68,7 +68,7 @@ defmodule TuistWeb.RemoteExecutionLive do
     sort_order = param(params, "invocations-sort-order", ~w(desc asc))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     filters = Filter.Operations.convert_filters_to_flop(active_filters)
-    page = min(Query.positive_integer(params["page"]), 500)
+    page = Query.positive_integer(params["page"])
     cohort = period
     project = socket.assigns.selected_project
     opts = DatePicker.period_opts(period)
@@ -606,11 +606,10 @@ defmodule TuistWeb.RemoteExecutionLive do
                   } />
                 </:col>
               </.table>
-              <.pagination_group
-                :if={activity.total_pages > 1}
+              <.page_pagination
                 id="remote-execution-pagination"
-                current_page={activity.page}
-                number_of_pages={activity.total_pages}
+                page={activity.page}
+                has_next_page={activity.has_next_page?}
                 page_patch={&patch_path(assigns, %{"page" => &1})}
               />
             </div>
