@@ -12,7 +12,7 @@ spec:
   mac: 64:9d:99:d9:81:0b
   managedBy: controller
   managementAddress: 192.168.61.6
-  applyOrder: 1
+  applyOrder: 2
   applyNote: Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.
   credentialItem: rack-switch-controller picos admin
   configRevision: a17f0cbc83cba00d

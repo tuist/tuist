@@ -12,7 +12,7 @@ spec:
   mac: 64:9d:99:d9:81:0e
   managedBy: controller
   managementAddress: 192.168.61.2
-  applyOrder: 2
+  applyOrder: 1
   applyNote: Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-tor-b and the rack is still up.
   credentialItem: rack-switch-controller picos admin
   configRevision: 8dfeec28d192f5fe
