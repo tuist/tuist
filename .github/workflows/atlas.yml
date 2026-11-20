@@ -412,7 +412,7 @@ jobs:
       run:
         working-directory: .
     env:
-      STRUO_VERSION: "2.3.0"
+      STRUO_VERSION: "2.3.1"
       STRUO_CACHE_PROVIDER: tuist
       MIX_HOME: /opt/mix
       MIX_REBAR3: /opt/mix/rebar3
@@ -500,9 +500,15 @@ jobs:
           phase_group=local
           run local-cold
           run local-warm
-          if grep -q '"cache":"miss"\|cache="miss"' "$evidence/local-warm.log"; then
-            echo 'Local warm build missed the cache from another HOME' >&2
-            grep -c 'cache="miss"' "$evidence/local-warm.log" >&2
+          # Strip terminal colors so the structured cache fields match.
+          sed 's/\x1b\[[0-9;]*m//g' "$evidence/local-warm.log" > "$evidence/local-warm.plain.log"
+          misses=$(grep -c 'cache="miss"' "$evidence/local-warm.plain.log" || true)
+          hits=$(grep -c 'cache="hit"' "$evidence/local-warm.plain.log" || true)
+          echo "local warm: $hits action hits, $misses misses" | tee "$evidence/local-warm-cache.txt"
+          test "$hits" -gt 0
+          if [ "$misses" -ne 0 ]; then
+            echo 'Local warm build missed the cache from another HOME:' >&2
+            grep 'cache="miss"' "$evidence/local-warm.plain.log" | grep -oE 'identifier=[^ ]+' >&2
             exit 1
           fi
       - uses: actions/upload-artifact@v6
