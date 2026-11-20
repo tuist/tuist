@@ -210,7 +210,7 @@ For cloud sessions in an Anthropic-hosted environment:
 3. Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope, and add it to the environment's [environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) as `TUIST_TOKEN`. Everyone who uses the environment can read it, so give it no other scope unless they may also use your cache: the Mac's commands get <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">cache access</.localized_link> only as far as the token has it, so add `ci` for builds on the Mac to read and write your cache.
 4. Let the environment reach Tuist. Anthropic's default **Trusted** network access doesn't include `tuist.dev`, so pick **Custom**, keep the default domains, and add `tuist.dev` to **Allowed domains**. The CLI uploads the session's files to the Mac through `tuist.dev`, so it needs no other domain.
 
-After the first sync, Claude runs `mise install` in the repository root on the Mac to install the project's pinned Tuist; Tuist 4.218.0 and later then sign in to your account's cache in each command on their own.
+The Mac has the Tuist CLI, and runs the project's own version when it pins one through mise; Tuist 4.218.0 and later sign in to your account's cache in each command on their own.
 
 ### Ready Macs {#remote-mac-snapshots}
 

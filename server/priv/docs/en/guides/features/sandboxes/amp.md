@@ -88,7 +88,7 @@ Amp keeps editing code where it runs. Before each command on the Mac, the plugin
 | `tuist_mac_download` | Copies a file back, such as a built `.app` |
 | `tuist_mac_stop` | Deletes the thread's Mac |
 
-The Mac has no Tuist CLI of its own: after the first sync, Amp runs `mise install` in the repository root so the project's pinned Tuist is installed, and `tuist_mac_shell` puts mise's shims on `PATH`. Each command on the Mac is <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">signed in to your account's cache</.localized_link> on its own with Tuist 4.218.0 or later; with 4.215.0 to 4.217.x, Amp runs `tuist auth login` first.
+The Mac has the Tuist CLI, and runs the project's own version when it pins one through mise; `tuist_mac_shell` puts mise's shims first on `PATH`. Each command on the Mac is <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">signed in to your account's cache</.localized_link> on its own with Tuist 4.218.0 or later; with 4.215.0 to 4.217.x, Amp runs `tuist auth login` first.
 
 A thread uses one Mac. Amp passes `tuist_mac_start` the <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link> the repository pins, such as in `.xcode-version`, or you can ask for one ("use Xcode 26.1.1"); without one, the Mac runs the default. The Mac keeps its Xcode, so switching means stopping it and starting another. Tuist pauses it when it's idle and the next command resumes it. Amp deletes it when the task is done; a Mac left behind is deleted after 14 days paused. Macs count toward your Tuist account like any other sandbox.
 

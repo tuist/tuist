@@ -70,6 +70,10 @@ defmodule Tuist.Sandboxes.Commands do
   # The script enters the command's working directory itself: the guest
   # agent refuses to start any process in a missing directory, which would
   # otherwise surface as a node failure instead of the caller's mistake.
+  #
+  # mise's shims come first, so a repository's pinned tools win; the macOS
+  # image's preinstalled Tuist (`/opt/tuist/cli/bin`) comes last and serves a
+  # repository that pins none (infra/runner-image/AGENTS.md).
   @start_script @dir <>
                   """
 
@@ -78,7 +82,7 @@ defmodule Tuist.Sandboxes.Commands do
                   ~S"""
                   set -eu
                   mkdir -p "$d"
-                  printf 'export PATH="$HOME/.local/share/mise/shims:$PATH"\n%s' "$TUIST_COMMAND" > "$d/command"
+                  printf 'export PATH="$HOME/.local/share/mise/shims:$PATH:/opt/tuist/cli/bin"\n%s' "$TUIST_COMMAND" > "$d/command"
                   : > "$d/stdout"
                   : > "$d/stderr"
                   : > "$d/stdin"
