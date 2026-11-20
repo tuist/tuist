@@ -44,32 +44,43 @@ defmodule LuftServer.LoungesConcurrencyTest do
 
   defp race(fun) do
     parent = self()
+    # The parent is idle at the barrier; leave all four connections available
+    # for the independent writers even on the two-scheduler CI runner.
+    :ok = Sandbox.checkin(Repo)
 
-    tasks =
-      for n <- 1..4 do
-        Task.async(fn ->
-          :ok = Sandbox.checkout(Repo, sandbox: false)
-          send(parent, {:ready, self()})
+    try do
+      tasks =
+        for n <- 1..4 do
+          Task.async(fn ->
+            :ok = Sandbox.checkout(Repo, sandbox: false)
+            send(parent, {:ready, self()})
 
-          receive do
-            :go -> fun.(n)
-          after
-            5000 -> raise "race did not start"
-          end
-        end)
-      end
-
-    ready =
-      for _ <- tasks do
-        receive do
-          {:ready, pid} -> pid
-        after
-          5000 -> flunk("database worker did not become ready")
+            try do
+              receive do
+                :go -> fun.(n)
+              after
+                5000 -> raise "race did not start"
+              end
+            after
+              Sandbox.checkin(Repo)
+            end
+          end)
         end
-      end
 
-    Enum.each(ready, &send(&1, :go))
-    Enum.map(tasks, &Task.await(&1, 15_000))
+      ready =
+        for _ <- tasks do
+          receive do
+            {:ready, pid} -> pid
+          after
+            5000 -> flunk("database worker did not become ready")
+          end
+        end
+
+      Enum.each(ready, &send(&1, :go))
+      Enum.map(tasks, &Task.await(&1, 15_000))
+    after
+      :ok = Sandbox.checkout(Repo, sandbox: false)
+    end
   end
 
   test "racing creates and DM starts return exactly one conversation", %{scope: scope} do
