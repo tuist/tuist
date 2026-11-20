@@ -40,6 +40,12 @@ defmodule Tuist.Sandboxes.Sandbox do
   # chart's `sandboxes.maxCpu`, so the largest stays well below it.
   @guaranteed_cpu_choices [1000, 2000, 4000, 8000]
   @max_workspace_gb 100
+  # How long a sandbox created through the account API may run after each
+  # create or resume (`lifetime_seconds`): two hours unless its creator asks
+  # for between five minutes and a day, and extendable within the same range.
+  @default_lifetime_seconds 7200
+  @min_lifetime_seconds 300
+  @max_lifetime_seconds 86_400
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandboxes" do
@@ -97,6 +103,12 @@ defmodule Tuist.Sandboxes.Sandbox do
     # was copied from at creation (`Tuist.Runners.CacheVolumes.sandbox_cache/2`).
     field :cache_volume_id, Ecto.UUID
     field :cache_generation, :integer
+    # A sandbox created through the account API runs at most this long after
+    # each create or resume, until `expires_at`; then it is paused and
+    # archived (`Tuist.Sandboxes.pause_expired/0`). Integration-owned
+    # sandboxes have neither and never expire.
+    field :lifetime_seconds, :integer
+    field :expires_at, :utc_datetime
 
     belongs_to :account, Account
     belongs_to :provider_environment, Tuist.Sandboxes.ProviderEnvironment, type: :binary_id
@@ -185,9 +197,11 @@ defmodule Tuist.Sandboxes.Sandbox do
       :vcpus,
       :memory_mb,
       :workspace_gb,
-      :guaranteed_cpu_milli
+      :guaranteed_cpu_milli,
+      :lifetime_seconds
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
+    |> validate_lifetime()
     |> validate_guaranteed_cpu()
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
     |> Tuist.Sandboxes.Xcode.validate()
@@ -196,6 +210,36 @@ defmodule Tuist.Sandboxes.Sandbox do
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
     |> unique_constraint([:account_id, :amp_orb_id])
     |> unique_constraint(:provider_environment_id)
+  end
+
+  @doc """
+  Sets the sandbox's lifetime and starts it now: it expires `seconds` from now.
+  """
+  def lifetime_changeset(sandbox, seconds) do
+    sandbox
+    |> cast(%{lifetime_seconds: seconds}, [:lifetime_seconds])
+    |> validate_required([:lifetime_seconds])
+    |> validate_lifetime()
+  end
+
+  def default_lifetime_seconds, do: @default_lifetime_seconds
+  def max_lifetime_seconds, do: @max_lifetime_seconds
+
+  defp validate_lifetime(changeset) do
+    changeset =
+      validate_number(changeset, :lifetime_seconds,
+        greater_than_or_equal_to: @min_lifetime_seconds,
+        less_than_or_equal_to: @max_lifetime_seconds
+      )
+
+    case get_field(changeset, :lifetime_seconds) do
+      seconds when changeset.valid? and is_integer(seconds) ->
+        expires_at = DateTime.utc_now() |> DateTime.add(seconds) |> DateTime.truncate(:second)
+        put_change(changeset, :expires_at, expires_at)
+
+      _ ->
+        changeset
+    end
   end
 
   # Only a Linux agent sandbox bursts, so only its guarantee is picked; a

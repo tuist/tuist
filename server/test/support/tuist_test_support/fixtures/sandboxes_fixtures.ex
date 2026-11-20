@@ -112,6 +112,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       archive_memory: Keyword.get(opts, :archive_memory),
       archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate(),
       archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      lifetime_seconds: Keyword.get(opts, :lifetime_seconds),
+      expires_at: opts |> Keyword.get(:expires_at) |> truncate(),
       inserted_at: opts |> Keyword.get(:inserted_at) |> truncate()
     })
   end

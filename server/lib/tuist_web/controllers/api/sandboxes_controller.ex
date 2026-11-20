@@ -39,6 +39,7 @@ defmodule TuistWeb.API.SandboxesController do
     :create_upload,
     :pause,
     :resume,
+    :extend,
     :delete,
     :archive
   ]
@@ -996,6 +997,27 @@ defmodule TuistWeb.API.SandboxesController do
 
   def resume(%{assigns: %{selected_account: account}} = conn, params),
     do: respond(conn, Query.run(:resume, account, string_keys(params)))
+
+  operation(:extend,
+    summary: "Extend a sandbox's lifetime.",
+    description:
+      "Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.",
+    operation_id: "extendSandbox",
+    parameters: @sandbox_parameters,
+    request_body:
+      {"Lifetime params", "application/json",
+       %Schema{title: "ExtendSandbox", type: :object, properties: %{lifetime_seconds: SandboxSchemas.lifetime()}}},
+    responses:
+      Map.merge(@error_responses, %{
+        ok: {"Sandbox", "application/json", @sandbox_schema},
+        bad_request: {"Invalid params", "application/json", Error},
+        not_found: {"The sandbox was not found", "application/json", Error},
+        conflict: {"The sandbox has no lifetime", "application/json", Error}
+      })
+  )
+
+  def extend(%{assigns: %{selected_account: account}, body_params: body_params} = conn, params),
+    do: respond(conn, Query.run(:extend, account, params |> Map.merge(body_params) |> string_keys()))
 
   operation(:delete,
     summary: "Delete a sandbox.",

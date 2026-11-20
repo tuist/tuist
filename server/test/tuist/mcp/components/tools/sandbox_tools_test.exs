@@ -130,17 +130,44 @@ defmodule Tuist.MCP.Components.Tools.SandboxToolsTest do
         {:ok, %{"template_tag" => "linux-tag"}}
     end)
 
-    assert %{"structuredContent" => %{"platform" => "darwin", "state" => "running", "memory_mb" => 24_576}} =
+    assert %{
+             "structuredContent" => %{
+               "platform" => "darwin",
+               "state" => "running",
+               "memory_mb" => 24_576,
+               "lifetime_seconds" => 600,
+               "expires_at" => mac_expires_at
+             }
+           } =
              CreateSandbox.call(conn, %{
                "account_handle" => account.name,
                "platform" => "darwin",
                "vcpus" => 8,
                "memory_mb" => 24_576,
-               "workspace_gb" => 20
+               "workspace_gb" => 20,
+               "lifetime_seconds" => 600
              })
 
-    assert %{"structuredContent" => %{"platform" => "linux", "vcpus" => 16, "guaranteed_vcpus" => 1}} =
+    assert_in_delta seconds_from_now(mac_expires_at), 600, 5
+
+    # Without one, a sandbox gets the default two hours.
+    assert %{
+             "structuredContent" => %{
+               "platform" => "linux",
+               "vcpus" => 16,
+               "guaranteed_vcpus" => 1,
+               "lifetime_seconds" => 7200,
+               "expires_at" => expires_at
+             }
+           } =
              CreateSandbox.call(conn, %{"account_handle" => account.name})
+
+    assert_in_delta seconds_from_now(expires_at), 7200, 5
+  end
+
+  defp seconds_from_now(iso) do
+    {:ok, at, 0} = DateTime.from_iso8601(iso)
+    DateTime.diff(at, DateTime.utc_now())
   end
 
   test "create refuses a shape the platform does not offer", %{account: account, conn: conn} do

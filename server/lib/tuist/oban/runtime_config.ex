@@ -45,6 +45,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ExpireSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ReleaseRemovedNodesWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},

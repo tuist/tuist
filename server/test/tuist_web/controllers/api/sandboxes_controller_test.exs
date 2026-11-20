@@ -748,6 +748,31 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert String.to_integer(seconds) in 1..60
     end
 
+    test "extends a sandbox's lifetime, and answers 409 for one an integration owns", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, lifetime_seconds: 7200, expires_at: DateTime.utc_now())
+      orb = sandbox_fixture(account: account, amp_orb_id: "orb-1")
+      reject(&Nodes.call/4)
+
+      assert %{"lifetime_seconds" => 14_400, "expires_at" => expires_at} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/extend", %{lifetime_seconds: 14_400})
+               |> json_response(:ok)
+
+      {:ok, expires_at, 0} = DateTime.from_iso8601(expires_at)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 14_400, 5
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/extend", %{lifetime_seconds: 90_000})
+      |> json_response(:bad_request)
+
+      assert %{"message" => message} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{orb.id}/extend", %{})
+               |> json_response(:conflict)
+
+      assert message =~ "no lifetime"
+    end
+
     test "answers 409 for an operation the sandbox state does not allow", %{conn: conn, account: account} do
       sandbox = sandbox_fixture(account: account, state: :paused)
       reject(&Nodes.call/4)
