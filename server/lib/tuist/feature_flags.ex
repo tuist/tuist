@@ -144,6 +144,13 @@ defmodule Tuist.FeatureFlags do
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Global kill switch for copying long remote action logs to object storage:
+  while `:remote_action_log_copies_disabled` is on, records get no uploads and
+  the gateway copies nothing.
+  """
+  def remote_action_log_copies_disabled?, do: FunWithFlags.enabled?(:remote_action_log_copies_disabled)
+
+  @doc """
   Whether a user may use Luft's features: threads, AI subscriptions and
   MCP servers. Canary and production require an explicit `:luft` FunWithFlags
   toggle. Development, test and staging default to enabled. Organization

@@ -1,5 +1,6 @@
 #build-run,
-#once-run {
+#once-run,
+#bazel-remote-action {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);

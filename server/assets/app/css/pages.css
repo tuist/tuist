@@ -22,6 +22,7 @@
 @import "./pages/gradle_tasks.css";
 @import "./pages/build_entity.css";
 @import "./pages/gradle_task_execution.css";
+@import "./pages/bazel_remote_action.css";
 @import "./pages/gradle_overview.css";
 @import "./pages/bazel_invocation.css";
 @import "./pages/bazel_invocations.css";

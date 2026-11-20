@@ -420,6 +420,9 @@ defmodule Tuist.RemoteExecution.Scheduler do
       message: op.message
     }
 
+    # The VM, once dispatched, for the gateway's action record.
+    base = if op.vm, do: Map.put(base, :sandbox_id, op.vm), else: base
+
     if op.cacheable,
       do: Map.merge(base, %{cacheable: true, action_hash: op.hash, action_size: op.size, cas_endpoint: op.cas_endpoint}),
       else: base

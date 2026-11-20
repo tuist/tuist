@@ -1363,6 +1363,9 @@ defmodule TuistWeb.Router do
           get "/invocations/:invocation_id", BazelController, :get_invocation
           get "/invocations/:invocation_id/steps", BazelBuildStepsController, :index
           get "/invocations/:invocation_id/steps/:step_id", BazelBuildStepsController, :show
+          get "/invocations/:invocation_id/remote-actions", BazelRemoteActionsController, :index
+          get "/invocations/:invocation_id/remote-actions/:operation_id", BazelRemoteActionsController, :show
+          get "/invocations/:invocation_id/remote-actions/:operation_id/logs/:stream", BazelRemoteActionsController, :log
           get "/invocations/:invocation_id/logs", BazelController, :list_invocation_logs
           get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
@@ -1504,6 +1507,7 @@ defmodule TuistWeb.Router do
     post "/:account/:project/operations", RemoteExecutionController, :create
     post "/:account/:project/leases", RemoteExecutionController, :lease
     get "/:account/:project/operations/:id", RemoteExecutionController, :show
+    post "/:account/:project/actions", RemoteExecutionActionsController, :create
   end
 
   # Runner Pod dispatch + autoscaler signals endpoints.
@@ -2172,6 +2176,10 @@ defmodule TuistWeb.Router do
 
       live "/builds/build-runs/:build_run_id", BuildRunLive, metadata: @public_project_route_metadata
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive, metadata: @public_project_route_metadata
+
+      live "/builds/invocations/:invocation_id/remote-actions/:operation_id", BazelRemoteActionLive,
+        metadata: @public_project_route_metadata
+
       live "/builds/cargo-builds/:build_id", CargoBuildLive, metadata: @public_project_route_metadata
       live "/builds/mix-builds/:build_id", MixBuildLive, metadata: @public_project_route_metadata
       live "/previews", PreviewsLive, metadata: @public_project_route_metadata

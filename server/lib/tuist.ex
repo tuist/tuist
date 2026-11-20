@@ -358,6 +358,7 @@ defmodule Tuist do
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
       RemoteExecution,
+      RemoteExecution.Actions,
       RemoteExecution.Analytics,
       RemoteExecution.Query,
       RemoteExecution.Schemas,

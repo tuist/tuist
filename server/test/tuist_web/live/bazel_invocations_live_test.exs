@@ -10,6 +10,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.ReapiCache.CacheEvent
+  alias Tuist.RemoteExecution.Actions
   alias Tuist.RemoteExecution.Scheduler
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -95,7 +96,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
         name: "Compile App",
         ts: 0,
         dur: 100_000,
-        args: %{target: "//:app"}
+        args: %{target: "//:app", out: "bazel-out/k8/bin/app.o"}
       },
       %{ph: "X", pid: 1, tid: 2, cat: "Remote execution process wall time", name: "execute", ts: 1000, dur: 37_000}
     ]
@@ -105,7 +106,10 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
       events ++
         Enum.map(events, fn event ->
           event = %{event | tid: 3, ts: event.ts + 200_000}
-          if event.cat == "action processing", do: %{event | name: "Link App", dur: 300_000}, else: event
+
+          if event.cat == "action processing",
+            do: %{event | name: "Link App", dur: 300_000, args: %{target: "//:app", out: "bazel-out/k8/bin/app"}},
+            else: event
         end)
 
     assert :ok =
@@ -115,10 +119,38 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
                :zlib.gzip(JSON.encode!(%{otherData: %{build_id: "remote-ui"}, traceEvents: events}))
              )
 
+    # The gateway recorded one execution for the compile output and two (a
+    # retry under another digest) for the link output.
+    record = fn hash, output ->
+      %{
+        "operation_id" => Ecto.UUID.generate(),
+        "action_hash" => String.duplicate(hash, 64),
+        "invocation_id" => "remote-ui",
+        "output_paths" => [output]
+      }
+    end
+
+    compile = record.("a", "bazel-out/k8/bin/app.o")
+
+    {:ok, 3} =
+      Actions.ingest(project, [
+        compile,
+        record.("b", "bazel-out/k8/bin/app"),
+        record.("c", "bazel-out/k8/bin/app")
+      ])
+
     render_patch(view, path <> "?tab=remote-execution")
     render_async(view)
     assert has_element?(view, "#remote-actions-table", "Compile App")
     assert has_element?(view, "#remote-actions-table", "37ms")
+    # Only the unambiguous record is linked.
+    assert has_element?(
+             view,
+             "#remote-actions-table a[data-part=action-link][href$=\"/remote-actions/#{compile["operation_id"]}\"]",
+             "Compile App"
+           )
+
+    refute has_element?(view, "#remote-actions-table a[data-part=action-link]", "Link App")
     # The tooltip lists only the phases the profile recorded.
     assert has_element?(view, "#remote-actions-table [data-part=series-item][data-phase=execution]", "37ms")
     refute has_element?(view, "#remote-actions-table [data-part=series-item][data-phase=queue]")

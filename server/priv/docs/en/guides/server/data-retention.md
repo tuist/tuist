@@ -22,7 +22,7 @@ These windows define how long artifact files remain available on the hosted Tuis
 | Cache artifacts, including Xcode cache, module cache, Gradle cache, Bazel remote-cache files, and GitLab CI cache archives from Tuist Runners | 14 days | 30 days | 30 days |
 | App preview builds and icons | 30 days | 30 days | 30 days |
 | Build archives | 7 days | 30 days | 30 days |
-| Run artifacts, including result bundles and session archives | 7 days | 30 days | 30 days |
+| Run artifacts, including result bundles, session archives and Bazel remote action logs | 7 days | 30 days | 30 days |
 | Test run attachments | 30 days | 30 days | 30 days |
 | Shard bundles | 7 days | 14 days | 30 days |
 
@@ -58,7 +58,7 @@ Bazel indexed profile steps include nullable per-action remote queue, input-fetc
 
 | Data | Retention |
 | --- | --- |
-| Gradle build records, task records and the failure messages of failed tasks and configuration steps, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, and Bazel remote action-cache observations | 90 days |
+| Gradle build records, task records and the failure messages of failed tasks and configuration steps, cache event records, Mix build records, compiled file records, build step records and diagnostics, Cargo build records (including aggregate compilation-cache measurements) and compiler observations, Bazel invocations, Bazel trace profiles, indexed profile steps and action diagnostics, pending Bazel profile and test ingestion records, Bazel invocation logs, Bazel remote action-cache observations, and records of remotely executed actions (command, environment, platform, exit code and the start of their output) | 90 days |
 | Starts of Bazel invocations, which list them as running until they finish | 2 days |
 | Xcode module compilation and cache history on persistent module detail pages | 30 days |
 | Task, declared Struo action, Bazel BEP action, compiled file and module observations on persistent detail pages | 90 days, except Xcode modules above |
