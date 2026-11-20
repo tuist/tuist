@@ -398,6 +398,18 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 			return rackConvergeOptions{}, "", err
 		}
 	}
+	// An edge with no other edge of its site serving keeps the WAN its install
+	// gave it, its only way to the cluster until its rack-edge pod runs.
+	var firstEdgeWAN *infrav1.RackLinuxHostEdgeWAN
+	if host.Spec.Role == "edge" && host.Spec.Edge != nil && host.Spec.Edge.WAN != nil {
+		edges, err := servingEdges(ctx, r.Client, host)
+		if err != nil {
+			return rackConvergeOptions{}, "", err
+		}
+		if len(edges) == 0 {
+			firstEdgeWAN = host.Spec.Edge.WAN
+		}
+	}
 	managementMAC := ""
 	if sharesBootNICWithAMT(host, r.AMTProducts) {
 		managementMAC = host.Status.BootMAC
@@ -406,6 +418,7 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 		NodeName:       host.Spec.Hostname,
 		Role:           host.Spec.Role,
 		Edge:           host.Spec.Edge,
+		FirstEdgeWAN:   firstEdgeWAN,
 		NodeIP:         nodeIP,
 		ClusterNetwork: host.Spec.ClusterNetwork,
 		Forwards:       forwards,

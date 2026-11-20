@@ -694,3 +694,45 @@ func TestRackLinuxMachineTrustsAHostItsOwnStickInstalledOnFirstUse(t *testing.T)
 		t.Fatalf("applies %+v; the stick's install is trusted on first use", h.applier.applies)
 	}
 }
+
+// A site's first edge goes out over the WAN its install's netplan put on its
+// first uplink. The converge's uplink files shadow netplan's, so they carry
+// it too until another edge of the site serves, or the join cuts the edge off.
+func TestRackLinuxMachineKeepsTheFirstEdgesWANOnItsFirstUplink(t *testing.T) {
+	for name, otherServes := range map[string]bool{"first edge": false, "second edge": true} {
+		t.Run(name, func(t *testing.T) {
+			host := claimedEdgeHost("dev-1")
+			host.Spec.Edge = ber1EdgeBSpec()
+			host.Spec.Edge.WAN = &infrav1.RackLinuxHostEdgeWAN{VLAN: 4001, Address: "149.6.170.31/31", Gateway: "149.6.170.30"}
+			objs := append(rackClusterObjects(true), host, edgeMachine())
+			if otherServes {
+				other := claimedEdgeHost("dev-2")
+				other.Name, other.Spec.Hostname = "other-edge", "ber1-edge-a"
+				objs = append(objs, other)
+			}
+			h := newRackMachineHarness(t, "v1.34.8", objs...)
+
+			h.reconcile(t)
+
+			if len(h.applier.applies) != 1 {
+				t.Fatalf("applied %d times", len(h.applier.applies))
+			}
+			var first, second string
+			for _, f := range h.applier.applies[0].req.Config.Files {
+				switch f.Path {
+				case "/etc/systemd/network/05-tuist-edge-uplink-1.network":
+					first = f.Content
+				case "/etc/systemd/network/05-tuist-edge-uplink-2.network":
+					second = f.Content
+				}
+			}
+			wan := "VLAN=vrrp0-1\nAddress=149.6.170.31/32\n\n[Route]\nGateway=149.6.170.30\nGatewayOnLink=yes\nMetric=50\n"
+			if got := strings.HasSuffix(first, wan); got == otherServes {
+				t.Errorf("uplink 1 carries the WAN: %v, want %v:\n%s", got, !otherServes, first)
+			}
+			if strings.Contains(second, "Address=") {
+				t.Errorf("uplink 2 carries the WAN:\n%s", second)
+			}
+		})
+	}
+}

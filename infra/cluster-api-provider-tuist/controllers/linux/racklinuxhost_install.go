@@ -375,8 +375,12 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 // connected to the tailnet, whose boot servers serve the host's netboot while
 // it is down. One being deleted is going away.
 func (r *RackLinuxHostReconciler) servingEdges(ctx context.Context, host *infrav1.RackLinuxHost) ([]string, error) {
+	return servingEdges(ctx, r.Client, host)
+}
+
+func servingEdges(ctx context.Context, c client.Reader, host *infrav1.RackLinuxHost) ([]string, error) {
 	hosts := &infrav1.RackLinuxHostList{}
-	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
+	if err := c.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
 		return nil, err
 	}
 	var edges []string
