@@ -372,16 +372,35 @@ func TestRackLinuxMachineReportsAKubeadmJoinedHost(t *testing.T) {
 }
 
 func TestRackLinuxMachineHoldsWhenTheControlPlaneIsOnAnotherMinor(t *testing.T) {
-	objs := append(rackClusterObjects(true), claimedEdgeHost("dev-1"), edgeMachine())
-	h := newRackMachineHarness(t, "v1.35.0", objs...)
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"},
+		Spec:       corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID},
+		Status:     corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{KubeletVersion: "v1.34.6"}},
+	}
+	objs := append(rackClusterObjects(true), claimedEdgeHost("dev-1"), edgeMachine(), node)
+	h := newRackMachineHarness(t, "v1.36.6", objs...)
 
 	m := h.reconcile(t)
 
 	if len(h.applier.applies) != 0 {
-		t.Fatal("converged a kubelet onto a minor the operator does not render for")
+		t.Fatal("upgraded a running kubelet onto a minor the operator does not render for")
 	}
 	if c := conditions.Get(m, HostConvergedCondition); c == nil || c.Reason != "ConvergeHeld" {
 		t.Fatalf("condition %+v", c)
+	}
+}
+
+func TestRackLinuxMachineJoinsAFreshHostAtTheControlPlanesMinor(t *testing.T) {
+	objs := append(rackClusterObjects(true), claimedEdgeHost("dev-1"), edgeMachine())
+	h := newRackMachineHarness(t, "v1.36.6", objs...)
+
+	h.reconcile(t)
+
+	if len(h.applier.applies) != 1 {
+		t.Fatalf("applied %d times; a host with no Node must join at the control plane's minor", len(h.applier.applies))
+	}
+	if k := h.applier.applies[0].req.Config.Kubelet; k.Channel != "v1.36" || k.Version != "1.36.6" {
+		t.Fatalf("kubelet %+v", k)
 	}
 }
 

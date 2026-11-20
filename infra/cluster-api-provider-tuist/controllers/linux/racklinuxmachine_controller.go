@@ -208,7 +208,7 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 		return ctrl.Result{}, err
 	}
 
-	opts, holdReason, err := r.convergeOptions(ctx, host)
+	opts, holdReason, err := r.convergeOptions(ctx, host, node)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -361,7 +361,7 @@ func convergeBackoff(failures int32) time.Duration {
 
 // convergeOptions renders the desired configuration. A non-empty reason means
 // converging has to wait for the cluster rather than the host.
-func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *infrav1.RackLinuxHost) (rackConvergeOptions, string, error) {
+func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *infrav1.RackLinuxHost, node *corev1.Node) (rackConvergeOptions, string, error) {
 	cpVersion, err := r.ControlPlaneVersion(ctx)
 	if err != nil {
 		return rackConvergeOptions{}, "", fmt.Errorf("read the control plane version: %w", err)
@@ -370,7 +370,10 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 	if !ok {
 		return rackConvergeOptions{}, fmt.Sprintf("cannot parse the control plane version %q", cpVersion), nil
 	}
-	if minor != r.KubernetesMinor {
+	// Only a running kubelet waits for the operator's minor: moving it to the
+	// control plane's is an upgrade. A host with no Node yet joins at the
+	// control plane's version, like the cluster's other fresh joins.
+	if minor != r.KubernetesMinor && node != nil && nodeKubeletMinor(node) != minor {
 		return rackConvergeOptions{}, fmt.Sprintf("the control plane runs %s, and this operator renders kubelet configuration for %s; roll the operator for %s first",
 			cpVersion, r.KubernetesMinor, minor), nil
 	}
@@ -434,6 +437,12 @@ func discoverKubernetesService(ctx context.Context, reader client.Reader) string
 		return ""
 	}
 	return svc.Spec.ClusterIP
+}
+
+// nodeKubeletMinor is the minor the Node's kubelet reports, such as "v1.34".
+func nodeKubeletMinor(node *corev1.Node) string {
+	_, minor, _ := parseControlPlaneVersion(node.Status.NodeInfo.KubeletVersion)
+	return minor
 }
 
 func parseControlPlaneVersion(v string) (kubelet, minor string, ok bool) {
