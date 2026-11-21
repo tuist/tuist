@@ -62,7 +62,7 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { 192.168.61.6,192.168.61.2,192.168.70.0/24 } masquerade
-    iifname "tailscale0" oifname "mgmt0" ip daddr { 192.168.60.14,192.168.60.15 } masquerade
+    iifname "tailscale0" oifname "mgmt0" ip daddr { 192.168.60.14,192.168.60.15,192.168.60.16,192.168.60.17 } masquerade
     oifname "wan0" ip saddr { 10.20.0.101, 10.20.0.102, 10.20.0.103, 10.20.0.104, 10.20.0.105, 10.20.0.151, 10.20.0.152, 10.20.0.153, 10.20.0.154, 10.20.0.155 } snat ip to 95.130.119.32-95.130.119.47 persistent
     oifname != { "tailscale0", "machines0", "mgmt0" } ip saddr 10.20.0.0/24 masquerade
     oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.60.0/24 } masquerade
@@ -70,7 +70,7 @@ table ip tuist_mgmt_path {
   chain forward {
     type filter hook forward priority mangle;
     oifname "tailscale0" ip saddr { 192.168.61.6,192.168.61.2,192.168.70.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
-    oifname "tailscale0" ip saddr { 192.168.60.14,192.168.60.15 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
+    oifname "tailscale0" ip saddr { 192.168.60.14,192.168.60.15,192.168.60.16,192.168.60.17 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
   }
 }
 table netdev tuist_rack_dhcp
