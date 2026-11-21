@@ -139,6 +139,15 @@ actor. The issued codes and tokens remain in the existing `oauth_tokens` table.
 
 ## Engineering error alert rules
 
+`errors_issues.legacy_ids` records the deterministic UUIDs of old fingerprints
+observed during normalized grouping, including origins discovered in later
+batches and origins without a stored legacy issue. It contains no event content;
+it lets migration reconcile
+conflicting statuses without repeatedly overwriting operator decisions for
+known origins. Include it with issue records in project exports. It follows
+the issue's existing retention and project-deletion lifecycle; legacy issues
+remain separate records, not aliases that transfer ownership.
+
 `alert_rules` belongs to `projects` through `project_id` and stores operator-authored names, trigger/tier, enabled state, event-count threshold, nullable `threshold_window_minutes` (1–60 for `event_spike`), exact environment, minimum severity, cooldown, and Slack or webhook destination settings. Receiver URLs can contain authentication credentials; signing secrets are also sensitive stored configuration. Rules remain until explicitly deleted or their project is deleted. Project deletion cascades rules and their notification records; existing backups retain their normal policy.
 
 `alert_notifications` references `alert_rules` and stores the error-issue subject UUID, firing time, sent/failed/skipped status, failure diagnostic and metadata. Spike metadata adds environment, distinct event count, window minutes and evaluation time alongside the existing lifetime issue count. There is no automatic notification expiry. `oban_jobs` stores rule IDs for independent spike evaluations and rule/issue IDs, reason and environment for queued deliveries; existing Oban pruning applies. Historical previews read retained `errors_events` without copying events or sending notifications, and add no event collection or retention policy.

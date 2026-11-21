@@ -35,6 +35,7 @@ defmodule Atlas.Engineering.Errors.Issue do
     field :last_seen, :utc_datetime_usec
     field :resolved_at, :utc_datetime_usec
     field :event_count, :integer, default: 0
+    field :legacy_ids, {:array, :binary_id}, default: []
 
     belongs_to :project, Project
     belongs_to :domain, Domain
