@@ -1,8 +1,8 @@
 ---
 {
   "title": "Xcode 项目",
-  "titleTemplate": ":title · 入门指南 · 指南 · Tuist",
-  "description": "将现有 Xcode 项目连接到 Tuist，以利用 Xcode 编译缓存、构建与测试洞察、包大小跟踪和预览链接，而无需采用项目生成。"
+  "titleTemplate": ":title · 入门指南 · 教程 · Tuist",
+  "description": "将现有 Xcode 项目连接到 Tuist，以获得 Xcode 编译缓存、构建与测试洞察、包体积跟踪和预览链接，而无需采用项目生成。"
 }
 ---
 # Xcode 项目 {#existing-xcode-project}
@@ -16,11 +16,11 @@ https://tuist.dev/en/docs/guides/get-started/existing-xcode-project
 
 :::
 
-如果你希望保持 `.xcodeproj` 或 `.xcworkspace` 原封不动，同时引入 Tuist 的功能而不采用项目生成，请遵循此路径。下面的每个部分都会先指出当前缺失的内容，然后引导你使用填补该空白的功能。
+如果你希望保持 `.xcodeproj` 或 `.xcworkspace` 原封不动，并在不采用项目生成的情况下引入 Tuist 的功能，请按照此路径操作。下面的每个部分都会先说明当前缺失的内容，然后引导你使用填补该空白的功能。
 
 ## 前提条件
 
-- macOS 系统，需安装 **Xcode 26 或更高版本**（编译缓存和现代洞察功能依赖于它）。
+- 安装了 **Xcode 26 或更高版本** 的 macOS（编译缓存和现代洞察功能依赖于此）。
 - <.localized_link href="/guides/install-tuist">Tuist 命令行界面</.localized_link>。
 
 ## 连接项目
@@ -37,23 +37,23 @@ tuist init --build-system xcode --name <project-handle> --account <account>
 
 ## Xcode 编译缓存
 
-Xcode 26 附带了按文件划分的编译缓存，但其存储位于机器的 `DerivedData` 内部。干净构建会在本地填充该缓存；由于团队成员和 CI 运行器看不到该存储，他们必须从头重新构建。
+Xcode 26 附带了基于文件的编译缓存，但其存储位于机器的 `DerivedData` 内。干净构建会在本地填充该缓存；由于团队成员和 CI 运行器看不到该存储，他们必须从头重新构建。
 
-`tuist setup cache` 将 Xcode 的编译缓存指向共享的 Tuist 缓存网络。任何开发者机器或 CI 运行中的缓存命中都将惠及构建相同修订版本的其他每台机器。
+`tuist setup cache` 将 Xcode 的编译缓存指向共享的 Tuist 缓存网络。任何开发者机器或 CI 运行中的缓存命中都将惠及构建相同修订版本的其他机器。
 
 ```bash
 tuist setup cache
 ```
 
-该命令会打印 Xcode 使用共享缓存所需的构建设置。它不会编辑你的项目，因此请将这些设置添加到项目的构建设置或 `.xcconfig` 文件中，具体说明见 <.localized_link href="/guides/features/cache/xcode-cache#configure-xcode-build-settings">配置 Xcode 构建设置</.localized_link>。
+该命令会打印 Xcode 使用共享缓存所需的构建设置。它不会编辑你的项目，因此请将这些设置添加到项目的构建设置或 `.xcconfig` 文件中，如 <.localized_link href="/guides/features/cache/xcode-cache#configure-xcode-build-settings">配置 Xcode 构建设置</.localized_link> 中所述。
 
-在 Xcode 中构建，然后在第二台机器或 CI 运行器上构建相同的修订版本。第二次构建将在极短的时间内完成，Xcode 的构建报告会显示编译缓存命中情况。
+在 Xcode 中构建，然后在另一台机器或 CI 运行器上构建相同的修订版本。第二次构建将在极短的时间内完成，Xcode 的构建报告会显示编译缓存命中情况。
 
 ## 构建洞察
 
-Xcode 在日志和构建报告中记录每个目标的构建持续时间。这些数据未按运行次数或机器进行聚合。导致构建时间回归的代码合并到某个 PR 后，通常只表现为整体 CI 变慢，而没有关于哪个目标导致问题或何时发生的明显信号。
+Xcode 在日志和构建报告中记录每个目标的构建持续时间。这些数据未按运行次数或机器进行聚合。导致构建时间回归的代码合并到一个 PR 中时，通常只表现为 CI 整体变慢，而没有关于哪个目标导致问题或何时发生的明显信号。
 
-构建洞察记录每次构建的持续时间和阶段耗时，使趋势在仪表板上可见。只需在你的 Scheme 中添加一行后置操作：
+构建洞察记录每次构建的持续时间和阶段耗时，以便在仪表板上查看趋势。只需在你的 Scheme 中添加一行后置操作：
 
 1. 在 Xcode 中：**Product → Scheme → Edit Scheme…**
 2. 展开 **Build → Post-actions**，点击 **+**，选择 **New Run Script Action**。
@@ -69,13 +69,13 @@ Xcode 在日志和构建报告中记录每个目标的构建持续时间。这�
    :::
 
    Xcode 的 Scheme 脚本不会继承你 Shell 的 `PATH`，因此无法自行找到 mise 的 shim。上面的 Mise 行通过绝对路径调用 mise，并要求它从 `$SRCROOT` 加载配置，以便选择项目中锁定的版本。
-5. 构建一次。构建记录将在几秒内出现在仪表板的 **Builds** 标签页上。
+5. 构建一次。构建结果将在几秒内出现在仪表板的 **Builds** 选项卡中。
 
 ## 测试洞察
 
-Xcode 的测试日志每次运行列出每个测试的结果。它不会聚合你真正需要的跨运行信号：测试失败的频率、上周变慢了多少、是否仅在特定模拟器上失败。一个在十次 CI 运行中从可靠逐渐变为不稳定的测试，看起来与一次运气不佳的运行无异。
+Xcode 的测试日志逐次列出每次运行的每个测试结果。它不会聚合你真正需要的跨运行信号：测试失败的频率、上周变慢了多少、是否仅在特定模拟器上失败。在十次 CI 运行中从可靠逐渐变为不稳定的测试，看起来与单次运气不佳的运行无异。
 
-测试洞察记录每次测试的结果和持续时间，并关联跨运行的结果。缓慢的测试、失败和不稳定测试会显示在仪表板的 **Tests** 标签页上。
+测试洞察记录每次测试的结果和持续时间，并关联跨运行的结果。缓慢的测试、失败和不稳定测试会显示在仪表板的 **Tests** 选项卡中。
 
 1. **Product → Scheme → Edit Scheme…**
 2. **Test → Post-actions → +** → **New Run Script Action**。
@@ -89,13 +89,13 @@ Xcode 的测试日志每次运行列出每个测试的结果。它不会聚合�
    ```
    <!-- -->
    :::
-5. 运行一次测试操作。结果将出现在仪表板的 **Tests** 标签页上。
+5. 运行一次测试操作。结果将出现在仪表板的 **Tests** 选项卡中。
 
 ## 包洞察
 
-IPA 的安装和下载大小会随着每个添加的资源文件和链接的符号而变化。Xcode 仅在 **Product → Show Archive** 中按需报告大小，而不是作为一系列数据。在合并队列中，添加大资源文件的 PR 与其他 PR 无法区分。
+IPA 的安装和下载大小会随着每次添加资源和链接符号而变化。Xcode 仅在 **Product → Show Archive** 中按需报告大小，而非作为系列数据。添加大资源的 PR 在合并队列中与其他 PR 并无区别。
 
-包洞察记录每次分析构建的安装和下载大小，并在超出每分支阈值时使 PR 检查失败。在构建步骤之后立即将此内容添加到你的 CI 中：
+包洞察记录每次分析构建的安装和下载大小，并在超出分支阈值时使 PR 检查失败。在构建步骤之后立即将此内容添加到你的 CI 中：
 
 ```bash
 tuist inspect bundle App.ipa
@@ -118,8 +118,8 @@ tuist share App
 
 ## 邀请团队成员加入
 
-缓存和洞察的价值会随着连接到项目的人数增加而倍增。从仪表板的账户设置中邀请你的团队成员加入组织，并配置 <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link>（Google、Okta、Microsoft），让入职流程只需点击一下，而无需每人执行一次 `tuist auth login`。
+缓存和洞察的价值会随着连接到项目的人数增加而累积。从仪表板的账户设置中邀请你的团队成员加入组织，并配置 <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link>（Google、Okta、Microsoft），让入职流程只需点击一下，而无需每人执行一次 `tuist auth login`。
 
-## 下一步
+## 下一步做什么
 
-如果你需要超越当前方案，最大的一步是采用 Tuist 生成的项目。这是一个实质性的变化（目标在 Swift 清单中描述，而不是在 `.xcodeproj` 中），但它能解锁模块缓存和选择性测试。<.localized_link href="/guides/get-started/generated-xcode-project">Generated Xcode project</.localized_link> 指南提供了端到端的介绍。
+如果你需要超越当前方案，最大的步骤是采用 Tuist 生成的项目。这是一个实质性的变更（目标在 Swift 清单中描述，而不是在 `.xcodeproj` 中），但它能解锁模块缓存和选择性测试。<.localized_link href="/guides/get-started/generated-xcode-project">Generated Xcode project</.localized_link> 指南提供了端到端的介绍。

@@ -11,11 +11,11 @@ Kaynak: [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist
 
 ## Ne işe yarar {#what-it-is-for}
 
-Sunucu; kimlik doğrulama, hesaplar ve projeler, önbellek depolama, analizler, önizlemeler, kayıt defteri ve entegrasyonlar (GitHub, Slack ve SSO) gibi Tuist’in sunucu tarafı özelliklerini çalıştırır. Postgres ve ClickHouse kullanan bir Phoenix/Elixir uygulamasıdır.
+Sunucu; kimlik doğrulama, hesaplar ve projeler, önbellek depolama, içgörüler, önizlemeler, kayıt defteri ve entegrasyonlar (GitHub, Slack ve SSO) gibi Tuist’in sunucu tarafı özelliklerini destekler. Postgres ve ClickHouse kullanan bir Phoenix/Elixir uygulamasıdır.
 
 ## Nasıl katkıda bulunulur {#how-to-contribute}
 
-Sunucuya katkıda bulunmak için CLA’yı imzalamanız gerekir (`server/CLA.md`).
+Sunucuya yapılan katkılar için CLA’nın imzalanması gerekir (`server/CLA.md`).
 
 ### Yerel kurulum {#set-up-locally}
 
@@ -34,14 +34,14 @@ mise run install
 mise run dev
 ```
 
-Tarayıcınızda `http://localhost:8080` adresini açın. Geliştirme sırasında giriş sayfasında, önceden hazırlanmış hesapla (`tuistrocks@tuist.dev` / `tuistrocks`) oturum açmanızı sağlayan bir **Test kullanıcısı olarak giriş yap** düğmesi bulunur.
+Tarayıcınızda `http://localhost:8080` adresini açın. Geliştirme ortamında, giriş sayfasında sizi önceden hazırlanmış hesapla (`tuistrocks@tuist.dev` / `tuistrocks`) oturum açtıran bir **Test kullanıcısı olarak giriş yap** düğmesi bulunur.
 
 > [!NOTE]
-> Birinci taraf geliştiriciler, fnox aracılığıyla 1Password’ten geliştirme gizli anahtarlarını yükler — `mise run dev`, sunucuyu `fnox exec` içine alır (bkz. `server/fnox.toml`). Harici katkıda bulunanların 1Password erişimine ihtiyacı yoktur; sunucu bunun olmadan yerel olarak çalışır. OAuth, Stripe ve diğer üçüncü taraf entegrasyonlar devre dışı bırakılır, ancak temel işlevsellik çalışır.
+> Birinci taraf geliştiriciler, fnox aracılığıyla dev gizli anahtarlarını 1Password’dan yükler — `mise run dev`, sunucuyu `fnox exec` içinde çalıştırır (bkz. `server/fnox.toml`). Harici katkıda bulunanların 1Password erişimine ihtiyacı yoktur; sunucu bunun olmadan yerel olarak çalışır. OAuth, Stripe ve diğer üçüncü taraf entegrasyonlar devre dışı kalır, ancak temel işlevler çalışır.
 
 ### Yerel Helm testi {#local-helm-testing}
 
-[kind](https://kind.sigs.k8s.io/) ve dahil edilen mise görevlerini kullanarak tam yığını makinenizde çalıştırabilirsiniz. Bu işlem Docker imajlarını yerel olarak derler, bir kind kümesi oluşturur, chart'ı yükler ve tüm hizmetlerin port yönlendirmesini otomatik olarak gerçekleştirir:
+[kind](https://kind.sigs.k8s.io/) ve dahil edilen mise görevlerini kullanarak tam yığını makinenizde ayağa kaldırabilirsiniz. Bu işlem Docker imajlarını yerel olarak derler, bir kind kümesi oluşturur, chart’ı yükler ve tüm hizmetler için otomatik olarak port yönlendirmesi yapar:
 
 ```bash
 # Deploy everything (builds images from source)

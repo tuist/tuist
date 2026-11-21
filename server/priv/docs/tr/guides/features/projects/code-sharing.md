@@ -7,19 +7,19 @@
 ---
 # Kod paylaşımı {#code-sharing}
 
-Xcode'u büyük projelerle kullanırken karşılaşılan zorluklardan biri, derleme ayarları dışında proje öğelerinin `.xcconfig` dosyaları aracılığıyla yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden kullanabilmek aşağıdaki nedenlerle faydalıdır:
+Büyük projelerde Xcode kullanırken yaşanan sıkıntılardan biri, derleme ayarları dışında proje öğelerinin `.xcconfig` dosyaları aracılığıyla yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden kullanabilmek aşağıdaki nedenlerle faydalıdır:
 
 - Değişiklikler tek bir yerde uygulanabilir ve tüm projeler bu değişiklikleri otomatik olarak aldığı için **bakımı** kolaylaştırır.
 - Yeni projelerin uyabileceği **kurallar** tanımlamayı mümkün kılar.
 - Projeler daha **tutarlı** hale gelir ve bu nedenle tutarsızlıklardan kaynaklanan başarısız derlemelerin olasılığı önemli ölçüde azalır.
-- Mevcut mantığı yeniden kullanabildiğimiz için yeni projeler eklemek kolay bir iş haline gelir.
+- Mevcut mantığı yeniden kullanabildiğimiz için yeni projeler eklemek kolay bir görev haline gelir.
 
-Tuist'te manifest dosyaları arasında kodun yeniden kullanılması, **proje açıklama yardımcıları** kavramı sayesinde mümkündür.
+Manifest dosyaları arasında kodun yeniden kullanılması, Tuist'te **proje açıklama yardımcıları** kavramı sayesinde mümkündür.
 
 > [!TIP]
 > **Tuist'e özgü bir avantaj**
 >
-> Birçok kuruluş, proje açıklama yardımcılarında platform ekiplerinin kendi kurallarını kodlayıp projelerini tanımlamak için kendi dillerini geliştirebilecekleri bir platform gördükleri için Tuist'i tercih eder. Örneğin, YAML tabanlı proje oluşturucular kendi YAML tabanlı özel şablonlama çözümlerini geliştirmek zorunda kalır veya kuruluşları araçlarını bunun üzerine inşa etmeye zorlar.
+> Birçok kuruluş, proje açıklama yardımcılarında platform ekiplerinin kendi kurallarını kodlaması ve projelerini tanımlamak için kendi dillerini geliştirmesi için bir platform gördüğü için Tuist'i tercih eder. Örneğin, YAML tabanlı proje oluşturucuların kendi YAML tabanlı özel şablonlama çözümlerini geliştirmesi veya kuruluşları araçlarını bunun üzerine inşa etmeye zorlaması gerekir.
 
 
 ## Proje açıklama yardımcıları {#project-description-helpers}
@@ -41,7 +41,7 @@ import ProjectDescriptionHelpers
 
 ## Örnek {#example}
 
-Aşağıdaki kod parçacıkları, statik yapıcılar eklemek için `Project` modelini nasıl genişlettiğimizi ve bunları bir `Project.swift` dosyasından nasıl kullandığımızı gösteren bir örnek içerir:
+Aşağıdaki kod parçacıkları, statik oluşturucular eklemek için `Project` modelini nasıl genişlettiğimizi ve bunları bir `Project.swift` dosyasından nasıl kullandığımızı gösteren bir örnek içerir:
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]

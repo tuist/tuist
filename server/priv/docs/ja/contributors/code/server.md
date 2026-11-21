@@ -1,7 +1,7 @@
 ---
 {
-  "title": "サーバー",
-  "titleTemplate": ":title · コード · コントリビューター · Tuist",
+  "title": "Server",
+  "titleTemplate": ":title · Code · Contributors · Tuist",
   "description": "Tuist Server に貢献する。"
 }
 ---
@@ -11,13 +11,13 @@
 
 ## 用途 {#what-it-is-for}
 
-このサーバーは、認証、アカウントとプロジェクト、キャッシュストレージ、インサイト、プレビュー、レジストリ、統合（GitHub、Slack、SSO）など、Tuistのサーバーサイド機能を提供します。PostgresとClickHouseを使用したPhoenix/Elixirアプリケーションです。
+このサーバーは、認証、アカウントとプロジェクト、キャッシュストレージ、インサイト、プレビュー、レジストリ、統合（GitHub、Slack、SSO）など、Tuist のサーバーサイド機能を提供します。Postgres と ClickHouse を使用する Phoenix/Elixir アプリケーションです。
 
 ## 貢献方法 {#how-to-contribute}
 
 サーバーへの貢献には、CLA（`server/CLA.md`）への署名が必要です。
 
-### ローカル環境のセットアップ {#set-up-locally}
+### ローカルでのセットアップ {#set-up-locally}
 
 ```bash
 cd server
@@ -34,14 +34,14 @@ mise run install
 mise run dev
 ```
 
-ブラウザで`http://localhost:8080`を開いてください。開発環境では、ログインページに**テストユーザーとしてログイン**ボタンがあり、事前に用意されたアカウント（`tuistrocks@tuist.dev` / `tuistrocks`）でサインインできます。
+ブラウザで `http://localhost:8080` を開いてください。開発環境では、ログインページに **テストユーザーとしてログイン** ボタンがあり、事前作成されたアカウント（`tuistrocks@tuist.dev` / `tuistrocks`）でサインインできます。
 
 > [!NOTE]
-> 社内開発者はfnoxを介して1Passwordから開発用シークレットを読み込みます。`mise run dev`はサーバーを`fnox exec`でラップします（`server/fnox.toml`を参照）。外部の貢献者は1Passwordへのアクセスは不要です。サーバーはそれなしでもローカルで動作します。OAuth、Stripe、その他のサードパーティ統合は無効になりますが、コア機能は動作します。
+> 社内開発者は fnox を介して 1Password から開発用シークレットを読み込みます。`mise run dev` はサーバーを `fnox exec` でラップします（`server/fnox.toml` を参照）。外部の貢献者は 1Password へのアクセス権限が不要で、サーバーはそれなしでもローカルで動作します。OAuth、Stripe、その他のサードパーティ統合は無効になりますが、コア機能は動作します。
 
-### ローカルでのHelmテスト {#local-helm-testing}
+### ローカルでの Helm テスト {#local-helm-testing}
 
-[kind](https://kind.sigs.k8s.io/)と含まれているmiseタスクを使用して、マシン上でフルスタックを起動できます。これにより、Dockerイメージをローカルでビルドし、kindクラスターを作成し、チャートをインストールし、すべてのサービスのポートフォワーディングを自動的に行います。
+[kind](https://kind.sigs.k8s.io/) と付属の mise タスクを使用して、マシン上でフルスタックを起動できます。これにより、Docker イメージをローカルでビルドし、kind クラスターを作成し、チャートをインストールし、すべてのサービスのポートフォワーディングを自動的に行います。
 
 ```bash
 # Deploy everything (builds images from source)
@@ -57,7 +57,7 @@ mise run helm:status
 mise run helm:down
 ```
 
-**前提条件:** `docker`、`kind`、`helm`、および`kubectl`。
+**前提条件:** `docker`、`kind`、`helm`、および `kubectl`。
 
 ### テストとフォーマット {#tests-and-formatting}
 

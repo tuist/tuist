@@ -14,17 +14,17 @@ msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
-msgstr "جميع إدخالات السجل التي تحتوي على اسم خدمة خلال الفترة المحددة، بغض النظر عن البحث في الجدول. يعرض الرسم البياني عدد الإدخالات لكل فترة."
+msgstr "جميع سجلات الأحداث التي تحتوي على اسم خدمة خلال الفترة المحددة، بغضّ النظر عن البحث في الجدول. يعرض الرسم البياني عدد السجلات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
-msgstr "جميع الفترات المسجلة (Spans) خلال الفترة المحددة، وليس التتبعات المميزة. يعرض الرسم البياني عدد الفترات لكل فترة."
+msgstr "جميع الفترات المسجَّلة خلال الفترة المحددة، وليست التتبُّعات المتميزة. يعرض الرسم البياني عدد الفترات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
-msgstr "تقريباً النسبة المئوية الخامسة والتسعون (p95) لفترات الفترات (Span durations) خلال كامل الفترة المحددة، بالمللي ثانية. يعرض الرسم البياني النسبة المئوية لكل فترة."
+msgstr "القيمة التقريبية للمئين الخامس والتسعين (p95) لمدة الفترات خلال الفترة المحددة بالكامل، بالمللي ثانية. يعرض الرسم البياني قيمة المئين لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:1057
 #, elixir-autogen, elixir-format
@@ -39,7 +39,7 @@ msgstr "المدة (مللي ثانية)"
 #: lib/tuist_web/live/pulse_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
-msgstr "تمثل كل نقطة المدة الزمنية للمدى عند النسبة المئوية الخامسة والتسعين (p95) لفترة زمنية واحدة، وليس مدىً فردياً."
+msgstr "تمثل كل نقطة مدة المئين الخامس والتسعين (p95) للفترة خلال فترة زمنية واحدة، وليس فترة فردية."
 
 #: lib/tuist_web/live/pulse_live.ex:965
 #, elixir-autogen, elixir-format
@@ -97,17 +97,17 @@ msgstr "المستوى"
 #: lib/tuist_web/live/pulse_live.ex:955
 #, elixir-autogen, elixir-format
 msgid "Log entries"
-msgstr "إدخالات السجل"
+msgstr "سجلات الأحداث"
 
 #: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
-msgstr "إدخالات السجل المصنفة كخطأ أو حرجة في الفترة المحددة. يعرض الرسم البياني عدد الإدخالات لكل فترة."
+msgstr "سجلات الأحداث الموسومة كـ error أو fatal خلال الفترة المحددة. يعرض المخطط عدد السجلات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
-msgstr "إدخالات السجل المصنفة كتحذير في الفترة المحددة. يعرض الرسم البياني عدد الإدخالات لكل فترة."
+msgstr "سجلات الأحداث الموسومة كـ warn أو warning خلال الفترة المحددة. يعرض المخطط عدد السجلات لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:906
 #, elixir-autogen, elixir-format
@@ -138,7 +138,7 @@ msgstr "لا توجد قياسات في هذه الفترة"
 #: lib/tuist_web/live/pulse_live.ex:465
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr "لا تتطابق بيانات القياس عن بُعد مع هذا الاستعلام والنطاق الزمني."
+msgstr "لا توجد بيانات قياس عن بُعد تطابق هذا الاستعلام ونطاق الوقت المحدد."
 
 #: lib/tuist_web/live/pulse_live.ex:257
 #, elixir-autogen, elixir-format
@@ -163,7 +163,7 @@ msgstr "استئناف البث المباشر"
 #: lib/tuist_web/live/pulse_live.ex:799
 #, elixir-autogen, elixir-format
 msgid "Root span"
-msgstr "الجذر الأساسي"
+msgstr "امتداد الجذر"
 
 #: lib/tuist_web/live/pulse_live.ex:442
 #, elixir-autogen, elixir-format
@@ -173,7 +173,7 @@ msgstr "تنفيذ الاستعلام"
 #: lib/tuist_web/live/pulse_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
-msgstr "البحث في القياسات عن بُعد"
+msgstr "البحث في بيانات القياس عن بُعد"
 
 #: lib/tuist_web/live/pulse_live.ex:387
 #, elixir-autogen, elixir-format
@@ -192,32 +192,32 @@ msgstr "الخدمة"
 #: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "Spans"
-msgstr "الامتدادات (Spans)"
+msgstr "المقاطع الزمنية"
 
 #: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
-msgstr "الامتدادات ذات حالة الخطأ في الفترة المحددة. يعرض الرسم البياني الامتدادات لكل فترة زمنية."
+msgstr "المقاطع الزمنية التي تحمل حالة خطأ خلال الفترة المحددة. يعرض الرسم البياني عدد المقاطع لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_live.ex:797
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
-msgstr "وقت البدء (بتوقيت UTC)"
+msgstr "بدأت (بتوقيت UTC)"
 
 #: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
-msgstr "الأهداف التي تُبلغ عن حالة التشغيل = 0 في نهاية الفترة. لا تُحتسب العينات المفقودة كغير صحية."
+msgstr "الأهداف التي تُبلغ عن قيمة up = 0 في نهاية الفترة. لا تُحتسب العينات المفقودة على أنها غير سليمة."
 
 #: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
-msgstr "الأهداف التي تُبلغ عن حالة التشغيل = 1 في نهاية الفترة."
+msgstr "الأهداف التي تُبلغ عن قيمة up = 1 في نهاية الفترة."
 
 #: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
-msgstr "الأهداف التي لديها عينة تشغيل في نهاية الفترة. يُظهر الرسم البياني عدد الأهداف عبر الزمن."
+msgstr "الأهداف التي لديها عينة up في نهاية الفترة. يعرض الرسم البياني عدد الأهداف عبر الزمن."
 
 #: lib/tuist_web/live/pulse_live.ex:588
 #, elixir-autogen, elixir-format
@@ -232,12 +232,12 @@ msgstr "القياس عن بُعد غير متاح"
 #: lib/tuist_web/live/pulse_live.ex:1054
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
-msgstr "لم يتم تكوين اتصال Pulse. تواصل مع مسؤول النظام."
+msgstr "لم يتم تكوين اتصال Pulse. تواصل مع المسؤول."
 
 #: lib/tuist_web/live/pulse_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
-msgstr "تتجاوز هذه الاستعلامات حد النتائج. قلّص النطاق الزمني أو الاستعلام الأصلي وحاول مرة أخرى."
+msgstr "هذا الاستعلام يتجاوز حد النتائج. قلّص النطاق الزمني أو الاستعلام الأصلي وحاول مرة أخرى."
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
 #: lib/tuist_web/live/pulse_error_live.ex:258
@@ -256,12 +256,12 @@ msgstr "معرف التتبع"
 #: lib/tuist_web/live/pulse_live.ex:907
 #, elixir-autogen, elixir-format
 msgid "Traces"
-msgstr "عمليات التتبع"
+msgstr "التتبعات"
 
 #: lib/tuist_web/live/pulse_live.ex:941
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
-msgstr "الأهداف غير الصحية"
+msgstr "الأهداف غير السليمة"
 
 #: lib/tuist_web/live/pulse_live.ex:975
 #, elixir-autogen, elixir-format
@@ -271,7 +271,7 @@ msgstr "سجلات التحذيرات"
 #: lib/tuist_web/live/pulse_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
-msgstr "مدة الامتداد p95"
+msgstr "مدة امتداد p95"
 
 #: lib/tuist_web/live/pulse_live.ex:651
 #, elixir-autogen, elixir-format
@@ -296,7 +296,7 @@ msgstr "مقارنة بالساعة السابقة"
 #: lib/tuist_web/live/pulse_live.ex:910
 #, elixir-autogen, elixir-format
 msgid "Text search (* for all)"
-msgstr "البحث النصي (* للكل)"
+msgstr "بحث نصي (* للكل)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:548
 #, elixir-autogen, elixir-format
@@ -376,7 +376,7 @@ msgstr "داخل التطبيق"
 #: lib/tuist_web/live/pulse_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Issue"
-msgstr "المشكلة"
+msgstr "مشكلة"
 
 #: lib/tuist_web/live/pulse_error_live.ex:202
 #: lib/tuist_web/live/pulse_live.ex:759
@@ -393,19 +393,19 @@ msgstr "أحدث حدث"
 #: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
-msgstr "لم يتم تسجيل أي استثناءات"
+msgstr "لم يتم تسجيل أي استثناء"
 
 #: lib/tuist_web/live/pulse_error_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
-msgstr "لم يتم تسجيل إطارات مكدس"
+msgstr "لم يتم تسجيل إطارات المكدس"
 
 #: lib/tuist_web/live/pulse_error_live.ex:158
 #: lib/tuist_web/live/pulse_error_live.ex:211
 #: lib/tuist_web/live/pulse_error_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Occurrences"
-msgstr "الحدوثات"
+msgstr "التكرارات"
 
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
@@ -417,7 +417,7 @@ msgstr "الإصدار"
 #: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
-msgstr "تتبع المكدس (Stack trace)"
+msgstr "تتبع المكدس"
 
 #: lib/tuist_web/live/pulse_error_live.ex:457
 #, elixir-autogen, elixir-format
@@ -437,7 +437,7 @@ msgstr "العودة إلى المشكلة"
 #: lib/tuist_web/live/pulse_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
-msgstr "الخدمات المسماة المميزة التي ظهرت فيها أحداث Sentry خلال الفترة المحددة. يعرض الرسم البياني الخدمات المتأثرة لكل فترة زمنية."
+msgstr "الخدمات المسماة المتميزة التي تحتوي على أحداث Sentry خلال الفترة المحددة. يعرض الرسم البياني الخدمات المتأثرة لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_error_live.ex:42
 #: lib/tuist_web/live/pulse_error_live.ex:95
@@ -475,12 +475,12 @@ msgstr "لا توجد حالات في هذه الفترة"
 #: lib/tuist_web/live/pulse_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
-msgstr "غير مسجل"
+msgstr "غير مسجّل"
 
 #: lib/tuist_web/live/pulse_error_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Occurrence pages"
-msgstr "صفحات الحدوث"
+msgstr "صفحات الحالات"
 
 #: lib/tuist_web/live/pulse_error_live.ex:190
 #, elixir-autogen, elixir-format
@@ -500,17 +500,17 @@ msgstr "أحداث Sentry في الفترة المحددة، وليست المش
 #: lib/tuist_web/live/pulse_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
-msgstr "أحداث Sentry المصنفة كـ \"قاتلة\" في الفترة المحددة. يعرض الرسم البياني الأحداث لكل فترة زمنية."
+msgstr "أحداث Sentry المُصنَّفة كقاتلة في الفترة المحددة. يعرض الرسم البياني الأحداث لكل فترة زمنية."
 
 #: lib/tuist_web/live/pulse_error_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Span ID"
-msgstr "معرف الامتداد (Span ID)"
+msgstr "معرف النطاق (Span ID)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:692
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
-msgstr "لم يتم العثور على هذه المشكلة أو الحدث في الفترة المحددة."
+msgstr "لم يتم العثور على هذه المشكلة أو هذا الحدث في الفترة المحددة."
 
 #: lib/tuist_web/live/pulse_live.ex:547
 #, elixir-autogen, elixir-format
@@ -561,7 +561,7 @@ msgstr "غير متوفر"
 #, elixir-autogen, elixir-format
 msgid "Seen in %{count} environment"
 msgid_plural "Seen in %{count} environments"
-msgstr[0] "شوهد في %{count} بيئة"
+msgstr[0] "مُشاهَد في %{count} بيئة"
 msgstr[1] "شوهد في %{count} بيئات"
 msgstr[2] "شوهد في %{count} بيئات"
 msgstr[3] "شوهد في %{count} بيئات"

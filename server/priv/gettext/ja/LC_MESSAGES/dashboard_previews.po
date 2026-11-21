@@ -31,12 +31,12 @@ msgstr "ブランチ"
 #: lib/tuist_web/live/previews_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "ビルド日時"
+msgstr "ビルド時刻"
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
-msgstr "Bundle identifier"
+msgstr "Bundle Identifier"
 
 #: lib/tuist_web/live/preview_live.html.heex:182
 #: lib/tuist_web/live/previews_live.html.heex:91
@@ -62,7 +62,7 @@ msgstr "詳細"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Tuistアプリがインストールされていませんか?"
+msgstr "Tuistアプリがインストールされていませんか？"
 
 #: lib/tuist_web/live/preview_live.html.heex:24
 #: lib/tuist_web/live/preview_live.html.heex:110
@@ -150,7 +150,7 @@ msgstr "iOSデバイスでこのQRコードをスキャンして、このバー�
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "ワンクリックでアプリのプレビューを共有"
+msgstr "アプリプレビューをワンクリックで共有"
 
 #: lib/tuist_web/live/preview_live.html.heex:138
 #, elixir-autogen, elixir-format
@@ -192,7 +192,7 @@ msgstr "検索..."
 #: lib/tuist_web/live/previews_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Track"
-msgstr "トラッキング"
+msgstr "トラック"
 
 #: lib/tuist_web/live/preview_live.html.heex:154
 #, elixir-autogen, elixir-format
@@ -202,7 +202,7 @@ msgstr "パッケージ名"
 #: lib/tuist_web/live/preview_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "このQRコードをAndroidデバイスでスキャンして、このバージョンのアプリをダウンロードおよびインストールしてください"
+msgstr "AndroidデバイスでこのQRコードをスキャンして、このバージョンのアプリをダウンロードしてインストールしてください"
 
 #: lib/tuist_web/live/preview_live.html.heex:258
 #, elixir-autogen, elixir-format

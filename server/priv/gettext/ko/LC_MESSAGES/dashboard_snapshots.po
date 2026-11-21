@@ -1,0 +1,537 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:447
+#: lib/tuist_web/live/snapshot_build_live.ex:528
+#: lib/tuist_web/live/snapshot_history_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "%{percentage}% of pixels changed"
+msgstr "%{percentage}%의 픽셀이 변경됨"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:452
+#, elixir-autogen, elixir-format
+msgid "%{percentage}% of pixels differ, within the %{threshold}% threshold"
+msgstr "임계값 %{threshold}% 이내에서 %{percentage}%의 픽셀이 다름"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:838
+#, elixir-autogen, elixir-format
+msgid "Added"
+msgstr "추가됨"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:220
+#: lib/tuist_web/live/snapshot_commit_live.ex:226
+#: lib/tuist_web/live/snapshots_live.html.heex:217
+#: lib/tuist_web/live/snapshots_live.html.heex:223
+#: lib/tuist_web/live/snapshots_live.html.heex:235
+#: lib/tuist_web/live/snapshots_live.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "전체"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "분석"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "적용"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:213
+#: lib/tuist_web/live/snapshot_commit_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Approve changes"
+msgstr "변경 승인"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:758
+#: lib/tuist_web/live/snapshot_build_live.ex:873
+#, elixir-autogen, elixir-format
+msgid "Approved"
+msgstr "승인됨"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:249
+#: lib/tuist_web/live/snapshot_build_live.ex:617
+#: lib/tuist_web/live/snapshot_build_live.ex:641
+#: lib/tuist_web/live/snapshot_build_live.ex:663
+#: lib/tuist_web/live/snapshot_build_live.ex:664
+#: lib/tuist_web/live/snapshot_build_live.ex:678
+#: lib/tuist_web/live/snapshot_build_live.ex:679
+#: lib/tuist_web/live/snapshot_build_live.ex:872
+#, elixir-autogen, elixir-format
+msgid "Baseline"
+msgstr "기준선"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:240
+#: lib/tuist_web/live/snapshot_commit_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "브랜치"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:157
+#, elixir-autogen, elixir-format
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/snapshots_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "CI signalled that every job of this commit reported its snapshots."
+msgstr "이 커밋의 모든 작업에서 스냅샷을 보고했다고 CI가 알렸습니다."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "취소"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Catch visual regressions on every pull request"
+msgstr "모든 풀 리퀘스트에서 시각적 회귀를 포착"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:837
+#, elixir-autogen, elixir-format
+msgid "Changed"
+msgstr "변경됨"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:244
+#: lib/tuist_web/live/snapshot_commit_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Commit SHA"
+msgstr "커밋 SHA"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:180
+#, elixir-autogen, elixir-format
+msgid "Compared with"
+msgstr "비교 대상"
+
+#: lib/tuist_web/live/snapshots_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "Complete"
+msgstr "완료"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:154
+#, elixir-autogen, elixir-format
+msgid "Current"
+msgstr "현재"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "사용자 지정"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:652
+#: lib/tuist_web/live/snapshot_build_live.ex:653
+#: lib/tuist_web/live/snapshot_build_live.ex:851
+#: lib/tuist_web/live/snapshot_history_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Diff"
+msgstr "차이"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:870
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "실패"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:92
+#, elixir-autogen, elixir-format
+msgid "File"
+msgstr "파일"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Group"
+msgstr "그룹"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Images"
+msgstr "이미지"
+
+#: lib/tuist_web/live/snapshots_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "In progress"
+msgstr "진행 중"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "지난 12개월"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "지난 24시간"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "지난 30일"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "지난 7일"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:203
+#, elixir-autogen, elixir-format
+msgid "Last uploaded"
+msgstr "마지막 업로드"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:875
+#, elixir-autogen, elixir-format
+msgid "Needs review"
+msgstr "검토 필요"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:623
+#: lib/tuist_web/live/snapshot_build_live.ex:642
+#: lib/tuist_web/live/snapshot_build_live.ex:667
+#: lib/tuist_web/live/snapshot_build_live.ex:668
+#, elixir-autogen, elixir-format
+msgid "New"
+msgstr "새로 만들기"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:637
+#, elixir-autogen, elixir-format
+msgid "New image opacity"
+msgstr "새 이미지 불투명도"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:871
+#, elixir-autogen, elixir-format
+msgid "No changes"
+msgstr "변경 사항 없음"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:409
+#, elixir-autogen, elixir-format
+msgid "No images in this category."
+msgstr "이 카테고리에 이미지가 없습니다."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "No snapshots match this search."
+msgstr "검색 조건에 맞는 스냅샷이 없습니다."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:241
+#: lib/tuist_web/live/snapshot_build_live.ex:724
+#: lib/tuist_web/live/snapshot_commit_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "없음"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "None, first build of the set"
+msgstr "없음, 세트의 첫 번째 빌드"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:463
+#, elixir-autogen, elixir-format
+msgid "Not rendered in this run; carried over from the baseline"
+msgstr "이번 실행에서 렌더링되지 않음; 베이스라인에서 이어짐"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "Nothing, no earlier snapshots"
+msgstr "이전 스냅샷 없음"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:853
+#: lib/tuist_web/live/snapshot_history_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Onion"
+msgstr "Onion"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:869
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr "처리 중"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:721
+#, elixir-autogen, elixir-format
+msgid "Pull request"
+msgstr "풀 리퀘스트"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:222
+#: lib/tuist_web/live/snapshot_commit_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "Reject changes"
+msgstr "변경 사항 거부"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:757
+#: lib/tuist_web/live/snapshot_build_live.ex:874
+#, elixir-autogen, elixir-format
+msgid "Rejected"
+msgstr "거부됨"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:839
+#, elixir-autogen, elixir-format
+msgid "Removed"
+msgstr "제거됨"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:840
+#, elixir-autogen, elixir-format
+msgid "Renamed"
+msgstr "이름 변경됨"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:460
+#, elixir-autogen, elixir-format
+msgid "Renamed from %{name}"
+msgstr "%{name}에서 이름 변경"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:276
+#, elixir-autogen, elixir-format
+msgid "Same changes as %{commit}"
+msgstr "%{commit}와 동일한 변경 사항"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "Set"
+msgstr "설정"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:221
+#: lib/tuist_web/live/snapshots_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Set:"
+msgstr "설정:"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:850
+#: lib/tuist_web/live/snapshot_history_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Side by side"
+msgstr "나란히 보기"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:841
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "건너뜀"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:48
+#: lib/tuist_web/live/snapshot_build_live.ex:201
+#: lib/tuist_web/live/snapshot_build_live.ex:290
+#: lib/tuist_web/live/snapshot_commit_live.ex:36
+#: lib/tuist_web/live/snapshot_commit_live.ex:118
+#: lib/tuist_web/live/snapshot_history_live.ex:39
+#: lib/tuist_web/live/snapshot_history_live.ex:71
+#: lib/tuist_web/live/snapshots_live.ex:28
+#: lib/tuist_web/live/snapshots_live.ex:29
+#: lib/tuist_web/live/snapshots_live.ex:157
+#: lib/tuist_web/live/snapshots_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Snapshots"
+msgstr "스냅샷"
+
+#: lib/tuist_web/live/snapshots_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Snapshots in the latest run on the default branch, summed over snapshot sets. These are the baselines pull requests are compared with."
+msgstr "기본 브랜치의 최신 실행에 있는 스냅샷으로, 스냅샷 세트별로 합산됩니다. 이는 풀 리퀘스트 비교의 기준이 되는 스냅샷입니다."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:236
+#: lib/tuist_web/live/snapshot_commit_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "상태"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:404
+#, elixir-autogen, elixir-format
+msgid "Still being compared with the baseline."
+msgstr "기준선과 여전히 비교 중입니다."
+
+#: lib/tuist_web/live/snapshot_history_live.ex:107
+#, elixir-autogen, elixir-format
+msgid "Tags"
+msgstr "태그"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:842
+#, elixir-autogen, elixir-format
+msgid "Unchanged"
+msgstr "변경 없음"
+
+#: lib/tuist_web/live/snapshots_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:852
+#: lib/tuist_web/live/snapshot_history_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "Wipe"
+msgstr "초기화"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:636
+#, elixir-autogen, elixir-format
+msgid "Wipe position"
+msgstr "초기화 위치"
+
+#: lib/tuist_web/live/snapshots_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "지난달 이후"
+
+#: lib/tuist_web/live/snapshots_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "이전 기간 이후"
+
+#: lib/tuist_web/live/snapshots_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "지난주 이후"
+
+#: lib/tuist_web/live/snapshots_live.ex:151
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "작년 이후"
+
+#: lib/tuist_web/live/snapshots_live.ex:149
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "어제 이후"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "%{count} of %{total}"
+msgstr "%{total}개 중 %{count}개"
+
+#: lib/tuist_web/live/snapshots_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "Snapshot runs"
+msgstr "스냅샷 실행"
+
+#: lib/tuist_web/live/snapshots_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "Snapshot uploads from CI and local runs in the period. Each set, shard and rerun counts, so a sharded pull request counts once per shard."
+msgstr "해당 기간 동안 CI 및 로컬 실행에서 업로드된 스냅샷입니다. 각 세트, 샤드, 재실행이 모두 카운트되므로 샤딩된 풀 리퀘스트는 샤드당 한 번씩 카운트됩니다."
+
+#: lib/tuist_web/live/snapshots_live.ex:156
+#, elixir-autogen, elixir-format
+msgid "Visual changes"
+msgstr "시각적 변경 사항"
+
+#: lib/tuist_web/live/snapshots_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Commits in which at least one snapshot looked different from its baseline or was removed. It counts commits rather than runs because a commit pools its shards and reruns: one shard alone sees the images other shards rendered as removed. New snapshots alone don't count."
+msgstr "적어도 하나의 스냅샷이 기준 이미지와 다르거나 제거된 커밋입니다. 커밋은 샤드를 모으고 재실행하므로 실행 횟수가 아닌 커밋 수를 계산합니다. 단일 샤드만 다른 샤드가 렌더링한 이미지를 제거된 것으로 인식할 수 있습니다. 새 스냅샷만 있는 경우는 포함되지 않습니다."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:339
+#: lib/tuist_web/live/snapshots_live.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Search snapshots..."
+msgstr "스냅샷 검색..."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "Group:"
+msgstr "그룹:"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Timeline"
+msgstr "타임라인"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:188
+#, elixir-autogen, elixir-format
+msgid "Show older versions"
+msgstr "이전 버전 표시"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Search groups..."
+msgstr "그룹 검색..."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "Image statuses"
+msgstr "이미지 상태"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:410
+#, elixir-autogen, elixir-format
+msgid "No images in this category match the search."
+msgstr "이 카테고리의 이미지가 검색어와 일치하지 않습니다."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:371
+#: lib/tuist_web/live/snapshot_build_live.ex:373
+#: lib/tuist_web/live/snapshot_build_live.ex:420
+#: lib/tuist_web/live/snapshot_build_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "Ungrouped"
+msgstr "그룹화되지 않음"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:570
+#: lib/tuist_web/live/snapshot_build_live.ex:571
+#, elixir-autogen, elixir-format
+msgid "Close full screen"
+msgstr "전체 화면 닫기"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:560
+#: lib/tuist_web/live/snapshot_build_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Next image"
+msgstr "다음 이미지"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:438
+#, elixir-autogen, elixir-format
+msgid "Open %{name} full screen"
+msgstr "%{name} 전체 화면으로 열기"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:442
+#, elixir-autogen, elixir-format
+msgid "Open full screen"
+msgstr "전체 화면으로 열기"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:549
+#: lib/tuist_web/live/snapshot_build_live.ex:550
+#, elixir-autogen, elixir-format
+msgid "Previous image"
+msgstr "이전 이미지"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:766
+#, elixir-autogen, elixir-format
+msgid "Not reviewed"
+msgstr "검토되지 않음"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:765
+#, elixir-autogen, elixir-format
+msgid "Review"
+msgstr "검토"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:286
+#, elixir-autogen, elixir-format
+msgid "Uploaded"
+msgstr "업로드됨"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Enable snapshots in the Tuist Gradle plugin, then run your tests in CI on %{branch} to set the baselines pull requests are compared with."
+msgstr "Tuist Gradle 플러그인에서 스냅샷을 활성화한 후, %{branch} 브랜치에서 CI로 테스트를 실행하여 PR 비교 기준이 되는 베이스라인을 설정하세요."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Generated project? Run"
+msgstr "생성된 프로젝트인가요? 실행"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Recording images another way? Upload them with"
+msgstr "다른 방식으로 이미지를 기록 중인가요? 다음으로 업로드하세요:"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Turn your SwiftUI previews into snapshot tests with the tuist/snapshots library, then run your tests in CI on %{branch} to set the baselines pull requests are compared with."
+msgstr "tuist/snapshots 라이브러리를 사용해 SwiftUI 프리뷰를 스냅샷 테스트로 전환한 후, %{branch} 브랜치에서 CI로 테스트를 실행하여 PR 비교 기준이 되는 베이스라인을 설정하세요."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Turn them on in your build first:"
+msgstr "먼저 빌드에서 이를 활성화하세요:"
+
+#: lib/tuist_web/live/snapshots_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "More sets or shards may still upload: CI hasn't signalled the commit complete, with `tuist coverage complete` or `./gradlew tuistCoverageComplete`."
+msgstr "CI가 `tuist coverage complete` 또는 `./gradlew tuistCoverageComplete`로 커밋 완료를 신호하지 않아 추가 세트나 샤드가 아직 업로드 중일 수 있습니다."

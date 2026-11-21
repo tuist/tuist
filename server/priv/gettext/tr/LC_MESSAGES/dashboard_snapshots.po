@@ -1,0 +1,537 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr "Language: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n>1);\n"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:447
+#: lib/tuist_web/live/snapshot_build_live.ex:528
+#: lib/tuist_web/live/snapshot_history_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "%{percentage}% of pixels changed"
+msgstr "Piksellerin %{percentage}%’i değişti"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:452
+#, elixir-autogen, elixir-format
+msgid "%{percentage}% of pixels differ, within the %{threshold}% threshold"
+msgstr "Piksellerin %{percentage}%’i farklı, %{threshold}% eşiği içinde"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:838
+#, elixir-autogen, elixir-format
+msgid "Added"
+msgstr "Eklendi"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:220
+#: lib/tuist_web/live/snapshot_commit_live.ex:226
+#: lib/tuist_web/live/snapshots_live.html.heex:217
+#: lib/tuist_web/live/snapshots_live.html.heex:223
+#: lib/tuist_web/live/snapshots_live.html.heex:235
+#: lib/tuist_web/live/snapshots_live.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "Tümü"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "Analitikler"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "Uygula"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:213
+#: lib/tuist_web/live/snapshot_commit_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Approve changes"
+msgstr "Değişiklikleri onayla"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:758
+#: lib/tuist_web/live/snapshot_build_live.ex:873
+#, elixir-autogen, elixir-format
+msgid "Approved"
+msgstr "Onaylandı"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:249
+#: lib/tuist_web/live/snapshot_build_live.ex:617
+#: lib/tuist_web/live/snapshot_build_live.ex:641
+#: lib/tuist_web/live/snapshot_build_live.ex:663
+#: lib/tuist_web/live/snapshot_build_live.ex:664
+#: lib/tuist_web/live/snapshot_build_live.ex:678
+#: lib/tuist_web/live/snapshot_build_live.ex:679
+#: lib/tuist_web/live/snapshot_build_live.ex:872
+#, elixir-autogen, elixir-format
+msgid "Baseline"
+msgstr "Temel"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:240
+#: lib/tuist_web/live/snapshot_commit_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "Dal"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:157
+#, elixir-autogen, elixir-format
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/snapshots_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "CI signalled that every job of this commit reported its snapshots."
+msgstr "CI, bu commit'in tüm işlerinin snapshot'larını raporladığını bildirdi."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "İptal et"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Catch visual regressions on every pull request"
+msgstr "Her pull request'te görsel gerilemeleri yakala"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:837
+#, elixir-autogen, elixir-format
+msgid "Changed"
+msgstr "Değişti"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:244
+#: lib/tuist_web/live/snapshot_commit_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Commit SHA"
+msgstr "Commit SHA"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:180
+#, elixir-autogen, elixir-format
+msgid "Compared with"
+msgstr "Karşılaştırılan"
+
+#: lib/tuist_web/live/snapshots_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "Complete"
+msgstr "Tamamlandı"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:154
+#, elixir-autogen, elixir-format
+msgid "Current"
+msgstr "Mevcut"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "Özel"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:652
+#: lib/tuist_web/live/snapshot_build_live.ex:653
+#: lib/tuist_web/live/snapshot_build_live.ex:851
+#: lib/tuist_web/live/snapshot_history_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Diff"
+msgstr "Fark"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:870
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "Başarısız"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:92
+#, elixir-autogen, elixir-format
+msgid "File"
+msgstr "Dosya"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Group"
+msgstr "Grup"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Images"
+msgstr "Görseller"
+
+#: lib/tuist_web/live/snapshots_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "In progress"
+msgstr "Devam ediyor"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "Son 12 ay"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "Son 24 saat"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "Son 30 gün"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "Son 7 gün"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:203
+#, elixir-autogen, elixir-format
+msgid "Last uploaded"
+msgstr "Son yüklenen"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:875
+#, elixir-autogen, elixir-format
+msgid "Needs review"
+msgstr "İnceleme gerekiyor"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:623
+#: lib/tuist_web/live/snapshot_build_live.ex:642
+#: lib/tuist_web/live/snapshot_build_live.ex:667
+#: lib/tuist_web/live/snapshot_build_live.ex:668
+#, elixir-autogen, elixir-format
+msgid "New"
+msgstr "Yeni"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:637
+#, elixir-autogen, elixir-format
+msgid "New image opacity"
+msgstr "Yeni görsel opaklığı"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:871
+#, elixir-autogen, elixir-format
+msgid "No changes"
+msgstr "Değişiklik yok"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:409
+#, elixir-autogen, elixir-format
+msgid "No images in this category."
+msgstr "Bu kategoride görsel yok."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "No snapshots match this search."
+msgstr "Bu aramayla eşleşen anlık görüntü bulunamadı."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:241
+#: lib/tuist_web/live/snapshot_build_live.ex:724
+#: lib/tuist_web/live/snapshot_commit_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "Yok"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "None, first build of the set"
+msgstr "Yok, kümedeki ilk derleme"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:463
+#, elixir-autogen, elixir-format
+msgid "Not rendered in this run; carried over from the baseline"
+msgstr "Bu çalıştırmada işlenmedi; temelden taşındı"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "Nothing, no earlier snapshots"
+msgstr "Hiçbir şey, daha önceki anlık görüntü yok"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:853
+#: lib/tuist_web/live/snapshot_history_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Onion"
+msgstr "Soğan"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:869
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr "İşleniyor"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:721
+#, elixir-autogen, elixir-format
+msgid "Pull request"
+msgstr "Çekme isteği"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:222
+#: lib/tuist_web/live/snapshot_commit_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "Reject changes"
+msgstr "Değişiklikleri reddet"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:757
+#: lib/tuist_web/live/snapshot_build_live.ex:874
+#, elixir-autogen, elixir-format
+msgid "Rejected"
+msgstr "Reddedildi"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:839
+#, elixir-autogen, elixir-format
+msgid "Removed"
+msgstr "Kaldırıldı"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:840
+#, elixir-autogen, elixir-format
+msgid "Renamed"
+msgstr "Yeniden adlandırıldı"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:460
+#, elixir-autogen, elixir-format
+msgid "Renamed from %{name}"
+msgstr "%{name} olarak yeniden adlandırıldı"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:276
+#, elixir-autogen, elixir-format
+msgid "Same changes as %{commit}"
+msgstr "%{commit} ile aynı değişiklikler"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "Set"
+msgstr "Ayarla"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:221
+#: lib/tuist_web/live/snapshots_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Set:"
+msgstr "Ayar:"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:850
+#: lib/tuist_web/live/snapshot_history_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Side by side"
+msgstr "Yan yana"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:841
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "Atlandı"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:48
+#: lib/tuist_web/live/snapshot_build_live.ex:201
+#: lib/tuist_web/live/snapshot_build_live.ex:290
+#: lib/tuist_web/live/snapshot_commit_live.ex:36
+#: lib/tuist_web/live/snapshot_commit_live.ex:118
+#: lib/tuist_web/live/snapshot_history_live.ex:39
+#: lib/tuist_web/live/snapshot_history_live.ex:71
+#: lib/tuist_web/live/snapshots_live.ex:28
+#: lib/tuist_web/live/snapshots_live.ex:29
+#: lib/tuist_web/live/snapshots_live.ex:157
+#: lib/tuist_web/live/snapshots_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Snapshots"
+msgstr "Anlık Görüntüler"
+
+#: lib/tuist_web/live/snapshots_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Snapshots in the latest run on the default branch, summed over snapshot sets. These are the baselines pull requests are compared with."
+msgstr "Varsayılan dalda yapılan son çalıştırmadaki anlık görüntüler, anlık görüntü kümeleri üzerinden toplanmıştır. Bunlar, çekme isteklerinin karşılaştırıldığı temel görüntülerdir."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:236
+#: lib/tuist_web/live/snapshot_commit_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "Durum"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:404
+#, elixir-autogen, elixir-format
+msgid "Still being compared with the baseline."
+msgstr "Hâlâ temel sürümle karşılaştırılıyor."
+
+#: lib/tuist_web/live/snapshot_history_live.ex:107
+#, elixir-autogen, elixir-format
+msgid "Tags"
+msgstr "Etiketler"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:842
+#, elixir-autogen, elixir-format
+msgid "Unchanged"
+msgstr "Değişmedi"
+
+#: lib/tuist_web/live/snapshots_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "Bilinmiyor"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:852
+#: lib/tuist_web/live/snapshot_history_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "Wipe"
+msgstr "Temizle"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:636
+#, elixir-autogen, elixir-format
+msgid "Wipe position"
+msgstr "Konumu temizle"
+
+#: lib/tuist_web/live/snapshots_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "geçen aydan beri"
+
+#: lib/tuist_web/live/snapshots_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "son dönemden beri"
+
+#: lib/tuist_web/live/snapshots_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "geçen haftadan beri"
+
+#: lib/tuist_web/live/snapshots_live.ex:151
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "geçen yıldan beri"
+
+#: lib/tuist_web/live/snapshots_live.ex:149
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "dünden beri"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "%{count} of %{total}"
+msgstr "%{total} içinden %{count}"
+
+#: lib/tuist_web/live/snapshots_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "Snapshot runs"
+msgstr "Snapshot çalıştırmaları"
+
+#: lib/tuist_web/live/snapshots_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "Snapshot uploads from CI and local runs in the period. Each set, shard and rerun counts, so a sharded pull request counts once per shard."
+msgstr "Bu dönemde CI ve yerel çalıştırmalardan yapılan snapshot yüklemeleri. Her set, shard ve yeniden çalıştırma sayılır; bu nedenle sharded bir pull request shard başına bir kez sayılır."
+
+#: lib/tuist_web/live/snapshots_live.ex:156
+#, elixir-autogen, elixir-format
+msgid "Visual changes"
+msgstr "Görsel değişiklikler"
+
+#: lib/tuist_web/live/snapshots_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Commits in which at least one snapshot looked different from its baseline or was removed. It counts commits rather than runs because a commit pools its shards and reruns: one shard alone sees the images other shards rendered as removed. New snapshots alone don't count."
+msgstr "En az bir anlık görüntünün temel görüntüsünden farklı göründüğü veya kaldırıldığı commit'ler. Bir commit, shard'larını havuzda toplar ve yeniden çalıştırır; bu nedenle tek bir shard, diğer shard'ların kaldırdığı olarak işaretlediği görüntüleri görebilir. Bu yüzden commit sayısını esas alırız, çalışma sayısını değil. Yalnızca yeni anlık görüntüler sayılmaz."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:339
+#: lib/tuist_web/live/snapshots_live.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Search snapshots..."
+msgstr "Anlık görüntüleri ara..."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "Group:"
+msgstr "Grup:"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Timeline"
+msgstr "Zaman çizelgesi"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:188
+#, elixir-autogen, elixir-format
+msgid "Show older versions"
+msgstr "Eski sürümleri göster"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Search groups..."
+msgstr "Grupları ara..."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "Image statuses"
+msgstr "Görüntü durumları"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:410
+#, elixir-autogen, elixir-format
+msgid "No images in this category match the search."
+msgstr "Bu kategoride aramayla eşleşen görüntü bulunamadı."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:371
+#: lib/tuist_web/live/snapshot_build_live.ex:373
+#: lib/tuist_web/live/snapshot_build_live.ex:420
+#: lib/tuist_web/live/snapshot_build_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "Ungrouped"
+msgstr "Gruplanmamış"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:570
+#: lib/tuist_web/live/snapshot_build_live.ex:571
+#, elixir-autogen, elixir-format
+msgid "Close full screen"
+msgstr "Tam ekranı kapat"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:560
+#: lib/tuist_web/live/snapshot_build_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Next image"
+msgstr "Sonraki görsel"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:438
+#, elixir-autogen, elixir-format
+msgid "Open %{name} full screen"
+msgstr "%{name} öğesini tam ekranda aç"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:442
+#, elixir-autogen, elixir-format
+msgid "Open full screen"
+msgstr "Tam ekranı aç"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:549
+#: lib/tuist_web/live/snapshot_build_live.ex:550
+#, elixir-autogen, elixir-format
+msgid "Previous image"
+msgstr "Önceki görsel"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:766
+#, elixir-autogen, elixir-format
+msgid "Not reviewed"
+msgstr "İncelenmedi"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:765
+#, elixir-autogen, elixir-format
+msgid "Review"
+msgstr "İncele"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:286
+#, elixir-autogen, elixir-format
+msgid "Uploaded"
+msgstr "Yüklendi"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Enable snapshots in the Tuist Gradle plugin, then run your tests in CI on %{branch} to set the baselines pull requests are compared with."
+msgstr "Tuist Gradle eklentisinde anlık görüntüleri etkinleştirin, ardından pull request'lerin karşılaştırıldığı temel çizgileri oluşturmak için testlerinizi CI'da %{branch} üzerinde çalıştırın."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Generated project? Run"
+msgstr "Oluşturulan proje mi? Çalıştırın"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Recording images another way? Upload them with"
+msgstr "Görüntüleri başka bir şekilde kaydediyor musunuz? Şununla yükleyin:"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Turn your SwiftUI previews into snapshot tests with the tuist/snapshots library, then run your tests in CI on %{branch} to set the baselines pull requests are compared with."
+msgstr "tuist/snapshots kitaplığı ile SwiftUI önizlemelerinizi anlık görüntü testlerine dönüştürün, ardından pull request'lerin karşılaştırıldığı temel çizgileri oluşturmak için testlerinizi CI'da %{branch} üzerinde çalıştırın."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Turn them on in your build first:"
+msgstr "Önce derlemenizde bunları açın:"
+
+#: lib/tuist_web/live/snapshots_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "More sets or shards may still upload: CI hasn't signalled the commit complete, with `tuist coverage complete` or `./gradlew tuistCoverageComplete`."
+msgstr "Daha fazla set veya shard hâlâ yükleme yapabilir olabilir: CI, `tuist coverage complete` veya `./gradlew tuistCoverageComplete` ile commit'in tamamlandığını henüz bildirmedi."

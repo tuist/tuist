@@ -43,7 +43,7 @@ let project = Project(
 )
 ```
 
-如果你未使用 Mise，需要确保 `tuist` 在方案的环境中可用，因为 Xcode 的后置操作不会继承你 Shell 的 `PATH`。对于 [Homebrew](https://brew.sh/) 安装：
+如果你不使用 Mise，则需要确保 `tuist` 在方案的环境中可用，因为 Xcode 的后置操作不会继承你 shell 的 `PATH`。对于 [Homebrew](https://brew.sh/) 安装：
 
 ```swift
 buildAction: .buildAction(

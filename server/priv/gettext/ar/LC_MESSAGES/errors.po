@@ -11,8 +11,8 @@
 msgid ""
 msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5);\n"
 
-#: lib/tuist_web/live/docs_live.ex:181
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
+#: lib/tuist_web/live/docs_live.ex:186
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1123
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "الصفحة غير موجودة"
@@ -22,10 +22,10 @@ msgstr "الصفحة غير موجودة"
 #: lib/tuist_web/controllers/build_controller.ex:60
 #: lib/tuist_web/controllers/build_controller.ex:113
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:21
-#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
+#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "البناء غير موجود"
+msgstr "بناء غير موجود"
 
 #: lib/tuist_web/controllers/build_controller.ex:109
 #, elixir-autogen, elixir-format

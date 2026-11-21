@@ -1,4 +1,4 @@
-Tuist は以下の CI プロバイダーを自動検出します。
+Tuistは以下のCIプロバイダーを自動的に検出します。
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -7,4 +7,4 @@ Tuist は以下の CI プロバイダーを自動検出します。
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-その他のプロバイダーでは、`.tuist-shard-matrix.json` ファイルを参照して並列ジョブを設定してください。
+その他のプロバイダーでは、`.tuist-shard-matrix.json`ファイルを参照して並列ジョブを設定してください。

@@ -55,4 +55,4 @@ msgstr "Yetkilendirme isteğinin süresi doldu. Lütfen Slack bağlantı süreci
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "Slack beklenmedik bir webhook URL'si döndürdü. Lütfen tekrar deneyin."
+msgstr "Slack beklenmeyen bir webhook URL'si döndürdü. Lütfen tekrar deneyin."

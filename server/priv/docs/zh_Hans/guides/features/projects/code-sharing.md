@@ -7,24 +7,24 @@
 ---
 # 代码共享 {#code-sharing}
 
-在使用 Xcode 处理大型项目时，一个不便之处是它不允许复用除通过 `.xcconfig` 文件配置的构建设置之外的项目元素。能够复用项目定义有以下好处：
+在使用 Xcode 处理大型项目时，一个不便之处是它不允许复用除通过 `.xcconfig` 文件配置的构建设置之外的其他项目元素。能够复用项目定义有以下好处：
 
-- 简化**维护**，因为只需在一处应用更改，所有项目即可自动同步。
+- 简化**维护**，因为只需在一处应用更改，所有项目即可自动同步这些更改。
 - 可以定义新项目可遵循的**规范**。
 - 项目更加**一致**，因此因不一致导致构建失败的可能性显著降低。
-- 添加新项目变得简单，因为我们可以复用现有逻辑。
+- 由于可以复用现有逻辑，添加新项目变得轻而易举。
 
-借助**项目描述辅助模块**的概念，Tuist 支持在清单文件之间复用代码。
+借助**项目描述助手**这一概念，Tuist 支持在清单文件之间复用代码。
 
 > [!TIP]
 > **Tuist 的独特优势**
 >
-> 许多组织青睐 Tuist，因为他们将项目描述辅助模块视为平台团队固化自身规范、形成描述项目的专属语言的平台。例如，基于 YAML 的项目生成器不得不自行设计专有的 YAML 模板方案，或迫使组织在其之上构建工具。
+> 许多组织青睐 Tuist，因为他们将项目描述助手视为平台团队编码自身规范、打造专属项目描述语言的平台。例如，基于 YAML 的项目生成器必须自行设计专有的 YAML 模板方案，或迫使组织在其之上构建工具。
 
 
-## 项目描述辅助模块 {#project-description-helpers}
+## 项目描述助手 {#project-description-helpers}
 
-项目描述辅助模块是会被编译为 `ProjectDescriptionHelpers` 模块的 Swift 文件，清单文件可以导入该模块。该模块通过收集 `Tuist/ProjectDescriptionHelpers` 目录中的所有文件进行编译。
+项目描述助手是会被编译为模块 `ProjectDescriptionHelpers` 的 Swift 文件，清单文件可以导入该模块。该模块通过收集 `Tuist/ProjectDescriptionHelpers` 目录中的所有文件进行编译。
 
 你可以在清单文件顶部添加 import 语句来导入它们：
 
@@ -41,7 +41,7 @@ import ProjectDescriptionHelpers
 
 ## 示例 {#example}
 
-下面的代码片段展示了我们如何扩展 `Project` 模型以添加静态构造方法，以及如何在 `Project.swift` 文件中使用它们：
+以下代码片段展示了如何扩展 `Project` 模型以添加静态构造方法，以及如何在 `Project.swift` 文件中使用它们：
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -88,6 +88,6 @@ let project = Project.featureFramework(name: "MyFeature")
 :::
 
 > [!TIP]
-> **用于建立规范的工具**
+> **建立规范的工具**
 >
-> 注意，我们通过该函数定义了关于目标名称、Bundle 标识符和文件夹结构的规范。
+> 请注意，我们通过该函数定义了关于目标名称、Bundle 标识符以及文件夹结构的规范。

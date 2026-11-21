@@ -11,8 +11,8 @@
 msgid ""
 msgstr "Language: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=(n%10==1 && n%100 != 11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10||n%100>=20) ? 1 : 2);\n"
 
-#: lib/tuist_web/live/docs_live.ex:181
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
+#: lib/tuist_web/live/docs_live.ex:186
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1123
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "Страница не найдена"
@@ -22,7 +22,7 @@ msgstr "Страница не найдена"
 #: lib/tuist_web/controllers/build_controller.ex:60
 #: lib/tuist_web/controllers/build_controller.ex:113
 #: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:21
-#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:25
+#: lib/tuist_web/marketing/controllers/bazel_showcase_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Build not found"
 msgstr "Сборка не найдена"

@@ -1,4 +1,4 @@
-レジストリ識別子は常に `{organization}.{repository}` の形式です。例えば、`swift-composable-architecture` パッケージのレジストリを使用するには、次のようにします:
+レジストリ識別子は常に `{organization}.{repository}` の形式です。たとえば、`swift-composable-architecture` パッケージのレジストリを使用するには、次のようにします。
 
 ```diff
 dependencies: [

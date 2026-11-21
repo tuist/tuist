@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bc2beda15a41101d51e06b6706e0f6800107d873c96fa0b1a50319af348ac28c",
+  "hash": "6eeb2461a19b808ceda1e51632b25e77596095ef4460ca89351c06a3b6057623",
   "hash_tree": {
     "root": {
       "children": [
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +113,17 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "server/priv/gettext/L10N.md": {
+                    "content_hash": "baf67c8575122ab33bf6d55af39a1bcda272121bca06889608f9d3c73007490c",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Gettext Translation Context": {
+                        "content_hash": "5da0d103cac66e60b0e791e126ea11c78241d1bd2608cc6a02b7f747f9c0ae4e"
                       },
                       "## Plural Forms by Locale": {
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
@@ -126,11 +136,11 @@
                   }
                 }
               },
-              "hash": "a967e79884bdf7c9ccb8393c70561e234593ff582b04967b53c4a6b50df76641",
+              "hash": "1bdd64400ec983fee41bde23b367af24e84212e74320dba2509ef13497fed684",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "af16c628c45c1dd547432fd31623fc3939fb6e5d37eaf69114cbc046d899f811"
+                "content_hash": "fe9d86afda0962597f76dcec911fb86f1943216c7f641b3831bb30a5cb4dc361"
               }
             },
             {
@@ -203,21 +213,21 @@
             }
           ],
           "details": {},
-          "hash": "4ccc610e1df2653be6924e9ad164342d4f202328e773486ba8a1143e09d26db5",
+          "hash": "84a5029d61461b3bb00b0989c2a25d3490dea15fd491f1f19387c78bbe38b2f6",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "bc2beda15a41101d51e06b6706e0f6800107d873c96fa0b1a50319af348ac28c",
+      "hash": "6eeb2461a19b808ceda1e51632b25e77596095ef4460ca89351c06a3b6057623",
       "kind": "translation_input",
       "label": "server/priv/gettext/dashboard_previews.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ee42ed1810b7b232fd86af671da62ee1700dd1b923af00095774683c51c023ec",
+  "output_hash": "6ba1d93c55939304cbb930aba5ea1171d562d198628ca34dc9abc0a26f9fb570",
   "output_path": "server/priv/gettext/es/LC_MESSAGES/dashboard_previews.po",
   "po_units": {
     "060ec2f23dffaa4df591b1efd8d75acdabbae3eb5dac4c4ec6aa9f546f3f75bc": "8a6548734b38826938812bf7e4af67a1b950880b9135f1dc2b520bfdf39c3a39",
@@ -285,8 +295,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ea2b16fe35e1f517708d7ef5f7bc215628ec52fd",
+  "source_commit_sha": "7ff32897a59ff15107146b90c26c2bc80a6ceb85",
   "source_path": "server/priv/gettext/dashboard_previews.pot",
-  "translated_at": "2026-11-19T03:17:02.998489Z",
-  "translation_session_id": "01a1f1cd-4d12-7b42-b2d5-6c2b136b348d"
+  "translated_at": "2026-11-20T00:01:07.981544Z",
+  "translation_session_id": "01a1f640-6615-713d-85c3-dc996fc4ca81"
 }

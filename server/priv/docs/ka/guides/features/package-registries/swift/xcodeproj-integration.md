@@ -2,12 +2,12 @@
 {
   "title": "გენერირებული პროექტი XcodeProj-ზე დაფუძნებული პაკეტის ინტეგრაციით",
   "titleTemplate": ":title · Swift · Package Registries · Features · Guides · Tuist",
-  "description": "გამოიყენეთ Tuist Registry გენერირებულ პროექტებში XcodeProj-ზე დაფუძნებული პაკეტის ინტეგრაციით."
+  "description": "გამოიყენეთ Tuist Registry XcodeProj-ზე დაფუძნებული პაკეტის ინტეგრაციით გენერირებულ პროექტებში."
 }
 ---
-# გენერირებული პროექტი XcodeProj-ზე დაფუძნებული პაკეტის ინტეგრაციით {#generated-project-with-xcodeproj-based-integration}
+# გენერირებული პროექტი XcodeProj-ზე დაფუძნებული პაკეტების ინტეგრაციით {#generated-project-with-xcodeproj-based-integration}
 
-<.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-ზე დაფუძნებული ინტეგრაციის</.localized_link> გამოყენებისას, შეგიძლიათ გამოიყენოთ `--replace-scm-with-registry` ფლაგი რეესტრიდან დამოკიდებულებების ამოსაცნობად, თუ ისინი ხელმისაწვდომია. დაამატეთ ის თქვენს `Tuist.swift` ფაილში `installOptions`-ში:
+როდესაც იყენებთ <.localized_link href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj-ზე დაფუძნებულ ინტეგრაციას</.localized_link>, შეგიძლიათ გამოიყენოთ `--replace-scm-with-registry` ფლაგი, რათა დამოკიდებულებები რეესტრიდან ამოიღოთ, თუ ისინი ხელმისაწვდომია. დაამატეთ ის თქვენს `Tuist.swift` ფაილში, `installOptions`-ში:
 ```swift
 import ProjectDescription
 
@@ -19,6 +19,6 @@ let tuist = Tuist(
 )
 ```
 
-თუ გსურთ უზრუნველყოთ, რომ რეესტრი ყოველთვის გამოიყენებოდეს დამოკიდებულებების ამოცნობისას, საჭიროა განაახლოთ `dependencies` თქვენს `Tuist/Package.swift` ფაილში ისე, რომ გამოიყენოთ რეესტრის იდენტიფიკატორი URL-ის ნაცვლად.
+თუ გსურთ უზრუნველყოთ, რომ რეესტრი ყოველ ჯერზე გამოყენებულ იქნას დამოკიდებულებების ამოღებისას, თქვენ უნდა განაახლოთ `dependencies` თქვენს `Tuist/Package.swift` ფაილში, რათა გამოიყენოთ რეესტრის იდენტიფიკატორი URL-ის ნაცვლად.
 
 <!-- @snippet: ./_registry-identifier -->

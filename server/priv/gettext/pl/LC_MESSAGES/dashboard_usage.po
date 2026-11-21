@@ -51,14 +51,14 @@ msgstr "Nieznane"
 #: lib/tuist_web/live/usage_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
-msgstr "Według standardowej stawki, przed limitem darmowym"
+msgstr "Przy standardowej stawce, przed uwzględnieniem darmowego limitu"
 
 #: lib/tuist_web/live/usage_live.html.heex:90
 #: lib/tuist_web/live/usage_live.html.heex:233
-#: lib/tuist_web/live/usage_live.html.heex:774
+#: lib/tuist_web/live/usage_live.html.heex:775
 #, elixir-autogen, elixir-format
 msgid "Billed"
-msgstr "Rozliczone"
+msgstr "Rozliczane"
 
 #: lib/tuist_web/live/usage_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -68,7 +68,7 @@ msgstr "Minuty runnera"
 #: lib/tuist_web/live/usage_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Runner usage"
-msgstr "Użycie runnera"
+msgstr "Wykorzystanie runnera"
 
 #: lib/tuist_web/live/usage_live.html.heex:84
 #: lib/tuist_web/live/usage_live.html.heex:227
@@ -91,20 +91,20 @@ msgstr "macOS"
 #: lib/tuist_web/live/usage_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes included"
-msgstr "%{count} minut w cenie"
+msgstr "%{count} minut wliczonych"
 
 #: lib/tuist_web/live/usage_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes run"
-msgstr "Uruchomiono przez %{count} minut"
+msgstr "%{count} uruchomionych minut"
 
-#: lib/tuist_web/live/usage_live.ex:705
+#: lib/tuist_web/live/usage_live.ex:710
 #: lib/tuist_web/live/usage_live.html.heex:151
 #: lib/tuist_web/live/usage_live.html.heex:275
-#: lib/tuist_web/live/usage_live.html.heex:821
+#: lib/tuist_web/live/usage_live.html.heex:831
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
-msgstr "Rozliczone w tym okresie"
+msgstr "Rozliczane w tym okresie"
 
 #: lib/tuist_web/live/usage_live.html.heex:164
 #, elixir-autogen, elixir-format
@@ -114,12 +114,12 @@ msgstr "Saldo"
 #: lib/tuist_web/live/usage_live.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "Covers this period"
-msgstr "Dotyczy tego okresu"
+msgstr "Obejmuje ten okres"
 
 #: lib/tuist_web/live/usage_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
-msgstr "Pobierane podczas fakturowania okresu, więc to właśnie pokrywa Twoje obecne saldo."
+msgstr "Pobierane podczas fakturowania okresu, więc to właśnie ta kwota pokrywa Twoje obecne saldo."
 
 #: lib/tuist_web/live/usage_live.html.heex:172
 #, elixir-autogen, elixir-format
@@ -139,23 +139,23 @@ msgstr "Okres rozliczeniowy:"
 #: lib/tuist_web/live/usage_live.ex:373
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
-msgstr "Ostatni okres wyniósł %{count} minut."
+msgstr "W ostatnim okresie zużyto %{count} minut."
 
 #: lib/tuist_web/live/usage_live.ex:393
-#: lib/tuist_web/live/usage_live.ex:649
+#: lib/tuist_web/live/usage_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
-msgstr "Ostatni okres wyniósł %{count}."
+msgstr "W ostatnim okresie zużyto %{count}."
 
 #: lib/tuist_web/live/usage_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
-msgstr "W ostatnim okresie nic nie zostało uruchomione."
+msgstr "W ostatnim okresie nie wykonano żadnych zadań."
 
 #: lib/tuist_web/live/usage_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
-msgstr "W bieżącym okresie na poziomie około %{count} minut."
+msgstr "W tym okresie zużycie wyniesie około %{count} minut."
 
 #: lib/tuist_web/live/usage_live.ex:254
 #: lib/tuist_web/live/usage_live.ex:539
@@ -174,7 +174,7 @@ msgstr "Bieżący okres %{from} – %{to}"
 msgid "Covered by your trial"
 msgstr "Objęte okresem próbnym"
 
-#: lib/tuist_web/live/usage_live.ex:702
+#: lib/tuist_web/live/usage_live.ex:707
 #: lib/tuist_web/live/usage_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
@@ -199,7 +199,7 @@ msgstr "%{count} wliczone"
 #: lib/tuist_web/live/usage_live.html.heex:669
 #, elixir-autogen, elixir-format
 msgid "%{count} passing"
-msgstr "%{count} przechodzących"
+msgstr "%{count} zakończonych pomyślnie"
 
 #: lib/tuist_web/live/usage_live.html.heex:561
 #, elixir-autogen, elixir-format
@@ -219,22 +219,22 @@ msgstr "%{count} pominiętych"
 #: lib/tuist_web/live/usage_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "%{size} included"
-msgstr "%{size} wliczone"
+msgstr "Uwzględniono %{size}"
 
 #: lib/tuist_web/live/usage_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
-msgstr "Okres rozliczeniowy %{from} do %{to}. Rozliczane są przechodzące przypadki testowe. Buildy, niepowodzenia i pominięte przypadki testowe oraz testy uruchamiane na Tuist Runners są darmowe."
+msgstr "Okres rozliczeniowy od %{from} do %{to}. Rozliczane są przypadki testowe zakończone pomyślnie. Buildy, nieudane i pominięte przypadki testowe oraz testy uruchamiane na Tuist Runners są bezpłatne."
 
 #: lib/tuist_web/live/usage_live.html.heex:413
 #, elixir-autogen, elixir-format
 msgid "Cache usage"
-msgstr "Użycie cache"
+msgstr "Wykorzystanie pamięci podręcznej"
 
-#: lib/tuist_web/live/usage_live.ex:704
+#: lib/tuist_web/live/usage_live.ex:709
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
-msgstr "Szacowane na ten okres"
+msgstr "Szacowane dla tego okresu"
 
 #: lib/tuist_web/live/usage_live.html.heex:702
 #: lib/tuist_web/live/usage_live.html.heex:710
@@ -246,22 +246,22 @@ msgstr "Darmowy"
 #: lib/tuist_web/live/usage_live.html.heex:693
 #, elixir-autogen, elixir-format
 msgid "Not billed"
-msgstr "Nie podlega rozliczeniu"
+msgstr "Nie rozliczane"
 
-#: lib/tuist_web/live/usage_live.ex:727
+#: lib/tuist_web/live/usage_live.ex:732
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
-msgstr "Prognoza: około %{count} pomyślnych przypadków testowych w tym okresie."
+msgstr "W tym okresie liczba pomyślnych przypadków testowych wyniesie około %{count}."
 
-#: lib/tuist_web/live/usage_live.ex:719
+#: lib/tuist_web/live/usage_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
-msgstr "Prognoza: około %{count} żądań w tym okresie."
+msgstr "W tym okresie liczba żądań wyniesie około %{count}."
 
-#: lib/tuist_web/live/usage_live.ex:713
+#: lib/tuist_web/live/usage_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
-msgstr "Prognoza: około %{size} w tym okresie."
+msgstr "W tym okresie zużycie wyniesie około %{size}."
 
 #: lib/tuist_web/live/usage_live.html.heex:625
 #: lib/tuist_web/live/usage_live.html.heex:663
@@ -272,27 +272,27 @@ msgstr "Pomyślne przypadki testowe"
 #: lib/tuist_web/live/usage_live.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "Test insights usage"
-msgstr "Wykorzystanie funkcji analizy testów"
+msgstr "Zużycie funkcji analizy testów"
 
-#: lib/tuist_web/live/usage_live.ex:700
+#: lib/tuist_web/live/usage_live.ex:705
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
-msgstr "Kwota za ten okres. Brak subskrypcji, do której można ją przypisać."
+msgstr "Łączne zużycie w bieżącym okresie. Brak subskrypcji, do której można przypisać koszty."
 
-#: lib/tuist_web/live/usage_live.ex:692
+#: lib/tuist_web/live/usage_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
-msgstr "za %{count}"
-
-#: lib/tuist_web/live/usage_live.ex:689
-#, elixir-autogen, elixir-format
-msgid "per GB"
-msgstr "za GB"
+msgstr "na %{count}"
 
 #: lib/tuist_web/live/usage_live.ex:694
 #, elixir-autogen, elixir-format
+msgid "per GB"
+msgstr "na GB"
+
+#: lib/tuist_web/live/usage_live.ex:699
+#, elixir-autogen, elixir-format
 msgid "per million"
-msgstr "za milion"
+msgstr "na milion"
 
 #: lib/tuist_web/live/usage_live.html.heex:188
 #, elixir-autogen, elixir-format
@@ -312,17 +312,17 @@ msgstr "%{size} egressu"
 #: lib/tuist_web/live/usage_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
-msgstr "Okres rozliczeniowy od %{from} do %{to}. Egress i żądania ze wszystkich pamięci cache współdzielą jeden limit, a ruch z Tuist Runners jest liczony jako połowa. Przesyłanie i przechowywanie są darmowe."
+msgstr "Okres rozliczeniowy od %{from} do %{to}. Egress i żądania ze wszystkich cache’ów współdzielą jeden limit, a ruch z Tuist Runners liczy się w połowie. Przesyłanie i przechowywanie są darmowe."
 
 #: lib/tuist_web/live/usage_live.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
-msgstr "Dane pobrane z Twoich cache'y. %{size} darmowe w każdym okresie."
+msgstr "Dane pobrane z Twoich cache’ów. %{size} za darmo w każdym okresie."
 
 #: lib/tuist_web/live/usage_live.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
-msgstr "Pobrania obsłużone z Twoich cache'y. %{count} darmowe w każdym okresie."
+msgstr "Pobrania obsługiwane z Twoich cache'ów. %{count} darmowych co okres."
 
 #: lib/tuist_web/live/usage_live.html.heex:596
 #, elixir-autogen, elixir-format
@@ -335,7 +335,7 @@ msgstr "Brak użycia cache'u w tym okresie"
 msgid "Tuist Runners discount"
 msgstr "Zniżka na Tuist Runners"
 
-#: lib/tuist_web/live/usage_live.ex:696
+#: lib/tuist_web/live/usage_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr "Nieznany projekt"
@@ -343,12 +343,12 @@ msgstr "Nieznany projekt"
 #: lib/tuist_web/live/usage_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 8 vCPU / 24 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
-msgstr "Okres rozliczeniowy od %{from} do %{to}. Minuty są mierzone na maszynie bazowej każdej platformy, macOS 8 vCPU / 24 GB i Linux 2 vCPU / 8 GB; większa maszyna zużywa więcej niż jedną minutę za każdą minutę działania."
+msgstr "Okres rozliczeniowy od %{from} do %{to}. Minuty są mierzone na bazowej maszynie każdej platformy, macOS 8 vCPU / 24 GB i Linux 2 vCPU / 8 GB; większa maszyna zużywa więcej niż jedną minutę za każdą minutę działania."
 
 #: lib/tuist_web/live/usage_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "%{macos} free macOS and %{linux} free Linux minutes each month"
-msgstr "%{macos} darmowych minut macOS i %{linux} darmowych minut Linux miesięcznie"
+msgstr "%{macos} darmowych minut macOS i %{linux} darmowych minut Linuxa każdego miesiąca"
 
 #: lib/tuist_web/live/usage_live.ex:270
 #, elixir-autogen, elixir-format
@@ -365,7 +365,7 @@ msgstr "Repozytorium"
 msgid "Group by:"
 msgstr "Grupuj według:"
 
-#: lib/tuist_web/live/usage_live.html.heex:833
+#: lib/tuist_web/live/usage_live.html.heex:843
 #, elixir-autogen, elixir-format
 msgid "No sandboxes ran in this period"
 msgstr "W tym okresie nie uruchomiono żadnych sandboxów"
@@ -380,61 +380,41 @@ msgstr "Użycie sandboxów"
 msgid "vCPU-hours"
 msgstr "godziny vCPU"
 
-#: lib/tuist_web/live/usage_live.html.heex:758
-#, elixir-autogen, elixir-format
-msgid "vCPUs times the hours sandboxes ran this period."
-msgstr "Liczba vCPU pomnożona przez liczbę godzin działania sandboxów w tym okresie."
-
-#: lib/tuist_web/live/usage_live.html.heex:810
-#, elixir-autogen, elixir-format
-msgid "%{count} vCPU-hours run"
-msgstr "Uruchomiono %{count} godz. vCPU"
-
-#: lib/tuist_web/live/usage_live.html.heex:766
-#, elixir-autogen, elixir-format
-msgid "At %{rate}"
-msgstr "Przy stawce %{rate}"
-
-#: lib/tuist_web/live/usage_live.html.heex:746
-#, elixir-autogen, elixir-format
-msgid "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs, memory and disk included; paused and archived sandboxes use none."
-msgstr "Okres rozliczeniowy od %{from} do %{to}. Działający sandbox zużywa swoje vCPU za każdą godzinę działania, wliczając pamięć i dysk; wstrzymane i zarchiwizowane sandboksy nie zużywają żadnych zasobów."
-
-#: lib/tuist_web/live/usage_live.html.heex:817
+#: lib/tuist_web/live/usage_live.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "Covered during early access"
-msgstr "Objęte we wczesnym dostępie"
+msgstr "Objęte wczesnym dostępem"
 
-#: lib/tuist_web/live/usage_live.ex:638
+#: lib/tuist_web/live/usage_live.ex:643
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} vCPU-hours."
-msgstr "W ostatnim okresie zużycie wyniosło %{count} vCPU-godzin."
+msgstr "W ostatnim okresie zużyto %{count} godzin vCPU."
 
-#: lib/tuist_web/live/usage_live.ex:644
+#: lib/tuist_web/live/usage_live.ex:649
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} vCPU-hours this period."
-msgstr "Szacowane zużycie w tym okresie to około %{count} vCPU-godzin."
+msgstr "Szacowane zużycie w bieżącym okresie to około %{count} godzin vCPU."
 
 #: lib/tuist_web/live/usage_live.ex:615
-#: lib/tuist_web/live/usage_live.html.heex:804
+#: lib/tuist_web/live/usage_live.html.heex:805
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
-msgstr "Sandboksy"
+msgstr "Sandboxy"
 
-#: lib/tuist_web/live/usage_live.html.heex:776
+#: lib/tuist_web/live/usage_live.html.heex:777
 #, elixir-autogen, elixir-format
 msgid "Sandboxes are not billed while they are in early access"
-msgstr "Sandboksy nie są rozliczane podczas wczesnego dostępu"
+msgstr "Sandboxy nie są rozliczane w okresie wczesnego dostępu"
 
 #: lib/tuist_web/live/usage_live.ex:635
 #, elixir-autogen, elixir-format
 msgid "per vCPU-hour"
-msgstr "za vCPU-godzinę"
+msgstr "za godzinę pracy vCPU"
 
 #: lib/tuist_web/live/usage_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "%{amount} free each period"
-msgstr "%{amount} za darmo w każdym okresie"
+msgstr "%{amount} darmowych w każdym okresie"
 
 #: lib/tuist_web/live/usage_live.html.heex:387
 #, elixir-autogen, elixir-format
@@ -444,7 +424,7 @@ msgstr "%{amount} w cenie"
 #: lib/tuist_web/live/usage_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "%{amount} stored"
-msgstr "Przechowywane: %{amount}"
+msgstr "%{amount} przechowywane"
 
 #: lib/tuist_web/live/usage_live.ex:593
 #, elixir-autogen, elixir-format
@@ -454,32 +434,32 @@ msgstr "%{count} GB-miesięcy"
 #: lib/tuist_web/live/usage_live.html.heex:326
 #, elixir-autogen, elixir-format
 msgid "Across every billed cache volume"
-msgstr "Dotyczy wszystkich rozliczanych wolumenów cache"
+msgstr "Dotyczy wszystkich rozliczanych woluminów cache'u"
 
 #: lib/tuist_web/live/usage_live.ex:601
 #, elixir-autogen, elixir-format
 msgid "At what is saved now, this period comes to about %{amount}."
-msgstr "Przy obecnych oszczędnościach ten okres wyniesie około %{amount}."
+msgstr "Przy obecnych oszczędnościach ten okres zamknie się kwotą około %{amount}."
 
 #: lib/tuist_web/live/usage_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. What each cache volume keeps saved between jobs, counted once however many machines hold a copy, for as long as it is kept. Docker and checkout caches are free."
-msgstr "Okres rozliczeniowy od %{from} do %{to}. Ile każdy wolumen cache przechowuje między zadaniami, liczone jednokrotnie niezależnie od liczby maszyn posiadających kopię, przez cały czas przechowywania. Cache Docker i checkout są darmowe."
+msgstr "Okres rozliczeniowy %{from} do %{to}. Co każdy wolumen pamięci podręcznej przechowuje między zadaniami, liczone jednokrotnie niezależnie od liczby maszyn posiadających kopię, tak długo jak jest przechowywane. Pamięci podręczne Docker i checkout są darmowe."
 
 #: lib/tuist_web/live/usage_live.html.heex:295
 #, elixir-autogen, elixir-format
 msgid "Cache volume storage"
-msgstr "Pamięć wolumenu cache"
+msgstr "Pamięć wolumenów cache"
 
 #: lib/tuist_web/live/usage_live.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Cache volume storage is kept for the last 90 days. Pick a more recent billing period to see it."
-msgstr "Dane z wolumenów pamięci podręcznej są przechowywane przez ostatnie 90 dni. Wybierz nowszy okres rozliczeniowy, aby je zobaczyć."
+msgstr "Dane wolumenów pamięci podręcznej są przechowywane przez ostatnie 90 dni. Wybierz bardziej aktualny okres rozliczeniowy, aby je zobaczyć."
 
 #: lib/tuist_web/live/usage_live.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "No cache volume storage in this period"
-msgstr "Brak danych z wolumenów pamięci podręcznej w tym okresie"
+msgstr "Brak danych wolumenów pamięci podręcznej w tym okresie"
 
 #: lib/tuist_web/live/usage_live.html.heex:325
 #, elixir-autogen, elixir-format
@@ -490,7 +470,7 @@ msgstr "Zapisano teraz"
 #: lib/tuist_web/live/usage_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "Storage"
-msgstr "Pamięć masowa"
+msgstr "Przechowywanie"
 
 #: lib/tuist_web/live/usage_live.ex:589
 #, elixir-autogen, elixir-format
@@ -520,7 +500,7 @@ msgstr "%{count} minut na %{vcpus} vCPU / %{memory} GB RAM"
 #: lib/tuist_web/live/usage_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "At the Linux compute rates"
-msgstr "Według stawek za zasoby obliczeniowe Linuxa"
+msgstr "Według stawek za przetwarzanie w systemie Linux"
 
 #: lib/tuist_web/live/usage_live.html.heex:217
 #, elixir-autogen, elixir-format
@@ -535,9 +515,39 @@ msgstr "Brak zdalnego wykonywania w tym okresie"
 #: lib/tuist_web/live/usage_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Amount billed for this period"
-msgstr "Kwota naliczona za ten okres"
+msgstr "Kwota obciążenia za ten okres"
 
 #: lib/tuist_web/live/usage_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes include input fetch, execution, and output upload at Linux compute rates. Queueing and VM boot are free."
-msgstr "Okres rozliczeniowy %{from}–%{to}. Minuty obejmują pobieranie danych wejściowych, wykonanie i przesyłanie wyników według stawek za obliczenia na Linuxie. Kolejkowanie i uruchamianie maszyn wirtualnych są bezpłatne."
+msgstr "Okres rozliczeniowy od %{from} do %{to}. Minuty obejmują pobieranie danych wejściowych, wykonanie i przesyłanie wyników według stawek za przetwarzanie w systemie Linux. Kolejkowanie i uruchamianie maszyn wirtualnych są bezpłatne."
+
+#: lib/tuist_web/live/usage_live.html.heex:819
+#, elixir-autogen, elixir-format
+msgid "%{count} GiB-hours of memory at %{rate}"
+msgstr "%{count} GiB-godzin pamięci w cenie %{rate}"
+
+#: lib/tuist_web/live/usage_live.html.heex:811
+#, elixir-autogen, elixir-format
+msgid "%{count} vCPU-hours"
+msgstr "%{count} vCPU-godzin"
+
+#: lib/tuist_web/live/usage_live.html.heex:766
+#, elixir-autogen, elixir-format
+msgid "At %{rate} and %{memory_rate}"
+msgstr "W cenie %{rate} i %{memory_rate}"
+
+#: lib/tuist_web/live/usage_live.html.heex:758
+#, elixir-autogen, elixir-format
+msgid "CPU sandboxes were billed for this period."
+msgstr "Za ten okres rozliczono piaskownice CPU."
+
+#: lib/tuist_web/live/usage_live.ex:640
+#, elixir-autogen, elixir-format
+msgid "per GiB-hour"
+msgstr "za GiB-godzinę"
+
+#: lib/tuist_web/live/usage_live.html.heex:746
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Running sandboxes are billed for CPU and memory at Linux runner rates, with a Linux sandbox's CPU counted as at least its guarantee. Paused sandboxes aren't billed."
+msgstr "Okres rozliczeniowy od %{from} do %{to}. Działające piaskownice są rozliczane za procesor i pamięć według stawek runnerów Linux, przy czym procesor piaskownicy Linux jest liczony co najmniej jako jej gwarancja. Wstrzymane piaskownice nie są rozliczane."

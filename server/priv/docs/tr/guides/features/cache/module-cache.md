@@ -11,22 +11,22 @@
 > [!IMPORTANT]
 > **Gereksinimler**
 >
-> - <.localized_link href="/guides/features/projects">Oluşturulmuş bir proje</.localized_link>. Modül önbelleği, hedefleri karmaştırmak ve ikili dosyalarıyla değiştirmek için Tuist’in `Project.swift` arkasında tuttuğu proje grafiğini okur.
+> - Bir <.localized_link href="/guides/features/projects">oluşturulmuş proje</.localized_link>. Modül önbelleği, hedefleri hashlemek ve ikili dosyalarıyla değiştirmek için Tuist’in `Project.swift` arkasında tuttuğu proje grafiğini okur.
 
-Tuist Modül Önbelleği, modüllerinizi ikili dosya (`.xcframework`) olarak önbelleğe alıp farklı ortamlarda paylaşarak derleme sürelerini optimize etmenin güçlü bir yolunu sunar. Bu yetenek, daha önce oluşturulmuş ikili dosyalardan yararlanmanızı sağlayarak tekrarlayan derlemelere duyulan ihtiyacı azaltır ve geliştirme sürecini hızlandırır. Önbelleğin yavaş bir derlemenin hangi bölümünü ortadan kaldırdığını öğrenmek için bkz. [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds).
+Tuist Modül Önbelleği, modüllerinizi ikili dosyalar (`.xcframework`) olarak önbelleğe alıp farklı ortamlarda paylaşarak derleme sürelerini optimize etmenin güçlü bir yolunu sunar. Bu yetenek, daha önce oluşturulmuş ikili dosyalardan yararlanmanızı sağlayarak tekrarlanan derleme ihtiyacını azaltır ve geliştirme sürecini hızlandırır. Önbelleğin yavaş bir derlemenin hangi bölümünü ortadan kaldırdığını öğrenmek için bkz. [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds).
 
 > [!TIP]
 > **Xcode önbelleği ile birleştirin**
 >
-> Modül önbelleği ve <.localized_link href="/guides/features/cache/xcode-cache">Xcode önbelleği</.localized_link>, farklı granülerite düzeylerinde çalıştıkları için birbirini tamamlar. Modül önbelleği, derleme başlamadan önce tüm modülleri önceden oluşturulmuş `.xcframework` dosyalarıyla değiştirirken, Xcode önbelleği derleme sırasında derleme çıktılarını yeniden kullanır.
+> Modül önbelleği ve <.localized_link href="/guides/features/cache/xcode-cache">Xcode önbelleği</.localized_link>, farklı granülerite seviyelerinde çalıştıkları için birbirini tamamlar. Modül önbelleği, derleme çalışmadan önce tüm modülleri önceden oluşturulmuş `.xcframework` dosyalarıyla değiştirirken, Xcode önbelleği derleme sırasında derleme çıktılarını yeniden kullanır.
 >
-> Derleme önbelleği ayarları modül önbelleği karmalarının parçası değildir, bu nedenle Xcode önbelleğini açıp kapatmak zaten ısınmış ikili dosyalarınızı korur. Xcode 27 ve sonraki sürümlerde, bununla gelen ön ek eşleme ayarları karmaştırılır. Bkz. <.localized_link href="/guides/features/cache/xcode-cache#module-cache-hashes">modül önbelleği karmaları</.localized_link>.
+> Derleme önbelleği ayarları modül önbelleği hashlerinin bir parçası değildir, bu nedenle Xcode önbelleğini açıp kapatmak zaten ısıttığınız ikili dosyaları korur. Xcode 27 ve sonrasında, bununla birlikte gelen ön ek eşleme ayarları hashlenir. Bkz. <.localized_link href="/guides/features/cache/xcode-cache#module-cache-hashes">modül önbelleği hashleri</.localized_link>.
 
 ## Isıtma {#warming}
 
-Tuist, bağımlılık grafiğindeki her hedef için değişiklikleri algılamak üzere <.localized_link href="/guides/features/projects/hashing">karmaları verimli bir şekilde kullanır</.localized_link>. Bu verileri kullanarak, bu hedeflerden türetilen ikili dosyaları oluşturur ve benzersiz tanımlayıcılar atar. Grafik oluşturma sırasında Tuist, orijinal hedefleri karşılık gelen ikili sürümleriyle sorunsuz bir şekilde değiştirir.
+Tuist, bağımlılık grafiğindeki her hedef için değişiklikleri algılamak amacıyla <.localized_link href="/guides/features/projects/hashing">hashleri verimli şekilde kullanır</.localized_link>. Bu verileri kullanarak, bu hedeflerden türetilen ikili dosyaları oluşturur ve benzersiz tanımlayıcılar atar. Grafik oluşturma sırasında Tuist, orijinal hedefleri karşılık gelen ikili sürümleriyle sorunsuz bir şekilde değiştirir.
 
-Bu işlem, yerel kullanım veya Tuist aracılığıyla ekip arkadaşları ve CI ortamlarıyla paylaşım için ikili dosyalar üreten *“ısınma”* olarak bilinir. Önbelleği ısıtma süreci basittir ve tek bir komutla başlatılabilir:
+*"Isıtma"* olarak bilinen bu işlem, yerel kullanım veya Tuist aracılığıyla ekip arkadaşlarınız ve CI ortamlarıyla paylaşım için ikili dosyalar üretir. Önbelleği ısıtma süreci basittir ve tek bir komutla başlatılabilir:
 
 ```bash
 tuist cache
@@ -34,11 +34,11 @@ tuist cache
 
 Komut, süreci hızlandırmak için ikili dosyaları yeniden kullanır.
 
-Bir ikili dosyanın yüklenmesi başarısız olursa, komut geri kalanını yine de yükler, ardından sıfır olmayan bir durum koduyla çıkar ve yüklenmemiş hedefleri listeler. Bir makinenin yerel önbelleğindeki ikili dosyalar önbelleğe alınmış sayılır, bu nedenle bunları aynı makineden tekrar yüklemek için ısıtmadan önce `tuist clean binaries` komutunu çalıştırın. İkili dosyaları yalnızca yerel önbellekte depolamak için `--no-upload` seçeneğini kullanın.
+Bir ikili dosyanın yüklenmesi başarısız olursa, komut geri kalanlarını yine de yükler, ardından sıfır dışı bir durum koduyla çıkar ve yüklenmemiş hedefleri listeler. Bir makinenin yerel önbelleğindeki ikili dosyalar önbelleğe alınmış sayılır, bu nedenle bunları aynı makineden tekrar yüklemek için ısıtmadan önce `tuist clean binaries` komutunu çalıştırın. İkili dosyaları yalnızca yerel önbellekte depolamak için `--no-upload` seçeneğini kullanın.
 
 ### Hedef seçimi {#destination-selection}
 
-Tek bir hedef için önbelleğe almak, oluşturmak ve test etmek amacıyla `--destination simulator` veya `--destination device` kullanın:
+Tek bir hedef için önbelleğe almak, oluşturmak ve test etmek üzere `--destination simulator` veya `--destination device` kullanın:
 
 ```bash
 tuist cache --destination simulator
@@ -50,25 +50,25 @@ tuist generate --destination device
 tuist test --destination device -- -destination 'platform=iOS,id=DEVICE_IDENTIFIER'
 ```
 
-Varsayılan değer `all` olup, Mac Catalyst dahil olmak üzere hedeflerinizin desteklediği tüm hedefleri korur. Daha sonra çalıştırılan bir `tuist cache`, önbelleğe alınmış dilimleri yeniden kullanır ve yalnızca eksik SDK’ları derler. Normal oluşturma, gerekli dilimlerden herhangi biri eksikse bir modülün kaynak kodlarını korur.
+Varsayılan değer `all` olup, Mac Catalyst dahil olmak üzere hedeflerinizin desteklediği tüm hedefleri korur. Daha sonra çalıştırılan bir `tuist cache`, önbelleğe alınmış dilimleri yeniden kullanır ve yalnızca eksik SDK’ları derler. Normal oluşturma, gerekli herhangi bir dilim eksikse modülün kaynaklarını korur.
 
-Kısıtlı oluşturma, kaynak hedeflerini seçilen hedefle sınırlar ve makrolar dahil olmak üzere yerel macOS hedeflerini korur. Hiçbir kısıtlı mod Mac Catalyst’i içermez. Tüm hedefleri geri yüklemek için `--destination all` ile yeniden oluşturun.
+Kısıtlı oluşturma, kaynak hedefleri seçilen hedefle sınırlar ve makrolar dahil olmak üzere yerel macOS hedeflerini korur. Kısıtlı modların hiçbiri Mac Catalyst’i içermez. Tüm hedefleri geri yüklemek için `--destination all` ile yeniden oluşturun.
 
-`tuist test --destination`, yalnızca seçilen hedefin dilimlerini kullanır ve indirir; bu nedenle simülatör test çalıştırması, yalnızca simülatöre yönelik veya tam bir ısınmadan elde edilen ikili dosyaları kullanabilir. `--` sonrasında `xcodebuild` öğesine aktarılan hedef eşleşmediğinde başarısız olur ve `--destination device` bir cihaz `-destination` gerektirir. Seçici test karmaları hedefe bağlı olmadığından, farklı `--destination` değerlerine sahip çalıştırmalar test sonuçlarını paylaşır.
+`tuist test --destination`, yalnızca seçilen hedefin dilimlerini kullanır ve indirir; bu nedenle simülatör test çalıştırması, yalnızca simülatöre yönelik veya tam bir ısıtmadan gelen ikili dosyaları kullanabilir. `--` sonrasında `xcodebuild` öğesine geçirilen hedef eşleşmediğinde başarısız olur ve `--destination device` bir cihaz `-destination` gerektirir. Seçici test hashleri hedefe bağlı değildir, bu nedenle farklı `--destination` değerlerine sahip çalıştırmalar test sonuçlarını paylaşır.
 
-Dilim bazlı önbellekleme, standart mimarilere sahip iOS ve macOS’u destekler. Diğer platformlar, özel mimariler ve desteklenmeyen ürünler tam yapıt önbelleklemeyi korur. Eski modül önbellekleme her zaman tam yapıtları indirir ve ısıtma sırasında `--destination all` gerektirir.
+Dilim bazlı önbellekleme, standart mimarilere sahip iOS ve macOS’u destekler. Diğer platformlar, özel mimariler ve desteklenmeyen ürünler tam artefact önbelleklemeyi korur. Eski modül önbellekleme her zaman tam artefact’leri indirir ve ısıtma sırasında `--destination all` gerektirir.
 
 ### Uzak yükleme kabulü {#remote-upload-admission}
 
-Modern modül önbellekleme REAPI kullanır. Yoğun bir önbellek geçici olarak `RESOURCE_EXHAUSTED` ile bir yüklemeyi reddettiğinde, Tuist titreme ile geri çekilir, standart `google.rpc.RetryInfo` minimum gecikmelerine uyar ve sınırlı bir bekleme bütçesi içinde yeniden dener. Yükleme kabulü, çağrı başına en fazla altı yeniden denemeye izin verir. Her blob yükleme işlemi, varlık kontrolleri, toplu yüklemeler ve akış yazmaları arasında paylaşılan tek bir 60 saniyelik kümülatif geri çekilme bütçesine sahiptir; eşzamanlı beklemelerin her biri bütçeyi tüketir, bu nedenle tekrarlanan reddetmeler kuyruktaki her bloba başka bir dakika yeniden deneme hakkı vermez. Başarılı aktarımlar bu bütçeyi tüketmez ve bütçe tükendiğinde iptal edilmez. Eylem sonucu yayınlamanın kendi sınırlı bütçesi vardır. Üstel gecikme bir saniyede başlar ve orantılı titremeden önce 30 saniyeye doğru büyür. Bir sunucunun gerekli gecikmesi kalan bütçeyi aşarsa, Tuist talimat verilenden daha erken yeniden denemek yerine başarısız olur. İptal etme işlemi geri çekilmeyi kesintiye uğratır ve önbellek okumaları, aşırı yüklenmenin oluşturmayı durdurmasını önlemek için kısa yeniden denemeleri korur.
+Modern modül önbellekleme REAPI kullanır. Yoğun bir önbellek, bir yüklemeyi `RESOURCE_EXHAUSTED` ile geçici olarak reddettiğinde Tuist, jitter ile geri çekilir, standart `google.rpc.RetryInfo` minimum gecikmelerine uyar ve sınırlı bir bekleme bütçesi içinde yeniden dener. Yükleme kabulü, çağrı başına en fazla altı yeniden denemeye izin verir. Her blob yükleme işlemi, varlık kontrolleri, toplu yüklemeler ve akış yazmaları arasında tek bir 60 saniyelik kümülatif geri çekilme bütçesini paylaşır; eşzamanlı beklemeler bütçeyi tüketir, bu nedenle tekrarlanan reddetmeler kuyruktaki her bloğa başka bir dakika yeniden deneme hakkı vermez. Başarılı aktarımlar bu bütçeyi tüketmez ve bütçe tükendiğinde iptal edilmez. Eylem sonucu yayınlamanın kendi sınırlı bütçesi vardır. Üstel gecikme bir saniyede başlar ve orantılı jitter’dan önce 30 saniyeye doğru artar. Bir sunucunun gereken gecikmesi kalan bütçeyi aşarsa, Tuist talimat verilenden daha erken yeniden denemek yerine başarısız olur. İptal etme işlemi geri çekilmeyi keser ve önbellek okumaları kısa yeniden denemeleri korur, böylece aşırı yüklenme oluşturmaya engel olmaz.
 
-Bu varsayılanlar, yeniden deneme ipuçları olmayan eski Kura sürümlerine de yardımcı olur. Daha uzun yeniden denemeler geçici çekişmeyi absorbe eder, sürekli aşırı yüklenmeyi değil: Reddetmeler devam ederse ısıtma işlerinde [önbellek eşzamanlılık sınırını](#cache-concurrency-limit) azaltın veya sunucu kapasitesini artırın. Pod belleği tahminleri ve kabul metrikleri için bkz. [Kura yükleme boyutlandırması](https://github.com/tuist/tuist/blob/main/kura/README.md#upload-admission-and-sizing).
+Bu varsayılanlar, yeniden deneme ipuçları olmayan eski Kura sürümlerine de yardımcı olur. Daha uzun yeniden denemeler geçici çekişmeyi emer, sürekli aşırı yüklenmeyi değil: reddetmeler devam ederse ısıtma işlerinde [önbellek eşzamanlılık sınırını](#cache-concurrency-limit) düşürün veya sunucu kapasitesini artırın. Pod belleği tahminleri ve kabul metrikleri için bkz. [Kura yükleme boyutlandırma](https://github.com/tuist/tuist/blob/main/kura/README.md#upload-admission-and-sizing).
 
 ### Yapılandırma seçimi {#configuration-selection}
 
-`--configuration` parametresini geçmeden önbelleği ısıtırken, Tuist kullanılacak derleme yapılandırmasını aşağıdaki sırayla seçer:
+Önbelleği ısıtırken `--configuration` parametresini geçmeden, Tuist kullanılacak derleme yapılandırmasını aşağıdaki sırayla seçer:
 
-1. Varsa, manifest dosyanızdaki `Project.Options.generationOptions` içinde ayarlanan [`defaultConfiguration`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist/generationoptions/defaultconfiguration).
+1. Manifest dosyanızdaki `Project.Options.generationOptions` içinde ayarlanmış [`defaultConfiguration`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist/generationoptions/defaultconfiguration) (varsa).
 2. Aksi takdirde, adı alfabetik olarak sıralanan `debug` varyantının ilk derleme yapılandırması.
 
 Belirli bir yapılandırma için önbelleği ısıtmak amacıyla bunu açıkça belirtin:
@@ -79,7 +79,7 @@ tuist cache --configuration Release
 
 ## Kullanım {#usage}
 
-Varsayılan olarak, Tuist komutları proje oluşturmayı gerektirdiğinde, varsa bağımlılıkları otomatik olarak önbellekten alınan ikili eşdeğerleriyle değiştirir. Ayrıca, odaklanılacak hedeflerin bir listesini belirtirseniz, Tuist mevcut oldukları takdirde bağımlı hedefleri de önbelleğe alınmış ikili dosyalarıyla değiştirir. Farklı bir yaklaşımı tercih edenler için, belirli bir bayrak kullanarak bu davranışı tamamen devre dışı bırakma seçeneği mevcuttur:
+Varsayılan olarak, Tuist komutları proje oluşturmayı gerektirdiğinde, bağımlılıkları varsa önbellekten alınan ikili eşdeğerleriyle otomatik olarak değiştirir. Ayrıca, odaklanılacak hedeflerin bir listesini belirtirseniz, Tuist bağımlı hedefleri de varsa önbelleğe alınmış ikili dosyalarıyla değiştirir. Farklı bir yaklaşımı tercih edenler için, belirli bir bayrak kullanarak bu davranışı tamamen devre dışı bırakma seçeneği vardır:
 
 ::: code-group
 ```bash [Project generation]
@@ -102,7 +102,7 @@ tuist test
 
 Tuist, projeler oluşturulurken hedeflerin önbelleğe alınmış ikili dosyalarla ne kadar agresif bir şekilde değiştirileceğini kontrol etmek için önbellek profillerini destekler.
 
-- Yerleşik:
+- Yerleşikler:
   - `only-external`: yalnızca harici bağımlılıkları değiştir (sistem varsayılanı)
   - `all-possible`: mümkün olduğunca çok hedefi değiştir (dahili hedefler dahil)
   - `none`: önbelleğe alınmış ikili dosyalarla asla değiştirme
@@ -127,99 +127,99 @@ tuist generate --cache-profile none
 ```
 
 > [!NOTE]
-> **Kullanımdan kaldırılan bayrak**
+> **Kullanımdan kaldırılmış bayrak**
 >
-> `--no-binary-cache` bayrağı kullanımdan kaldırıldı. Bunun yerine `--cache-profile none` kullanın. Kullanımdan kaldırılan bayrak, geriye dönük uyumluluk için hala çalışır.
+> `--no-binary-cache` bayrağı kullanımdan kaldırıldı. Bunun yerine `--cache-profile none` kullanın. Kullanımdan kaldırılmış bayrak, geriye dönük uyumluluk için hala çalışır.
 
-Etkili davranış çözülürken öncelik sırası (yüksekten düşüğe):
+Etkili davranış çözümlenirken öncelik (yüksekten düşüğe):
 
 1. `--cache-profile none`
-2. Hedef odaklama (`generate` komutuna hedefleri geçirme) → `all-possible` profili
+2. Hedef odağı (`generate` komutuna hedefleri geçirme) → `all-possible` profili
 3. `--cache-profile <value>`
 4. Yapılandırma varsayılanı (ayarlanmışsa)
 5. Sistem varsayılanı (`only-external`)
 
 ## Desteklenen ürünler {#supported-products}
 
-Yalnızca aşağıdaki hedef ürünleri Tuist tarafından önbelleklenebilir:
+Yalnızca aşağıdaki hedef ürünler Tuist tarafından önbelleklenebilir:
 
-- Çerçeveler (statik ve dinamik), [XCTest](https://developer.apple.com/documentation/xctest) veya Swift Testing'e bağımlı test destek çerçeveleri dahil
+- Çatılar (statik ve dinamik), [XCTest](https://developer.apple.com/documentation/xctest) veya Swift Testing'e bağımlı test destek çatıları dahil
 - Kütüphaneler (statik ve dinamik), XCTest veya Swift Testing'e bağımlı test destek kütüphaneleri dahil
 - Paketler
 - Swift Makroları
 
-Test paketleri modül önbelleğinin dışında tutulmaya devam eder. Bu, `unitTests` ve `uiTests` hedeflerinin ikili dosya olarak önbelleğe alınmadığı anlamına gelir; ancak testlerin bağımlı olduğu normal çerçeve ve kütüphane hedefleri, XCTest veya Swift Testing ile bağlantılı olsalar bile önbelleğe alınabilir.
+Test paketleri modül önbelleğinin dışında tutulur. Bu, `unitTests` ve `uiTests` hedeflerinin ikili dosya olarak önbelleğe alınmadığı anlamına gelir; ancak testlerin bağımlı olduğu normal çatı ve kütüphane hedefleri, XCTest veya Swift Testing ile bağlantı kurduklarında bile önbelleğe alınabilir.
 
-Önbelleğe alınmış kütüphane `.xcframework` dosyaları, oluşturulan projelerin bunları içe aktarması için gereken meta verileri korur; kaynak hedef genel başlıklar tanımladığında Swift modülleri ve genel C/Objective-C başlıkları buna dahildir.
+Önbelleğe alınmış kütüphane `.xcframework` dosyaları, oluşturulan projelerin bunları içe aktarmak için ihtiyaç duyduğu meta verileri korur; kaynak hedef genel başlıklar tanımladığında Swift modülleri ve genel C/Objective-C başlıkları da buna dahildir.
 
 > [!NOTE]
-> **Üst akış bağımlılıkları**
+> **Yukarı akış bağımlılıkları**
 >
-> Bir hedef önbellenemez olduğunda, üst akış hedefleri de önbellenemez hale gelir. Örneğin, A'nın B'ye bağımlı olduğu `A > B` bağımlılık grafiğiniz varsa ve B önbellenemezse, A da önbellenemez olacaktır.
+> Bir hedef önbellenemez olduğunda, yukarı akış hedefleri de önbellenemez hale gelir. Örneğin, A'nın B'ye bağımlı olduğu `A > B` bağımlılık grafiğiniz varsa ve B önbellenemezse, A da önbellenemez olacaktır.
 
-## Analitikler {#analytics}
+## Analitik {#analytics}
 
-Sık önbellek isabeti olmayan modülleri bulmak için projenizin kontrol panelinde **Modül Önbelleği → Modüller** bölümünü açın. İyileştirmek istediğiniz ortamı (örneğin **CI**) ve bir tarih aralığını seçin. Genel bakış, önbellek isabetlerini, isabetsizlikleri ve isabetsizliği olan modülleri gösterir; bir modülü açtığınızda geçmişini ve her gözleme atanan nedeni görürsünüz.
+Sık önbellek isabetsizliği yaşayan modülleri bulmak için projenizin kontrol panelinde **Modül Önbelleği → Modüller** bölümünü açın. İyileştirmek istediğiniz ortamı (örneğin **CI**) ve bir tarih aralığını seçin. Genel bakış, önbellek isabetlerini, isabetsizlikleri ve isabetsizliği olan modülleri gösterir; bir modülü açtığınızda geçmişini ve her gözleme atanan nedeni görürsünüz.
 
-**Isabetsizlikler** açılır menüsü, tek bir neden için sayı ve açıklama seçmenizi sağlar. Grafik, dört nedenin dağılımını gösterir. Bir modülün sayfasında, bireysel olayları incelemek için geçmişin **Neden** filtresini kullanın. Tanımını görmek için bir neden rozetinin üzerine gelin veya klavyeyle odaklanın.
+**Isabetsizlikler** açılır menüsü, tek bir neden için bir sayı ve açıklama seçer. Grafik, dört nedenin dağılımını gösterir. Bir modülün sayfasında, tekil olayları incelemek için geçmişteki **Neden** filtresini kullanın. Tanımını görmek için bir neden etiketinin üzerine gelin veya klavyeyle odaklanın.
 
 ### Isabetsizlik nedenleri {#miss-reasons}
 
 | Neden | Anlamı |
 | --- | --- |
-| **Değişti** | Modülün kendi karşılaştırılan girdileri değişti. Bunlar dosya hash'lerini, derleme ayarlarını, çözümlenen yapılandırmayı ve derleyici kimliğini içerir. Kaynak düzenlemesi yalnızca olası nedenlerden biridir. |
-| **Üst Akış** | Modülün kendi karşılaştırılan girdileri aynı kaldı, ancak bağımlılığı veya harici paket hash'i değişti. Modülün kaynak dosyalarına dokunulmamış olabilir. |
+| **Değişti** | Modülün kendi karşılaştırılan girdileri değişti. Bunlar dosya karma değerlerini, derleme ayarlarını, çözümlenen yapılandırmayı ve derleyici tanımlayıcısını içerir. Kaynak düzenlemesi yalnızca olası nedenlerden biridir. |
+| **Yukarı akış** | Modülün kendi karşılaştırılan girdileri aynı kaldı, ancak bağımlılığının veya harici paketinin karma değeri değişti. Modülün kaynak dosyaları dokunulmamış olabilir. |
 | **Soğuk** | Karşılaştırılacak önceki bir modül gözlemi yok veya bildirilen girdiler isabetsizliği açıklamıyor ve önceki uzaktan erişilebilirliğe dair yeterli kanıt bulunmuyor. Soğuk olması, modülün hiç önbelleğe alınmadığını kanıtlamaz. |
-| **Tahliye Edildi** | Tam önbellek anahtarı daha önce aynı projede kaydedilen aynı önbellek uç noktasında uzaktan bir isabet almıştı, ancak şimdi isabetsizlik var. |
+| **Tahliye edildi** | Tam önbellek anahtarı daha önce aynı projede, aynı kaydedilmiş önbellek uç noktasında uzaktan bir isabet almıştı, ancak şimdi isabetsizlik yaşıyor. |
 
-**Tahliye Edildi** olarak etiketlenen isabetsizliklerde, yapıt daha önce uzaktan önbellekten indirilmişti ancak bu sefer yeniden kullanılamadı. Tahliye muhtemel nedendir, ancak erişim veya indirme hataları da isabetsizliği açıklayabilir. Tuist bu etiketi yalnızca önceki bir uzaktan isabet bulduğunda atar; önceki isabetsizlikler ve yerel isabetler yeterli değildir.
+**Tahliye edildi** olarak etiketlenen isabetsizliklerde, yapıt daha önce uzak önbellekten indirilmişti ancak bu sefer yeniden kullanılamadı. Muhtemel neden tahliyedir, ancak erişim veya indirme hataları da isabetsizliği açıklayabilir. Tuist bu etiketi yalnızca önceki bir uzak isabet bulduğunda atar; önceki isabetsizlikler ve yerel isabetler yeterli değildir.
 
 Örneğin:
 
 | Senaryo | Sınıflandırma |
 | --- | --- |
-| Önceki gözlem veya yeterli uzaktan isabet olmadan bir modül isabetsizliği | Soğuk |
-| A değişti; B, A'ya bağımlı ve C, B'ye bağımlı; üç anahtar da değişti | A Değişti; B ve C Üst Akış |
-| Kaynaklar ve ayarlar değişmeden, ısınma sonrası derleyici sürümü değişti | Her iki gözlem de derleyici girdilerini bildirdiğinde etkilenen isabetsizlikler Değişti olarak işaretlenir |
-| Tam bir anahtar uzaktan indirildi, ardından yapıtı tahliye edildikten sonra isabetsizlik oluştu | Önceki isabet kanıt olarak nitelendiğinde Tahliye Edildi |
-| Bir anahtar tekrar tekrar isabetsizlik veriyor ve hiçbir zaman başarıyla ısıtılmadı | Soğuk kalabilir |
+| Bir modül, önceki gözlem veya nitelikli uzak isabet olmaksızın isabetsizlik yaşıyor | Soğuk |
+| A değişiyor; B, A'ya bağımlı ve C, B'ye bağımlı; üç anahtar da değişiyor | A Değişti; B ve C Yukarı akış |
+| Derleyici sürümü, kaynaklar ve ayarlar değişmeden ısınma sonrası değişir | Etkilenen isabetsizlikler, her iki gözlem de derleyici girdilerini bildirdiğinde Değişti olarak sınıflandırılır |
+| Tam bir anahtar uzaktan indirildi, ardından yapıtı tahliye edildikten sonra isabetsizlik yaşandı | Önceki isabet kanıt olarak nitelendiğinde Tahliye edildi |
+| Bir anahtar tekrar tekrar isabetsizlik yaşıyor ve hiçbir zaman başarıyla ısıtılmadı | Soğuk kalabilir |
 
-Nedenler gözlemleri tanımlar; anahtara bağlı kalıcı etiketler değildir. Örneğin, bir derleyici yükseltmesinden sonraki ilk isabetsizlik Değişti olabilirken, o yeni anahtar için sonraki bir isabetsizlik, uzaktan erişilebilir olarak hiç gözlemlenmediyse Soğuk olabilir.
+Nedenler gözlemleri tanımlar; bunlar bir anahtara bağlı kalıcı etiketler değildir. Örneğin, bir derleyici yükseltmesinden sonraki ilk isabetsizlik Değişti olabilir, ancak bu yeni anahtar için sonraki bir isabetsizlik, uzaktan erişilebilir olarak hiç gözlemlenmediyse Soğuk olabilir.
 
 ### Önbellek isabet oranını iyileştirme {#improving-cache-hit-rate}
 
-1. **Tutarlı bir temel seçin.** CI ve temsilci bir tarih aralığı ile başlayın. Modülleri isabetsizlik sayısına göre sıralayın, ardından isabet oranlarını, bağımlıları ve derleme maliyetlerini değerlendirin. Sıkça isabetsizlik veren pahalı bir bağımlılığı düzeltmek, küçük bir modülün isabet oranını iyileştirmekten daha fazla zaman kazandırabilir. Bir değişiklik yaptıktan sonra aynı ortamı ve benzer iş yüklerini karşılaştırın.
-2. **Değişti isabetsizliklerini inceleyin.** İlgili çalıştırmaları açın ve tam anahtarlarını ile bildirilen girdilerini karşılaştırın. Isıtma ve tüketen işleri hedeflenen Xcode/derleyici sürümü, yapılandırma ve hedef konumlarında hizalayın. Kasıtlı değişikliklerden sonra tekrar ısıtın. Kararsız oluşturulan dosyalar veya ortama bağımlı ayarlar aksi takdirde kararlı olan modülleri geçersiz kılıyorsa bu girdileri inceleyin. İkili uyumluluğu etkileyen girdileri hash içinde tutun.
-3. **Üst Akış isabetsizliklerini değişen bağımlılığa kadar takip edin.** Doğrudan değişikliği bulmak için geçmişini inceleyin. Ortaya çıkan anahtarları ısıtmak yeniden kullanımı geri getirebilir. Sıkça değişen bir uygulama birçok pahalı bağımlıyı geçersiz kılıyorsa, [Verimlilik](#efficiency) bölümünde açıklandığı gibi daha küçük modüller veya kararlı arayüzler düşünün.
-4. **Soğuk isabetsizlikler için ısıtma kapsamını kontrol edin.** Isıtmanın gerekli modülleri seçtiğini, tüketen işin yapılandırmasını ve ortamını kullandığını ve yapıtları başarıyla yüklediğini doğrulayın. Gerçek CI işleri tarafından kullanılan tam anahtarları kontrol edin. Isıtma ve tüketim farklı anahtarlar istiyorsa, önbelleğin tahliye edildiğini varsaymadan önce hash girdilerini inceleyin. Modülün kaynakları değişmemiş olsa bile, önceki başarılı yükleme olmadan tekrarlanan isabetsizlikler mümkündür.
-5. **Tahliye Edilmiş isabetsizlikler için kanıtları kullanın.** Tüketen çalıştırmanın anahtarını ve uç noktasını onaylayın, ardından tüketen çalıştırmanın önbellek uyarılarını ve ısıtma işinin yükleme sonucunu inceleyin. Uygun olduğunda saklama veya tahliyeyi kontrol edin. Gerekli yapıtları yeniden ısıtın ve sonraki bir isabeti doğrulayın. Hala isabetsizlik varsa ilgili çalıştırma bağlantılarını ve günlükleri destek ekibiyle paylaşın.
+1. **Tutarlı bir temel seçin.** CI ve temsilci bir tarih aralığı ile başlayın. Modülleri isabetsizliklere göre sıralayın, ardından isabet oranlarını, bağımlıları ve derleme maliyetlerini değerlendirin. Sıkça isabetsizlik yaşayan, maliyetli bir bağımlılığı düzeltmek, küçük bir modülün isabet oranını iyileştirmekten daha fazla zaman kazandırabilir. Bir değişiklik yaptıktan sonra aynı ortamı ve benzer iş yüklerini karşılaştırın.
+2. **Değişti isabetsizliklerini inceleyin.** İlgili çalıştırmaları açın ve tam anahtarlarını ile bildirilen girdilerini karşılaştırın. Isıtma ve tüketen işleri hedeflenen Xcode/derleyici sürümü, yapılandırma ve hedef destinasyonları üzerinde hizalayın. Kasıtlı değişikliklerden sonra yeniden ısıtın. Kararsız oluşturulan dosyalar veya ortama bağımlı ayarlar aksi takdirde kararlı olan modülleri geçersiz kılıyorsa, bu girdileri inceleyin. İkili uyumluluğu etkileyen girdileri karma değerinde tutun.
+3. **Yukarı akış isabetsizliklerini değişen bağımlılığa kadar takip edin.** Doğrudan değişikliği bulmak için geçmişini inceleyin. Ortaya çıkan anahtarları ısıtmak yeniden kullanımı restore edebilir. Sık sık değişen bir uygulama birçok maliyetli bağımlıyı geçersiz kılıyorsa, [Verimlilik](#efficiency) bölümünde açıklandığı gibi daha küçük modüller veya kararlı arayüzler düşünün.
+4. **Soğuk isabetsizlikler için ısıtma kapsamını kontrol edin.** Isıtmanın gerekli modülleri seçtiğini, tüketen işin yapılandırmasını ve ortamını kullandığını ve yapıtları başarıyla yüklediğini doğrulayın. Gerçek CI işleri tarafından kullanılan tam anahtarları kontrol edin. Isıtma ve tüketim farklı anahtarlar istiyorsa, önbelleğin tahliye edildiğini varsaymadan önce karma girdilerini inceleyin. Modülün kaynakları değişmemiş olsa bile, önceki başarılı bir yükleme olmadan tekrarlanan isabetsizlikler mümkündür.
+5. **Tahliye edildi isabetsizlikleri için kanıtları kullanın.** Tüketen çalıştırmanın anahtarını ve uç noktasını onaylayın, ardından tüketen çalıştırmanın önbellek uyarılarını ve ısıtma işinin yükleme sonucunu inceleyin. Uygun olduğunda saklama veya tahliyeyi kontrol edin. Gerekli yapıtları yeniden ısıtın ve sonraki bir isabeti doğrulayın. Hala isabetsizlik yaşıyorlarsa, ilgili çalıştırma bağlantılarını ve günlükleri destek ekibiyle paylaşın.
 
-Hash karşılaştırması için, ısıtmak ve tüketmek niyetinde olduğunuz yapılandırmayı kullanarak bunu her ilgili ortamda çalıştırın:
+Karma karşılaştırması için, ısıtmak ve tüketmek niyetinde olduğunuz yapılandırmayı kullanarak bunu her ilgili ortamda çalıştırın:
 
 ```bash
 tuist hash cache --configuration Debug --verbose
 ```
 
-Modülün tam hash'ini ve bileşen bloğunu karşılaştırın. Komutu aynı değişmemiş makinede tekrarlamak normalde aynı sonucu vermelidir; bir uyumsuzluğu araştırmak için gerçek ısıtma ve tüketme ortamlarını karşılaştırın. Her iki komutun da önbelleğe isabet etmesi gerekmez. Daha fazla kontrol için <.localized_link href="/guides/features/projects/hashing#debugging">hash teşhislerine</.localized_link> bakın.
+Modülün tam karma değerini ve bileşen bloğunu karşılaştırın. Komutu aynı değişmemiş makinede tekrarlamak normalde aynı sonucu vermelidir; bir uyumsuzluğu araştırmak için gerçek ısıtma ve tüketme ortamlarını karşılaştırın. Her iki komutun da önbelleğe isabet etmesi gerekmez. Daha fazla kontrol için <.localized_link href="/guides/features/projects/hashing#debugging">karma teşhislerine</.localized_link> bakın.
 
 ## Verimlilik {#efficiency}
 
-İkili önbellekleme ile elde edilebilecek verimlilik düzeyi büyük ölçüde grafik yapısına bağlıdır. En iyi sonuçları elde etmek için şunları öneririz:
+İkili önbellekleme ile elde edilebilecek verimlilik düzeyi büyük ölçüde graf yapısına bağlıdır. En iyi sonuçları elde etmek için şunları öneririz:
 
-1. Çok iç içe geçmiş bağımlılık grafiklerinden kaçının. Grafik ne kadar sığ olursa o kadar iyidir.
+1. Çok iç içe geçmiş bağımlılık grafiklerinden kaçının. Graf ne kadar sığ olursa, o kadar iyidir.
 2. Bağımlılıkları uygulama hedefleri yerine protokol/arayüz hedefleriyle tanımlayın ve uygulamaları en üst düzey hedeflerden bağımlılık enjeksiyonu ile sağlayın.
-3. Sıkça değiştirilen hedefleri, değişme olasılığı daha düşük olan daha küçük hedeflere bölün.
+3. Sık değiştirilen hedefleri, değişme olasılığı daha düşük olan daha küçük hedeflere bölün.
 
-Yukarıdaki öneriler, projelerinizi yalnızca ikili önbelleklemenin değil, aynı zamanda Xcode'un yeteneklerinin de faydalarını en üst düzeye çıkarmak amacıyla yapılandırmanın bir yolu olarak önerdiğimiz <.localized_link href="/guides/features/projects/tma-architecture">Modüler Mimari</.localized_link>'nin bir parçasıdır.
+Yukarıdaki öneriler, projelerinizi yalnızca ikili önbelleklemeden değil, aynı zamanda Xcode'un yeteneklerinden de maksimum fayda sağlayacak şekilde yapılandırmanın bir yolu olarak önerdiğimiz <.localized_link href="/guides/features/projects/tma-architecture">Modüler Mimari</.localized_link>'nin bir parçasıdır.
 
 ## Önerilen kurulum {#recommended-setup}
 
-Önbelleği ısıtmak için **ana daldeki her commit'te çalışan** bir CI işine sahip olmanızı öneririz. Bu, önbelleğin her zaman `main` içindeki değişiklikler için ikilileri içerdiğini garanti eder, böylece yerel ve CI dal derlemeleri bunların üzerine artımlı olarak inşa edilir.
+Önbelleği ısıtmak için **ana dalda her commit'te çalışan** bir CI işine sahip olmanızı öneririz. Bu, önbelleğin her zaman `main` içindeki değişiklikler için ikilileri içerdiğini garanti eder, böylece yerel ve CI dalları bunlar üzerine artımlı olarak inşa edilir.
 
 > [!TIP]
 > **Önbellek ısıtmayı izole tutun**
 >
-> Oluşturulan çalışma alanına bağımlı sonraki adımlar olmadan, özel bir CI adımında `tuist cache` çalıştırın. `tuist cache` önbellek oluşturma amaçları için çalışma alanını değiştirdiğinden, çalışma alanına ihtiyaç duyan herhangi bir CI adımı taze ve kullanılabilir bir çalışma alanı elde etmek için önce `tuist generate` çalıştırmalıdır.
+> `tuist cache` komutunu, oluşturulan çalışma alanına bağımlı sonraki adımlar olmadan ayrı bir CI adımında çalıştırın. `tuist cache` önbellek oluşturma amacıyla çalışma alanını değiştirdiğinden, çalışma alanına ihtiyaç duyan herhangi bir CI adımı önce taze, kullanılabilir bir çalışma alanı almak için `tuist generate` çalıştırmalıdır.
 
 > [!TIP]
 > **Önbellek ısıtma ikilileri kullanır**
@@ -250,23 +250,23 @@ Hem indirmeleri hem de yüklemeleri sınırlamak için `TUIST_CACHE_CONCURRENCY_
 TUIST_CACHE_CONCURRENCY_LIMIT=2 tuist cache
 ```
 
-Ayarlanmadığında, REAPI yüklemeleri sekiz aktarım görevi kullanır. İndirmeler, herhangi bir blob ByteStream gerektirdiğinde sekiz ve yalnızca toplu planlar için 32 kullanır. Eski HTTP önbellek yolu varsayılan olarak 100'dür; bu varsayılan REAPI için geçerli değildir. Geçersiz değerler, daha önce belgelenen `none` dahil olmak üzere, limitleri kaldırmak yerine varsayılanları korur. Varsayılanları geri yüklemek için `unset TUIST_CACHE_CONCURRENCY_LIMIT` kullanın.
+Ayarlanmadığında, REAPI yüklemeleri sekiz aktarım görevi kullanır. İndirmeler, herhangi bir blob ByteStream gerektirdiğinde sekiz ve yalnızca toplu planlar için 32 kullanır. Eski HTTP önbellek yolu varsayılan olarak 100'dür; bu varsayılan REAPI için geçerli değildir. Geçersiz değerler, daha önce belgelenen `none` dahil, limitleri kaldırmak yerine varsayılanları korur. Varsayılanları geri yüklemek için `unset TUIST_CACHE_CONCURRENCY_LIMIT` kullanın.
 
-Limitler her aktarım işlemi için geçerlidir, işlemler veya CI işleri genelinde küresel olarak uygulanmaz. Limiti iki olan üç eşzamanlı ısıtma işlemi, aynı önbelleğe karşı altı aktif yüklemeye sahip olabilir. Tüketici işleri, varsayılan indirme paralelliğini korumak için değişkeni ayarlanmamış bırakabilir.
+Limitler her aktarım işlemi için geçerlidir, işlemler veya CI işleri genelinde değil. Limiti iki olan üç eşzamanlı ısıtma işlemi, aynı önbelleğe karşı altı aktif yüklemeye sahip olabilir. Tüketici işleri, varsayılan indirme paralelliğini korumak için değişkeni ayarlanmamış bırakabilir.
 
 ### Önbellek ısıtma geçici dizini {#cache-warm-scratch-directory}
 
-Varsayılan olarak, `tuist cache` derleme ara dosyaları ve birleştirilmiş önbellek yapıtları için geçici bir geçici dizin oluşturur ve önbellek ısıtma tamamlandığında bunu kaldırır. Bu dosyaları yönettiğiniz bir dizin altında tutmak için `TUIST_CACHE_WARM_SCRATCH_DIRECTORY` ayarlayın.
+Varsayılan olarak, `tuist cache` derleme ara dosyaları ve birleştirilmiş önbellek yapıtları için geçici bir geçici dizin oluşturur ve önbellek ısıtma tamamlandığında bunu kaldırır. Bu dosyaları yönettiğiniz bir dizin altında tutmak için `TUIST_CACHE_WARM_SCRATCH_DIRECTORY` değerini ayarlayın.
 
 Yol mutlak veya geçerli çalışma dizinine göre göreceli olabilir. Tuist, dizin mevcut olmadığında onu oluşturur. Zaten mevcutsa, boş bir dizin olmalıdır.
 
-Bu ortam değişkeni ayarlandığında, Tuist komut tamamlandıktan sonra dizini ve içeriğini yerinde bırakır. Çağıran, sonraki önbellek ısıtmadan önce temizlemekten sorumludur. Değişken ayarlanmadığında, Tuist geçici bir dizin kullanmaya ve kaldırmaya devam eder.
+Bu ortam değişkeni ayarlandığında, Tuist komut tamamlandıktan sonra dizini ve içeriğini yerinde bırakır. Arayan, sonraki önbellek ısıtmadan önce temizlemekle sorumludur. Değişken ayarlanmadığında, Tuist geçici bir dizin kullanmaya ve kaldırmaya devam eder.
 
-Tuist, yabancı bir derleme hedefinin ısıtılması gerektiğinde çağran tarafından sahip olunan geçici dizini reddeder. Yabancı derleme betikleri kendi çıktı konumlarını kontrol eder, bu nedenle Tuist bu çıktıların geçici dizin içinde kalacağını garanti edemez.
+Tuist, yabancı bir derleme hedefinin ısıtılması gerektiğinde arayan tarafından sahip olunan geçici dizini reddeder. Yabancı derleme betikleri kendi çıktı konumlarını kontrol eder, bu nedenle Tuist bu çıktıların geçici dizin içinde kalacağını garanti edemez.
 
 ### Kod kapsamı {#code-coverage}
 
-Modül önbelleğinden gelen bir hedef önceden oluşturulmuş bir ikilidir ve bir test çalıştırması kodunu yalnızca o ikili kapsam sayaçlarıyla derlendiğinde ölçer. Bu bölüm önbelleğin kapsamı nasıl ele aldığını açıklar; uçtan uca kapsam kurulumu için bkz. <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">Kod Kapsamı</.localized_link>. Projeniz için kapsamı `Tuist.swift` içinde açın:
+Modül önbelleğinden gelen bir hedef önceden derlenmiş bir ikilidir ve bir test çalıştırması kodunu yalnızca o ikili kapsam sayaçlarıyla derlendiğinde ölçer. Bu bölüm önbelleğin kapsamı nasıl ele aldığını açıklar; ucuca kapsam kurulumu için bkz. <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">Kod Kapsamı</.localized_link>. Projeniz için kapsamı `Tuist.swift` içinde açın:
 
 ```swift
 import ProjectDescription
@@ -280,42 +280,42 @@ let tuist = Tuist(
 )
 ```
 
-`enabled` ile, her komut ve her ortam projenizin kendi hedefleri için önbelleğin enstrümantal edilmiş bir varyantını okur, böylece CI üzerindeki tek bir ısıtma hem CI hem de yerel makineler için hizmet verir:
+`enabled` ile, her komut ve her ortam projenizin kendi hedefleri için önbelleğin enstrümanlı bir varyantını okur, böylece CI'daki tek bir ısıtma hem CI hem de yerel makineler için hizmet verir:
 
 | Komut | Projenizin hedefleri | Harici paketler |
 | --- | --- | --- |
-| `tuist cache` (Debug yapılandırması) | Enstrümantal edilmiş ikilileri ısıtır | Düz ikilileri ısıtır |
+| `tuist cache` (Debug yapılandırması) | Enstrümanlı ikilileri ısıtır | Düz ikilileri ısıtır |
 | `tuist cache` (Release yapılandırması) | Düz ikilileri ısıtır | Düz ikilileri ısıtır |
-| `tuist hash cache` | Enstrümantal edilmiş anahtarları yazdırır | Düz anahtarları yazdırır |
-| `tuist generate` | Enstrümantal edilmiş ikilileri okur | Düz ikilileri okur |
-| `tuist test` | Enstrümantal edilmiş ikilileri okur | Düz ikilileri okur |
+| `tuist hash cache` | Enstrümanlı anahtarları yazdırır | Düz anahtarları yazdırır |
+| `tuist generate` | Enstrümanlı ikilileri okur | Düz ikilileri okur |
+| `tuist test` | Enstrümanlı ikilileri okur | Düz ikilileri okur |
 
-Seçenek, Xcode'un Debug olarak treated ettiği her yapılandırmaya uygulanır. Release derlemeleri asla enstrümantal edilmez. Tuist ayrıca bu yapılandırmalarda profil çalışma zamanını bağlar (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`), böylece kapsam toplayamayan derlemeler yine de enstrümantal edilmiş ikilileri bağlar ve otomatik olarak oluşturduğu şemaların test eyleminde ve `coverage` ayarlanmamış bıraktığınız tanımladığınız şemalarda kapsamı açar.
+Seçenek, Xcode'un Debug olarak kabul ettiği her yapılandırma için geçerlidir. Release derlemeleri asla enstrümanlanmaz. Tuist ayrıca bu yapılandırmalarda profil çalışma zamanını bağlar (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`), böylece kapsam toplanmayan derlemeler yine de enstrümanlı ikilileri bağlar ve otomatik olarak oluşturduğu şemaların test eyleminde ve `coverage` ayarlanmamış bıraktığınız tanımladığınız şemaların test eyleminde kapsamı açar.
 
-Tanımladığınız bir şema, kendisi kapsamı ayarlamadığı sürece seçeneği takip eder: `.options(coverage: false)` onu kapalı tutar ve `.options(coverage: true)` seçeneğin ne dediğine bakmaksızın açık tutar. Test planları kapsamı kendileri belirler ve `-enableCodeCoverage` Xcode'da olduğu gibi bir çalıştırmayı hala geçersiz kılar. Kapsam toplamadan enstrümantal edilmiş ikilileri okuyan bir çalıştırma normal şekilde derler ve test eder. Bir çalıştırma kapsam topladığında ancak projenizin hedefleri önbellekten düz ikililer olarak geldiğinde, Tuist kapsamlarının ölçülmediğine dair uyarı verir.
+Tanımladığınız bir şema, kapsamı kendisi ayarlamadığı sürece seçeneği izler: `.options(coverage: false)` onu kapalı tutar ve `.options(coverage: true)` seçeneğin ne dediğine bakmaksızın açık tutar. Test planları kapsamı kendileri belirler ve `-enableCodeCoverage` Xcode'da olduğu gibi bir çalıştırmayı yine de geçersiz kılar. Enstrümanlı ikilileri okuyan ancak kapsam toplamayan bir çalıştırma normal şekilde derler ve test eder. Bir çalıştırma kapsam topladığında ancak projenizin hedefleri önbellekten düz ikililer olarak geldiğinde, Tuist kapsamlarının ölçülmediğine dair uyarı verir.
 
-`TUIST_COVERAGE_ENABLED` ortam değişkeni (`1` veya `0`), `coverage: .coverage(enabled:)` üzerinde önceliklidir. Bunu tek bir komut için değil, tüm bir ortam için (örneğin bir CI iş akışı için) ayarlayın, böylece önbelleği ısıtan komutlar ve onu okuyan komutlar uyumlu olsun.
+`TUIST_COVERAGE_ENABLED` ortam değişkeni (`1` veya `0`), `coverage: .coverage(enabled:)` üzerinde önceliklidir. Bunu tek bir komut için değil, tüm bir ortam için (örneğin bir CI iş akışı için) ayarlayın, böylece önbelleği ısıtan komutlar ile onu okuyan komutlar uyumlu olsun.
 
 `prefixMapping` (bkz. <.localized_link href="/guides/features/cache/xcode-cache#coverage-with-prefix-mapping">Xcode önbelleği</.localized_link>) kendi geçersiz kılmasına sahiptir: `TUIST_COVERAGE_PREFIX_MAPPING` ortam değişkeni (`1` veya `0`), `coverage: .coverage(prefixMapping:)` üzerinde önceliklidir.
 
-Kapalıya geçersiz kılmak, kapsam açıkken ısıtılan bir önbelleğin doldurmadığı düz varyantı okur, bu nedenle bu hedefler kaynaktan derlenir. Bir Release ısıtma her zaman düz ikilileri ısıtır.
+Kapalıya geçersiz kılmak düz varyantı okur; kapsam açıkken ısıtılan bir önbellek bunu doldurmaz, bu nedenle bu hedefler kaynaktan derlenir. Bir Release ısıtma her zaman düz ikilileri ısıtır.
 
 > [!IMPORTANT] KEEP THE VALUES THE SAME EVERYWHERE
-> `enabled` ve `prefixMapping`, projenizin hedeflerinin derleme ayarlarını ve önbellek anahtarlarını ve test hedeflerinin seçici test hashlerini değiştirir. Bunları önbelleği paylaşan her makinede aynı değere ayarlayın ve bunları ortamdan türetmeyin (örneğin `Environment.isCI` üzerinden): CI ve yerel makineler arasında farklılık gösteren bir değer onlara farklı anahtarlar verir. Aynısı ortam değişkenleri için de geçerlidir: `TUIST_COVERAGE_ENABLED=0` ile yapılan bir çalıştırma, kapsamı açık olan çalıştırmaların ikililerini veya seçici test sonuçlarını yeniden kullanmaz.
+> `enabled` ve `prefixMapping`, projenizin hedeflerinin derleme ayarlarını ve önbellek anahtarlarını ve test hedeflerinin seçici test hash'lerini değiştirir. Önbelleği paylaşan her makinede bunları aynı değere ayarlayın ve ortamdan türetmeyin (örneğin `Environment.isCI` üzerinden): CI ve yerel makineler arasında farklılık gösteren bir değer onlara farklı anahtarlar verir. Aynı durum ortam değişkenleri için de geçerlidir: `TUIST_COVERAGE_ENABLED=0` ile yapılan bir çalıştırma, kapsamı açık olan çalıştırmaların ikililerini veya seçici test sonuçlarını yeniden kullanmaz.
 
-Unutmayın:
+Şunları göz önünde bulundurun:
 
-- Enstrümantal edilmiş ikililer daha büyüktür: statik arşivler ve dinamik kütüphaneler için yaklaşık %20–30. Debug derlemeleri aynı hızda çalışır.
-- Xcode'un kapsam raporu, bu seçenekle veya onsuz, önbellekten gelen kodu asla göstermez. Tuist'in kapsam yüklemesi bunu ölçer. Xcode'da bir hedefin kapsamını görmek için, kaynaktan derlenmesi amacıyla `tuist generate <target>` ile ona odaklanın.
+- Enstrümanlı ikililer daha büyüktür: statik arşivler ve dinamik kütüphaneler için yaklaşık %20–30. Debug derlemeleri aynı hızda çalışır.
+- Xcode'un kapsam raporu, bu seçenek açık veya kapalı olsun, önbellekten gelen kodu asla göstermez. Tuist'in kapsam yüklemesi bunu ölçer. Xcode'da bir hedefin kapsamını görmek için, kaynaktan derlenmesi amacıyla `tuist generate <target>` ile ona odaklanın.
 
 ## Sorun giderme {#troubleshooting}
 
 ### Hedeflerim için ikilileri kullanmıyor {#it-doesnt-use-binaries-for-my-targets}
 
-Ortamlar ve çalıştırmalar arasında <.localized_link href="/guides/features/projects/hashing#debugging">hashlerin deterministik olduğundan</.localized_link> emin olun. Bu, projenin ortama referansları varsa, örneğin mutlak yollar üzerinden, gerçekleşebilir. `tuist generate` ardışık iki çağrısıyla veya ortamlar ya da çalıştırmalar arasında oluşturulan projeleri karşılaştırmak için `diff` komutunu kullanabilirsiniz.
+Ortamlar ve çalıştırmalar arasında <.localized_link href="/guides/features/projects/hashing#debugging">hash'lerin deterministik</.localized_link> olduğundan emin olun. Bu, projenin ortama referansları varsa, örneğin mutlak yollar aracılığıyla, gerçekleşebilir. İki ardışık `tuist generate` çağrısı tarafından veya ortamlar ya da çalıştırmalar arasında oluşturulan projeleri karşılaştırmak için `diff` komutunu kullanabilirsiniz.
 
-Ayrıca hedefin doğrudan veya dolaylı olarak bir <.localized_link href="/guides/features/cache/module-cache#supported-products">önbellenemez hedefe</.localized_link> bağımlı olmadığından emin olun.
+Ayrıca hedefin doğrudan veya dolaylı olarak bir <.localized_link href="/guides/features/cache/module-cache#supported-products">önbelleklenemez hedefe</.localized_link> bağımlı olmadığından emin olun.
 
 ### Eksik semboller {#missing-symbols}
 
-Kaynakları kullanırken, Xcode'un derleme sistemi Derived Data aracılığıyla açıkça bildirilmeyen bağımlılıkları çözebilir. Ancak, ikili önbelleğe güvendiğinizde bağımlılıklar açıkça bildirilmelidir; aksi takdirde semboller bulunamadığında derleme hataları görmeniz muhtemeldir. Bunu hata ayıklamak için <.localized_link href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect dependencies --only implicit`</.localized_link> komutunu kullanmanızı ve örtük bağlantıda gerilemeleri önlemek için bunu CI'da kurmanızı öneririz.
+Kaynaklar kullanılırken, Xcode'un derleme sistemi Derived Data aracılığıyla açıkça bildirilmeyen bağımlılıkları çözebilir. Ancak, ikili önbelleğe güvendiğinizde bağımlılıkların açıkça bildirilmesi gerekir; aksi takdirde semboller bulunamadığında derleme hataları görmeniz muhtemeldir. Bunu hata ayıklamak için, <.localized_link href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect dependencies --only implicit`</.localized_link> komutunu kullanmanızı ve örtük bağlantıda gerilemeleri önlemek için bunu CI'da kurmanızı öneririz.

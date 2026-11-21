@@ -10,20 +10,20 @@
 > [!IMPORTANT]
 > **必要條件**
 >
-> - 已設定 <.localized_link href="/guides/features/test-insights/xcode">Xcode 測試洞察</.localized_link>。分片會使用過去 30 天的測試洞察時間數據來平衡各分片；若未提供洞察，每個分片都會以未知的測試套件方式執行。
+> - 已設定 <.localized_link href="/guides/features/test-insights/xcode">Xcode 測試洞察</.localized_link>。分片會使用過去 30 天的測試洞察時間數據來平衡各分片；若未提供洞察數據，每個分片都會將測試套件視為未知並執行。
 
-針對 Xcode 專案的測試分片會使用 `tuist xcodebuild build-for-testing` 建立分片計畫，並使用 `tuist xcodebuild test` 執行每個分片。
+Xcode 專案的測試分片會使用 `tuist xcodebuild build-for-testing` 建立分片計畫，並使用 `tuist xcodebuild test` 執行每個分片。
 
 ## 運作方式 {#how-it-works}
 
-測試分片採用兩階段工作流程：
+測試分片遵循兩階段工作流程：
 
-1. **建置階段：** Tuist 從已建置的 `.xctestrun` 檔案讀取測試模組，並在伺服器上建立 **分片計畫**。伺服器會使用過去 30 天的歷史測試時間數據，將測試分配到各個分片，使每個分片的執行時間大致相同。建置階段會輸出一個 **分片矩陣**，供你的 CI 系統用來產生平行執行器。
-2. **測試階段：** 每個持續整合執行器會收到一個 **分片索引** 與確切的 **分片計畫識別碼**，然後執行該計畫所選取的測試。
+1. **建置階段：** Tuist 從已建置的 `.xctestrun` 檔案讀取測試模組，並在伺服器上建立 **分片計畫**。伺服器會使用過去 30 天的歷史測試時間數據，將測試分配至各個分片，使每個分片的執行時間大致相同。建置階段會輸出 **分片矩陣**，供你的 CI 系統用來產生平行執行器。
+2. **測試階段：** 每個持續整合執行器會收到一個 **分片索引** 與精確的 **分片計畫識別碼**，然後執行該計畫所選取的測試。
 
-在使用套件粒度的情況下，伺服器會使用近期在你分支上的 CI 執行回報給目前 `.xctestrun` 中每個模組的套件；若模組沒有分支歷史記錄，則回退至專案的預設分支。合併多次執行結果可保留被分片或選擇性執行遺漏於最新報告中的套件。
+採用套件粒度時，伺服器會使用近期在該分支上的 CI 執行結果中，為目前 `.xctestrun` 內每個模組回報的測試套件；若模組缺乏分支歷史記錄，則退回使用專案的預設分支。合併多次執行結果可保留那些在最新報告中被分片或選擇性執行遺漏的套件。
 
-當使用 `--shard-granularity suite` 時，Tuist 會在要求的分片數量之間平衡已知套件，並將最後一個分片作為兜底分片。例如，`--shard-total 5` 會產生分片索引 `0` 到 `4`，其中分片索引 `4` 為兜底分片。常規分片會針對其分配的套件使用 `-only-testing` 執行。最後一個分片不會使用 `-only-testing`，而是對所有分配給前面分片的套件傳遞 `-skip-testing`，因此它會執行其規劃的套件，以及新增的套件或歷史清單中缺少的套件。模組粒度不需要兜底分片，因為 `.xctestrun` 檔案已提供模組清單。
+使用 `--shard-granularity suite` 時，Tuist 會在要求的分片數量之間平衡已知的測試套件，並將最後一個分片作為兜底分片。例如，`--shard-total 5` 會產生從 `0` 到 `4` 的分片索引，其中分片索引 `4` 為兜底分片。一般分片會針對其分配的套件使用 `-only-testing` 執行。最後一個分片則不使用 `-only-testing`，並對所有分配給前幾個分片的套件傳遞 `-skip-testing`，因此它會執行其規劃的套件，以及新加入的套件或歷史清單中缺少的套件。模組粒度不需要兜底分片，因為 `.xctestrun` 檔案已提供模組清單。
 
 ## 建置階段 {#build-phase}
 
@@ -38,7 +38,7 @@ tuist xcodebuild build-for-testing \
 
 此指令會：
 1. 使用 `xcodebuild build-for-testing` 建置你的測試
-2. 在 Tuist 伺服器上使用歷史時間數據建立分片計畫
+2. 使用歷史時間數據在 Tuist 伺服器上建立分片計畫
 3. 上傳 `.xctestproducts` 套件，或寫入供分片執行器使用的分片封存檔
 4. 為你的 CI 系統輸出分片矩陣
 
@@ -107,7 +107,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-Tuist 會產生一個 `.tuist-shard-child-pipeline.yml`，你可以將其觸發為 [子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
+Tuist 會產生 `.tuist-shard-child-pipeline.yml`，你可將其觸發為 [子管線](https://docs.gitlab.com/ci/pipelines/downstream_pipelines/#parent-child-pipelines)。定義一個 `.tuist-shard` 範本工作，讓產生的分片工作繼承：
 
 ```yaml
 # .gitlab-ci.yml
@@ -153,7 +153,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist 會產生一個包含 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 參數的 `.tuist-shard-continuation.json`。`shard-plan-id` 參數必須在你的延續設定中宣告：
+Tuist 會產生包含 [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) 所需參數的 `.tuist-shard-continuation.json`。`shard-plan-id` 參數必須在你的延續組態中宣告：
 
 ```yaml
 # .circleci/config.yml
@@ -232,7 +232,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-Tuist 會產生一個 `.tuist-shard-pipeline.yml`，每個分片對應一個步驟。使用 `buildkite-agent pipeline upload` 上傳：
+Tuist 會產生 `.tuist-shard-pipeline.yml`，其中每個分片對應一個步驟。使用 `buildkite-agent pipeline upload` 上傳：
 
 ```yaml
 # pipeline.yml
@@ -249,7 +249,7 @@ steps:
       queue: macos
 ```
 
-每個產生的步驟都在其環境中設定了 `TUIST_SHARD_INDEX` 與 `TUIST_SHARD_PLAN_ID`。使用共用腳本將測試指令加入每個分片步驟：
+每個產生的步驟都在其環境中設定了 `TUIST_SHARD_INDEX` 和 `TUIST_SHARD_PLAN_ID`。使用共用腳本將測試指令加入每個分片步驟：
 
 ```bash
 # .buildkite/shard-step.sh
@@ -262,7 +262,7 @@ tuist xcodebuild test \
 
 ### Codemagic {#codemagic}
 
-Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 與 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，供建置工作流程使用。Codemagic 的 `CM_ENV` 僅限於工作流程範圍，因此確切的分片計畫識別碼不會跨越工作流程邊界；測試工作流程會回退至基於參考的分片查找：
+Codemagic 不支援動態矩陣工作，因此請為每個分片定義獨立的工作流程。Tuist 會將 `TUIST_SHARD_MATRIX` 和 `TUIST_SHARD_COUNT` 寫入 `CM_ENV` 檔案，供建置工作流程使用。Codemagic 的 `CM_ENV` 僅限於工作流程範圍，因此精確的分片計畫識別碼不會跨越工作流程邊界；測試工作流程會退回使用基於參考的分片查詢：
 
 ```yaml
 # codemagic.yaml
@@ -331,7 +331,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json`（包含 `shard_plan_id`）寫入 `BITRISE_DEPLOY_DIR`，使其可作為下游管線階段的建置產物。每個測試工作流程會使用 `envman` 從下載的產物中提取計畫 ID，以便將其傳遞至測試指令的環境：
+在 Bitrise 上，Tuist 會將 `.tuist-shard-matrix.json`（包含 `shard_plan_id`）寫入 `BITRISE_DEPLOY_DIR`，使其可作為下游管線階段的建置產物。每個測試工作流程會使用 `envman` 從下載的產物中提取計畫 ID，以便將其傳入測試指令的環境：
 
 ```yaml
 # bitrise.yml
@@ -409,13 +409,13 @@ workflows:
 
 ## 共用磁碟區 {#shared-volumes}
 
-預設情況下，建置階段會將 `.xctestproducts` 套件上傳至遠端儲存空間，而每個分片執行器會下載該套件。如果你的 CI 供應商支援 **共用磁碟區**（跨工作掛載的持久化儲存空間），你可以透過共用檔案系統傳遞測試產物，完全略過此上傳/下載過程。
+預設情況下，建置階段會將 `.xctestproducts` 套件上傳至遠端儲存空間，而每個分片執行器會下載該套件。如果你的 CI 提供者支援 **共用磁碟區**（跨工作掛載的持久化儲存空間），你可以透過共用檔案系統傳遞測試產物，完全略過此上傳/下載過程。
 
-這可以顯著縮短分片啟動時間，尤其是對於大型測試套件。
+這可以顯著減少分片啟動時間，特別是對於大型測試套件。
 
 若要使用共用磁碟區：
 
-1. 在 **建置階段** 中，傳遞指向共用磁碟區的 `-testProductsPath`，並加入 `--shard-skip-upload` 以略過遠端上傳：
+1. 在 **建置階段**中，傳遞指向共用磁碟區的 `-testProductsPath`，並加入 `--shard-skip-upload` 以略過遠端上傳：
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -426,7 +426,7 @@ tuist xcodebuild build-for-testing \
   -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
-2. 在 **測試階段** 中，傳遞相同的 `-testProductsPath`，讓 Tuist 從本機讀取測試產物而非下載：
+2. 在 **測試階段**中，傳遞相同的 `-testProductsPath`，讓 Tuist 從本機讀取測試產物而非下載：
 
 ```sh
 tuist xcodebuild test \
@@ -436,7 +436,7 @@ tuist xcodebuild test \
 ```
 
 > [!IMPORTANT]
-> 為每個工作流程執行使用唯一路徑（例如包含 CI 執行 ID），以避免並行執行之間的衝突。你也應該在分片完成後清理測試產物，避免在磁碟區上累積過時的資料。
+> 為每次工作流程執行使用唯一的路徑（例如包含 CI 執行 ID），以避免同時執行之間發生衝突。你還應在分片完成後清理測試產物，避免在磁碟區上累積過時的資料。
 
 | 旗標 | 環境變數 | 說明 |
 |------|---------------------|-------------|
@@ -444,9 +444,9 @@ tuist xcodebuild test \
 
 ## 自行管理的產物 {#self-managed-artifacts}
 
-如果你的 CI 供應商已具備產物上傳與下載步驟，你可以讓 Tuist 處理封存與解壓縮，而由你的 CI 負責傳輸。
+如果你的 CI 提供者已有產物上傳與下載步驟，你可以讓 Tuist 處理封存與解壓縮，而由你的 CI 負責傳輸。
 
-1. 在 **建置階段** 中，傳遞 `--shard-archive-path`，讓 Tuist 將其最佳化的分片封存寫入本機，而非上傳測試產物：
+1. 在 **建置階段**中，傳遞 `--shard-archive-path`，讓 Tuist 將其最佳化的分片封存寫入本機，而非上傳測試產物：
 
 ```sh
 tuist xcodebuild build-for-testing \
@@ -456,9 +456,9 @@ tuist xcodebuild build-for-testing \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-2. 使用你 CI 的原生產物步驟上傳該封存。
+2. 使用你的 CI 原生產物步驟上傳該封存。
 
-3. 在每個 **測試階段** 工作中，下載封存並將相同路徑傳回給 Tuist：
+3. 在每個 **測試階段**工作中，下載封存並將相同路徑傳回給 Tuist：
 
 ```sh
 tuist xcodebuild test \
@@ -467,11 +467,11 @@ tuist xcodebuild test \
   --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
 ```
 
-設定 `--shard-archive-path` 時，Tuist 會略過遠端測試產物傳輸，改用本機封存。如果你也傳遞 `--shard-skip-upload`，則封存路徑具有優先權。
+設定 `--shard-archive-path` 時，Tuist 會略過遠端測試產物傳輸，改使用本機封存。如果你也傳遞 `--shard-skip-upload`，則封存路徑具有優先權。
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) 執行器與 GitHub Actions 產物搭配運作良好。設定一次 `TUIST_TEST_SHARD_ARCHIVE_PATH`，讓建置工作將分片封存寫入本機、上傳它，並在每個分片工作執行 `tuist xcodebuild test` 之前下載它：
+[Namespace](https://namespace.so) 執行器與 GitHub Actions 產物搭配良好。設定一次 `TUIST_TEST_SHARD_ARCHIVE_PATH`，讓建置工作將分片封存寫入本機、上傳它，並在每個分片工作中於執行 `tuist xcodebuild test` 之前下載它：
 
 ```yaml
 name: Tests

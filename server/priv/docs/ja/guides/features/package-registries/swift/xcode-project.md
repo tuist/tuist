@@ -11,15 +11,15 @@ Xcode プロジェクトでレジストリを使用してパッケージを追�
 
 ![パッケージ依存関係の追加](/images/guides/features/build/registry/registry-add-package.png)
 
-## ソースコントロールパッケージの解決 {#resolving-source-control-packages}
+## ソース管理パッケージの解決 {#resolving-source-control-packages}
 
-追加したパッケージの推移的な依存関係など、ソースコントロール URL で宣言されたパッケージは、デフォルトではソースコントロールから解決されます。`tuist registry setup` は、以下のユーザーデフォルトを書き込むことで、代わりにレジストリから解決するように Xcode を構成します。
+追加したパッケージの推移的な依存関係など、ソース管理 URL で宣言されたパッケージは、デフォルトではソース管理から解決されます。`tuist registry setup` は、以下のユーザーデフォルトを書き込むことで、代わりにレジストリからそれらを解決するように Xcode を構成します。
 
 ```bash
 defaults write com.apple.dt.Xcode IDEPackageDependencySCMToRegistryTransformation useRegistryIdentityAndSources
 ```
 
-その後、Xcode はレジストリに同等のパッケージが存在する場合はレジストリからソースコントロールパッケージを解決し、存在しない場合はソースコントロールにフォールバックします。
+その後、Xcode はレジストリに対応するものが存在する場合、ソース管理パッケージをレジストリから解決し、存在しない場合はソース管理にフォールバックします。
 
 > [!NOTE]
-> これはマシンごとの Xcode 設定であり、プロジェクト設定ではないため、レジストリ構成ファイルをコミットしてもチームの他のメンバーと共有されません。各開発者は自分のマシンで `tuist registry setup` を一度実行する必要があります。この設定は、そのマシン上のすべての Xcode プロジェクトに適用されます。
+> これはマシンごとの Xcode 設定であり、プロジェクト設定ではないため、レジストリ設定ファイルをコミットしてもチームの他のメンバーと共有されません。各開発者は、自分のマシンで `tuist registry setup` を一度実行する必要があります。この設定は、そのマシン上のすべての Xcode プロジェクトに適用されます。

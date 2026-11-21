@@ -9,12 +9,12 @@
 
 Tuist admite el aprovisionamiento SCIM 2.0 para que un proveedor de identidad pueda crear, actualizar y desaprovisionar miembros de la organización automáticamente.
 
-SCIM se configura desde la pestaña **Authentication** en la configuración de tu organización. El token SCIM es un token de cuenta propiedad de la organización con ámbito de acceso a SCIM y solo se muestra una vez al generarse.
+SCIM se configura desde la pestaña **Authentication** en la configuración de tu organización. El token SCIM es un token de cuenta propiedad de la organización con ámbito de acceso a SCIM y se muestra solo una vez al generarse.
 
 > [!NOTE]
-> SCIM controla la pertenencia y el ciclo de vida. No reemplaza a <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link>. Configura SSO por separado si los usuarios aprovisionados también deben iniciar sesión a través de tu proveedor de identidad.
+> SCIM controla la membresía y el ciclo de vida. No reemplaza a <.localized_link href="/guides/integrations/authentication/sso">Single Sign-On</.localized_link>. Configura SSO por separado si los usuarios aprovisionados también deben iniciar sesión a través de tu proveedor de identidad.
 
-Los usuarios aprovisionados ya son miembros de la organización. Cuando inician sesión con la misma dirección de correo electrónico, esa pertenencia puede establecer confianza para vincular su identidad del proveedor. El <.localized_link href="/guides/integrations/authentication/sso#verify-a-login-email-domain">dominio de correo electrónico de inicio de sesión verificado</.localized_link> y la <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">política de inscripción</.localized_link> controlan a los usuarios que aún no han sido aprovisionados ni añadidos a la organización.
+Los usuarios aprovisionados ya son miembros de la organización. Cuando inician sesión con la misma dirección de correo electrónico, esa membresía puede establecer confianza para vincular su identidad del proveedor. El <.localized_link href="/guides/integrations/authentication/sso#verify-a-login-email-domain">dominio de correo electrónico de inicio de sesión verificado</.localized_link> y la <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">política de inscripción</.localized_link> controlan a los usuarios que aún no han sido aprovisionados o añadidos a la organización.
 
 ## Okta {#okta}
 
@@ -23,11 +23,11 @@ Okta utiliza dos aplicaciones separadas para Tuist:
 - Una **aplicación web OIDC** para iniciar sesión en Tuist.
 - Una aplicación **SCIM 2.0 Test App (Header Auth)** para aprovisionar usuarios y grupos en Tuist.
 
-Configura primero <.localized_link href="/guides/integrations/authentication/sso#okta">Okta SSO</.localized_link> si los usuarios deben iniciar sesión con Okta y, a continuación, configura el aprovisionamiento SCIM con los pasos siguientes.
+Configura primero <.localized_link href="/guides/integrations/authentication/sso#okta">Okta SSO</.localized_link> si los usuarios deben iniciar sesión con Okta, luego configura el aprovisionamiento SCIM con los pasos siguientes.
 
 ### Paso 1: Generar un token SCIM de Tuist {#okta-step-1}
 
-1. En Tuist, navega a la pestaña de configuración **Authentication** de tu organización.
+1. En Tuist, navega a la pestaña de configuración de **Authentication** de tu organización.
 2. En la sección **SCIM provisioning**, copia la **URL del punto final de SCIM**. Debe terminar en `/scim/v2`.
 3. Haz clic en **Generate token**.
 4. Asigna un nombre al token (por ejemplo, `Okta`).
@@ -35,10 +35,10 @@ Configura primero <.localized_link href="/guides/integrations/authentication/sso
 
 ### Paso 2: Añadir la aplicación SCIM de Okta {#okta-step-2}
 
-1. En el panel de administración de Okta, ve a **Applications > Applications > Browse App Catalog**.
+1. En tu panel de administración de Okta, ve a **Applications > Applications > Browse App Catalog**.
 2. Busca y añade **SCIM 2.0 Test App (Header Auth)**.
 3. Ponle un nombre reconocible, como `Tuist SCIM`.
-4. Completa la configuración de inicio de sesión para la aplicación de prueba SCIM. Tuist no utiliza esta aplicación para el inicio de sesión; este lo gestiona la aplicación OIDC de la guía de SSO.
+4. Completa la configuración de inicio de sesión para la aplicación de prueba SCIM. Tuist no utiliza esta aplicación para iniciar sesión; el inicio de sesión lo gestiona la aplicación OIDC de la guía de SSO.
 
 ### Paso 3: Configurar la integración de API {#okta-step-3}
 
@@ -66,9 +66,9 @@ Configura primero <.localized_link href="/guides/integrations/authentication/sso
 1. Abre la pestaña **Assignments** de la aplicación SCIM.
 2. Asigna los usuarios o grupos que deben aprovisionarse en Tuist.
 3. Asigna los mismos usuarios o grupos a la aplicación OIDC de Okta si también deben poder iniciar sesión con SSO.
-4. Consulta la pestaña **Members** de Tuist para verificar que los usuarios asignados aparecen en la organización.
+4. Revisa la pestaña **Members** de Tuist para verificar que los usuarios asignados aparezcan en la organización.
 
-Para probar el desaprovisionamiento, cancela la asignación o desactiva un usuario en Okta y verifica que desaparece de la pestaña **Members** de la organización de Tuist.
+Para probar el desaprovisionamiento, elimina la asignación o desactiva un usuario en Okta y verifica que desaparezca de la pestaña **Members** de la organización de Tuist.
 
 ### Asignación de roles {#okta-assigning-roles}
 
@@ -80,17 +80,17 @@ Tuist tiene tres <.localized_link href="/guides/server/accounts-and-projects#rol
 4. Selecciona un grupo de Okta, elige **Link Group** como acción de push y selecciona el grupo de Tuist correspondiente. Tuist no admite la creación de grupos a través de SCIM, así que vincúlalo a un grupo existente en lugar de crear uno nuevo.
 5. Haz clic en **Save** y repite el proceso para los roles restantes.
 
-Añadir un usuario a un grupo vinculado le otorga ese rol. Eliminarlo del grupo lo devuelve al rol con el que la organización registra a los miembros de inicio de sesión único, que es `user` a menos que un administrador lo haya cambiado en **Settings > Authentication**. Los usuarios que no están en ningún grupo vinculado también obtienen ese rol. Eliminar a un usuario de un grupo no lo elimina de la organización; para hacerlo, cancela su asignación o desactívalo en Okta.
+Añadir un usuario a un grupo vinculado le otorga ese rol. Eliminarlo del grupo lo devuelve al rol con el que la organización registra a los miembros de inicio de sesión único, que es `user` a menos que un administrador lo haya cambiado en **Settings > Authentication**. Los usuarios que no están en ningún grupo vinculado también obtienen ese rol. Eliminar a un usuario de un grupo no lo elimina de la organización; para ello, elimina su asignación o desactívalo en Okta.
 
 ## Microsoft Entra ID {#microsoft-entra-id}
 
-Entra ID aprovisiona Tuist a través de una aplicación empresarial fuera del catálogo. Configura primero <.localized_link href="/guides/integrations/authentication/sso#microsoft-entra-id">Microsoft Entra ID SSO</.localized_link> si los usuarios también deben iniciar sesión con Entra ID.
+Entra ID aprovisiona Tuist a través de una aplicación empresarial que no está en la galería. Configura primero <.localized_link href="/guides/integrations/authentication/sso#microsoft-entra-id">Microsoft Entra ID SSO</.localized_link> si los usuarios también deben iniciar sesión con Entra ID.
 
-La aplicación que registras para el inicio de sesión único y la aplicación empresarial que utilizas para el aprovisionamiento pueden ser la misma. El aprovisionamiento se configura en la entrada de la aplicación empresarial.
+La aplicación que registras para el inicio de sesión único y la aplicación empresarial que usas para el aprovisionamiento pueden ser la misma. El aprovisionamiento se configura en la entrada de la aplicación empresarial.
 
 ### Paso 1: Generar un token SCIM de Tuist {#entra-step-1}
 
-1. En Tuist, navega a la pestaña de configuración **Authentication** de tu organización.
+1. En Tuist, navega a la pestaña de configuración de **Authentication** de tu organización.
 2. En la sección **SCIM provisioning**, copia la **URL del punto final de SCIM**. Debe terminar en `/scim/v2`.
 3. Haz clic en **Generate token**.
 4. Asigna un nombre al token (por ejemplo, `Entra ID`).
@@ -123,41 +123,41 @@ Los grupos SCIM de Tuist son un grupo fijo por rol de organización, no grupos d
 
 1. Abre la pestaña **Users and groups** de la aplicación y asigna los usuarios o grupos que deben aprovisionarse en Tuist.
 2. Vuelve a **Provisioning** e inícialo.
-3. Consulta la pestaña **Members** de Tuist para verificar que los usuarios asignados aparecen en la organización.
+3. Revisa la pestaña **Members** de Tuist para verificar que los usuarios asignados aparezcan en la organización.
 
-Entra ID realiza el aprovisionamiento según su propia programación, que suele ser cada 40 minutos, por lo que los miembros no aparecen al instante. Usa **Provision on demand** para probar un único usuario de inmediato.
+Entra ID realiza el aprovisionamiento según su propio calendario, que suele ser cada 40 minutos, por lo que los miembros no aparecen al instante. Usa **Provision on demand** para probar un único usuario de inmediato.
 
 Para probar la desprovisión, anula la asignación o deshabilita un usuario en Entra ID y verifica que desaparezca de la pestaña **Members** de la organización de Tuist.
 
-Si más adelante cambias el alcance del aprovisionamiento, por ejemplo de **Sync all users and groups** a **Sync only assigned users and groups**, haz clic en **Restart provisioning** después. Entra ID aplica el nuevo alcance, incluida la desprovisión de usuarios que ya no están en él, solo después de un reinicio.
+Si más adelante cambias el alcance del aprovisionamiento, por ejemplo de **Sync all users and groups** a **Sync only assigned users and groups**, haz clic en **Restart provisioning** después. Entra ID aplica el nuevo alcance, incluida la desprovisión de usuarios que ya no están en él, solo después de reiniciar.
 
 ### Asignación de roles {#entra-assigning-administrators}
 
 Tuist tiene tres <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user` y `viewer`. Para configurarlos desde Entra ID:
 
 1. En **App registrations**, abre la aplicación de Tuist y añade un rol de aplicación por cada rol de Tuist que quieras asignar. Establece **Allowed member types** en **Users/Groups** y **Value** en `admin`, `user` o `viewer`.
-2. En la pestaña **Users and groups** de la aplicación empresarial, asigna a cada usuario o grupo uno de esos roles de aplicación. Un usuario puede tener varios roles de aplicación. Tuist aplica el más privilegiado, donde `admin` tiene prioridad sobre `user` y `user` sobre `viewer`, por lo que un usuario que pertenezca a grupos asignados a distintos roles obtiene el de mayor jerarquía.
+2. En la pestaña **Users and groups** de la aplicación empresarial, asigna a cada usuario o grupo uno de esos roles de aplicación. Un usuario puede tener varios roles de aplicación. Tuist aplica el más privilegiado, donde `admin` tiene prioridad sobre `user` y `user` sobre `viewer`, por lo que un usuario que pertenezca a grupos mapeados a diferentes roles obtiene el de mayor privilegio.
 3. En **Provisioning > Mappings**, abre el menú desplegable **Advanced Options** y selecciona **Edit target User attributes**. Añade un atributo llamado `roles` con **Type** establecido en `String` y marca **Multi-Value**.
 4. En **Provisioning > Mappings > Provision Microsoft Entra ID Users**, haz clic en **Add New Mapping**. Establece **Mapping type** en **Expression**, **Expression** en `AssertiveAppRoleAssignmentsComplex([appRoleAssignments])` y **Target attribute** en el atributo `roles` que has añadido.
 5. Mantén el alcance del aprovisionamiento configurado en **Sync only assigned users and groups**. `AssertiveAppRoleAssignmentsComplex` no es compatible con **Sync all users and groups**.
 
-`AssertiveAppRoleAssignmentsComplex` envía todos los roles de aplicación que tiene un usuario y también envía eliminaciones, por lo que quitar un rol en Entra ID reduce al usuario al rol más privilegiado que aún conserve. `SingleAppRoleAssignment([appRoleAssignments])` asignado a `roles[primary eq "True"].value` también funciona, pero solo envía un rol y Entra ID no garantiza cuál elige cuando un usuario tiene varios.
+`AssertiveAppRoleAssignmentsComplex` envía todos los roles de aplicación que tiene un usuario y también envía eliminaciones, por lo que quitar un rol en Entra ID reduce al usuario al rol más privilegiado que aún conserve. `SingleAppRoleAssignment([appRoleAssignments])` mapeado a `roles[primary eq "True"].value` también funciona, pero solo envía un rol y Entra ID no garantiza cuál elige cuando un usuario tiene varios.
 
-Cambiar los roles de aplicación de un usuario en Entra ID actualiza su rol en Tuist en el siguiente ciclo de aprovisionamiento. Un usuario aprovisionado sin un rol de aplicación o con valores distintos de `admin`, `user` o `viewer` recibe el rol con el que la organización registra a los miembros de inicio de sesión único, que es `user` a menos que un administrador lo haya cambiado en **Settings > Authentication**.
+Cambiar los roles de aplicación de un usuario en Entra ID actualiza su rol en Tuist en el siguiente ciclo de aprovisionamiento. Un usuario aprovisionado sin un rol de aplicación, o con valores distintos de `admin`, `user` o `viewer`, obtiene el rol con el que la organización registra a los miembros de inicio de sesión único, que es `user` a menos que un administrador lo haya cambiado en **Settings > Authentication**.
 
 ## Comportamiento del ciclo de vida {#lifecycle-behavior}
 
-Cuando tu proveedor de identidad asigna un usuario a la aplicación de aprovisionamiento, Tuist crea el usuario si el correo electrónico no es conocido previamente por Tuist y luego lo añade a la organización. Si el correo electrónico ya pertenece a un usuario existente de Tuist fuera de la organización, Tuist añade a ese usuario y le envía un correo al respecto, a menos que la integración SCIM de otra organización haya creado la cuenta. En ese caso, Tuist rechaza la solicitud con `409`, para que un proveedor de identidad no pueda reclamar una cuenta gestionada por otra organización.
+Cuando tu proveedor de identidad asigna un usuario a la aplicación de aprovisionamiento, Tuist crea el usuario si el correo electrónico no es conocido previamente por Tuist y luego lo añade a la organización. Si el correo electrónico ya pertenece a un usuario existente de Tuist fuera de la organización, Tuist añade a ese usuario y le envía un correo electrónico al respecto, a menos que la integración SCIM de otra organización haya creado la cuenta. En ese caso, Tuist rechaza la solicitud con `409`, para que un proveedor de identidad no pueda reclamar una cuenta gestionada por otra organización.
 
-Tu proveedor de identidad puede cambiar el correo electrónico de un usuario (`userName`) solo mientras tu organización gestione la cuenta por sí misma. Esto significa que Tuist creó la cuenta a través de tu integración SCIM y, desde entonces, el usuario no ha establecido una contraseña, no ha iniciado sesión con un proveedor distinto del inicio de sesión único de tu organización, no ha reclamado un registro de agente ni se ha unido a otra organización. Para cualquier otro usuario, Tuist rechaza el cambio con `400` y el tipo de error SCIM `mutability`. Sigue aplicando una desactivación enviada en la misma solicitud. Tuist también se niega a crear usuarios en, o renombrar usuarios hacia, un dominio de inicio de sesión verificado por otra organización y, en tuist.dev, al propio dominio de Tuist. Un cambio de nombre borra el registro de que el usuario demostró el control de la dirección anterior.
+Tu proveedor de identidad puede cambiar el correo electrónico de un usuario (`userName`) solo mientras tu organización gestione la cuenta por sí misma. Esto significa que Tuist creó la cuenta a través de tu integración SCIM y, desde entonces, el usuario no ha establecido una contraseña, no ha iniciado sesión con un proveedor distinto del inicio de sesión único de tu organización, no ha reclamado un registro de agente ni se ha unido a otra organización. Para cualquier otro usuario, Tuist rechaza el cambio con `400` y el tipo de error SCIM `mutability`. Aún así, aplica la desactivación enviada en la misma solicitud. Tuist también se niega a crear usuarios en, o renombrar usuarios hacia, un dominio de inicio de sesión verificado por otra organización y, en tuist.dev, al propio dominio de Tuist. Un renombrado borra el registro de que el usuario demostró el control de la dirección anterior.
 
 Cuando tu proveedor de identidad anula la asignación o desactiva al usuario, Tuist elimina su rol en la organización mientras conserva el registro del usuario y cualquier trabajo que posea. La desprovisión no deshabilita al usuario globalmente, porque el mismo usuario de Tuist puede pertenecer a otras organizaciones.
 
-Tuist expone tres grupos SCIM sintéticos: `Tuist Admins`, `Tuist Users` y `Tuist Viewers`. Añadir un miembro a un grupo establece su rol en la organización. Eliminar a un miembro del grupo que coincide con su rol actual lo devuelve al rol de inscripción, y la membresía en sí solo finaliza cuando el usuario es desasignado o desactivado. Los proveedores de identidad también pueden establecer el rol mediante el atributo SCIM `roles` en un usuario, con un valor de `admin`, `user` o `viewer`. Un proveedor de identidad que envía varios valores obtiene el más privilegiado de ellos, donde `admin` tiene prioridad sobre `user` y `user` sobre `viewer`.
+Tuist expone tres grupos SCIM sintéticos: `Tuist Admins`, `Tuist Users` y `Tuist Viewers`. Añadir un miembro a un grupo establece su rol en la organización. Eliminar a un miembro del grupo que coincide con su rol actual lo devuelve al rol de inscripción, y la membresía en sí solo termina cuando se anula la asignación o se desactiva al usuario. Los proveedores de identidad también pueden establecer el rol mediante el atributo SCIM `roles` en un usuario, con un valor de `admin`, `user` o `viewer`. Un proveedor de identidad que envía varios valores obtiene el más privilegiado de ellos, donde `admin` tiene prioridad sobre `user` y `user` sobre `viewer`.
 
 ## Funcionalidades SCIM compatibles {#supported-scim-features}
 
-Tuist admite los puntos finales de SCIM 2.0 que necesitan los proveedores de identidad para la gestión del ciclo de vida:
+Tuist admite los puntos finales de SCIM 2.0 que los proveedores de identidad necesitan para la gestión del ciclo de vida:
 
 - `POST`, `GET`, `PUT`, `PATCH` y `DELETE` para `/Users`.
 - `GET` y `PATCH` para `/Groups`.

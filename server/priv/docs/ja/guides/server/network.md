@@ -11,13 +11,13 @@
 
 ## 送信元 IP アドレス {#outbound-ip-addresses}
 
-インフラストラクチャで IP アドレスによる受信トラフィックを制限している場合、Tuist が使用する IP 範囲の許可リストへの追加が必要になることがあります。これは、Tuist がファイアウォールや VPN の背後にあるサービス（セルフホスト型の Git プロバイダーやアーティファクトストレージなど）と通信する必要がある場合や、GitHub Organization で [IP 許可リスト](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) を使用している場合に一般的です。
+インフラストラクチャで IP アドレスによって受信トラフィックを制限している場合、Tuist が使用する IP 範囲を許可リストに追加する必要があります。これは、Tuist がファイアウォールや VPN の背後にあるサービス（セルフホスト型の Git プロバイダーやアーティファクトストレージなど）と通信する必要がある場合や、GitHub Organization で [IP 許可リスト](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) を使用している場合に一般的です。
 
-Tuist の統合に使用するサーバーアドレスと、ワークフローが利用する各プラットフォームのランナーアドレスを許可リストに追加してください。
+Tuist の統合向けサーバーアドレスと、ワークフローが使用する各プラットフォームのランナーアドレスを許可リストに追加してください。
 
-### サーバー IP アドレス {#server-ip-addresses}
+### サーバーの IP アドレス {#server-ip-addresses}
 
-Tuist のサービスおよび統合からの接続用に、以下の両方のアドレスを許可リストに追加してください：
+Tuist のサービスおよび統合からの接続用に、両方のアドレスを許可リストに追加してください：
 
 | IP アドレス | CIDR 表記 |
 |---|---|
@@ -28,7 +28,7 @@ Tuist は HTTPS 経由でのみインフラストラクチャに接続するた�
 
 ### Tuist Runners {#tuist-runners}
 
-<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> で実行されるジョブは、以下の送信元アドレスを使用します。ジョブが IP アドレスでトラフィックを制限するインフラストラクチャ（例えば、IP 許可リストを設定した GitHub Organization からリポジトリをチェックアウトする場合など）にアクセスする必要がある場合は、ワークフローが実行されるすべてのプラットフォームに対応するアドレスまたは範囲を許可リストに追加してください。
+<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> で実行されるジョブは、以下の送信元アドレスを使用します。ジョブが IP アドレスでトラフィックを制限するインフラストラクチャ（例えば、IP 許可リストを設定した GitHub Organization からリポジトリをチェックアウトする場合など）にアクセスする必要がある場合は、ワークフローが実行されるすべてのプラットフォームについて、該当するアドレスまたは範囲を許可リストに追加してください。
 
 #### macOS {#tuist-runners-macos}
 

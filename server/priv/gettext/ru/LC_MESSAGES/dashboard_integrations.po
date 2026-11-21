@@ -21,7 +21,7 @@ msgstr "Добавить подключение к проекту"
 #: lib/tuist_web/components/amp_integration.ex:228
 #: lib/tuist_web/components/amp_integration.ex:269
 #: lib/tuist_web/components/amp_workspaces.ex:214
-#: lib/tuist_web/components/claude_integration.ex:593
+#: lib/tuist_web/components/claude_integration.ex:596
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -35,14 +35,14 @@ msgstr "Отмена"
 #: lib/tuist_web/live/integrations_live.html.heex:882
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
-msgstr "Выберите проект Tuist"
+msgstr "Выбрать проект Tuist"
 
 #: lib/tuist_web/live/integrations_live.html.heex:248
 #: lib/tuist_web/live/integrations_live.html.heex:444
 #: lib/tuist_web/live/integrations_live.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
-msgstr "Выберите репозиторий"
+msgstr "Выбрать репозиторий"
 
 #: lib/tuist_web/live/integrations_live.html.heex:191
 #: lib/tuist_web/live/integrations_live.html.heex:353
@@ -180,7 +180,7 @@ msgstr "Прочитайте руководство по настройке"
 #: lib/tuist_web/live/integrations_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
-msgstr "Для установки приложения этому серверу Tuist требуется собственное приложение GitHub на github.com. Зарегистрируйте приложение, затем задайте переменные TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET и TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 и перезапустите сервер."
+msgstr "Этому серверу Tuist требуется собственное приложение GitHub на github.com, прежде чем он сможет его установить. Зарегистрируйте приложение, затем задайте переменные TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET и TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 и перезапустите сервер."
 
 #: lib/tuist_web/live/integrations_live.ex:1025
 #, elixir-autogen, elixir-format
@@ -196,8 +196,8 @@ msgstr "Токен агента кластера"
 #: lib/tuist_web/components/amp_integration.ex:124
 #: lib/tuist_web/components/amp_integration.ex:235
 #: lib/tuist_web/components/amp_workspaces.ex:221
-#: lib/tuist_web/components/claude_integration.ex:344
-#: lib/tuist_web/components/claude_integration.ex:600
+#: lib/tuist_web/components/claude_integration.ex:350
+#: lib/tuist_web/components/claude_integration.ex:603
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -216,7 +216,7 @@ msgstr "Подключить Buildkite"
 #: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
-msgstr "Создайте токен агента в разделе Agent Tokens вашего кластера в Buildkite. Задачи будут выполняться из очередей на собственных хостах, названных по именам ваших профилей раннеров."
+msgstr "Создайте токен агента в разделе Agent Tokens вашего кластера в Buildkite. Задачи будут забираться из очередей self-hosted, названных по именам ваших профилей раннеров."
 
 #: lib/tuist_web/components/amp_integration.ex:116
 #: lib/tuist_web/components/amp_integration.ex:244
@@ -237,7 +237,7 @@ msgstr "Слаг организации"
 #: lib/tuist_web/live/integrations_live.ex:1027
 #, elixir-autogen, elixir-format
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
-msgstr "Выполняйте задачи Buildkite на раннерах Tuist. Tuist отслеживает очереди на собственных хостах в вашем кластере и запускает найденные задачи."
+msgstr "Запускайте задачи Buildkite на раннерах Tuist. Tuist отслеживает очереди self-hosted в вашем кластере и выполняет найденные там задачи."
 
 #: lib/tuist_web/components/amp_integration.ex:219
 #: lib/tuist_web/live/integrations_live.html.heex:781
@@ -270,7 +270,7 @@ msgstr "Подключить GitLab CI"
 #: lib/tuist_web/live/integrations_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Disconnecting: waiting for GitLab to settle queued assignments."
-msgstr "Отключение: ожидание завершения обработки назначенных задач в GitLab."
+msgstr "Отключение: ожидание завершения назначенных задач в GitLab."
 
 #: lib/tuist_web/live/integrations_live.html.heex:494
 #, elixir-autogen, elixir-format
@@ -281,7 +281,7 @@ msgstr "GitLab CI"
 #: lib/tuist_web/live/integrations_live.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "GitLab URL"
-msgstr "URL-адрес GitLab"
+msgstr "URL GitLab"
 
 #: lib/tuist_web/live/integrations_live.html.heex:554
 #: lib/tuist_web/live/integrations_live.html.heex:633
@@ -292,12 +292,12 @@ msgstr "Токен аутентификации раннера"
 #: lib/tuist_web/live/integrations_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Check the GitLab URL and runner authentication token."
-msgstr "Проверьте URL-адрес GitLab и токен аутентификации раннера."
+msgstr "Проверьте URL GitLab и токен аутентификации раннера."
 
 #: lib/tuist_web/live/integrations_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
-msgstr "Создайте раннер GitLab с тегами из вашего профиля Tuist, отключите задачи без тегов и вставьте сюда его токен. Выберите этот раннер в вашем пайплайне, указав теги, например [tuist-macos]."
+msgstr "Создайте раннер GitLab с тегами вашего профиля Tuist, отключите задачи без тегов и вставьте его токен сюда. Выбирайте машину в вашем пайплайне по тегам, например [tuist-macos]."
 
 #: lib/tuist_web/live/integrations_live.html.heex:495
 #, elixir-autogen, elixir-format
@@ -307,7 +307,7 @@ msgstr "Запускайте задачи GitLab CI на раннерах Tuist.
 #: lib/tuist_web/live/integrations_live.ex:655
 #, elixir-autogen, elixir-format
 msgid "The selected repository is not accessible to this account's GitHub App installation."
-msgstr "Выбранный репозиторий недоступен для установки GitHub App этого аккаунта."
+msgstr "Выбранный репозиторий недоступен для установки GitHub App этой учётной записи."
 
 #: lib/tuist_web/live/integrations_live.ex:648
 #, elixir-autogen, elixir-format
@@ -317,7 +317,7 @@ msgstr "Не удалось создать подключение к проек�
 #: lib/tuist_web/live/integrations_live.ex:549
 #, elixir-autogen, elixir-format
 msgid "GitHub API URL updated."
-msgstr "URL-адрес API GitHub обновлен."
+msgstr "URL API GitHub обновлён."
 
 #: lib/tuist_web/live/integrations_live.ex:556
 #, elixir-autogen, elixir-format
@@ -327,18 +327,18 @@ msgstr "Интеграция с GitHub Enterprise не найдена."
 #: lib/tuist_web/live/integrations_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Save API URL"
-msgstr "Сохранить URL-адрес API"
+msgstr "Сохранить URL API"
 
 #: lib/tuist_web/live/integrations_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "The GitHub URL your browser can access."
-msgstr "URL-адрес GitHub, доступный вашему браузеру."
+msgstr "URL GitHub, доступный из вашего браузера."
 
 #: lib/tuist_web/live/integrations_live.html.heex:63
 #: lib/tuist_web/live/integrations_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "API URL"
-msgstr "URL-адрес API"
+msgstr "URL API"
 
 #: lib/tuist_web/live/integrations_live.html.heex:12
 #, elixir-autogen, elixir-format
@@ -406,7 +406,7 @@ msgstr "Повторить"
 #: lib/tuist_web/live/integrations_live.ex:780
 #, elixir-autogen, elixir-format
 msgid "Try again or manage the integration to check its repository access."
-msgstr "Попробуйте ещё раз или настройте интеграцию, чтобы проверить доступ к репозиториям."
+msgstr "Попробуйте снова или настройте интеграцию, чтобы проверить доступ к репозиториям."
 
 #: lib/tuist_web/live/integrations_live.html.heex:305
 #, elixir-autogen, elixir-format
@@ -428,7 +428,7 @@ msgstr "Токен доступа API"
 #: lib/tuist_web/live/integrations_live.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
-msgstr "Пусть конвейеры merge-запросов сохраняют тома кэша. Требуется область доступа read_api."
+msgstr "Пусть пайплайны merge-запросов сохраняют тома кэша. Требуется область доступа read_api."
 
 #: lib/tuist_web/components/amp_integration.ex:173
 #, elixir-autogen, elixir-format
@@ -448,13 +448,13 @@ msgstr "Не удалось сохранить подключение. Пров�
 #: lib/tuist_web/components/amp_integration.ex:196
 #, elixir-autogen, elixir-format
 msgid "In Amp, open Workspace Settings → Orbs and add an Orb provider."
-msgstr "В Amp откройте Workspace Settings → Orbs и добавьте провайдера Orb."
+msgstr "В Amp откройте Workspace Settings → Orbs и добавьте Orb-провайдера."
 
 #: lib/tuist_web/components/amp_integration.ex:156
 #: lib/tuist_web/components/amp_integration.ex:213
 #, elixir-autogen, elixir-format
 msgid "Orb provider token"
-msgstr "Токен провайдера Orb"
+msgstr "Токен Orb-провайдера"
 
 #: lib/tuist_web/components/amp_integration.ex:72
 #, elixir-autogen, elixir-format
@@ -469,12 +469,12 @@ msgstr "Запускайте Orbs из вашего рабочего прост�
 #: lib/tuist_web/components/amp_integration.ex:144
 #, elixir-autogen, elixir-format
 msgid "Tuist could not prepare or stop the provider. Retrying automatically."
-msgstr "Tuist не смог подготовить или остановить провайдер. Повторная попытка будет выполнена автоматически."
+msgstr "Tuist не удалось подготовить или остановить провайдер. Повторная попытка будет выполнена автоматически."
 
 #: lib/tuist_web/components/amp_integration.ex:246
 #, elixir-autogen, elixir-format
 msgid "This stops new work and pauses this integration’s running Orbs. Saved disks remain until you delete them. The token stored in Tuist will be removed."
-msgstr "Это остановит новую работу и приостановит выполнение Orbs для этой интеграции. Сохранённые диски останутся до их удаления. Токен, хранящийся в Tuist, будет удалён."
+msgstr "Это остановит новые задачи и приостановит выполнение Orbs для этой интеграции. Сохранённые диски останутся до их удаления. Токен, хранящийся в Tuist, будет удалён."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1060
 #: lib/tuist_web/live/integrations_live.html.heex:1176
@@ -517,7 +517,7 @@ msgstr "Идентификатор стека"
 #: lib/tuist_web/live/integrations_live.html.heex:1102
 #, elixir-autogen, elixir-format
 msgid "A build runs on Tuist when its workflow selects the pool's stack under Stacks & Machines in Bitrise."
-msgstr "Сборка выполняется на Tuist, когда её рабочий процесс выбирает стек пула в разделе «Stacks & Machines» на Bitrise."
+msgstr "Сборка выполняется в Tuist, когда рабочий процесс выбирает стек пула в разделе «Stacks & Machines» на Bitrise."
 
 #: lib/tuist_web/live/integrations_live.ex:329
 #, elixir-autogen, elixir-format
@@ -532,12 +532,12 @@ msgstr "Bitrise отклонил этот токен API."
 #: lib/tuist_web/live/integrations_live.ex:1169
 #, elixir-autogen, elixir-format
 msgid "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
-msgstr "Bitrise показывает токен пула один раз — при его создании. Если вы не сохранили его, создайте пул заново."
+msgstr "Bitrise показывает токен пула один раз — при создании пула. Если вы не сохранили его, создайте пул заново."
 
 #: lib/tuist_web/live/integrations_live.ex:375
 #, elixir-autogen, elixir-format
 msgid "Choose a runner pool and paste its pool token."
-msgstr "Выберите пул раннеров и вставьте его токен пула."
+msgstr "Выберите пул раннеров и вставьте его токен."
 
 #: lib/tuist_web/live/integrations_live.ex:370
 #, elixir-autogen, elixir-format
@@ -552,7 +552,7 @@ msgstr "Подключено к %{workspace}. Свяжите каждый пул
 #: lib/tuist_web/live/integrations_live.html.heex:1011
 #, elixir-autogen, elixir-format
 msgid "In Bitrise, open Workspace settings, then Security, and create a workspace API token with the Viewer role and Tester/QA access to Bitrise CI. Tuist only uses it to read your builds."
-msgstr "В Bitrise откройте настройки рабочего пространства, затем раздел «Безопасность» и создайте токен API рабочего пространства с ролью Viewer и доступом Tester/QA к Bitrise CI. Tuist использует его только для чтения данных о ваших сборках."
+msgstr "В Bitrise откройте настройки рабочего пространства, затем раздел «Безопасность» и создайте токен API рабочего пространства с ролью Viewer и доступом Tester/QA к Bitrise CI. Tuist использует его только для чтения данных о сборках."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1155
 #, elixir-autogen, elixir-format
@@ -578,32 +578,32 @@ msgstr "Пул раннеров"
 #: lib/tuist_web/live/integrations_live.ex:1229
 #, elixir-autogen, elixir-format
 msgid "This API token can't see any Bitrise workspace."
-msgstr "Этот токен API не имеет доступа ни к одному рабочему пространству Bitrise."
+msgstr "Этот токен API не видит ни одного рабочего пространства Bitrise."
 
 #: lib/tuist_web/live/integrations_live.ex:1233
 #, elixir-autogen, elixir-format
 msgid "This API token can't see the connected workspace. Disconnect first to switch workspaces."
-msgstr "Этот токен API не имеет доступа к подключенному рабочему пространству. Сначала отключите его, чтобы сменить рабочее пространство."
+msgstr "Этот токен API не видит подключенное рабочее пространство. Сначала отключитесь, чтобы сменить рабочее пространство."
 
 #: lib/tuist_web/live/integrations_live.html.heex:1041
 #, elixir-autogen, elixir-format
 msgid "This token can see several workspaces. Choose the one whose runner pools Tuist should serve."
-msgstr "Этот токен имеет доступ к нескольким рабочим пространствам. Выберите то, пулы раннеров которого должен обслуживать Tuist."
+msgstr "Этот токен видит несколько рабочих пространств. Выберите то, пулы раннеров которого Tuist должен обслуживать."
 
 #: lib/tuist_web/live/integrations_live.ex:1043
 #, elixir-autogen, elixir-format
 msgid "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
-msgstr "В этом рабочем пространстве пока нет пулов собственных раннеров. Создайте такой пул в Bitrise: раздел «Workspace settings», затем «Infrastructure»."
+msgstr "В этом рабочем пространстве пока нет пулов собственных раннеров. Создайте один в Bitrise: Workspace settings > Infrastructure."
 
 #: lib/tuist_web/live/integrations_live.ex:1137
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
-msgstr "Не удалось загрузить пулы раннеров из Bitrise. Введите идентификатор стека пула, начинающийся с agent-pool-."
+msgstr "Tuist не смог загрузить ваши пулы раннеров из Bitrise. Введите Stack ID пула, который начинается с agent-pool-."
 
 #: lib/tuist_web/live/integrations_live.ex:1239
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't reach Bitrise. Try again in a moment."
-msgstr "Не удалось подключиться к Bitrise. Повторите попытку через некоторое время."
+msgstr "Tuist не смог подключиться к Bitrise. Попробуйте снова через некоторое время."
 
 #: lib/tuist_web/live/integrations_live.ex:1148
 #: lib/tuist_web/live/integrations_live.ex:1156
@@ -655,12 +655,12 @@ msgstr "Удалить пул"
 #: lib/tuist_web/live/integrations_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Could not connect the Entire repository."
-msgstr "Не удалось подключить Entire репозиторий."
+msgstr "Не удалось подключить репозиторий Entire."
 
 #: lib/tuist_web/live/integrations_live.html.heex:869
 #, elixir-autogen, elixir-format
 msgid "Could not load Entire repositories."
-msgstr "Не удалось загрузить Entire репозитории."
+msgstr "Не удалось загрузить репозитории Entire."
 
 #: lib/tuist_web/live/integrations_live.html.heex:828
 #, elixir-autogen, elixir-format
@@ -675,7 +675,7 @@ msgstr "Поддерживайте актуальность аналитики �
 #: lib/tuist_web/live/integrations_live.html.heex:866
 #, elixir-autogen, elixir-format
 msgid "Loading Entire repositories…"
-msgstr "Загрузка всех репозиториев…"
+msgstr "Загрузка репозиториев Entire…"
 
 #: lib/tuist_web/live/integrations_live.html.heex:847
 #, elixir-autogen, elixir-format
@@ -720,7 +720,7 @@ msgstr "Подключите рабочие пространства Amp к Tuis
 #: lib/tuist_web/components/amp_workspaces.ex:95
 #, elixir-autogen, elixir-format
 msgid "Let Orbs in your Amp workspaces sign in to Tuist without a stored token. They get CI access, including cache uploads, to every project in this account."
-msgstr "Позвольте Orbs в ваших рабочих пространствах Amp авторизовываться в Tuist без сохранения токена. Они получат доступ к CI, включая загрузку в кэш, для всех проектов в этом аккаунте."
+msgstr "Позвольте Orbs в ваших рабочих пространствах Amp входить в Tuist без сохранения токена. Они получат доступ к CI, включая загрузку кэша, для всех проектов в этой учётной записи."
 
 #: lib/tuist_web/components/amp_integration.ex:107
 #, elixir-autogen, elixir-format
@@ -735,10 +735,10 @@ msgstr "Вход в рабочее пространство"
 #: lib/tuist_web/components/amp_workspaces.ex:62
 #, elixir-autogen, elixir-format
 msgid "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-426614174000."
-msgstr "Введите ID рабочего пространства (UUID), например 123e4567-e89b-12d3-a456-426614174000."
+msgstr "Введите ID рабочего пространства — UUID, например 123e4567-e89b-12d3-a456-426614174000."
 
 #: lib/tuist_web/components/amp_workspaces.ex:191
-#: lib/tuist_web/components/claude_integration.ex:497
+#: lib/tuist_web/components/claude_integration.ex:500
 #, elixir-autogen, elixir-format
 msgid "Workspace ID"
 msgstr "ID рабочего пространства"
@@ -751,7 +751,7 @@ msgstr "Все проекты"
 #: lib/tuist_web/components/amp_workspaces.ex:65
 #, elixir-autogen, elixir-format
 msgid "Enter the project ID as a UUID, or leave it empty for the whole workspace."
-msgstr "Введите ID проекта в формате UUID или оставьте поле пустым для всего рабочего пространства."
+msgstr "Введите ID проекта в виде UUID или оставьте поле пустым, чтобы охватить всё рабочее пространство."
 
 #: lib/tuist_web/components/amp_workspaces.ex:160
 #, elixir-autogen, elixir-format
@@ -766,7 +766,7 @@ msgstr "Необязательно. Оставьте пустым для все�
 #: lib/tuist_web/components/amp_workspaces.ex:181
 #, elixir-autogen, elixir-format
 msgid "Paste the workspace ID below. Add the project ID to limit access to that Amp project's Orbs. Those Orbs get CI access, including cache uploads, to every project in this account."
-msgstr "Вставьте идентификатор рабочего пространства ниже. Добавьте идентификатор проекта, чтобы ограничить доступ к Orbs этого проекта Amp. Эти Orbs получат доступ к CI, включая загрузку в кэш, ко всем проектам в этом аккаунте."
+msgstr "Вставьте идентификатор рабочего пространства ниже. Добавьте идентификатор проекта, чтобы ограничить доступ к Orbs этого проекта Amp. Эти Orbs получат доступ к CI, включая загрузку в кэш, для всех проектов в этом аккаунте."
 
 #: lib/tuist_web/components/amp_workspaces.ex:122
 #, elixir-autogen, elixir-format
@@ -778,8 +778,8 @@ msgstr "Проект %{id}"
 msgid "Project ID"
 msgstr "Идентификатор проекта"
 
-#: lib/tuist_web/components/claude_integration.ex:251
-#: lib/tuist_web/components/claude_integration.ex:384
+#: lib/tuist_web/components/claude_integration.ex:257
+#: lib/tuist_web/components/claude_integration.ex:387
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr "Ключ API"
@@ -787,34 +787,34 @@ msgstr "Ключ API"
 #: lib/tuist_web/components/claude_integration.ex:222
 #, elixir-autogen, elixir-format
 msgid "Anthropic answered %{status}: %{message}"
-msgstr "Anthropic ответил %{status}: %{message}"
+msgstr "Anthropic ответил со статусом %{status}: %{message}"
 
 #: lib/tuist_web/components/claude_integration.ex:186
 #, elixir-autogen, elixir-format
 msgid "Anthropic rejected the request: %{message}"
 msgstr "Anthropic отклонил запрос: %{message}"
 
-#: lib/tuist_web/components/claude_integration.ex:469
+#: lib/tuist_web/components/claude_integration.ex:472
 #, elixir-autogen, elixir-format
 msgid "Audience"
 msgstr "Аудитория"
 
-#: lib/tuist_web/components/claude_integration.ex:374
+#: lib/tuist_web/components/claude_integration.ex:377
 #, elixir-autogen, elixir-format
 msgid "Connect Claude Managed Agents"
 msgstr "Подключить управляемых агентов Claude"
 
-#: lib/tuist_web/components/claude_integration.ex:345
+#: lib/tuist_web/components/claude_integration.ex:351
 #, elixir-autogen, elixir-format
 msgid "Connect environment"
 msgstr "Подключить среду"
 
-#: lib/tuist_web/components/claude_integration.ex:601
+#: lib/tuist_web/components/claude_integration.ex:604
 #, elixir-autogen, elixir-format
 msgid "Connecting…"
 msgstr "Подключение…"
 
-#: lib/tuist_web/components/claude_integration.ex:302
+#: lib/tuist_web/components/claude_integration.ex:308
 #, elixir-autogen, elixir-format
 msgid "Copy %{label}"
 msgstr "Копировать %{label}"
@@ -827,65 +827,65 @@ msgstr "Не удалось подключить среду. Возможно, �
 #: lib/tuist_web/components/claude_integration.ex:226
 #, elixir-autogen, elixir-format
 msgid "Could not reach Anthropic. Try again."
-msgstr "Не удалось связаться с Anthropic. Попробуйте снова."
+msgstr "Не удалось связаться с Anthropic. Попробуйте ещё раз."
 
-#: lib/tuist_web/components/claude_integration.ex:558
+#: lib/tuist_web/components/claude_integration.ex:561
 #, elixir-autogen, elixir-format
 msgid "Environment ID"
-msgstr "Идентификатор среды"
+msgstr "ID среды"
 
-#: lib/tuist_web/components/claude_integration.ex:568
+#: lib/tuist_web/components/claude_integration.ex:571
 #, elixir-autogen, elixir-format
 msgid "Environment key"
 msgstr "Ключ окружения"
 
-#: lib/tuist_web/components/claude_integration.ex:525
+#: lib/tuist_web/components/claude_integration.ex:528
 #, elixir-autogen, elixir-format
 msgid "Federation rule ID"
 msgstr "ID правила федерации"
 
-#: lib/tuist_web/components/claude_integration.ex:459
+#: lib/tuist_web/components/claude_integration.ex:462
 #, elixir-autogen, elixir-format
 msgid "Issuer URL"
-msgstr "URL издателя"
+msgstr "URL эмитента"
 
-#: lib/tuist_web/components/claude_integration.ex:252
+#: lib/tuist_web/components/claude_integration.ex:258
 #, elixir-autogen, elixir-format
 msgid "No credentials"
 msgstr "Нет учётных данных"
 
-#: lib/tuist_web/components/claude_integration.ex:419
+#: lib/tuist_web/components/claude_integration.ex:422
 #, elixir-autogen, elixir-format
 msgid "Open the authentication history"
 msgstr "Открыть историю аутентификации"
 
-#: lib/tuist_web/components/claude_integration.ex:483
+#: lib/tuist_web/components/claude_integration.ex:486
 #, elixir-autogen, elixir-format
 msgid "Organization ID"
 msgstr "ID организации"
 
-#: lib/tuist_web/components/claude_integration.ex:576
-#: lib/tuist_web/components/claude_integration.ex:581
+#: lib/tuist_web/components/claude_integration.ex:579
+#: lib/tuist_web/components/claude_integration.ex:584
 #, elixir-autogen, elixir-format
 msgid "Sandbox shape"
 msgstr "Конфигурация песочницы"
 
-#: lib/tuist_web/components/claude_integration.ex:474
+#: lib/tuist_web/components/claude_integration.ex:477
 #, elixir-autogen, elixir-format
 msgid "Scope"
 msgstr "Область действия"
 
-#: lib/tuist_web/components/claude_integration.ex:511
+#: lib/tuist_web/components/claude_integration.ex:514
 #, elixir-autogen, elixir-format
 msgid "Service account ID"
 msgstr "Идентификатор сервисного аккаунта"
 
-#: lib/tuist_web/components/claude_integration.ex:464
+#: lib/tuist_web/components/claude_integration.ex:467
 #, elixir-autogen, elixir-format
 msgid "Subject prefix"
 msgstr "Префикс темы"
 
-#: lib/tuist_web/components/claude_integration.ex:430
+#: lib/tuist_web/components/claude_integration.ex:433
 #, elixir-autogen, elixir-format
 msgid "Anthropic API key"
 msgstr "Ключ API Anthropic"
@@ -895,12 +895,12 @@ msgstr "Ключ API Anthropic"
 msgid "Anthropic rejected the API key. Check that you copied all of it."
 msgstr "Anthropic отклонил ключ API. Убедитесь, что вы скопировали его полностью."
 
-#: lib/tuist_web/components/claude_integration.ex:331
+#: lib/tuist_web/components/claude_integration.ex:337
 #, elixir-autogen, elixir-format
 msgid "Run Claude Managed Agents sessions on Tuist sandboxes."
 msgstr "Запускайте сессии Claude Managed Agents в песочницах Tuist."
 
-#: lib/tuist_web/components/claude_integration.ex:391
+#: lib/tuist_web/components/claude_integration.ex:394
 #, elixir-autogen, elixir-format
 msgid "Federated identity"
 msgstr "Федеративная идентификация"
@@ -908,7 +908,7 @@ msgstr "Федеративная идентификация"
 #: lib/tuist_web/components/claude_integration.ex:215
 #, elixir-autogen, elixir-format
 msgid "Anthropic has no environment with this ID in the credential's workspace. Check the ID, and that the credential belongs to the environment's workspace."
-msgstr "В рабочем пространстве учетных данных нет среды Anthropic с таким идентификатором. Проверьте идентификатор и то, что учетные данные принадлежат рабочему пространству этой среды."
+msgstr "В рабочем пространстве учетных данных нет среды Anthropic с таким идентификатором. Проверьте идентификатор и убедитесь, что учетные данные принадлежат рабочему пространству этой среды."
 
 #: lib/tuist_web/components/claude_integration.ex:208
 #, elixir-autogen, elixir-format
@@ -923,27 +923,27 @@ msgstr "Anthropic отклонил токен. Проверьте, что пра
 #: lib/tuist_web/components/claude_integration.ex:89
 #, elixir-autogen, elixir-format
 msgid "Could not connect the environment."
-msgstr "Не удалось подключиться к окружению."
+msgstr "Не удалось подключиться к среде."
 
-#: lib/tuist_web/components/claude_integration.ex:436
+#: lib/tuist_web/components/claude_integration.ex:439
 #, elixir-autogen, elixir-format
 msgid "Needs the developer role in the environment's workspace. Stored encrypted. Use a federated identity for environments you rely on."
-msgstr "Требуется роль разработчика в рабочем пространстве окружения. Хранится в зашифрованном виде. Для окружений, от которых вы зависите, используйте федеративную идентификацию."
+msgstr "Требуется роль разработчика в рабочем пространстве среды. Хранится в зашифрованном виде. Используйте федеративную идентификацию для сред, от которых вы зависите."
 
-#: lib/tuist_web/components/claude_integration.ex:540
+#: lib/tuist_web/components/claude_integration.ex:543
 #, elixir-autogen, elixir-format
 msgid "Self-hosted environment"
-msgstr "Самостоятельно размещённое окружение"
+msgstr "Среда с собственным хостингом"
 
 #: lib/tuist_web/components/claude_integration.ex:201
 #, elixir-autogen, elixir-format
 msgid "This API key cannot read the environment. Use a key with the developer role in the environment's workspace."
-msgstr "Этот API-ключ не может читать окружение. Используйте ключ с ролью разработчика в рабочем пространстве окружения."
+msgstr "Этот API-ключ не может читать среду. Используйте ключ с ролью разработчика в рабочем пространстве среды."
 
 #: lib/tuist_web/components/claude_integration.ex:190
 #, elixir-autogen, elixir-format
 msgid "This environment is not self-hosted. Create a self-hosted environment in the Claude Console."
-msgstr "Это окружение не является самостоятельно размещённым. Создайте самостоятельно размещённое окружение в Claude Console."
+msgstr "Эта среда не является средой с собственным хостингом. Создайте среду с собственным хостингом в Claude Console."
 
 #: lib/tuist_web/components/claude_integration.ex:109
 #: lib/tuist_web/components/claude_integration.ex:121
@@ -951,38 +951,38 @@ msgstr "Это окружение не является самостоятель
 msgid "can't be blank"
 msgstr "не может быть пустым"
 
-#: lib/tuist_web/components/claude_integration.ex:551
+#: lib/tuist_web/components/claude_integration.ex:554
 #, elixir-autogen, elixir-format
 msgid "Claude Console"
 msgstr "Claude Console"
 
-#: lib/tuist_web/components/claude_integration.ex:544
+#: lib/tuist_web/components/claude_integration.ex:547
 #, elixir-autogen, elixir-format
 msgid "Create one in the %{link}, open it and click Generate environment key."
 msgstr "Создайте ключ в %{link}, откройте его и нажмите «Сгенерировать ключ среды»."
 
-#: lib/tuist_web/components/claude_integration.ex:447
+#: lib/tuist_web/components/claude_integration.ex:450
 #, elixir-autogen, elixir-format
 msgid "In %{link}, connect a Custom OIDC workload with these values and add its service account to the environment's workspace."
-msgstr "В %{link} подключите пользовательский рабочий процесс OIDC с этими значениями и добавьте его сервисный аккаунт в рабочую область среды."
+msgstr "В %{link} подключите пользовательскую рабочую нагрузку OIDC с этими значениями и добавьте её сервисный аккаунт в рабочее пространство среды."
 
-#: lib/tuist_web/components/claude_integration.ex:454
+#: lib/tuist_web/components/claude_integration.ex:457
 #, elixir-autogen, elixir-format
 msgid "Workload identity"
-msgstr "Идентификация рабочего процесса"
+msgstr "Идентификация рабочей нагрузки"
 
-#: lib/tuist_web/components/claude_integration.ex:485
+#: lib/tuist_web/components/claude_integration.ex:488
 #, elixir-autogen, elixir-format
 msgid "Settings → Organization in the Claude Console."
 msgstr "Настройки → Организация в консоли Claude."
 
-#: lib/tuist_web/components/claude_integration.ex:499
+#: lib/tuist_web/components/claude_integration.ex:502
 #, elixir-autogen, elixir-format
 msgid "Settings → Workspaces in the Claude Console. Use the workspace that runs the environment."
-msgstr "Настройки → Рабочие области в консоли Claude. Используйте рабочую область, в которой выполняется среда."
+msgstr "Настройки → Рабочие пространства в консоли Claude. Используйте рабочее пространство, в котором запускается среда."
 
-#: lib/tuist_web/components/claude_integration.ex:513
-#: lib/tuist_web/components/claude_integration.ex:527
+#: lib/tuist_web/components/claude_integration.ex:516
+#: lib/tuist_web/components/claude_integration.ex:530
 #, elixir-autogen, elixir-format
 msgid "Shown when Connect workload finishes, and on the federation rule's page in Workload identity."
-msgstr "Отображается после завершения подключения рабочего процесса и на странице правила федерации в разделе «Идентификация рабочего процесса»."
+msgstr "Отображается после завершения подключения рабочей нагрузки и на странице правила федерации в разделе «Идентификация рабочей нагрузки»."

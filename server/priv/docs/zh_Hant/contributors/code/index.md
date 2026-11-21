@@ -2,7 +2,7 @@
 {
   "title": "程式碼",
   "titleTemplate": ":title · 貢獻者 · Tuist",
-  "description": "選擇一個 Tuist 元件，並學習如何在本地環境進行開發。"
+  "description": "選擇一個 Tuist 元件，並學習如何在本地進行開發。"
 }
 ---
 # 程式碼 {#code}

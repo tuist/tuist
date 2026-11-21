@@ -1,8 +1,8 @@
 ---
 {
-  "title": "Swift-პაკეტი",
+  "title": "Swift პაკეტი",
   "titleTemplate": ":title · Swift · პაკეტების რეესტრები · ფუნქციები · სახელმძღვანელოები · Tuist",
-  "description": "შეიტყვეთ, როგორ გამოიყენოთ Tuist Registry Swift-პაკეტში."
+  "description": "შეიტყვეთ, როგორ გამოიყენოთ Tuist Registry Swift პაკეტში."
 }
 ---
 # Swift პაკეტი {#swift-package}
@@ -13,6 +13,6 @@
 swift package --replace-scm-with-registry resolve
 ```
 
-თუ გსურთ უზრუნველყოთ, რომ რეესტრი ყოველ ჯერზე გამოყენებულ იქნას დამოკიდებულებების ამოცნობისას, `dependencies`-ში უნდა განაახლოთ `Package.swift` ფაილი, რათა URL-ის ნაცვლად რეესტრის იდენტიფიკატორი გამოიყენოთ.
+თუ გსურთ უზრუნვეყოთ, რომ რეესტრი ყოველ ჯერზე გამოყენებული იყოს დამოკიდებულებების ამოცნობისას, მოგიწევთ `dependencies`-ის განახლება თქვენს `Package.swift` ფაილში, რათა URL-ის ნაცვლად რეესტრის იდენტიფიკატორი გამოიყენოთ.
 
 <!-- @snippet: ./_registry-identifier -->

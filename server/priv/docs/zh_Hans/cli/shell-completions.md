@@ -12,12 +12,12 @@
 > [!NOTE]
 > **什么是全局安装**
 >
-> 全局安装是指在你的 Shell 的 `$PATH` 环境变量中可用的安装。这意味着你可以在终端的任何目录中运行 `tuist`。这是 Homebrew 的默认安装方式。
+> 全局安装是指安装在你的 Shell 的 `$PATH` 环境变量中的安装方式。这意味着你可以在终端的任何目录下运行 `tuist`。这是 Homebrew 的默认安装方法。
 
 
 ## Zsh {#zsh}
 
-如果你已安装 [oh-my-zsh](https://ohmyz.sh/)，你已经拥有一个会自动加载补全脚本的目录——`.oh-my-zsh/completions`。将新生成的补全脚本复制到该目录中名为 `_tuist` 的新文件：
+如果你已安装 [oh-my-zsh](https://ohmyz.sh/)，你已经拥有一个会自动加载补全脚本的目录——`.oh-my-zsh/completions`。将新的补全脚本复制到该目录中名为 `_tuist` 的新文件：
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
@@ -39,7 +39,7 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 ## Bash {#bash}
 
-如果你已安装 [bash-completion](https://github.com/scop/bash-completion)，只需将新生成的补全脚本复制到 bash-completion 的目录：
+如果你已安装 [bash-completion](https://github.com/scop/bash-completion)，只需将新的补全脚本复制到 bash-completion 的目录中：
 
 ```bash
 tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
@@ -60,7 +60,7 @@ source ~/.bash_completions/tuist.bash
 
 ## Fish {#fish}
 
-如果你使用 [fish shell](https://fishshell.com)，可以将新生成的补全脚本复制到 `~/.config/fish/completions/tuist.fish`：
+如果你使用 [fish shell](https://fishshell.com)，可以将新的补全脚本复制到 `~/.config/fish/completions/tuist.fish`：
 
 ```bash
 mkdir -p ~/.config/fish/completions

@@ -55,4 +55,4 @@ msgstr "انتهت صلاحية طلب التفويض. يرجى بدء عملي�
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:159
 #, elixir-autogen, elixir-format
 msgid "Slack returned an unexpected webhook URL. Please try again."
-msgstr "أعاد Slack عنوان URL للويب هوك غير متوقع. يرجى المحاولة مرة أخرى."
+msgstr "أعاد Slack عنوان URL غير متوقع للويب هوك. يرجى المحاولة مرة أخرى."

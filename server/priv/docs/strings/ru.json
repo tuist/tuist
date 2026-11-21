@@ -26,7 +26,7 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Кэш Elixir" },
-      "entire": { "text": "Полностью" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
@@ -36,11 +36,11 @@
       "iphone-app": { "text": "Приложение для iPhone" },
       "macos-app": { "text": "Приложение для macOS" },
       "new-project": { "text": "Новый проект" },
-      "once": { "text": "Один раз" },
-      "once-cache": { "text": "Кэш Once" },
-      "once-project": { "text": "Проект Once" },
-      "once-remote-execution": { "text": "Удалённое выполнение Once" },
-      "origin": { "text": "Источник" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Кэш Struo" },
+      "once-project": { "text": "Проект Struo" },
+      "once-remote-execution": { "text": "Удалённое выполнение Struo" },
+      "origin": { "text": "Origin" },
       "profiles": { "text": "Профили" },
       "project-description": { "text": "Описание проекта" },
       "release": { "text": "Релиз" },
@@ -49,10 +49,10 @@
       "run-previews": { "text": "Запуск превью" },
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Кэш Rust" },
-      "rust-project": { "text": "Проект Rust" },
+      "rust-project": { "text": "Проект на Rust" },
       "sandboxes": { "text": "Песочницы" },
       "scim-provisioning": { "text": "SCIM-провижининг" },
-      "server-api": { "text": "API сервера" },
+      "server-api": { "text": "Server API" },
       "single-sign-on": { "text": "Единый вход (SSO)" },
       "supported-types": { "text": "Поддерживаемые типы" },
       "webhooks": { "text": "Вебхуки" },
@@ -67,7 +67,7 @@
         "text": "Языки 🌍"
       },
       "description": {
-        "text": "Вы можете помочь Tuist добавить поддержку других языков или улучшить рекомендации по локализации для этой страницы."
+        "text": "Вы можете помочь Tuist добавить поддержку новых языков или улучшить рекомендации по локализации для этой страницы."
       },
       "cta": {
         "text": "Внести вклад"
@@ -109,7 +109,7 @@
         "no-results-screen": {
           "no-results-text": "Релевантные результаты не найдены",
           "suggested-query-text": "Попробуйте другой запрос",
-          "report-missing-results-text": "Считаете, что этот запрос должен давать результаты?",
+          "report-missing-results-text": "Считаете, что по этому запросу должны быть результаты?",
           "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
         }
       }
@@ -153,7 +153,7 @@
               "text": "Отладка"
             },
             "directories": {
-              "text": "Директории"
+              "text": "Каталоги"
             },
             "shell-completions": {
               "text": "Автодополнение в оболочке"
@@ -279,7 +279,7 @@
           }
         },
         "on-premise": {
-          "text": "Локальное развертывание",
+          "text": "Локальное развёртывание",
           "items": {
             "install": {
               "text": "Установка"
@@ -329,7 +329,7 @@
               "text": "Проект Gradle"
             },
             "elixir-project": {
-              "text": "Проект Elixir"
+              "text": "Проект на Elixir"
             },
             "bazel-project": {
               "text": "Проект Bazel"
@@ -379,7 +379,7 @@
                   "text": "Внедрение",
                   "items": {
                     "new-project": {
-                      "text": "Создать новый проект"
+                      "text": "Создание нового проекта"
                     },
                     "swift-package": {
                       "text": "Попробовать с Swift Package"
@@ -391,7 +391,7 @@
                           "text": "Проект Xcode"
                         },
                         "swift-package": {
-                          "text": "Пакет Swift"
+                          "text": "Swift-пакет"
                         },
                         "xcodegen-project": {
                           "text": "Проект XcodeGen"
@@ -407,7 +407,7 @@
                   "text": "Манифесты"
                 },
                 "directory-structure": {
-                  "text": "Структура директорий"
+                  "text": "Структура каталогов"
                 },
                 "editing": {
                   "text": "Редактирование"
@@ -490,7 +490,7 @@
                   "text": "Интеграция на основе XcodeProj"
                 },
                 "swift-package": {
-                  "text": "Пакет Swift"
+                  "text": "Swift-пакет"
                 },
                 "continuous-integration": {
                   "text": "Непрерывная интеграция"
@@ -582,7 +582,7 @@
               "text": "Slack"
             },
             "git-forges": {
-              "text": "Git-форжи",
+              "text": "Git-хостинги",
               "items": {
                 "github": {
                   "text": "GitHub"
@@ -604,7 +604,7 @@
               "text": "Сеть"
             },
             "self-hosting": {
-              "text": "Самостоятельный хостинг",
+              "text": "Самостоятельное хостинг",
               "items": {
                 "server": {
                   "text": "Сервер"

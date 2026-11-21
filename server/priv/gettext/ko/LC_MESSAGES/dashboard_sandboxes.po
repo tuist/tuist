@@ -75,7 +75,7 @@ msgstr "대기 중"
 #: lib/tuist_web/live/sandboxes_live.ex:850
 #, elixir-autogen, elixir-format
 msgid "Last active"
-msgstr "마지막 활동 시간"
+msgstr "마지막 활동"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:113
 #: lib/tuist_web/live/sandboxes_live.ex:171
@@ -115,7 +115,7 @@ msgstr "재개 중"
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Resuming would exceed this account's vCPU or memory limit."
-msgstr "재개하면 이 계정의 vCPU 또는 메모리 한도를 초과합니다."
+msgstr "재개하면 이 계정의 vCPU 또는 메모리 제한을 초과합니다."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:41
 #, elixir-autogen, elixir-format
@@ -137,7 +137,7 @@ msgstr "샌드박스 ID"
 msgid "Sandbox deleted."
 msgstr "샌드박스가 삭제되었습니다."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:42
+#: lib/tuist_web/components/dashboard_navigation.ex:43
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
@@ -148,7 +148,7 @@ msgstr "샌드박스"
 #: lib/tuist_web/live/sandbox_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Something went wrong. Please retry."
-msgstr "문제가 발생했습니다. 다시 시도하세요."
+msgstr "문제가 발생했습니다. 다시 시도해 주세요."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:134
 #: lib/tuist_web/live/sandboxes_live.ex:890
@@ -175,7 +175,7 @@ msgstr "이 샌드박스를 실행하는 머신에 연결할 수 없습니다. �
 #: lib/tuist_web/live/sandbox_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "The sandbox changed state in the meantime. Please retry."
-msgstr "그동안 샌드박스 상태가 변경되었습니다. 다시 시도해 주세요."
+msgstr "샌드박스 상태가 변경되었습니다. 다시 시도하세요."
 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
@@ -190,12 +190,12 @@ msgstr "샌드박스가 중지되고 디스크가 삭제됩니다. 푸시하지 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "This sandbox failed"
-msgstr "이 샌드박스는 실패했습니다"
+msgstr "이 샌드박스가 실패했습니다"
 
 #: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "This sandbox was deleted."
-msgstr "이 샌드박스는 삭제되었습니다."
+msgstr "이 샌드박스가 삭제되었습니다."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
 #: lib/tuist_web/live/sandbox_live.html.heex:109
@@ -216,7 +216,7 @@ msgstr "보관됨"
 #: lib/tuist_web/live/sandboxes_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
-msgstr "현재 사용 중: %{count}개 / %{limit}개"
+msgstr "현재 %{limit}개 중 %{count}개 사용 중"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
@@ -236,17 +236,17 @@ msgstr "평균 세션 지속 시간"
 #: lib/tuist_web/live/sandboxes_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
-msgstr "동시 실행 수"
+msgstr "동시 실행"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "사용자 지정"
+msgstr "사용자 정의"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "샌드박스가 일시 중지, 아카이브, 삭제되거나 실패하기 전까지의 실행 시간입니다."
+msgstr "샌드박스가 일시 중지, 아카이브, 삭제 또는 실패하기 전까지의 실행 시간입니다."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -286,7 +286,7 @@ msgstr "최대 vCPU 수"
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "선택한 기간 동안 시작된 샌드박스 에이전트입니다."
+msgstr "선택한 기간 동안 샌드박스 에이전트가 시작되었습니다."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
@@ -316,7 +316,7 @@ msgstr "지난달 이후"
 #: lib/tuist_web/live/sandboxes_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "지난 기간 이후"
+msgstr "이전 기간 이후"
 
 #: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
@@ -341,7 +341,7 @@ msgstr "템플릿, 프로젝트 스냅샷 또는 아카이브 복원을 통해 �
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "템플릿에서 시작된 Amp Orb에서 프로젝트의 .agents/setup이 실행되는 시간입니다. 프로젝트 스냅샷에서 시작된 Orb는 이 단계를 건너뛰므로, 여기에서 직접 수행한 설정 작업의 시간이 표시됩니다."
+msgstr "템플릿으로 시작한 Amp Orb에서 프로젝트의 .agents/setup이 실행되는 시간입니다. 프로젝트 스냅샷으로 시작한 Orb는 이 단계를 건너뛰므로, 직접 수행한 설정 작업의 시간이 여기에 반영됩니다."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -366,7 +366,7 @@ msgstr "p50 시작 시간"
 #: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
-msgstr "p90 설정 시간"
+msgstr "p90 설정"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
@@ -391,7 +391,7 @@ msgstr "다음"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{total}"
-msgstr "%{total}페이지 중 %{page}페이지"
+msgstr "%{total} 중 %{page} 페이지"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:66
 #, elixir-autogen, elixir-format
@@ -408,7 +408,7 @@ msgstr "최근 샌드박스"
 msgid "View more"
 msgstr "더 보기"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:45
+#: lib/tuist_web/components/dashboard_navigation.ex:46
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12
@@ -455,7 +455,7 @@ msgstr "아카이브"
 #: lib/tuist_web/live/sandbox_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Archiving started. The sandbox shows as archived once its disks are uploaded."
-msgstr "아카이빙이 시작되었습니다. 디스크가 업로드되면 샌드박스가 아카이브된 상태로 표시됩니다."
+msgstr "아카이빙이 시작되었습니다. 디스크 업로드가 완료되면 샌드박스가 아카이브된 상태로 표시됩니다."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:56
 #, elixir-autogen, elixir-format

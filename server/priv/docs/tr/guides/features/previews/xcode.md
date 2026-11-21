@@ -7,11 +7,11 @@
 ---
 # Xcode önizlemeleri
 
-Uygulamanızı derleyin ve `tuist share` kullanarak Tuist projenize yayınlayın. Projenizi öncelikle <.localized_link href="/guides/get-started/existing-xcode-project">mevcut Xcode projesi</.localized_link> veya <.localized_link href="/guides/get-started/generated-xcode-project">oluşturulmuş proje</.localized_link> kılavuzunu kullanarak bağlayın.
+Uygulamanızı derleyin, ardından Tuist projenize yayınlamak için `tuist share` komutunu kullanın. Projenizi öncelikle <.localized_link href="/guides/get-started/existing-xcode-project">mevcut Xcode projesi</.localized_link> veya <.localized_link href="/guides/get-started/generated-xcode-project">oluşturulmuş proje</.localized_link> kılavuzlarını kullanarak bağlayın.
 
-## Derleme ve paylaşım
+## Derleme ve paylaşma
 
-Tuist tarafından oluşturulan bir proje için:
+Tuist tarafından oluşturulmuş bir proje için:
 
 ```bash
 tuist generate App
@@ -28,11 +28,11 @@ tuist xcodebuild build -scheme App -project App.xcodeproj \
 tuist share App --configuration Debug --platforms iOS
 ```
 
-Şema, proje ve çalışma alanı adlarını kendi adlarınızla değiştirin. Bir Release derlemesini paylaşmak için derleme sırasında `-configuration Release`, paylaşım sırasında ise `--configuration Release` kullanın.
+Şema, proje ve çalışma alanı adlarını kendi değerlerinizle değiştirin. Bir Release derlemesini paylaşmak için derleme sırasında `-configuration Release`, paylaşım sırasında ise `--configuration Release` seçeneğini kullanın.
 
 ## Fiziksel cihazlar
 
-Cihaz derlemelerini, alıcının cihazına kurulmasına olanak tanıyan bir sağlama profiliyle imzalamaktan siz sorumlusunuz. Simülatör SDK’sı yerine bir cihaz hedefiyle derleme yapın:
+Cihaz derlemelerini, alıcının cihazına kurulmasına izin veren bir sağlama profiliyle imzalamaktan siz sorumlusunuz. Simülatör SDK’sı yerine bir cihaz hedefiyle derleme yapın:
 
 ```bash
 tuist xcodebuild build -scheme App -project App.xcodeproj \
@@ -46,18 +46,18 @@ Zaten dışa aktarılmış bir IPA dosyasını da paylaşabilirsiniz:
 tuist share App.ipa
 ```
 
-Alıcılar, uygulamayı yüklemek için mobil cihazlarında bir IPA önizleme bağlantısını açabilir. Kimlik doğrulama ve projenin önizleme görünürlüğü kuralları hâlâ geçerlidir.
+Alıcılar, uygulamayı yüklemek için mobil cihazlarında bir IPA önizleme bağlantısını açabilir. Kimlik doğrulama ve projenin önizleme görünürlük ayarları yine de geçerlidir.
 
-## CI ve derleme numaraları
+## Sürekli entegrasyon ve derleme numaraları
 
-Mevcut <.localized_link href="/guides/integrations/continuous-integration">CI kimlik doğrulaması</.localized_link>nızı kullanın ve her yeni derleme için `CFBundleVersion` değerini benzersiz yapın. Örneğin, GitHub Actions’ın <code v-pre>${{ github.run_number }}</code> değişkenini kullanın. Aynı ikili dosya ve derleme numarasını `tuist share` aracılığıyla tekrar yüklemek, yinelenen bir kopya oluşturmak yerine başarısız olur.
+Mevcut <.localized_link href="/guides/integrations/continuous-integration">Sürekli Entegrasyon kimlik doğrulaması</.localized_link>nızı kullanın ve her yeni derleme için `CFBundleVersion` değerini benzersiz yapın. Örneğin, GitHub Actions’ın <code v-pre>${{ github.run_number }}</code> değişkenini kullanın. Aynı ikili dosya ve derleme numarasını `tuist share` aracılığıyla tekrar yüklemek, yinelenen bir kopya oluşturmak yerine hata verir.
 
 ```bash
 tuist share App --track beta --release-notes "Fix sign-in"
 ```
 
-Yayınlanan derlemeleri çalıştırmak, erişim, kanallar ve README rozetleri için <.localized_link href="/guides/features/previews#run-a-preview">Önizleme çalıştırma</.localized_link> kılavuzuna bakın.
+Yayınlanan derlemeleri çalıştırmak, erişim, kanallar ve README rozetleri için bkz. <.localized_link href="/guides/features/previews#run-a-preview">Önizleme çalıştırma</.localized_link>.
 
 <!-- @snippet: ./_tuist-share -->
 
-Alıcılar, derleme sistemi entegrasyonundan bağımsız olarak <.localized_link href="/guides/features/previews/run/macos">Tuist macOS uygulamasını</.localized_link> veya <.localized_link href="/guides/features/previews/run/ios">iPhone uygulamasını</.localized_link> kullanabilir. iPhone kılavuzu ayrıca Tuist SDK ile <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">uygulama içi güncelleme bildirimlerini</.localized_link> de kapsar.
+Alıcılar, derleme sistemi entegrasyonundan bağımsız olarak <.localized_link href="/guides/features/previews/run/macos">Tuist macOS uygulaması</.localized_link>nı veya <.localized_link href="/guides/features/previews/run/ios">iPhone uygulaması</.localized_link>nı kullanabilir. iPhone kılavuzu ayrıca Tuist SDK ile <.localized_link href="/guides/features/previews/run/ios#in-app-update-notifications">uygulama içi güncelleme bildirimleri</.localized_link>ni de kapsar.

@@ -13,7 +13,7 @@
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-針對 Apple 預覽，Tuist macOS 選單列應用程式是 CLI 的替代方案，無論建置來自 Xcode、Bazel 或 Once。發布流程的簽署與資格要求仍然適用。
+針對 Apple 預覽，Tuist macOS 選單列應用程式是 CLI 的替代方案，無論建置來自 Xcode、Bazel 或 Struo。發布流程的簽署與資格要求仍然適用。
 
 ## 安裝 {#install}
 
@@ -23,6 +23,6 @@
 
 在選單列應用程式中選擇相容的裝置或模擬器，然後在預覽頁面點擊 **執行**。
 
-macOS 應用程式會先為每個應用程式請求最新的相容預覽。在較舊的伺服器上，若其在套用平台篩選條件前先選取不同的應用程式，則會退回至分頁歷史記錄，而不會施加可能隱藏可用建置的截止限制。
+macOS 應用程式會先為每個應用程式請求最新的相容預覽。在較舊的伺服器上（會在套用平台篩選條件前先選取不同的應用程式），它會回退至分頁歷史記錄，且不會施加可能隱藏可用建置的截止限制。
 
-如需存取權限與組織方式，請參閱 <.localized_link href="/guides/features/previews#visibility">可見度與軌道</.localized_link>。
+如需存取與組織方式，請參閱 <.localized_link href="/guides/features/previews#visibility">可見性與軌跡</.localized_link>。

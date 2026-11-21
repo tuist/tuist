@@ -40,7 +40,7 @@ msgstr "حذف"
 #: lib/tuist_web/live/sandbox_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Delete sandbox"
-msgstr "حذف مساحة العمل الجارية"
+msgstr "حذف بيئة الاختبار"
 
 #: lib/tuist_web/live/sandboxes_live.ex:895
 #, elixir-autogen, elixir-format
@@ -68,7 +68,7 @@ msgstr "فشل"
 #: lib/tuist_web/live/sandboxes_live.ex:889
 #, elixir-autogen, elixir-format
 msgid "Idle"
-msgstr "خامل"
+msgstr "غير نشط"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:171
 #: lib/tuist_web/live/sandbox_live.html.heex:127
@@ -99,7 +99,7 @@ msgstr "متوقف مؤقتًا"
 #: lib/tuist_web/live/sandbox_live.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Pausing…"
-msgstr "يتم الإيقاف المؤقت…"
+msgstr "جارٍ الإيقاف المؤقت…"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -110,7 +110,7 @@ msgstr "استئناف"
 #: lib/tuist_web/live/sandboxes_live.ex:891
 #, elixir-autogen, elixir-format
 msgid "Resuming"
-msgstr "جارٍ الاستئناف"
+msgstr "استئناف"
 
 #: lib/tuist_web/live/sandbox_live.ex:140
 #, elixir-autogen, elixir-format
@@ -130,19 +130,19 @@ msgstr "تشغيل الوكلاء في بيئات معزولة"
 #: lib/tuist_web/live/sandbox_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Sandbox ID"
-msgstr "معرّف البيئة المعزولة"
+msgstr "معرف البيئة المعزولة"
 
 #: lib/tuist_web/live/sandbox_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Sandbox deleted."
 msgstr "تم حذف البيئة المعزولة."
 
-#: lib/tuist_web/components/dashboard_navigation.ex:42
+#: lib/tuist_web/components/dashboard_navigation.ex:43
 #: lib/tuist_web/live/sandbox_live.ex:41
 #: lib/tuist_web/live/sandboxes_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
-msgstr "صناديق التجارب"
+msgstr "البيئات المعزولة"
 
 #: lib/tuist_web/live/sandbox_live.ex:112
 #: lib/tuist_web/live/sandbox_live.ex:145
@@ -165,17 +165,17 @@ msgstr "الحالة"
 #: lib/tuist_web/live/sandbox_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "The machine running it reported an error."
-msgstr "أبلغت الآلة التي تشغّله عن حدوث خطأ."
+msgstr "أبلغ الجهاز الذي يشغّلها عن حدوث خطأ."
 
 #: lib/tuist_web/live/sandbox_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "The machine running this sandbox is unreachable. Please retry."
-msgstr "الآلة التي تشغل صندوق التجارب هذا غير متاحة. يرجى إعادة المحاولة."
+msgstr "لا يمكن الوصول إلى الجهاز الذي يشغّل صندوق الاختبار هذا. يُرجى إعادة المحاولة."
 
 #: lib/tuist_web/live/sandbox_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "The sandbox changed state in the meantime. Please retry."
-msgstr "تغيّرت حالة صندوق الاختبار في هذه الأثناء. يرجى إعادة المحاولة."
+msgstr "تغيّرت حالة صندوق الاختبار في هذه الأثناء. يُرجى إعادة المحاولة."
 
 #: lib/tuist_web/live/sandbox_live.ex:85
 #, elixir-autogen, elixir-format
@@ -185,7 +185,7 @@ msgstr "صندوق الاختبار مشغول بمهمة وكيل ولم يُع
 #: lib/tuist_web/live/sandbox_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The sandbox stops and its disk is discarded. Work that was not pushed is lost."
-msgstr "يتوقف صندوق الاختبار ويتم التخلّص من قرصه. تضيع الأعمال التي لم تُدفع."
+msgstr "يتوقف صندوق الاختبار ويتم التخلّص من قرصه. تُفقد الأعمال التي لم تُدفَع."
 
 #: lib/tuist_web/live/sandbox_live.html.heex:90
 #, elixir-autogen, elixir-format
@@ -195,7 +195,7 @@ msgstr "فشل صندوق الاختبار هذا"
 #: lib/tuist_web/live/sandbox_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "This sandbox was deleted."
-msgstr "حُذف صندوق الاختبار هذا."
+msgstr "تم حذف صندوق الاختبار هذا."
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:146
 #: lib/tuist_web/live/sandbox_live.html.heex:109
@@ -203,7 +203,7 @@ msgstr "حُذف صندوق الاختبار هذا."
 #: lib/tuist_web/live/sandboxes_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "vCPUs"
-msgstr "أنوية معالجة افتراضية"
+msgstr "نوى افتراضية"
 
 #: lib/tuist_web/live/sandbox_instances_live.ex:137
 #: lib/tuist_web/live/sandbox_live.html.heex:139
@@ -216,7 +216,7 @@ msgstr "مؤرشف"
 #: lib/tuist_web/live/sandboxes_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} in use now"
-msgstr "%{count} من %{limit} قيد الاستخدام الآن"
+msgstr "%{count} من %{limit} قيد الاستخدام حالياً"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:77
 #, elixir-autogen, elixir-format
@@ -236,7 +236,7 @@ msgstr "متوسط مدة الجلسة"
 #: lib/tuist_web/live/sandboxes_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Concurrency"
-msgstr "الترابط"
+msgstr "التشغيل المتزامن"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:45
 #, elixir-autogen, elixir-format
@@ -246,7 +246,7 @@ msgstr "مخصص"
 #: lib/tuist_web/live/sandboxes_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "How long a sandbox runs before it is paused, archived, deleted or fails."
-msgstr "المدة التي يعمل فيها صندوق التجارب قبل إيقافه مؤقتًا، أو أرشفته، أو حذفه، أو فشله."
+msgstr "المدة التي يعمل فيها صندوق الاختبار قبل إيقافه مؤقتًا أو أرشفته أو حذفه أو فشله."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:42
 #, elixir-autogen, elixir-format
@@ -261,7 +261,7 @@ msgstr "آخر 24 ساعة"
 #: lib/tuist_web/live/sandboxes_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
-msgstr "آخر 30 يوماً"
+msgstr "آخر 30 يومًا"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:32
 #, elixir-autogen, elixir-format
@@ -271,42 +271,42 @@ msgstr "آخر 7 أيام"
 #: lib/tuist_web/live/sandboxes_live.ex:199
 #, elixir-autogen, elixir-format
 msgid "Limit"
-msgstr "الحدّ"
+msgstr "الحد الأقصى"
 
 #: lib/tuist_web/live/sandboxes_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Peak memory (GB)"
-msgstr "الذاكرة القصوى (غيغابايت)"
+msgstr "ذروة الذاكرة (جيجابايت)"
 
 #: lib/tuist_web/live/sandboxes_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Peak vCPUs"
-msgstr "أنوية vCPU القصوى"
+msgstr "ذروة vCPUs"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Sandboxes agents started in the selected window."
-msgstr "تم تشغيل وكلاء الصناديق المعزولة خلال الفترة المحددة."
+msgstr "بدء وكلاء Sandboxes في النافذة المحددة."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Sandboxes created"
-msgstr "صناديق معزولة تم إنشاؤها"
+msgstr "Sandboxes تم إنشاؤها"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "p50 session duration"
-msgstr "المدة الوسيطة للجلسة (p50)"
+msgstr "مدة الجلسة p50"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "p90 session duration"
-msgstr "المدة عند النسبة المئوية 90 للجلسة (p90)"
+msgstr "مدة الجلسة p90"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "p99 session duration"
-msgstr "المدة عند النسبة المئوية 99 للجلسة (p99)"
+msgstr "مدة الجلسة p99"
 
 #: lib/tuist_web/live/sandboxes_live.ex:129
 #, elixir-autogen, elixir-format
@@ -316,7 +316,7 @@ msgstr "منذ الشهر الماضي"
 #: lib/tuist_web/live/sandboxes_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "منذ الفترة السابقة"
+msgstr "منذ الفترة الماضية"
 
 #: lib/tuist_web/live/sandboxes_live.ex:126
 #, elixir-autogen, elixir-format
@@ -336,12 +336,12 @@ msgstr "منذ الأمس"
 #: lib/tuist_web/live/sandboxes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
-msgstr "المدة التي يستغرقها Tuist لتشغيل بيئة معزولة، سواء من القالب، أو من لقطة مشروع، أو عن طريق استعادتها من أرشيف. لا يشمل ذلك وقت الإعداد."
+msgstr "المدة التي يستغرقها Tuist لتهيئة صندوق معزول، سواء من القالب، أو من لقطة مشروع، أو عن طريق استعادته من أرشيف. لا يشمل ذلك خطوة الإعداد."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
-msgstr "المدة التي يستغرقها ملف .agents/setup الخاص بمشروعك في Orb تم تشغيله من القالب. تتخطى الـ Orbs التي تبدأ من لقطة مشروع هذه الخطوة، لذا فهذا هو المكان الذي يظهر فيه جهد الإعداد الخاص بك."
+msgstr "المدة التي تستغرقها عملية .agents/setup لمشروعك في Amp Orb مُشغَّل من القالب. تتخطى الأوربات المُشغَّلة من لقطة مشروع هذه الخطوة، لذا هنا تظهر جهود الإعداد الخاصة بك."
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:156
 #, elixir-autogen, elixir-format
@@ -356,32 +356,32 @@ msgstr "متوسط وقت البدء"
 #: lib/tuist_web/live/sandboxes_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "p50 Setup"
-msgstr "p50 وقت الإعداد"
+msgstr "p50 للإعداد"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "p50 Time to start"
-msgstr "p50 وقت البدء"
+msgstr "الوقت اللازم للبدء (p50)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "p90 Setup"
-msgstr "p90 وقت الإعداد"
+msgstr "إعداد (p90)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "p90 Time to start"
-msgstr "p90 وقت البدء"
+msgstr "الوقت اللازم للبدء (p90)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "p99 Setup"
-msgstr "الإعداد p99"
+msgstr "إعداد (p99)"
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "p99 Time to start"
-msgstr "الوقت حتى البدء p99"
+msgstr "الوقت اللازم للبدء (p99)"
 
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:80
 #, elixir-autogen, elixir-format
@@ -408,7 +408,7 @@ msgstr "صناديق الاختبار الأخيرة"
 msgid "View more"
 msgstr "عرض المزيد"
 
-#: lib/tuist_web/components/dashboard_navigation.ex:45
+#: lib/tuist_web/components/dashboard_navigation.ex:46
 #: lib/tuist_web/live/sandbox_instances_live.ex:27
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:3
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:12
@@ -435,7 +435,7 @@ msgstr "لم يتم العثور على صناديق اختبار"
 #: lib/tuist_web/live/sandbox_instances_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "ترتيب حسب:"
+msgstr "فرز حسب:"
 
 #: lib/tuist_web/live/sandboxes_live.ex:871
 #, elixir-autogen, elixir-format
@@ -465,7 +465,7 @@ msgstr "جارٍ الأرشفة…"
 #: lib/tuist_web/live/sandboxes_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Start your first sandbox from your terminal by running:"
-msgstr "ابدأ أول صندوق عزل من خلال الطرفية بتشغيل الأمر التالي:"
+msgstr "ابدأ أول صندوق اختبار لك من خلال الطرفية بتشغيل الأمر التالي:"
 
 #: lib/tuist_web/live/sandbox_live.html.heex:105
 #: lib/tuist_web/live/sandboxes_live.ex:836

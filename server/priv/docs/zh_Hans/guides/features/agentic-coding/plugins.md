@@ -1,14 +1,14 @@
 ---
 {
   "title": "插件",
-  "titleTemplate": ":title · AI 辅助编码 · 功能 · 指南 · Tuist",
-  "description": "安装适用于 Cursor 的 Tuist 插件，或选择与供应商无关的 Agent Plugins 包。"
+  "titleTemplate": ":title · 智能体编码 · 功能 · 指南 · Tuist",
+  "description": "安装适用于 Cursor 的 Tuist 插件，或采用与供应商无关的 Agent Plugins 包。"
 }
 ---
 
 # 插件
 
-Tuist 将代理技能和托管 MCP 服务器打包为插件，以便你可以一并安装。请选择与你的编码代理匹配的包。
+Tuist 将代理技能和托管 MCP 服务器打包为插件，以便你可以一并安装。选择与你的编码代理相匹配的包。
 
 ## Claude Code
 
@@ -27,28 +27,28 @@ claude plugin install tuist@tuist-plugins
 
 1. 在 Cursor 侧边栏中打开**Customize**。
 2. 搜索**Tuist**。
-3. 选择**Install**，然后决定是为当前项目还是为你的用户账户安装。
+3. 选择**Install**，然后选择是为当前项目还是为你的用户账户安装。
 
-你也可以在 Cursor 中输入 `/add-plugin` 来打开相同的安装流程。该插件提供 Tuist 技能，并将 Cursor 连接到托管的 MCP 服务器。
+你也可以在 Cursor 中输入 `/add-plugin` 以打开相同的安装流程。该插件提供 Tuist 技能，并将 Cursor 连接到托管的 MCP 服务器。
 
-如果你的组织管理着 Cursor 市场，请先从 **Settings → Plugins → Team Marketplaces → Import Marketplace** 导入 `https://github.com/tuist/cursor-plugin`。
+如果你的组织管理 Cursor 市场，请先从 **Settings → Plugins → Team Marketplaces → Import Marketplace** 导入 `https://github.com/tuist/cursor-plugin`。
 
 ## 其他编码代理
 
-[Tuist Agent Plugin](https://github.com/tuist/agent-plugin) 遵循开放且供应商中立的 [Agent Plugins](https://agent-plugins.org/) 标准。请按照客户端的安装或引用插件目录说明，将兼容的客户端指向该仓库：
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin) 遵循开放、厂商中立的 [Agent Plugins](https://agent-plugins.org/) 标准。按照兼容客户端的说明，将其指向该仓库以安装或引用插件目录：
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
 ```
 
-它会安装 Tuist 技能，并将 `https://tuist.dev/mcp` 注册为远程 MCP 服务器。对于尚不支持 Agent Plugins 的客户端，请单独安装 <.localized_link href="/guides/features/agentic-coding/skills">技能</.localized_link> 或配置 <.localized_link href="/guides/features/agentic-coding/mcp">MCP 服务器</.localized_link>。
+它会安装 Tuist 技能，并将 `https://tuist.dev/mcp` 注册为远程 MCP 服务器。对于尚不支持 Agent Plugins 的客户端，请单独安装 <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> 或配置 <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link>。
 
 ## 身份验证
 
-大多数技能都使用 Tuist 命令行界面，因此在让代理访问你的项目数据之前，请先进行一次身份验证：
+大多数技能使用 Tuist 命令行界面，因此在让代理访问你的项目数据之前，请先对其进行一次身份验证：
 
 ```bash
 tuist auth login
 ```
 
-托管的 MCP 服务器会在需要时请求其自身的登录。有关针对特定客户端的设置和身份验证详情，请参阅 <.localized_link href="/guides/features/agentic-coding/mcp">MCP 指南</.localized_link>。
+托管的 MCP 服务器会在需要时请求其自身的登录。有关针对特定客户端的设置和身份验证详细信息，请参阅 <.localized_link href="/guides/features/agentic-coding/mcp">MCP guide</.localized_link>。

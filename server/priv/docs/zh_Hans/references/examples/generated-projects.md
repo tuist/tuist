@@ -2,7 +2,7 @@
 {
   "title": "生成项目示例",
   "titleTemplate": ":title · 示例 · 参考 · Tuist",
-  "description": "用作验收测试夹具的生成项目示例。"
+  "description": "生成的项目示例，我们将其用作运行验收测试的夹具。"
 }
 ---
 # 生成项目示例

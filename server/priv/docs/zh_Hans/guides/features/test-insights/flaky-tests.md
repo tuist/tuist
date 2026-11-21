@@ -7,22 +7,22 @@
 ---
 # 不稳定测试 {#flaky-tests}
 
-不稳定测试是指在使用相同代码多次运行时产生不同结果（通过或失败）的测试。它们会削弱你对测试套件的信任，并浪费开发人员排查误报失败的时间。Tuist 会自动检测不稳定测试，并帮助你随时间追踪它们。关于如何作为团队进行调查和隔离，请参阅 [不稳定测试](https://tuist.dev/solutions/flaky-tests)。如需了解常见原因及如何衡量不稳定性的工具无关说明，请参阅 <.localized_link href="/references/concepts/flaky-test">什么是不稳定测试？</.localized_link>。
+不稳定测试是指在代码不变的情况下多次运行会产生不同结果（通过或失败）的测试。它们会削弱你对测试套件的信任，并浪费开发人员排查误报失败的时间。Tuist 会自动检测不稳定测试，并帮助你随时间跟踪它们。有关如何以团队方式调查和控制这些测试，请参阅[不稳定测试](https://tuist.dev/solutions/flaky-tests)。如需了解常见原因以及如何衡量不稳定性且与工具无关的说明，请参阅<.localized_link href="/references/concepts/flaky-test">什么是不稳定测试？</.localized_link>。
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="通过 tuist xcodebuild test 检测、管理和隔离 Xcode 项目中的不稳定测试。"
+    details="通过 tuist xcodebuild test 检测、管理并隔离 Xcode 项目中的不稳定测试。"
     link="/guides/features/test-insights/flaky-tests/xcode"
 />
   <.home_card
     title="生成的项目"
-    details="通过 tuist test 检测、管理和隔离 Tuist 生成项目中的不稳定测试。"
+    details="通过 tuist test 检测、管理并隔离 Tuist 生成项目中的不稳定测试。"
     link="/guides/features/test-insights/flaky-tests/generated-xcode-project"
 />
   <.home_card
     title="Gradle"
-    details="检测和管理 Gradle 项目中的不稳定测试。"
+    details="检测并管理 Gradle 项目中的不稳定测试。"
     link="/guides/features/test-insights/flaky-tests/gradle"
 />
   <.home_card
@@ -32,7 +32,7 @@
 />
   <.home_card
     title="Elixir"
-    details="通过测试重试检测和管理 Elixir 项目中的不稳定测试。"
+    details="通过测试重试检测并管理 Elixir 项目中的不稳定测试。"
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
   <.home_card
@@ -41,8 +41,8 @@
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
-    title="Once"
+    title="Struo"
     details="通过报告的重试尝试和 CI 历史记录调查不一致的测试结果。"
-    link="/guides/features/test-insights/flaky-tests/once"
+    link="/guides/features/test-insights/flaky-tests/struo"
 />
 </.home_cards>

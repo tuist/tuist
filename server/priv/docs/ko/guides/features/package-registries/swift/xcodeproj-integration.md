@@ -1,6 +1,6 @@
 ---
 {
-  "title": "XcodeProj 기반 패키지 통합을 사용한 프로젝트 생성",
+  "title": "XcodeProj 기반 패키지 통합이 적용된 프로젝트 생성",
   "titleTemplate": ":title · Swift · Package Registries · Features · Guides · Tuist",
   "description": "생성된 프로젝트에서 XcodeProj 기반 패키지 통합과 함께 Tuist Registry를 사용하세요."
 }

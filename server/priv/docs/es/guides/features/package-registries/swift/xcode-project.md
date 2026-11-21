@@ -2,7 +2,7 @@
 {
   "title": "Proyecto de Xcode",
   "titleTemplate": ":title · Swift · Registros de paquetes · Funcionalidades · Guías · Tuist",
-  "description": "Aprende a usar el registro de Tuist en un proyecto de Xcode."
+  "description": "Aprende a usar el Registro de Tuist en un proyecto de Xcode."
 }
 ---
 # Proyecto de Xcode {#xcode-project}
@@ -13,13 +13,13 @@ Para añadir paquetes usando el registro en tu proyecto de Xcode, utiliza la int
 
 ## Resolución de paquetes de control de código fuente {#resolving-source-control-packages}
 
-Los paquetes que se declaran con una URL de control de código fuente, como las dependencias transitivas de los paquetes que añades, se resuelven desde el control de código fuente de forma predeterminada. `tuist registry setup` configura Xcode para resolverlos desde el registro en su lugar escribiendo la siguiente preferencia de usuario:
+Los paquetes que se declaran con una URL de control de código fuente, como las dependencias transitivas de los paquetes que añades, se resuelven desde el control de código fuente por defecto. `tuist registry setup` configura Xcode para resolverlos desde el registro en su lugar escribiendo la siguiente preferencia de usuario:
 
 ```bash
 defaults write com.apple.dt.Xcode IDEPackageDependencySCMToRegistryTransformation useRegistryIdentityAndSources
 ```
 
-Xcode resuelve entonces un paquete de control de código fuente desde el registro siempre que exista un equivalente en el registro, y recurre al control de código fuente cuando no lo hay.
+Xcode resuelve entonces un paquete de control de código fuente desde el registro siempre que exista un equivalente en el registro, y vuelve al control de código fuente cuando no lo hay.
 
 > [!NOTE]
 > Esta es una preferencia de Xcode por máquina y no una configuración del proyecto, por lo que confirmar el archivo de configuración del registro no lo comparte con el resto de tu equipo. Cada desarrollador debe ejecutar `tuist registry setup` una vez en su máquina. La preferencia se aplica entonces a todos los proyectos de Xcode en esa máquina.

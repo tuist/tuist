@@ -1,0 +1,537 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr "Language: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:447
+#: lib/tuist_web/live/snapshot_build_live.ex:528
+#: lib/tuist_web/live/snapshot_history_live.ex:204
+#, elixir-autogen, elixir-format
+msgid "%{percentage}% of pixels changed"
+msgstr "%{percentage}% dos pixels alterados"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:452
+#, elixir-autogen, elixir-format
+msgid "%{percentage}% of pixels differ, within the %{threshold}% threshold"
+msgstr "%{percentage}% dos pixels diferem, dentro do limite de %{threshold}%"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:838
+#, elixir-autogen, elixir-format
+msgid "Added"
+msgstr "Adicionado"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:220
+#: lib/tuist_web/live/snapshot_commit_live.ex:226
+#: lib/tuist_web/live/snapshots_live.html.heex:217
+#: lib/tuist_web/live/snapshots_live.html.heex:223
+#: lib/tuist_web/live/snapshots_live.html.heex:235
+#: lib/tuist_web/live/snapshots_live.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "Todos"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "Análises"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "Aplicar"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:213
+#: lib/tuist_web/live/snapshot_commit_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Approve changes"
+msgstr "Aprovar alterações"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:758
+#: lib/tuist_web/live/snapshot_build_live.ex:873
+#, elixir-autogen, elixir-format
+msgid "Approved"
+msgstr "Aprovado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:249
+#: lib/tuist_web/live/snapshot_build_live.ex:617
+#: lib/tuist_web/live/snapshot_build_live.ex:641
+#: lib/tuist_web/live/snapshot_build_live.ex:663
+#: lib/tuist_web/live/snapshot_build_live.ex:664
+#: lib/tuist_web/live/snapshot_build_live.ex:678
+#: lib/tuist_web/live/snapshot_build_live.ex:679
+#: lib/tuist_web/live/snapshot_build_live.ex:872
+#, elixir-autogen, elixir-format
+msgid "Baseline"
+msgstr "Linha de base"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:240
+#: lib/tuist_web/live/snapshot_commit_live.ex:168
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "Ramo"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:157
+#, elixir-autogen, elixir-format
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/snapshots_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "CI signalled that every job of this commit reported its snapshots."
+msgstr "A CI sinalizou que todos os trabalhos deste commit reportaram seus snapshots."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Catch visual regressions on every pull request"
+msgstr "Detecte regressões visuais em cada pull request"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:837
+#, elixir-autogen, elixir-format
+msgid "Changed"
+msgstr "Alterado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:244
+#: lib/tuist_web/live/snapshot_commit_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Commit SHA"
+msgstr "SHA do commit"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:180
+#, elixir-autogen, elixir-format
+msgid "Compared with"
+msgstr "Comparado com"
+
+#: lib/tuist_web/live/snapshots_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "Complete"
+msgstr "Concluído"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:154
+#, elixir-autogen, elixir-format
+msgid "Current"
+msgstr "Atual"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "Personalizado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:652
+#: lib/tuist_web/live/snapshot_build_live.ex:653
+#: lib/tuist_web/live/snapshot_build_live.ex:851
+#: lib/tuist_web/live/snapshot_history_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Diff"
+msgstr "Diferença"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:870
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "Falhou"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:92
+#, elixir-autogen, elixir-format
+msgid "File"
+msgstr "Arquivo"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Group"
+msgstr "Grupo"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Images"
+msgstr "Imagens"
+
+#: lib/tuist_web/live/snapshots_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "In progress"
+msgstr "Em andamento"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "Últimos 12 meses"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "Últimas 24 horas"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "Últimos 30 dias"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "Últimos 7 dias"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:203
+#, elixir-autogen, elixir-format
+msgid "Last uploaded"
+msgstr "Último envio"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:875
+#, elixir-autogen, elixir-format
+msgid "Needs review"
+msgstr "Precisa de revisão"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:623
+#: lib/tuist_web/live/snapshot_build_live.ex:642
+#: lib/tuist_web/live/snapshot_build_live.ex:667
+#: lib/tuist_web/live/snapshot_build_live.ex:668
+#, elixir-autogen, elixir-format
+msgid "New"
+msgstr "Novo"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:637
+#, elixir-autogen, elixir-format
+msgid "New image opacity"
+msgstr "Nova opacidade da imagem"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:871
+#, elixir-autogen, elixir-format
+msgid "No changes"
+msgstr "Sem alterações"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:409
+#, elixir-autogen, elixir-format
+msgid "No images in this category."
+msgstr "Nenhuma imagem nesta categoria."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "No snapshots match this search."
+msgstr "Nenhum snapshot corresponde a esta pesquisa."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:241
+#: lib/tuist_web/live/snapshot_build_live.ex:724
+#: lib/tuist_web/live/snapshot_commit_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "Nenhum"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "None, first build of the set"
+msgstr "Nenhum, primeira compilação do conjunto"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:463
+#, elixir-autogen, elixir-format
+msgid "Not rendered in this run; carried over from the baseline"
+msgstr "Não renderizado nesta execução; mantido da linha de base"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "Nothing, no earlier snapshots"
+msgstr "Nada, sem snapshots anteriores"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:853
+#: lib/tuist_web/live/snapshot_history_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Onion"
+msgstr "Onion"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:869
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr "Processando"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:721
+#, elixir-autogen, elixir-format
+msgid "Pull request"
+msgstr "Pull request"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:222
+#: lib/tuist_web/live/snapshot_commit_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "Reject changes"
+msgstr "Rejeitar alterações"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:757
+#: lib/tuist_web/live/snapshot_build_live.ex:874
+#, elixir-autogen, elixir-format
+msgid "Rejected"
+msgstr "Rejeitado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:839
+#, elixir-autogen, elixir-format
+msgid "Removed"
+msgstr "Removido"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:840
+#, elixir-autogen, elixir-format
+msgid "Renamed"
+msgstr "Renomeado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:460
+#, elixir-autogen, elixir-format
+msgid "Renamed from %{name}"
+msgstr "Renomeado de %{name}"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:276
+#, elixir-autogen, elixir-format
+msgid "Same changes as %{commit}"
+msgstr "Mesmas alterações que %{commit}"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "Set"
+msgstr "Definir"
+
+#: lib/tuist_web/live/snapshot_commit_live.ex:221
+#: lib/tuist_web/live/snapshots_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Set:"
+msgstr "Definido:"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:850
+#: lib/tuist_web/live/snapshot_history_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Side by side"
+msgstr "Lado a lado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:841
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "Ignorado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:48
+#: lib/tuist_web/live/snapshot_build_live.ex:201
+#: lib/tuist_web/live/snapshot_build_live.ex:290
+#: lib/tuist_web/live/snapshot_commit_live.ex:36
+#: lib/tuist_web/live/snapshot_commit_live.ex:118
+#: lib/tuist_web/live/snapshot_history_live.ex:39
+#: lib/tuist_web/live/snapshot_history_live.ex:71
+#: lib/tuist_web/live/snapshots_live.ex:28
+#: lib/tuist_web/live/snapshots_live.ex:29
+#: lib/tuist_web/live/snapshots_live.ex:157
+#: lib/tuist_web/live/snapshots_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Snapshots"
+msgstr "Snapshots"
+
+#: lib/tuist_web/live/snapshots_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Snapshots in the latest run on the default branch, summed over snapshot sets. These are the baselines pull requests are compared with."
+msgstr "Snapshots na última execução na branch padrão, somados por conjuntos de snapshots. São as bases com as quais os pull requests são comparados."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:236
+#: lib/tuist_web/live/snapshot_commit_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "Status"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:404
+#, elixir-autogen, elixir-format
+msgid "Still being compared with the baseline."
+msgstr "Ainda sendo comparado com a linha de base."
+
+#: lib/tuist_web/live/snapshot_history_live.ex:107
+#, elixir-autogen, elixir-format
+msgid "Tags"
+msgstr "Tags"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:842
+#, elixir-autogen, elixir-format
+msgid "Unchanged"
+msgstr "Inalterado"
+
+#: lib/tuist_web/live/snapshots_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "Desconhecido"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:852
+#: lib/tuist_web/live/snapshot_history_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "Wipe"
+msgstr "Limpar"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:636
+#, elixir-autogen, elixir-format
+msgid "Wipe position"
+msgstr "Posição da limpeza"
+
+#: lib/tuist_web/live/snapshots_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "desde o mês passado"
+
+#: lib/tuist_web/live/snapshots_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "desde o último período"
+
+#: lib/tuist_web/live/snapshots_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "desde a semana passada"
+
+#: lib/tuist_web/live/snapshots_live.ex:151
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "desde o ano passado"
+
+#: lib/tuist_web/live/snapshots_live.ex:149
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "desde ontem"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "%{count} of %{total}"
+msgstr "%{count} de %{total}"
+
+#: lib/tuist_web/live/snapshots_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "Snapshot runs"
+msgstr "Execuções de snapshots"
+
+#: lib/tuist_web/live/snapshots_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "Snapshot uploads from CI and local runs in the period. Each set, shard and rerun counts, so a sharded pull request counts once per shard."
+msgstr "Uploads de snapshots do CI e de execuções locais no período. Cada conjunto, fragmento e nova execução conta, portanto um pull request fragmentado conta uma vez por fragmento."
+
+#: lib/tuist_web/live/snapshots_live.ex:156
+#, elixir-autogen, elixir-format
+msgid "Visual changes"
+msgstr "Alterações visuais"
+
+#: lib/tuist_web/live/snapshots_live.ex:172
+#, elixir-autogen, elixir-format
+msgid "Commits in which at least one snapshot looked different from its baseline or was removed. It counts commits rather than runs because a commit pools its shards and reruns: one shard alone sees the images other shards rendered as removed. New snapshots alone don't count."
+msgstr "Commits em que pelo menos um snapshot diferiu da sua imagem de referência ou foi removido. A contagem é por commit, não por execução, porque um commit agrega seus shards e refaz execuções: um shard isolado vê como removidas as imagens renderizadas por outros shards. Apenas novos snapshots não são contabilizados."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:339
+#: lib/tuist_web/live/snapshots_live.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Search snapshots..."
+msgstr "Pesquisar snapshots..."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "Group:"
+msgstr "Grupo:"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Timeline"
+msgstr "Linha do tempo"
+
+#: lib/tuist_web/live/snapshot_history_live.ex:188
+#, elixir-autogen, elixir-format
+msgid "Show older versions"
+msgstr "Mostrar versões anteriores"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Search groups..."
+msgstr "Pesquisar grupos..."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:331
+#, elixir-autogen, elixir-format
+msgid "Image statuses"
+msgstr "Status das imagens"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:410
+#, elixir-autogen, elixir-format
+msgid "No images in this category match the search."
+msgstr "Nenhuma imagem nesta categoria corresponde à pesquisa."
+
+#: lib/tuist_web/live/snapshot_build_live.ex:371
+#: lib/tuist_web/live/snapshot_build_live.ex:373
+#: lib/tuist_web/live/snapshot_build_live.ex:420
+#: lib/tuist_web/live/snapshot_build_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "Ungrouped"
+msgstr "Sem grupo"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:570
+#: lib/tuist_web/live/snapshot_build_live.ex:571
+#, elixir-autogen, elixir-format
+msgid "Close full screen"
+msgstr "Fechar tela cheia"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:560
+#: lib/tuist_web/live/snapshot_build_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Next image"
+msgstr "Próxima imagem"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:438
+#, elixir-autogen, elixir-format
+msgid "Open %{name} full screen"
+msgstr "Abrir %{name} em tela cheia"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:442
+#, elixir-autogen, elixir-format
+msgid "Open full screen"
+msgstr "Abrir em tela cheia"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:549
+#: lib/tuist_web/live/snapshot_build_live.ex:550
+#, elixir-autogen, elixir-format
+msgid "Previous image"
+msgstr "Imagem anterior"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:766
+#, elixir-autogen, elixir-format
+msgid "Not reviewed"
+msgstr "Não revisado"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:765
+#, elixir-autogen, elixir-format
+msgid "Review"
+msgstr "Revisar"
+
+#: lib/tuist_web/live/snapshot_build_live.ex:286
+#, elixir-autogen, elixir-format
+msgid "Uploaded"
+msgstr "Enviado"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Enable snapshots in the Tuist Gradle plugin, then run your tests in CI on %{branch} to set the baselines pull requests are compared with."
+msgstr "Ative os snapshots no plugin Tuist Gradle e execute seus testes na CI em %{branch} para definir as linhas de base com as quais os pull requests serão comparados."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Generated project? Run"
+msgstr "Projeto gerado? Execute"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Recording images another way? Upload them with"
+msgstr "Gravando imagens de outra forma? Envie-as com"
+
+#: lib/tuist_web/live/snapshots_live.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Turn your SwiftUI previews into snapshot tests with the tuist/snapshots library, then run your tests in CI on %{branch} to set the baselines pull requests are compared with."
+msgstr "Transforme suas previews do SwiftUI em testes de snapshot com a biblioteca tuist/snapshots e execute seus testes na CI em %{branch} para definir as linhas de base com as quais os pull requests serão comparados."
+
+#: lib/tuist_web/live/snapshots_live.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Turn them on in your build first:"
+msgstr "Ative-os primeiro na sua build:"
+
+#: lib/tuist_web/live/snapshots_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "More sets or shards may still upload: CI hasn't signalled the commit complete, with `tuist coverage complete` or `./gradlew tuistCoverageComplete`."
+msgstr "Mais conjuntos ou shards ainda podem enviar: a CI não sinalizou que o commit foi concluído, com `tuist coverage complete` ou `./gradlew tuistCoverageComplete`."

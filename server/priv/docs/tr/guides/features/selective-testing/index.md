@@ -7,7 +7,7 @@
 ---
 # Seçici test {#selective-testing}
 
-Projeler büyüdükçe, her push işlemi için tüm testleri çalıştırmak sürdürülebilir olmaktan çıkar. Tuist Seçici Test, son başarılı çalışmadan bu yana değişenlerden etkilenen testleri yalnızca çalıştırarak test süresini büyük ölçüde azaltır; bunu <.localized_link href="/guides/features/projects/hashing">karma algoritması</.localized_link> kullanarak yapar. Test süresini kısaltmanın diğer yolları, örneğin parçalara ayırma ve yavaş testleri düzeltme için bkz. [Yavaş testler](https://tuist.dev/solutions/slow-tests).
+Projeler büyüdükçe, her push işleminde tüm testleri çalıştırmak sürdürülebilir olmaktan çıkar. Tuist Seçici Test, son başarılı çalışmadan bu yana değişenlerden etkilenen testleri yalnızca çalıştırarak ve <.localized_link href="/guides/features/projects/hashing">hashing algoritması</.localized_link>nı kullanarak test süresini büyük ölçüde azaltır. Parçalama ve yavaş testleri düzeltme gibi test süresini kısaltmanın diğer yolları için [Yavaş testler](https://tuist.dev/solutions/slow-tests) sayfasına bakın.
 
 ## Desteklenen derleme sistemleri {#supported-build-systems}
 

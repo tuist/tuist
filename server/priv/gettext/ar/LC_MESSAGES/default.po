@@ -14,7 +14,7 @@ msgstr "Language: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 #: lib/tuist_web/components/chart_type_toggle.ex:40
 #, elixir-autogen, elixir-format
 msgid "Group by:"
-msgstr "تجميع حسب:"
+msgstr "التجميع حسب:"
 
 #: lib/tuist_web/components/chart_type_toggle.ex:65
 #, elixir-autogen, elixir-format
@@ -29,4 +29,4 @@ msgstr "مخطط مبعثر"
 #: lib/tuist_web/components/chart_type_toggle.ex:67
 #, elixir-autogen, elixir-format
 msgid "Bar"
-msgstr "شريط"
+msgstr "شريطي"

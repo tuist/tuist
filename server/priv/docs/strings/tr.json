@@ -14,7 +14,7 @@
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel önbelleği" },
       "bitrise": { "text": "Bitrise" },
-      "build-and-publish": { "text": "Derle ve yayımla" },
+      "build-and-publish": { "text": "Derle ve yayınla" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Önbellek birimleri" },
       "calendar": { "text": "Takvim" },
@@ -26,20 +26,20 @@
       "docker": { "text": "Docker" },
       "elixir": { "text": "Elixir" },
       "elixir-cache": { "text": "Elixir önbelleği" },
-      "entire": { "text": "Tümü" },
+      "entire": { "text": "Entire" },
       "github-actions": { "text": "GitHub Actions" },
       "gitlab-ci": { "text": "GitLab CI" },
       "gradle": { "text": "Gradle" },
       "grafana": { "text": "Grafana" },
-      "images": { "text": "Görüntüler" },
+      "images": { "text": "İmajlar" },
       "implicit-dependencies": { "text": "Örtük bağımlılıklar" },
       "iphone-app": { "text": "iPhone uygulaması" },
       "macos-app": { "text": "macOS uygulaması" },
       "new-project": { "text": "Yeni proje" },
-      "once": { "text": "Once" },
-      "once-cache": { "text": "Once önbelleği" },
-      "once-project": { "text": "Once projesi" },
-      "once-remote-execution": { "text": "Once uzak yürütme" },
+      "once": { "text": "Struo" },
+      "once-cache": { "text": "Struo önbelleği" },
+      "once-project": { "text": "Struo projesi" },
+      "once-remote-execution": { "text": "Struo uzaktan yürütme" },
       "origin": { "text": "Kaynak" },
       "profiles": { "text": "Profiller" },
       "project-description": { "text": "Proje açıklaması" },
@@ -50,8 +50,8 @@
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust önbelleği" },
       "rust-project": { "text": "Rust projesi" },
-      "sandboxes": { "text": "Sanal alanlar" },
-      "scim-provisioning": { "text": "SCIM sağlama" },
+      "sandboxes": { "text": "Sandboxlar" },
+      "scim-provisioning": { "text": "SCIM hazırlama" },
       "server-api": { "text": "Sunucu API'si" },
       "single-sign-on": { "text": "Tek Oturum Açma" },
       "supported-types": { "text": "Desteklenen türler" },
@@ -67,7 +67,7 @@
         "text": "Diller 🌍"
       },
       "description": {
-        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğini iyileştirmesine yardımcı olabilirsiniz."
+        "text": "Tuist'in daha fazla dili desteklemesine veya bu sayfadaki dil rehberliğinin iyileştirilmesine yardımcı olabilirsiniz."
       },
       "cta": {
         "text": "Katkıda bulun"
@@ -126,7 +126,7 @@
       "text": "Sunucu"
     },
     "tutorials": {
-      "text": "Eğitimler"
+      "text": "Öğreticiler"
     },
     "resources": {
       "text": "Kaynaklar",
@@ -298,13 +298,13 @@
       }
     },
     "tutorials": {
-      "text": "Eğitimler",
+      "text": "Öğreticiler",
       "items": {
         "xcode": {
           "text": "Xcode",
           "items": {
             "create-a-generated-project": {
-              "text": "Oluşturulan bir proje oluşturun"
+              "text": "Oluşturulmuş bir proje oluştur"
             }
           }
         }
@@ -323,7 +323,7 @@
               "text": "Xcode projesi"
             },
             "generated-xcode-project": {
-              "text": "Oluşturulan Xcode projesi"
+              "text": "Oluşturulmuş Xcode projesi"
             },
             "gradle-project": {
               "text": "Gradle projesi"
@@ -337,13 +337,13 @@
           }
         },
         "install-tuist": {
-          "text": "Tuist'i Kurun"
+          "text": "Tuist'i kur"
         },
         "tuist": {
           "text": "Tuist",
           "items": {
             "about": {
-              "text": "Tuist Hakkında"
+              "text": "Tuist hakkında"
             }
           }
         },
@@ -351,7 +351,7 @@
           "text": "Hızlı başlangıç",
           "items": {
             "install-tuist": {
-              "text": "Tuist'i Kurun"
+              "text": "Tuist'i kur"
             },
             "get-started": {
               "text": "Başlangıç"
@@ -382,7 +382,7 @@
                       "text": "Yeni proje oluştur"
                     },
                     "swift-package": {
-                      "text": "Swift Paketi ile deneyin"
+                      "text": "Swift Paketi ile dene"
                     },
                     "migrate": {
                       "text": "Geçiş yap",
@@ -419,7 +419,7 @@
                   "text": "Kod paylaşımı"
                 },
                 "synthesized-files": {
-                  "text": "Sentetik dosyalar"
+                  "text": "Oluşturulan dosyalar"
                 },
                 "dynamic-configuration": {
                   "text": "Dinamik yapılandırma"
@@ -434,10 +434,10 @@
                   "text": "Hashing"
                 },
                 "inspect": {
-                  "text": "İnceleme",
+                  "text": "İncele",
                   "items": {
                     "implicit-imports": {
-                      "text": "Örtük içe aktarmalar"
+                      "text": "Örtük importlar"
                     }
                   }
                 },
@@ -501,7 +501,7 @@
               "text": "Seçim",
               "items": {
                 "generated-xcode-project": {
-                  "text": "Oluşturulan Xcode projesi"
+                  "text": "Oluşturulmuş Xcode projesi"
                 }
               }
             },
@@ -509,7 +509,7 @@
               "text": "Parçalama",
               "items": {
                 "generated-xcode-project": {
-                  "text": "Oluşturulan Xcode projesi"
+                  "text": "Oluşturulmuş Xcode projesi"
                 }
               }
             },
@@ -517,7 +517,7 @@
               "text": "İçgörüler",
               "items": {
                 "generated-xcode-project": {
-                  "text": "Oluşturulan Xcode projesi"
+                  "text": "Oluşturulmuş Xcode projesi"
                 }
               }
             },
@@ -528,7 +528,7 @@
                   "text": "Kararsızlık",
                   "items": {
                     "generated-xcode-project": {
-                      "text": "Oluşturulan Xcode projesi"
+                      "text": "Oluşturulmuş Xcode projesi"
                     }
                   }
                 }
@@ -562,7 +562,7 @@
               "text": "MCP"
             },
             "skills": {
-              "text": "Yetenekler"
+              "text": "Beceriler"
             }
           }
         },
@@ -573,7 +573,7 @@
               "text": "Sürekli entegrasyon"
             },
             "http-proxy": {
-              "text": "HTTP vekil sunucusu"
+              "text": "HTTP proxy"
             },
             "sso": {
               "text": "SSO"
@@ -620,7 +620,7 @@
           }
         },
         "share": {
-          "text": "Paylaşım",
+          "text": "Paylaş",
           "items": {
             "previews": {
               "text": "Önizlemeler"

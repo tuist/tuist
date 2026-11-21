@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "017a26b05fa15f02e8e1933eac9e368baa2176bc4464bf194020d17448cdb60a",
+  "hash": "c4bcb6ca75a6d3b162a7df19a8a9a62dd93d75414aacf6c78eab4e69e1b9cc21",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Get started {#get-started}": {
-                  "content_hash": "697b4b62b4750ac3ae14bb789a462d152801caa5082812482bc9ec01f6c51286"
+                  "content_hash": "640e7301d4bf25149f9a57b4350960d0f1105237f3f46d391558dba7c25baff5"
                 },
                 "## Bazel project {#bazel-project}": {
                   "content_hash": "f34481f7ecfdc805d917c7ea948dda13a62fb86da190417a4929eb027305b5b4"
@@ -25,27 +25,27 @@
                 "## Gradle project {#gradle-project}": {
                   "content_hash": "4f57915fd61693a433b8a14ba9d52e03606f76b938892500228d9271960b02ea"
                 },
-                "## Once project {#once-project}": {
-                  "content_hash": "92ed11b416e26d6872842d211dca2ab5a12a29f605b24073fffbf6c023f1dfbb"
-                },
                 "## Rust project {#rust-project}": {
                   "content_hash": "6a0dade3f579d336689df4a7b7fe8025ddce663362e97154b6c9d29c24aea4ff"
+                },
+                "## Struo project {#struo-project}": {
+                  "content_hash": "039d0e4c2c4252554d3f1a101558ef2d7db20b5353498034995a3a0e1d41ec01"
                 },
                 "## Xcode project {#existing-xcode-project}": {
                   "content_hash": "17a9d8a19df965a505b3904866ec33219c3afa08f015edc3dfd8566098d6ab59"
                 },
                 "Preamble": {
-                  "content_hash": "80539e66ab3f077c065e14bb26c9093c91a4c2c20551954be1beeb9ec9f03dea"
+                  "content_hash": "ae14f13f2bb9c599968bfa874e7b475824c443b199a8b4d4497c2591c2928cdd"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "f317186b910ea8364acf5d7603190b1663b4f4fc3b6f9ceb3d88ae0bff35c36d",
+          "hash": "1cd0e80a3718acd7ead2b145cd067b1c9d52394327a0acf7315d6e0645995dc0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started.md",
           "metadata": {
-            "content_hash": "eb2bc4a0cf2a0b8e4b9c93a6efc7eaa8f689c2fb418d42c4b6b9b11e1048cd1c"
+            "content_hash": "607b073861540c270ec3d1a7a870331983a3c14974fdfe9dfc92a03a79ddefc9"
           }
         },
         {
@@ -106,7 +106,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,13 +119,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -154,11 +148,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -247,21 +241,21 @@
             }
           ],
           "details": {},
-          "hash": "a0d5357c8f8887db0963da0612fed43aa4e387a132d3816464600b5dfecc4959",
+          "hash": "42e71d7a3892662a5b1683682fc809158805ee539ae099480f559486456ce06b",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "017a26b05fa15f02e8e1933eac9e368baa2176bc4464bf194020d17448cdb60a",
+      "hash": "c4bcb6ca75a6d3b162a7df19a8a9a62dd93d75414aacf6c78eab4e69e1b9cc21",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "efe6491567454842d8b5da515b11a5405068211bc3494ccd1028b0f1ebcfe058",
+  "output_hash": "7cee79438859dcb41d333d6f2bf45cacfe99126f7196bb5ff0394262471857b3",
   "output_path": "server/priv/docs/ru/guides/get-started.md",
   "protection_state": "recorded",
   "provider": "",
@@ -283,8 +277,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "bc75de52d6c6feb9a42bc9b9bcbf72671a6948e6",
   "source_path": "server/priv/docs/en/guides/get-started.md",
-  "translated_at": "2026-11-19T00:05:49.123708Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-19T16:15:18.068771Z",
+  "translation_session_id": "01a1f48a-43ab-7ad7-8f1a-d5368fdd9d06"
 }

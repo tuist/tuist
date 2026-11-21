@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ce81ae265dacededa7037158c96bf63203652b5074b988a9f6303962dea88daa",
+  "hash": "23f9d53135db49f957cbb187a0bb4cdf14f89ca8eec8378fdad5d0a5eb13ab76",
   "hash_tree": {
     "root": {
       "children": [
@@ -20,10 +20,10 @@
                   "content_hash": "750c18650f45fa0d7d65e23727530d8f0b87d5d402ff3513580e0a08d5480987"
                 },
                 "### Hosted Tuist server {#hosted-artifact-files}": {
-                  "content_hash": "56a79e4ed32463aa569db00fe81e801bf4fa6d8ebbb41951d0593ac400325461"
+                  "content_hash": "d9e76b83573cd620d38be4077c659c24e825770e95d4d34780d40fa7deedd618"
                 },
                 "### Other dashboard and activity data {#other-dashboard-and-activity-data}": {
-                  "content_hash": "7eeda199c5ff1cc6320c245c8637445c73ba52ff0f8ca41d244b16b1cd332900"
+                  "content_hash": "f570270f94be9b07bfef0f92dc5945da30fde95d1b9f04131acf5ea2ebeeb850"
                 },
                 "### Self-hosted instances {#self-hosted-artifact-files}": {
                   "content_hash": "cd537d12a18d5e9963843dfda1f17d0d5c18a23f4c3e182cb55d49ca6b5d9537"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "123370156aab4e8f05c1b0a0235a06657e334c5ef60390726529511365015de4",
+          "hash": "144c4890a81e6596317b0adccfffca2909b3fd229b8794fb0be80be679372daa",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/data-retention.md",
           "metadata": {
-            "content_hash": "8611a935ac818c9534e6a0854c854f36cee44266f53c9202206e558d93a10f9c"
+            "content_hash": "59c969cc6f6e76a7a646614e31ff346e7ba099c2f9a841b268376ec28491a674"
           }
         },
         {
@@ -103,7 +103,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "784431835a541af31da11f5ac17375ca4a6335ee97c69868fecdc7a4a33bfead",
+                    "content_hash": "321837fa7a16ba4eb47639fc34b1ed0160e7be6777040e8d4db450c406e48634",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,13 +116,7 @@
                         "content_hash": "0d59a1daa3a226cbe0fe6a570cbdb44aa2a616a74423326ba0476e063f0385d9"
                       },
                       "## Metrics and Test States": {
-                        "content_hash": "221f06d787d696574fa274cf74c3f1cb1f7528abbe1c0fa996de55ee0298ca0d"
-                      },
-                      "## Plural Forms by Locale": {
-                        "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
-                      },
-                      "## Translation Domains": {
-                        "content_hash": "efd81eaa1eaab54dae4967bc926c6ac31d2159b53009da858a51687d8cbd7f62"
+                        "content_hash": "9838a41365add53bd3d61c4afe18e92ed513c57568906ea079e8f044879e771f"
                       }
                     },
                     "sections_omitted": 0
@@ -151,11 +145,11 @@
                   }
                 }
               },
-              "hash": "72b2845b48fcca79692c22dc72c455f0ee5b2a896c58f40a1146e3c2f7b75c09",
+              "hash": "213543b1814379836998c03bb41bba0fb8769a59d15702bb0478deda3ce248b9",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "d5293aebf144fa27e3cb434074fb724ddbc5c06ffcfc5ed03ed50bd53ee425d4"
+                "content_hash": "e14c7a117289cb7107885d7141b4276751fb079ce1d1b99d926e07c613679130"
               }
             },
             {
@@ -232,21 +226,21 @@
             }
           ],
           "details": {},
-          "hash": "3698b54986a5051f5d1fe57a9d6eface889bf38ad7e37001cac806e8146683e4",
+          "hash": "56a945fd54a0fe688c7b583c2d7ae6d0f3d4f04298ef9828a07dca69ae2d64e3",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ce81ae265dacededa7037158c96bf63203652b5074b988a9f6303962dea88daa",
+      "hash": "23f9d53135db49f957cbb187a0bb4cdf14f89ca8eec8378fdad5d0a5eb13ab76",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/data-retention.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f1727d6b8956904820cc9a9c7a41d0d0a5789dcec0723566a79aa6bf111cc7c9",
+  "output_hash": "c49262a69d30c92e0282c5ed49c0129657c1e7339f6642f3e4979867f5e8ef86",
   "output_path": "server/priv/docs/zh_Hant/guides/server/data-retention.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "2a3b5068a734c13ff5acd10a9873fd219016dc42",
+  "source_commit_sha": "69bdc65ad439b8656adc12259c1953e40659d0e6",
   "source_path": "server/priv/docs/en/guides/server/data-retention.md",
-  "translated_at": "2026-11-19T01:01:48.694245Z",
-  "translation_session_id": "01a1f11e-0ed8-7d81-867f-2ee4f5133c32"
+  "translated_at": "2026-11-20T10:53:42.484606Z",
+  "translation_session_id": "01a1f87e-648e-7983-880e-3c168199b0b8"
 }

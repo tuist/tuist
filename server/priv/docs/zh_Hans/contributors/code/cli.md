@@ -5,13 +5,13 @@
   "description": "为 Tuist CLI 做出贡献。"
 }
 ---
-# 命令行工具 {#cli}
+# 命令行界面 {#cli}
 
 来源：[github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist) 和 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
 ## 用途 {#what-it-is-for}
 
-命令行工具是 Tuist 的核心。它负责项目生成、自动化工作流（测试、运行、依赖图和分析），并提供与 Tuist 服务器的接口，以支持身份验证、缓存、洞察、预览、注册表和选择性测试等功能。
+命令行界面是 Tuist 的核心。它负责项目生成、自动化工作流（测试、运行、依赖图和检查），并提供与 Tuist 服务器的接口，以支持身份验证、缓存、Insights、Previews、Registry 和选择性测试等功能。
 
 ## 如何贡献 {#how-to-contribute}
 
@@ -23,7 +23,7 @@
 ### 本地设置 {#set-up-locally}
 
 - 克隆仓库：`git clone git@github.com:tuist/tuist.git`
-- 使用[官方安装脚本](https://mise.jdx.dev/getting-started.html)安装 Mise（不要使用 Homebrew），然后运行 `mise install`
+- 使用 [官方安装脚本](https://mise.jdx.dev/getting-started.html)（而非 Homebrew）安装 Mise，并运行 `mise install`
 - 安装 Tuist 依赖：`tuist install`
 - 生成工作区：`tuist generate`
 
@@ -39,12 +39,12 @@
 
 #### 从 Xcode {#from-xcode}
 
-编辑 `tuist` 方案并设置参数，例如 `generate --no-open`。将工作目录设置为项目根目录（或使用 `--path`）。
+编辑 `tuist` scheme 并设置参数，例如 `generate --no-open`。将工作目录设置为项目根目录（或使用 `--path`）。
 
 > [!WARNING]
 > **ProjectDescription 编译**
 >
-> 命令行工具依赖于 `ProjectDescription` 的构建。如果运行失败，请先构建 `Tuist-Workspace` 方案。
+> 命令行界面依赖于 `ProjectDescription` 的构建。如果运行失败，请先构建 `Tuist-Workspace` scheme。
 
 
 #### 从终端 {#from-the-terminal}
@@ -55,7 +55,7 @@
 tuist generate --no-open
 ```
 
-然后使用 Xcode 构建 `tuist` 可执行文件，并从 DerivedData 中运行它：
+然后使用 Xcode 构建 `tuist` 可执行文件，并从 DerivedData 运行它：
 
 ```bash
 tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -destination 'platform=macOS' -showBuildSettings | awk -F' = ' '/BUILT_PRODUCTS_DIR/{print $2; exit}')"

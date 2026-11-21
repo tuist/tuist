@@ -2,12 +2,12 @@
 {
   "title": "Docker",
   "titleTemplate": ":title · Runners · 功能 · 指南 · Tuist",
-  "description": "在 Tuist Runners 上使用 Docker：建置和執行容器、容器工作、服務容器及私人註冊表。"
+  "description": "喺 Tuist Runners 上使用 Docker：構建同運行容器、容器作業、服務容器，以及私人註冊表。"
 }
 ---
 # Docker {#docker}
 
-Linux runner 已預備好 Docker，隨時可用。每個 job 都會喺自己嘅虛擬機入面擁有獨立嘅 Docker daemon，而 `docker` CLI、Buildx 同 Compose 亦已預先安裝。你唔需要執行 setup action，亦唔需要 `sudo`。
+Linux runner 已預備好 Docker，可直接使用。每個 job 都會喺自己嘅虛擬機入面擁有獨立嘅 Docker daemon，而且 `docker` CLI、Buildx 同 Compose 已經預先安裝。你唔需要執行 setup action，亦都唔需要 `sudo`。
 
 ```yaml
 jobs:
@@ -24,9 +24,9 @@ jobs:
 >
 > macOS runner 不提供 Docker daemon。如果 job 需要 Docker daemon，請使用 Linux <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>。
 
-## 喺容器入面運行 job {#running-a-job-in-a-container}
+## 喺容器內執行 job {#running-a-job-in-a-container}
 
-將 `container` 指向 job 應該運行嘅映像檔。Tuist 會拉取該映像檔，並喺其中執行每一步：
+將 `container` 指向 job 應該運行嘅映像檔。Tuist 會拉取該映像檔，並喺其中執行每一個步驟：
 
 ```yaml
 jobs:
@@ -44,7 +44,7 @@ jobs:
 
 ## 服務容器 {#service-containers}
 
-`services` 嘅運作方式同 GitHub-hosted runner 一樣。你可以透過 `localhost` 上對應嘅端口存取服務：
+`services` 嘅運作方式同 GitHub-hosted runner 一樣。你可以透過 `localhost` 及其對應端口存取服務：
 
 ```yaml
 jobs:
@@ -64,7 +64,7 @@ jobs:
 
 ## 私人註冊表 {#private-registries}
 
-喺拉取或推送之前，請使用註冊表專屬嘅登入 action 或 `docker login` 進行驗證：
+喺拉取或推送之前，請使用註冊表專屬嘅登入 action 進行驗證，或者使用 `docker login`：
 
 ```yaml
       - uses: docker/login-action@v3
@@ -75,13 +75,13 @@ jobs:
       - run: docker pull ghcr.io/my-org/android-ci:latest
 ```
 
-對於 job 層級嘅 `container`，請改為透過 `credentials` 金鑰傳遞相同嘅憑證，如上例所示。
+對於 job 層級嘅 `container`，請改為透過 `credentials` 鍵傳遞相同嘅憑證，如上例所示。
 
 ## 映像檔拉取 {#image-pulls}
 
-Docker Hub 嘅拉取請求會透過 Tuist 營運嘅 pull-through cache 提供，因此 job 不會消耗 Docker Hub 嘅匿名速率限制。來自其他註冊表嘅映像檔則會直接拉取。
+Docker Hub 嘅拉取請求會經由 Tuist 營運嘅 pull-through cache 提供，因此 job 唔會消耗 Docker Hub 嘅匿名速率限制。來自其他註冊表嘅映像檔則會直接拉取。
 
-每個 job 開始時都係一個空嘅映像檔儲存庫，因此你嘅 workflow 所使用嘅映像檔會喺每個 job 中拉取一次，而唔會喺不同 job 之間重用。如果 job 拉取大型自訂映像檔，請盡量保持映像檔細小，或者喺 workflow 中使用帶有快取嘅 Buildx builder 來建構它：
+每個 job 開始時映像檔儲存區都係空白，所以你工作流程使用嘅映像檔會為每個 job 拉取一次，而唔會喺不同 job 之間重用。如果 job 拉取大型自訂映像檔，請保持映像檔細小，或者喺工作流程中使用有快取嘅 Buildx builder 進行建構：
 
 ```yaml
       - uses: docker/setup-buildx-action@v3
@@ -94,4 +94,4 @@ Docker Hub 嘅拉取請求會透過 Tuist 營運嘅 pull-through cache 提供，
           cache-to: type=gha,mode=max
 ```
 
-如需喺原生 job 或容器 job 中使用持久依賴目錄，請參閱<.localized_link href="/guides/features/runners/cache-volumes">快取卷宗指南</.localized_link>。
+如需喺原生 job 或容器 job 中使用持久化依賴目錄，請參閱<.localized_link href="/guides/features/runners/cache-volumes">快取卷冊指南</.localized_link>。
