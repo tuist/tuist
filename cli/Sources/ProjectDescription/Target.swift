@@ -170,6 +170,7 @@ public struct Target: Codable, Equatable, Sendable {
 
             /// A shell script whose stdout produces a cache key component (e.g. `"git rev-parse HEAD"`).
             ///
+            /// The script runs from the project directory while Tuist computes the target hash.
             /// Script inputs only contribute to the content hash and are not included in the build phase input file list.
             case script(String)
         }
