@@ -988,6 +988,8 @@ func TestRackInstallPublishesAPinnedFirstEdgeForTheInternetBootServer(t *testing
 	ek := testEK(t)
 	pinned := installableEdge()
 	pinned.Status.TPM = pinnedTPM(base64.StdEncoding.EncodeToString(ek), installEpoch)
+	pinned.Spec.Edge = ber1EdgeBSpec()
+	pinned.Spec.Edge.WAN = &infrav1.RackLinuxHostEdgeWAN{VLAN: 4001, Address: "149.6.170.31/31", Gateway: "149.6.170.30"}
 	for name, tc := range map[string]struct {
 		host     *infrav1.RackLinuxHost
 		internet string
@@ -1003,6 +1005,10 @@ func TestRackInstallPublishesAPinnedFirstEdgeForTheInternetBootServer(t *testing
 			got := h.reconcile(t, edgeUUID)
 			if published := got.Status.Install != nil && h.boot(t) != nil; published != tc.publish {
 				t.Fatalf("published %t, want %t: install %+v", published, tc.publish, got.Status.Install)
+			}
+			// Its install carries the site's WAN, which its converge keeps.
+			if tc.publish && !got.Status.WANInInstall {
+				t.Fatal("the first edge's install is not recorded as carrying the site's WAN")
 			}
 		})
 	}

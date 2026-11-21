@@ -398,10 +398,11 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 			return rackConvergeOptions{}, "", err
 		}
 	}
-	// An edge with no other edge of its site serving keeps the WAN its install
-	// gave it, its only way to the cluster until its rack-edge pod runs.
+	// An edge whose install gave it the WAN keeps it while no other edge of
+	// its site serves, its only way to the cluster until its rack-edge pod
+	// runs. An edge installed through another never takes it.
 	var firstEdgeWAN *infrav1.RackLinuxHostEdgeWAN
-	if host.Spec.Role == "edge" && host.Spec.Edge != nil && host.Spec.Edge.WAN != nil {
+	if host.Spec.Role == "edge" && host.Spec.Edge != nil && host.Spec.Edge.WAN != nil && host.Status.WANInInstall {
 		edges, err := servingEdges(ctx, r.Client, host)
 		if err != nil {
 			return rackConvergeOptions{}, "", err

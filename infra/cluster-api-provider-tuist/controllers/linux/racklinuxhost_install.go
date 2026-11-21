@@ -364,6 +364,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		HostKeyFingerprint: hostKey.Fingerprint,
 		TriggeredAt:        triggered,
 	}
+	host.Status.WANInInstall = seed.Edge != nil && seed.Edge.WANInNetplan && seed.Edge.WAN != nil
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallPublished",
 		"Published install %s for %s to boot from %s, with a single-use join key tagged %s valid until %s",
 		key.ID, host.Spec.Hostname, host.Status.BootMAC, strings.Join(host.Spec.Tailnet.Tags, ","), expires.UTC().Format(time.RFC3339))

@@ -698,14 +698,22 @@ func TestRackLinuxMachineTrustsAHostItsOwnStickInstalledOnFirstUse(t *testing.T)
 // A site's first edge goes out over the WAN its install's netplan put on its
 // first uplink. The converge's uplink files shadow netplan's, so they carry
 // it too until another edge of the site serves, or the join cuts the edge off.
+// An edge installed through another never takes it, even while that one is off
+// the tailnet: the edge serving the WAN still holds it, and the address and its
+// route on this one's uplink would cut this one off.
 func TestRackLinuxMachineKeepsTheFirstEdgesWANOnItsFirstUplink(t *testing.T) {
-	for name, otherServes := range map[string]bool{"first edge": false, "second edge": true} {
+	for name, tc := range map[string]struct{ wanInInstall, otherServes, carries bool }{
+		"first edge":                            {wanInInstall: true, carries: true},
+		"first edge, once another serves":       {wanInInstall: true, otherServes: true},
+		"edge installed through another, alone": {},
+	} {
 		t.Run(name, func(t *testing.T) {
 			host := claimedEdgeHost("dev-1")
 			host.Spec.Edge = ber1EdgeBSpec()
 			host.Spec.Edge.WAN = &infrav1.RackLinuxHostEdgeWAN{VLAN: 4001, Address: "149.6.170.31/31", Gateway: "149.6.170.30"}
+			host.Status.WANInInstall = tc.wanInInstall
 			objs := append(rackClusterObjects(true), host, edgeMachine())
-			if otherServes {
+			if tc.otherServes {
 				other := claimedEdgeHost("dev-2")
 				other.Name, other.Spec.Hostname = "other-edge", "ber1-edge-a"
 				objs = append(objs, other)
@@ -727,8 +735,11 @@ func TestRackLinuxMachineKeepsTheFirstEdgesWANOnItsFirstUplink(t *testing.T) {
 				}
 			}
 			wan := "VLAN=vrrp0-1\nAddress=149.6.170.31/32\n\n[Route]\nGateway=149.6.170.30\nGatewayOnLink=yes\nMetric=50\n"
-			if got := strings.HasSuffix(first, wan); got == otherServes {
-				t.Errorf("uplink 1 carries the WAN: %v, want %v:\n%s", got, !otherServes, first)
+			if got := strings.HasSuffix(first, wan); got != tc.carries {
+				t.Errorf("uplink 1 carries the WAN: %v, want %v:\n%s", got, tc.carries, first)
+			}
+			if !tc.carries && strings.Contains(first, "Address=") {
+				t.Errorf("uplink 1 carries an address:\n%s", first)
 			}
 			if strings.Contains(second, "Address=") {
 				t.Errorf("uplink 2 carries the WAN:\n%s", second)
