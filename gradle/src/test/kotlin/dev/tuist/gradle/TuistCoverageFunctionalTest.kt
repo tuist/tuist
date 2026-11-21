@@ -36,10 +36,17 @@ class TuistCoverageFunctionalTest {
     private val requests = CopyOnWriteArrayList<Pair<String, String>>()
     private val fixture = GitRepositoryFixture()
     private val apiPath = "/api/projects/test-account/test-project/tests"
+    private val webPath get() = server.url("/test-account/test-project").toString()
     private lateinit var projectDir: File
 
     @Volatile
     private var quarantined = "[]"
+
+    @Volatile
+    private var completionPending = false
+
+    @Volatile
+    private var inlineThreshold = 5_000_000
 
     @Volatile
     private var shardPlanId = "00000000-0000-0000-0000-000000000001"
@@ -60,7 +67,11 @@ class TuistCoverageFunctionalTest {
                     path == apiPath && request.method == "POST" ->
                         MockResponse().setResponseCode(200).setBody("""{"id":"run-1","url":null}""")
                     path == "$apiPath/coverage/settings" ->
-                        MockResponse().setResponseCode(200).setBody("""{"inline_threshold_bytes":5000000}""")
+                        MockResponse().setResponseCode(200).setBody("""{"inline_threshold_bytes":$inlineThreshold}""")
+                    path == "$apiPath/coverage/uploads" ->
+                        MockResponse().setResponseCode(200).setBody(
+                            """{"storage_key":"runs/run-1/coverage.ndjson.deflate","upload_url":"${server.url("/storage/put")}"}"""
+                        )
                     path == "$apiPath/git-history/settings" ->
                         MockResponse().setResponseCode(200).setBody(
                             """{"window_days":365,"window_commits":5000,"deepen_budget_seconds":5,"upload_batch_size":500,"commit_file_limit":50000}"""
@@ -70,6 +81,8 @@ class TuistCoverageFunctionalTest {
                         MockResponse().setResponseCode(200).setBody("""{"missing":$shas}""")
                     }
                     path.startsWith("$apiPath/git-history/") -> MockResponse().setResponseCode(204)
+                    path.startsWith("$apiPath/coverage/commits/") && completionPending ->
+                        MockResponse().setResponseCode(202).setBody("""{"message":"No run of the commit gathered coverage yet"}""")
                     path.startsWith("$apiPath/coverage/commits/") ->
                         MockResponse().setResponseCode(200).setBody("""{"coverage":"82.5"}""")
                     // A catch-all shard: it runs every test task without a filter.
@@ -374,6 +387,24 @@ class TuistCoverageFunctionalTest {
     }
 
     @Test
+    fun `coverage that compresses under the inline threshold but inflates past it is uploaded`() {
+        val files = run(runner("test").build()).getAsJsonObject("coverage").getAsJsonArray("files")
+        val ndjson = files.joinToString("\n") { it.toString() }.toByteArray(Charsets.UTF_8)
+        val uncompressed = ndjson.size
+        val compressed = CoverageUploader.deflate(ndjson).size
+        // Inline, the server would inflate the run's body past the limit the threshold keeps it under.
+        inlineThreshold = (compressed + uncompressed) / 2
+        assertTrue(compressed < inlineThreshold && inlineThreshold < uncompressed, "compressed $compressed, uncompressed $uncompressed")
+
+        val result = runner("test").build()
+        val coverage = run(result).getAsJsonObject("coverage")
+
+        assertFalse(coverage.has("files"), coverage.toString())
+        assertEquals("runs/run-1/coverage.ndjson.deflate", coverage.get("storage_key")?.asString, result.output)
+        assertTrue(requests.any { it.first == "/storage/put" }, requests.map { it.first }.toString())
+    }
+
+    @Test
     fun `tuistCoverageComplete signals the checkout's commit complete`() {
         val head = fixture.git(projectDir, "rev-parse", "HEAD")
 
@@ -381,9 +412,27 @@ class TuistCoverageFunctionalTest {
 
         assertTrue(requests.any { it.first == "$apiPath/coverage/commits/$head/complete" }, requests.map { it.first }.toString())
         assertTrue(result.output.contains("Coverage of commit ${head.take(7)} is complete: 82.5%."), result.output)
+        assertTrue(result.output.contains("See the commit's coverage at $webPath/tests/coverage/commits/$head\n"), result.output)
 
         runner("tuistCoverageComplete", "-Ptuist.coverage.commit=0123456789abcdef").build()
         assertTrue(requests.any { it.first == "$apiPath/coverage/commits/0123456789abcdef/complete" })
+    }
+
+    @Test
+    fun `tuistCoverageComplete names the commit, how to signal another and the commits list while pending`() {
+        completionPending = true
+        val head = fixture.git(projectDir, "rev-parse", "HEAD")
+
+        val fromCheckout = runner("tuistCoverageComplete").build().output
+
+        assertTrue(fromCheckout.contains("No run of commit ${head.take(7)}, the checkout's HEAD, has reported coverage yet."), fromCheckout)
+        assertTrue(fromCheckout.contains("./gradlew tuistCoverageComplete -Ptuist.coverage.commit=<sha>"), fromCheckout)
+        // The commit's own page is a 404 until one of its runs is processed.
+        assertTrue(fromCheckout.contains("See the commits your runs reported coverage for at $webPath/tests/coverage/commits\n"), fromCheckout)
+
+        val named = runner("tuistCoverageComplete", "-Ptuist.coverage.commit=0123456789abcdef").build().output
+
+        assertTrue(named.contains("No run of commit 0123456 has reported coverage yet."), named)
     }
 
     // --- Fixture ---
