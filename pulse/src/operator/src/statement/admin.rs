@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod event;
 mod layer;
 
@@ -378,6 +380,14 @@ fn values_to_vectors_by_exact_types(
     args: &[&SqlValue],
     tz: Option<&Timezone>,
 ) -> Result<Vec<VectorRef>> {
+    ensure!(
+        exact_types.len() == args.len(),
+        error::FunctionArityMismatchSnafu {
+            actual: args.len(),
+            expected: exact_types.len(),
+        }
+    );
+
     args.iter()
         .zip(exact_types.iter())
         .map(|(value, data_type)| {

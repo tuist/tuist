@@ -1,9 +1,10 @@
 -- Durable issue state for `errors` (errors.sql): one row per issue and hour
 -- it occurred in, kept after `errors` expires, so first sightings, new issues
 -- and regressions are cheap reads (README.md, "Issue lifecycle"). The flow
--- recomputes the hours of the last day from `errors` whenever new events
--- arrive there and when the deployment flushes it, so an hour it missed heals
--- on the next flush. Events that arrive more than a day late are not counted.
+-- recomputes dirty hours from `errors` whenever new events arrive. A recreated
+-- flow has no dirty windows, so deployment explicitly recomputes the retained
+-- day's hours under the flow's execution lock. Events that arrive more than a
+-- day late are not counted.
 -- `events` counts distinct event IDs, because `errors` keeps SDK resends.
 CREATE TABLE IF NOT EXISTS "error_issue_hours" (
   "service" STRING,
@@ -33,3 +34,7 @@ SELECT
   date_bin('1 hour'::INTERVAL, "timestamp") AS "time_window"
 FROM "errors"
 GROUP BY "service", "fingerprint", "time_window";
+
+-- Recovery runs after bootstrap in pulse-smoke.mjs, once all flownodes support
+-- ADMIN flush_flow('error_issues', true). Never repair with an independent
+-- INSERT SELECT: its stale snapshot can overwrite a newer live-flow result.

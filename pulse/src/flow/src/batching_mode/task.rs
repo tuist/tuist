@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -298,6 +300,9 @@ pub struct BatchingTask {
     /// background loop can process the same checkpoint range concurrently.
     execution_lock: Arc<Mutex<()>>,
     execution: Option<Arc<dyn crate::BatchingExecution>>,
+    /// Frozen only on the recovery's local clone; live evaluations keep their
+    /// own wall clock and cannot overwrite the retained scan's cutoff.
+    evaluation_time: Option<Timestamp>,
 }
 
 /// Arguments for creating batching task
@@ -437,6 +442,7 @@ impl BatchingTask {
             state: Arc::new(RwLock::new(state)),
             execution_lock: Arc::new(Mutex::new(())),
             execution: None,
+            evaluation_time: None,
         })
     }
 
@@ -481,14 +487,11 @@ impl BatchingTask {
 
     /// mark time window range (now - expire_after, now) as dirty (or (0, now) if expire_after not set)
     ///
-    /// useful for flush_flow to flush dirty time windows range
-    pub fn mark_all_windows_as_dirty(&self) -> Result<(), Error> {
-        let now = SystemTime::now();
-        let now = Timestamp::new_second(
-            now.duration_since(UNIX_EPOCH)
-                .expect("Time went backwards")
-                .as_secs() as _,
-        );
+    /// Returns the retained-window count, excluding unrelated dirty windows.
+    pub fn mark_all_windows_as_dirty(&self) -> Result<Option<usize>, Error> {
+        let now = self.evaluation_time.unwrap_or_else(|| {
+            Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond)
+        });
         let lower_bound = self
             .config
             .expire_after
@@ -501,12 +504,23 @@ impl BatchingTask {
             "Flow {} mark range ({:?}, {:?}) as dirty",
             self.config.flow_id, lower_bound, now
         );
+        let (lower_bound, upper_bound) = match &self.config.time_window_expr {
+            Some(expr) => DirtyTimeWindows::align_time_window(lower_bound, Some(now), expr)?,
+            None => (lower_bound, Some(now)),
+        };
+        let mut retained = DirtyTimeWindows::default();
+        retained.add_window(lower_bound, upper_bound);
+        let window_count = self.config.time_window_expr.as_ref().and_then(|expr| {
+            expr.time_window_size()
+                .as_ref()
+                .map(|size| retained.effective_count(size))
+        });
         self.state
             .write()
             .unwrap()
             .dirty_time_windows
-            .add_window(lower_bound, Some(now));
-        Ok(())
+            .add_window(lower_bound, upper_bound);
+        Ok(window_count)
     }
 
     /// Create the sink table if needed, then return it.
@@ -955,6 +969,41 @@ impl BatchingTask {
             .await
             .map_err(BoxedError::new)
             .context(ExternalSnafu)
+    }
+
+    /// Rebuild retained windows through the same critical section as live
+    /// evaluations. Arrivals after dirty-window capture remain queued for the
+    /// next evaluation; an older repair can never write after a newer one.
+    pub(crate) async fn recompute_retained_serialized(
+        &self,
+        engine: &QueryEngineRef,
+        frontend_client: &Arc<FrontendClient>,
+    ) -> Result<Option<(usize, Duration)>, Error> {
+        let guard = BatchingExecutionGuard::new(self.execution_lock.clone().lock_owned().await);
+        if self.config.expire_after.is_none()
+            || self
+                .config
+                .time_window_expr
+                .as_ref()
+                .is_none_or(|expr| expr.time_window_size().is_none())
+            || self.execution.is_some()
+            || self.should_use_unfiltered_incremental_delta()
+        {
+            return crate::error::UnsupportedSnafu {
+                reason: "Retained recomputation requires a time-windowed flow with finite EXPIRE AFTER and ordinary base-snapshot execution",
+            }
+            .fail();
+        }
+        let task = Self {
+            evaluation_time: Some(self.evaluation_time.unwrap_or_else(|| {
+                Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond)
+            })),
+            ..self.clone()
+        };
+        let window_count = task.mark_all_windows_as_dirty()?;
+        task.execute_once_with_guard(guard, engine, frontend_client, window_count)
+            .await
+            .result
     }
 
     pub(crate) async fn execute_once_serialized(
@@ -2002,17 +2051,17 @@ impl BatchingTask {
         force_full_snapshot: bool,
     ) -> Result<Option<PlanInfo>, Error> {
         let query_ctx = self.state.read().unwrap().query_ctx.clone();
-        let start = SystemTime::now();
-        let since_the_epoch = start
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+        let now = self.evaluation_time.unwrap_or_else(|| {
+            Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond)
+        });
         let low_bound = self
             .config
             .expire_after
-            .map(|e| since_the_epoch.as_secs() - e as u64)
-            .unwrap_or(u64::MIN);
-
-        let low_bound = Timestamp::new_second(low_bound as i64);
+            .map(|e| now.sub_duration(Duration::from_secs(e as _)))
+            .transpose()
+            .map_err(BoxedError::new)
+            .context(ExternalSnafu)?
+            .unwrap_or(Timestamp::new_second(0));
 
         let expire_time_window_bound = self
             .config

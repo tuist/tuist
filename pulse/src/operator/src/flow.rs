@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::flow::FlowRequestHeader;
 use async_trait::async_trait;
 use common_error::ext::BoxedError;
@@ -23,7 +25,8 @@ use common_telemetry::tracing_context::TracingContext;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use session::context::QueryContextRef;
-use snafu::{OptionExt, ResultExt};
+use session::hints::FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY;
+use snafu::{OptionExt, ResultExt, ensure};
 
 use crate::utils::to_meta_query_context;
 
@@ -119,6 +122,17 @@ impl FlowServiceOperator {
                     .context(common_query::error::ExecuteSnafu)?
             };
 
+            ensure!(
+                ctx.extension(FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY) != Some("true")
+                    || res
+                        .extensions
+                        .get(FLOW_RECOMPUTE_RETAINED_EXTENSION_KEY)
+                        .map(Vec::as_slice)
+                        == Some(b"true".as_slice()),
+                common_query::error::InvalidFuncArgsSnafu {
+                    err_msg: "Flownode did not acknowledge retained recomputation; upgrade all flownodes before recovery",
+                }
+            );
             if let Some(prev) = &mut final_result {
                 prev.affected_rows = res.affected_rows;
                 prev.affected_flows.extend(res.affected_flows);

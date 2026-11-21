@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Batching mode task state, which changes frequently
 //!
 
@@ -711,7 +713,7 @@ impl DirtyTimeWindows {
                 // too large a window, split it
                 // split at window_size * times
                 let surplus = max_time_range - cur_time_range;
-                if surplus.num_seconds() <= window_size.num_seconds() {
+                if surplus.num_seconds() < window_size.num_seconds() {
                     // Skip splitting if surplus is smaller than window_size
                     break;
                 }
@@ -1194,6 +1196,25 @@ mod test {
                 .map(|e| unparser.expr_to_sql(e).unwrap().to_string());
             assert_eq!(expected_filter_expr, to_sql.as_deref());
         }
+    }
+
+    #[test]
+    fn test_single_window_budget_preserves_adjacent_dirty_window() {
+        let mut dirty = DirtyTimeWindows::default();
+        let start = Timestamp::new_second(12 * 3600);
+        let boundary = Timestamp::new_second(13 * 3600);
+        let end = Timestamp::new_second(14 * 3600);
+        dirty.add_window(start, Some(boundary));
+        dirty.add_window(boundary, Some(end));
+        let recovered = dirty.gen_filter_exprs(
+            "ts", Some(start), chrono::Duration::hours(1), 1, 0, None,
+        ).unwrap().expect("one retained hour must produce a query even after merging with adjacent dirty work");
+        assert_eq!(recovered.time_ranges, vec![(start, boundary)]);
+        let remaining = dirty
+            .gen_filter_exprs("ts", Some(start), chrono::Duration::hours(1), 1, 0, None)
+            .unwrap()
+            .expect("the adjacent dirty hour must remain queued");
+        assert_eq!(remaining.time_ranges, vec![(boundary, end)]);
     }
 
     #[test]

@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Modified by Tuist; see pulse/FORK.md.
 
 //! Time window expr and helper functions
 //!
@@ -252,9 +253,11 @@ impl TimeWindowExpr {
                 original.sub_duration(std::time::Duration::from_nanos((-distance_ns) as u64))
             }
             .context(TimeSnafu)?;
-            let upper_bound = lower_bound.add_duration(window_size).context(TimeSnafu)?;
+            // Match the probe path: an unrepresentable next boundary is absent,
+            // not an error that prevents using the valid lower boundary.
+            let upper_bound = lower_bound.add_duration(window_size).ok();
 
-            return Ok((Some(lower_bound), Some(upper_bound)));
+            return Ok((Some(lower_bound), upper_bound));
         }
 
         let lower_bound =
@@ -663,17 +666,23 @@ fn probe_expr_time_window_upper_bound(
     use std::cmp::Ordering;
 
     let cur_time_window = eval_phy_time_window_expr(phy_expr, df_schema, current)?;
+    // A whole-second caller timestamp cannot locate a fractional-second bin
+    // boundary. Probe at the expression's precision before caching its stride.
+    let current = current
+        .convert_to(cur_time_window.unit())
+        .with_context(|| UnexpectedSnafu {
+            reason: format!("Failed to match timestamp precision for {current:?}"),
+        })?;
 
     // search to find the lower bound
-    let mut offset: i64 = 1;
+    let mut offset: i128 = 1;
     let mut lower_bound = Some(current);
     let upper_bound;
     // first expontial probe to found a range for binary search
     loop {
-        let Some(next_val) = current.value().checked_add(offset) else {
-            // no upper bound if overflow, which is ok
-            return Ok(None);
-        };
+        // Probe the final representable timestamp before declaring a window
+        // unbounded; the next doubled offset may overshoot a valid boundary.
+        let next_val = (i128::from(current.value()) + offset).min(i128::from(i64::MAX)) as i64;
 
         let next_time_probe = common_time::Timestamp::new(next_val, current.unit());
 
@@ -695,11 +704,10 @@ fn probe_expr_time_window_upper_bound(
             }
         }
 
-        let Some(new_offset) = offset.checked_mul(2) else {
-            // no upper bound if overflow
+        if next_val == i64::MAX {
             return Ok(None);
-        };
-        offset = new_offset;
+        }
+        offset *= 2;
     }
 
     // binary search for the exact upper bound
@@ -747,7 +755,7 @@ fn binary_search_expr(
         })?
         .value();
     while low < high {
-        let mid = (low + high) / 2;
+        let mid = (i128::from(low) + (i128::from(high) - i128::from(low)) / 2) as i64;
         let mid_probe = common_time::Timestamp::new(mid, output_unit);
         let mid_time_window = eval_phy_time_window_expr(phy_expr, df_schema, mid_probe)?;
 
@@ -857,6 +865,99 @@ mod test {
     use super::*;
     use crate::batching_mode::utils::{AddFilterRewriter, df_plan_to_sql, sql_to_df_plan};
     use crate::test_utils::create_test_query_engine;
+
+    #[tokio::test]
+    async fn test_fractional_origin_cached_time_windows() {
+        let engine = create_test_query_engine();
+        let ctx = QueryContext::arc();
+        let plan = sql_to_df_plan(
+            ctx.clone(),
+            engine.clone(),
+            "SELECT date_bin('1 hour', ts, TIMESTAMP '1970-01-01T00:00:00.256Z') AS time_window FROM numbers_with_ts GROUP BY time_window",
+            true,
+        )
+        .await
+        .unwrap();
+        let (column, expr, _, schema) =
+            find_time_window_expr(&plan, engine.engine_state().catalog_manager().clone(), ctx)
+                .await
+                .unwrap();
+        let window = TimeWindowExpr::from_expr(
+            &expr.unwrap(),
+            &column,
+            &schema,
+            &engine.engine_state().session_state(),
+        )
+        .unwrap();
+        assert_eq!(
+            *window.time_window_size(),
+            Some(std::time::Duration::from_secs(3600))
+        );
+        // Check both sides of an asymmetric boundary, far from the cache's
+        // probe timestamp: a slightly inflated stride accumulates visible drift.
+        let lower = 1_800_000_000_256_i64;
+        for (current, expected_lower) in [(lower - 1, lower - 3_600_000), (lower, lower)] {
+            assert_eq!(
+                window.eval(Timestamp::new_millisecond(current)).unwrap(),
+                (
+                    Some(Timestamp::new_millisecond(expected_lower)),
+                    Some(Timestamp::new_millisecond(expected_lower + 3_600_000)),
+                )
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_large_nanosecond_time_windows() {
+        let engine = create_test_query_engine();
+        let ctx = QueryContext::arc();
+        for days in [50_000_u64, 100_000] {
+            let plan = sql_to_df_plan(
+                ctx.clone(),
+                engine.clone(),
+                &format!("SELECT date_bin(INTERVAL '{days} days', arrow_cast(ts, 'Timestamp(Nanosecond, None)')) AS time_window FROM numbers_with_ts GROUP BY time_window"),
+                true,
+            )
+            .await
+            .unwrap();
+            let (column, expr, _, schema) = find_time_window_expr(
+                &plan,
+                engine.engine_state().catalog_manager().clone(),
+                ctx.clone(),
+            )
+            .await
+            .unwrap();
+            let window = TimeWindowExpr::from_expr(
+                &expr.unwrap(),
+                &column,
+                &schema,
+                &engine.engine_state().session_state(),
+            )
+            .unwrap();
+            let seconds = days * 86_400;
+            assert_eq!(
+                *window.time_window_size(),
+                Some(std::time::Duration::from_secs(seconds))
+            );
+            assert_eq!(
+                window.eval(DEFAULT_TEST_TIMESTAMP).unwrap(),
+                (
+                    Some(Timestamp::new_nanosecond(0)),
+                    Some(Timestamp::new_nanosecond((seconds * 1_000_000_000) as i64)),
+                )
+            );
+            let end = Timestamp::new_nanosecond((seconds * 1_000_000_000) as i64);
+            assert_eq!(
+                crate::batching_mode::state::DirtyTimeWindows::align_time_window(
+                    Timestamp::new_nanosecond(0),
+                    Some(end),
+                    &window,
+                )
+                .unwrap(),
+                (Timestamp::new_nanosecond(0), Some(end))
+            );
+        }
+    }
 
     #[tokio::test]
     async fn test_plan_time_window_lower_bound() {

@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS "sessions" (
   "crashed" BIGINT,
   "abnormal" BIGINT,
   "unhandled" BIGINT,
+  "seq" BIGINT UNSIGNED,
+  "updated" TIMESTAMP(9),
   TIME INDEX ("started"),
   PRIMARY KEY ("service", "release", "environment", "session_id")
+)
+WITH (
+  append_mode = 'true'
 )

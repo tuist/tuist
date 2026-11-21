@@ -973,6 +973,22 @@ impl BatchingEngine {
         Ok(())
     }
 
+    pub(crate) async fn recompute_retained(&self, flow_id: FlowId) -> Result<usize, Error> {
+        let task = self
+            .runtime
+            .read()
+            .await
+            .tasks
+            .get(&flow_id)
+            .cloned()
+            .with_context(|| FlowNotFoundSnafu { id: flow_id })?;
+        Ok(task
+            .recompute_retained_serialized(&self.query_engine, &self.frontend_client)
+            .await?
+            .map(|(rows, _)| rows)
+            .unwrap_or_default())
+    }
+
     /// Only flush the dirty windows of the flow task with given flow id, by running the query on it.
     /// As flush the whole time range is usually prohibitively expensive.
     pub async fn flush_flow_inner(&self, flow_id: FlowId) -> Result<usize, Error> {

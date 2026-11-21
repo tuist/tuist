@@ -179,6 +179,9 @@ try {
       const sessionsTable = process.env.PULSE_SESSIONS_TABLE;
       if (!sessionsTable) throw new Error();
       await sqlResult(sessionsTable);
+      await sqlResult(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS seq BIGINT UNSIGNED`);
+      await sqlResult(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS updated TIMESTAMP(9)`);
+      await sqlResult(`ALTER TABLE sessions SET 'append_mode' = 'true'`);
       await sqlResult(`ALTER TABLE sessions SET 'ttl' = '${errorsTtl}'`);
       enter('errors ingestion');
       const error = await fetch(`${base}/v1/ingest?${new URLSearchParams({db: 'public', table: 'errors', pipeline_name: 'sentry_errors'})}`, {
@@ -189,10 +192,10 @@ try {
         }}]),
       });
       if (error.status !== 200) throw new Error();
-      // Recomputes the rollup's last day, so hours the flow missed (while no
-      // flownode ran, say) heal on every deploy.
-      enter('error issues flush');
-      await sqlResult(`ADMIN flush_flow('error_issues')`);
+      // Recompute retained hours, even after flow replacement, through the
+      // same execution lock as live evaluations. Concurrent arrivals stay dirty.
+      enter('error issues recovery');
+      await sqlResult(`ADMIN flush_flow('error_issues', true)`);
     }
     // ExportTraceRequest.resource_spans.scope_spans.spans, including an error status.
     const span = concat(message(1, Buffer.from(trace, 'hex')), message(2, Buffer.from(trace.slice(0, 16), 'hex')),

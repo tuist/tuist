@@ -354,6 +354,10 @@ issue from the issue the previous rules
 (`Atlas.Engineering.Errors.Fingerprint.compute_legacy/1`) grouped the event
 into: status, assignee, resolution and first sighting carry over and a resolved
 one regresses on a newer event, while counts and impacted accounts start over.
+All observed legacy origins are reconciled, including across batches. Ignored
+or resolved status carries only when origins agree; conflicting statuses stay
+unresolved. The earliest first sighting and a deterministic non-null assignee
+survive. Repeated known origins do not overwrite later operator decisions.
 
 ### Issue lifecycle
 
@@ -361,8 +365,17 @@ one regresses on a newer event, while counts and impacted accounts start over.
 The `error_issues` flow (`error-issues.sql`) keeps `error_issue_hours` with no
 TTL: one row per issue and hour it occurred in, with the first and last
 occurrence in that hour and its count of distinct events. The flow recomputes
-the last day's hours as events arrive; the deploy runs `ADMIN
-flush_flow('error_issues')`, which recomputes that day again, so hours missed
+dirty hours as events arrive. After bootstrap the deploy runs
+`ADMIN flush_flow('error_issues', true)` to recompute the retained day's hours,
+including the whole leading hour, under the same execution lock as live flow
+evaluations. Repeating recovery replaces the same sink keys without adding
+counts or touching older history. Concurrent arrivals remain dirty for the
+next evaluation; no independent repair writer can overwrite newer results.
+This requires every flownode to support retained recomputation (the frontend
+rejects an unacknowledged request during an upgrade). The optional flag only
+supports ordinary, time-windowed batching flows with finite `EXPIRE AFTER`.
+The one-argument flush drains dirty windows only; a recreated flow has none,
+so that alone cannot repair an outage. Hours missed
 while no flownode ran heal at the next deploy within a day. Events that arrive
 more than a day late, and history from before the flow existed, are not in it.
 
@@ -400,25 +413,43 @@ PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/puls
 ## Release health
 
 The same endpoint accepts Sentry's `session` and `sessions` items and writes
-them to `sessions` (`sessions.sql`): one row per session, whose later updates
-replace it (primary key `service, release, environment, session_id`), or one per
-pre-aggregated group from server-mode SDKs. `sessions` counts the sessions a row
+them to append-only `sessions` (`sessions.sql`): one row per individual session
+update, or one per pre-aggregated group from server-mode SDKs. Readers select
+the highest `seq` and then latest `updated` timestamp for each immutable
+`service, release, environment, session_id, started` identity, independent of
+replica or delivery order. `init: true` forces sequence zero; omitted sequence
+and timestamp default to receipt's Unix milliseconds and UTC time respectively.
+Exact replays count once. Aggregates get independent `aggregate-<uuid>` IDs:
+they add counts and are never deduplicated by the distinct user/device ID.
+`sessions` counts the sessions a row
 stands for, and `errored`, `crashed`, `abnormal` and `unhandled` split them by
 outcome; `distinct_id` is the SDK's user or device ID, hashed. Pulse never
 creates this table itself, so sessions sent before the deploy installs it are
 dropped. Crash-free rates per release:
 
 ```sql
+WITH ranked AS (
+  SELECT *, ROW_NUMBER() OVER (
+    PARTITION BY service, "release", environment, session_id, started
+    ORDER BY seq DESC NULLS LAST, updated DESC NULLS LAST,
+      crashed DESC, abnormal DESC, unhandled DESC, errored DESC
+  ) AS session_rank
+  FROM sessions
+  WHERE service = 'server' AND started > now() - INTERVAL '1 day'
+)
 SELECT "release",
   1 - CAST(sum(crashed + abnormal + unhandled) AS DOUBLE) / sum(sessions) AS crash_free_sessions,
   1 - CAST(count(DISTINCT CASE WHEN crashed + abnormal + unhandled > 0 THEN distinct_id END) AS DOUBLE)
     / count(DISTINCT distinct_id) AS crash_free_users
-FROM sessions
-WHERE service = 'server' AND started > now() - INTERVAL '1 day'
+FROM ranked
+WHERE session_rank = 1
 GROUP BY "release"
 ```
 
-User rates count only rows with a distinct ID; Sentry treats `abnormal` as
+The health counts break exact logical-clock/timestamp ties conservatively,
+so a conflicting replay cannot erase a crash. Pre-upgrade rows lack ordering
+metadata and rank behind sequenced updates; already-overwritten states cannot
+be recovered. User rates count only rows with a distinct ID; Sentry treats `abnormal` as
 crashed for its crash-free figures, and so does this query. The endpoint also
 writes Sentry `log` items to `opentelemetry_logs` and spans to
 `opentelemetry_traces` (see `pulse/FORK.md`), and limits each service to

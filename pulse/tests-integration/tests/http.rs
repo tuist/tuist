@@ -3230,11 +3230,17 @@ pub async fn test_sentry_envelope(store_type: StorageType) {
         ])
     );
 
+    // Raw updates remain append-only. Release health first picks the latest
+    // logical state of each identity, never the most recently ingested row.
+    let latest_sessions = "(SELECT *, ROW_NUMBER() OVER (\
+        PARTITION BY service, \"release\", environment, session_id, started \
+        ORDER BY seq DESC NULLS LAST, updated DESC NULLS LAST, \
+        crashed DESC, abnormal DESC, unhandled DESC, errored DESC) AS session_rank FROM sessions)";
     // One crashed user-mode session and three request sessions, one errored.
-    let sessions = rows(
+    let sessions = rows(&format!(
         "SELECT service, \"release\", status, distinct_id IS NOT NULL, sessions, errored, crashed, abnormal, unhandled \
-         FROM sessions ORDER BY \"release\", started",
-    )
+         FROM {latest_sessions} WHERE session_rank = 1 ORDER BY \"release\", started",
+    ))
     .await;
     assert_eq!(
         Value::Array(sessions),
@@ -3245,16 +3251,64 @@ pub async fn test_sentry_envelope(store_type: StorageType) {
         ])
     );
     // What crash-free session and user rates per release are made of.
-    let health = rows(
+    let health = rows(&format!(
         "SELECT \"release\", sum(sessions), sum(crashed + abnormal + unhandled), \
          count(DISTINCT distinct_id), \
          count(DISTINCT CASE WHEN crashed + abnormal + unhandled > 0 THEN distinct_id END) \
-         FROM sessions GROUP BY \"release\" ORDER BY \"release\"",
-    )
+         FROM {latest_sessions} WHERE session_rank = 1 GROUP BY \"release\" ORDER BY \"release\"",
+    ))
     .await;
     assert_eq!(
         Value::Array(health),
         json!([["shop@2.4.1", 4, 1, 1, 1], ["shop@2.4.2", 1, 0, 1, 0]])
+    );
+
+    // An offline crash precedes initial/stale transmissions, even when init
+    // incorrectly carries a high sequence or a lower sequence has a later time.
+    for (seq, init, status, timestamp) in [
+        (9, false, "crashed", "2026-11-21T08:06:00Z"),
+        (99, true, "ok", "2026-11-21T08:07:00Z"),
+        (8, false, "ok", "2026-11-21T08:08:00Z"),
+        (9, false, "ok", "2026-11-21T08:05:00Z"),
+        (99, true, "ok", "2026-11-21T08:07:00Z"),
+    ] {
+        let update = json!({
+            "sid": "offline-session", "started": "2026-11-21T08:05:00Z",
+            "timestamp": timestamp, "seq": seq, "init": init, "status": status,
+            "did": "synthetic-device", "attrs": {"release": "offline@1"}
+        });
+        sentry(
+            "offline",
+            format!("{{}}\n{{\"type\":\"session\"}}\n{update}\n").into_bytes(),
+        )
+        .await;
+        assert_eq!(
+            rows(&format!("SELECT sessions, crashed FROM {latest_sessions} WHERE service = 'offline' AND session_rank = 1")).await,
+            [json!([1, 1])]
+        );
+    }
+    // Normal delivery and exact replays have the same logical result. Equal
+    // sequence numbers use the update timestamp, not transport arrival order.
+    for (status, timestamp) in [
+        ("ok", "2026-11-21T08:05:00Z"),
+        ("crashed", "2026-11-21T08:06:00Z"),
+        ("crashed", "2026-11-21T08:06:00Z"),
+    ] {
+        let update = json!({"sid": "online-session", "started": "2026-11-21T08:05:00Z", "seq": 9,
+            "timestamp": timestamp, "status": status, "attrs": {"release": "online@1"}});
+        sentry(
+            "online",
+            format!("{{}}\n{{\"type\":\"session\"}}\n{update}\n").into_bytes(),
+        )
+        .await;
+    }
+    assert_eq!(
+        rows(&format!("SELECT sum(sessions), sum(crashed) FROM {latest_sessions} WHERE service = 'online' AND session_rank = 1")).await,
+        [json!([1, 1])]
+    );
+    assert_eq!(
+        rows("SELECT service, count(*) FROM sessions WHERE service IN ('offline', 'online') GROUP BY service ORDER BY service").await,
+        [json!(["offline", 5]), json!(["online", 3])]
     );
 
     // Past its quota a service's events are refused with Sentry's

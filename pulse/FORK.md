@@ -37,6 +37,29 @@ line under its license header, or a `Tuist:` comment at the change. Files
 without a license header, such as test expectations and configuration, are
 covered by this list.
 
+- **Serialized retained-window recovery.** `ADMIN flush_flow(name, true)`
+  marks the retained, aligned windows of an ordinary time-windowed batching
+  flow dirty and recomputes them while holding its live execution lock.
+  Finite `EXPIRE AFTER` bounds the scan; source arrivals after capture remain
+  queued. Unsupported flow modes and older flownodes reject the request.
+  The one-argument flush keeps its dirty-only semantics. Implementation spans
+  `common/function/src/flush_flow.rs`, `session/src/hints.rs`,
+  `operator/src/flow.rs`, `flow/src/adapter/flownode_impl.rs`, and
+  `flow/src/batching_mode/{engine,task,state}.rs`. Scoped window splitting also
+  accepts an exactly-one-window remainder, so adjacent dirty work cannot turn
+  a one-window repair into an acknowledged no-op. ADMIN exact-signature
+  conversion in `operator/src/statement/admin.rs` checks argument count before
+  casting, so overload resolution cannot silently discard the recovery flag.
+  Window-boundary probing in `flow/src/batching_mode/time_window.rs` uses the
+  expression's timestamp precision, so fractional origins do not inflate the
+  cached stride and drift into adjacent windows during recovery. Wide probe
+  arithmetic and a final endpoint probe preserve representable nanosecond
+  boundaries without overflowing or misclassifying large windows as unbounded.
+  Cached evaluation preserves a representable lower boundary when the next
+  upper boundary is outside the timestamp range, including exclusive-end alignment.
+  Retained recovery freezes its evaluation timestamp on a local task clone and
+  uses that same subsecond cutoff for marking and selecting windows, so an
+  expired preceding dirty window cannot consume the retained-window budget.
 - **Exact count-rollup prototype.** `tests/perf/count_aggregate_benchmark.py`
   compares raw dashboard-style counts with minute summaries plus uncovered raw
   rows in a disposable local database. Immutable ingestion batches and an
@@ -178,11 +201,16 @@ covered by this list.
     and spans.
   - **Release health.** `session` and `sessions` items become rows of the
     `sessions` table ([`infra/helm/pulse/sessions.sql`](../infra/helm/pulse/sessions.sql)):
-    one per session, keyed by its `sid` so later updates replace earlier ones,
-    or one per pre-aggregated group. Each row counts `sessions` and splits them
+    append-only raw session updates carrying Sentry's `seq` and update timestamp,
+    or one per pre-aggregated group. Release-health queries select the latest
+    logical state by immutable session identity, sequence and timestamp, so
+    stale initial updates and replays cannot erase crashes across replicas.
+    `init` forces sequence zero; omitted sequence/timestamp use receipt time.
+    Aggregate IDs remain independent of individual/distinct identities.
+    Each row counts `sessions` and splits them
     into `errored`, `crashed`, `abnormal` and `unhandled`; the distinct ID is
     stored as a truncated SHA-256. Pulse writes sessions only into that table,
-    never one it creates on write (which would be append-only), and drops
+    never one it creates on write, and drops
     sessions without a release, as Sentry does. `servers` depends on `sha2`
     (already in the tree through `auth`) for that hash.
   - **Error grouping and issues.** No fork code: the `sentry_errors` pipeline
