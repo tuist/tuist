@@ -559,9 +559,18 @@ fleet_edge_check_rack_caches() {
       bad="${bad:+$bad$'\n'}the image cache on $node is at $address, but its RackLinuxHost is at $(jq -r --arg n "$node" '.[$n] // "no address"' <<<"$linux")"
     fi
   done < <(yq -r '.rackFleet.imageCache.nodes[]? | [.name, (.address // "")] | @tsv' "$values" 2>/dev/null)
+  # The gateway list is one pf pass for every rack host, so it also names the
+  # other sites' gateways (rackFleet.sites): a storage node of any of them.
+  local gateways="$storage" other_site other
+  for other_site in $(yq -r '.rackFleet.sites // {} | keys | .[]' "$values" 2>/dev/null); do
+    for other in "$FLEET_ROOT"/sites/*.json; do
+      [ "$(jq -r '.site' "$other")" = "$other_site" ] || continue
+      gateways="$(jq -c --argjson a "$gateways" '$a + [.nodes[]? | select(.role == "storage" and .status != "planned") | .name] | unique' "$other")"
+    done
+  done
   for cidr in $(yq -r '.rackFleet.vmCacheGatewayCIDRs[]?' "$values" 2>/dev/null); do
-    if [ "${cidr#*/}" != 32 ] || [ -z "$(jq -r --argjson storage "$storage" --arg a "${cidr%/*}" 'to_entries[] | select(.value == $a and (.key as $k | $storage | index($k) != null)) | .key' <<<"$linux")" ]; then
-      bad="${bad:+$bad$'\n'}cache gateway $cidr is not the address of a storage node of this site that is in the rack"
+    if [ "${cidr#*/}" != 32 ] || [ -z "$(jq -r --argjson storage "$gateways" --arg a "${cidr%/*}" 'to_entries[] | select(.value == $a and (.key as $k | $storage | index($k) != null)) | .key' <<<"$linux")" ]; then
+      bad="${bad:+$bad$'\n'}cache gateway $cidr is not the address of a storage node of a rack site that is in the rack"
     fi
   done
   if [ -n "$bad" ]; then

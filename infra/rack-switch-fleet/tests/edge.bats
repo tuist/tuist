@@ -1368,6 +1368,14 @@ STUB
     [ "$status" -ne 0 ]
     [[ "$output" == *"cache gateway 10.10.0.2/32 is not the address of a storage node"* ]]
     [[ "$output" == *"cache gateway 10.10.0.0/24 is not the address of a storage node"* ]]
+    # another rackFleet site's storage node is a gateway too, but not its edge
+    yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.11/32", "10.20.0.11/32"]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.11/32", "10.20.0.2/32"]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cache gateway 10.20.0.2/32 is not the address of a storage node"* ]]
 }
 
 # Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:

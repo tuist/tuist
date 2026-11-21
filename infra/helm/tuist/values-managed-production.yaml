@@ -284,12 +284,13 @@ server:
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
     # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
-    # rack's minis; only the accounts the runner_site_cache flag enables get a
-    # node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
+    # rack's minis, and larch-runners larch's on larch-store-a; only the
+    # accounts the runner_site_cache flag enables, and whose jobs run at the
+    # site, get a node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
     # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
     # or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners,larch-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT
@@ -1463,9 +1464,12 @@ rackFleet:
   sshIngressAllowCIDRs:
     - 10.10.0.2/32
     - 10.10.0.3/32
-  # ber1-store-a's Kura gateway on the machines segment.
+  # The storage nodes' Kura gateways on the machines segments: ber1-store-a's
+  # and larch-store-a's. One list for every rack host; a host has no route to
+  # the other site's.
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
+    - 10.20.0.11/32
   # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
   # the prewarm set sync, then route hosts through it one at a time in
   # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
@@ -1990,9 +1994,7 @@ rackLinuxFleet:
       site: larch
     # larch-store-a (S/N TAS0CG00016P), the design's store-b, read from its
     # BMC on 20 Nov. Single-homed to larch-tor-a port 31; its address is on
-    # the machines segment, reserved against its n225p-1 MAC. No public
-    # address yet: one would have the edges forward cluster traffic on
-    # larch's WAN address to it, a separate step once it is up. No TPM check
+    # the machines segment, reserved against its n225p-1 MAC. No TPM check
     # code was recorded for it, so it installs from larch's own boot server.
     - uuid: 05fd922b-27d6-16c8-f0b5-a0ad9f25c51f
       hostname: larch-store-a
@@ -2000,6 +2002,11 @@ rackLinuxFleet:
       site: larch
       bootMAC: "34:d8:68:5a:10:5a"
       address: 10.20.0.11
+      # On the cluster's Cilium network at larch's WAN address, like
+      # ber1-store-a at alder's, so the larch-runners Kura region replicates
+      # pod to pod with the accounts' other regions. larch's edges forward the
+      # cluster ports on it to this host.
+      publicAddress: 149.6.170.1
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
