@@ -1372,7 +1372,9 @@ become `other`), the `luft.core.operations` delta counter with its two labels
 from closed value sets, times within a week before and a day after receipt
 (a counter's start is moved up to that window),
 and strings cut to 256 characters; span events, links and other attributes are
-dropped. Error envelopes are forwarded as sent and scrubbed by Pulse's
+dropped. The public Luft Sentry route keeps only `event` items; logs, spans,
+transactions, sessions and attachments are discarded, so they cannot bypass
+the neighboring OTLP policy. Kept error events are scrubbed by Pulse's
 `sentry_errors` pipeline like every other producer's. Crash events wait on the device until sent, at most 16. None of it
 carries the user, account, handles, IDs or tokens, so it is not exportable per
 subject and retention follows the tables above.
@@ -1418,6 +1420,21 @@ above: match the subject's handles in `account_handle`, then search `title`,
 identifiers within the retained window, and include related spans and logs by
 `trace_id`. Atlas keeps its own copy of the same events (see Atlas's
 `data-export.md`).
+
+### Pulse release health
+
+Pulse's Sentry endpoint also stores session updates in `public.sessions`, in
+the same object storage and with the same environment-specific TTL as errors.
+Raw updates are append-only: session start, producing service, release,
+environment, session ID, hashed distinct user/device ID, status, error count,
+duration, health counts, Sentry sequence and update timestamp. Queries select
+the highest sequence and latest update timestamp per session identity before
+counting sessions; raw replays do not represent additional sessions.
+Pre-aggregated updates have independent generated IDs and additive health
+counts, not individual session identities. For export, query all raw rows for
+the subject's verified session IDs or the truncated SHA-256 distinct ID
+(`hex(SHA256(distinct_id)[0:16])`), including sequence and update timestamp so
+the current logical state can be reconstructed. No raw distinct ID is stored.
 
 ## Bazel remote execution
 

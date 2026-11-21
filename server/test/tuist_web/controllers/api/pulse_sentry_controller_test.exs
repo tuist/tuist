@@ -74,6 +74,17 @@ defmodule TuistWeb.API.PulseSentryControllerTest do
     assert json_response(conn, 200) == %{"id" => "9ec79c33ec9942ab8353589fcb2e04dc"}
   end
 
+  test "account producers retain multi-signal Sentry support", %{conn: conn, account: account} do
+    body = @envelope <> ~s({"type":"log"}\n{"items":[]}\n{"type":"span"}\n{"name":"operation"}\n)
+
+    expect(Req, :request, fn request ->
+      assert request.body == body
+      {:ok, %Req.Response{status: 200, body: "{}"}}
+    end)
+
+    assert conn |> post_encoded(account, "identity", body) |> json_response(200) == %{}
+  end
+
   test "rejects tokens without the scope, of another account, or of an account not enrolled in Pulse",
        %{conn: conn, account: account} do
     reject(&Req.request/1)
@@ -179,6 +190,33 @@ defmodule TuistWeb.API.PulseSentryControllerTest do
            }
 
     assert conn |> post_encoded(account, "zstd", encoded) |> json_response(400) == %{"error" => "invalid envelope"}
+  end
+
+  test "preserves only Pulse rate-limit headers, including on successful mixed envelopes", %{conn: conn, account: account} do
+    body = @envelope <> ~s({"type":"session"}\n{"sid":"synthetic-session","attrs":{"release":"test@1"}}\n)
+
+    for status <- [200, 400, 413, 429] do
+      expect(Req, :request, fn request ->
+        assert request.body == body
+
+        {:ok,
+         %Req.Response{
+           status: status,
+           body: "{}",
+           headers: %{
+             "retry-after" => ["37"],
+             "x-sentry-rate-limits" => ["37:error:organization", "19:session:organization"],
+             "set-cookie" => ["not-forwarded=true"]
+           }
+         }}
+      end)
+
+      response = post_encoded(conn, account, "identity", body)
+      assert response.status == status
+      assert get_resp_header(response, "retry-after") == ["37"]
+      assert get_resp_header(response, "x-sentry-rate-limits") == ["37:error:organization, 19:session:organization"]
+      assert get_resp_header(response, "set-cookie") == []
+    end
   end
 
   test "reports the server's own Pulse failures as unavailable, not as the caller's", %{conn: conn, account: account} do

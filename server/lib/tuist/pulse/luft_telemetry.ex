@@ -86,6 +86,61 @@ defmodule Tuist.Pulse.LuftTelemetry do
   def service, do: @service
   def max_bytes, do: @max_bytes
 
+  # Sentry is an event-only producer route. Logs and spans must use OTLP,
+  # where prepare/3 applies Luft's attribute, path and timestamp policy.
+  # Consume length-delimited items before inspecting the next header: binary
+  # attachments must not be mistaken for envelope framing.
+  def prepare_envelope(body) do
+    {header, rest} = envelope_line(body)
+
+    with {:ok, %{}} <- JSON.decode(header),
+         {:ok, items} <- event_items(rest, []) do
+      {:ok, IO.iodata_to_binary([header, "\n", Enum.reverse(items)])}
+    else
+      _ -> {:error, :invalid}
+    end
+  end
+
+  defp event_items("", items), do: {:ok, items}
+
+  defp event_items(body, items) do
+    {header, rest} = envelope_line(body)
+
+    with {:ok, %{} = item} <- JSON.decode(header),
+         {:ok, payload, rest} <- envelope_payload(rest, item["length"]) do
+      items = if item["type"] == "event", do: [[header, "\n", payload, "\n"] | items], else: items
+      event_items(rest, items)
+    else
+      _ -> {:error, :invalid}
+    end
+  end
+
+  defp envelope_payload(body, nil) do
+    {payload, rest} = envelope_line(body)
+    {:ok, payload, rest}
+  end
+
+  defp envelope_payload(body, length) when is_integer(length) and length >= 0 and length <= byte_size(body) do
+    <<payload::binary-size(^length), rest::binary>> = body
+
+    rest =
+      case rest do
+        "\n" <> rest -> rest
+        rest -> rest
+      end
+
+    {:ok, payload, rest}
+  end
+
+  defp envelope_payload(_body, _length), do: {:error, :invalid}
+
+  defp envelope_line(body) do
+    case :binary.split(body, "\n") do
+      [line, rest] -> {line, rest}
+      [line] -> {line, ""}
+    end
+  end
+
   @doc """
   Decodes an OTLP export request for `signal` (see `Tuist.Pulse.OTLP.decode/2`),
   confines it to Luft and encodes it as protobuf. Returns `{:ok, body,

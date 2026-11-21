@@ -432,6 +432,77 @@ defmodule TuistWeb.API.TelemetryControllerTest do
     end
   end
 
+  test "Luft envelopes cannot bypass the OTLP producer policy with other item types", %{conn: conn, bearer: bearer} do
+    # A length-delimited attachment may contain text that looks like event framing.
+    attachment = ~s(\n{"type":"event"}\n{"message":"not an event"}\n)
+
+    body =
+      @envelope <>
+        ~s({"type":"log"}\n{"items":[{"body":"private","attributes":{"email":"private"}}]}\n) <>
+        ~s({"type":"span"}\n{"name":"GET /private/path","timestamp":1}\n) <>
+        ~s({"type":"transaction"}\n{"transaction":"private","spans":[]}\n) <>
+        ~s({"type":"session"}\n{"sid":"private"}\n) <>
+        JSON.encode!(%{type: "attachment", length: byte_size(attachment)}) <> "\n" <> attachment
+
+    expect(Req, :request, fn request ->
+      assert request.body == @envelope
+      {:ok, %Req.Response{status: 200, body: "{}"}}
+    end)
+
+    assert conn
+           |> put_req_header("authorization", "Bearer #{bearer}")
+           |> put_req_header("content-type", "application/x-sentry-envelope")
+           |> post("/api/telemetry/api/1/envelope/", body)
+           |> json_response(200) == %{}
+  end
+
+  test "rejects malformed Sentry framing before forwarding", %{conn: conn, bearer: bearer} do
+    reject(&Req.request/1)
+
+    for body <- [
+          "[]\n",
+          "{}\n[]\n{}\n",
+          ~s({}\n{"type":"event","length":-1}\n{}\n),
+          ~s({}\n{"type":"attachment","length":999}\nshort)
+        ] do
+      assert conn
+             |> recycle()
+             |> put_req_header("authorization", "Bearer #{bearer}")
+             |> put_req_header("content-type", "application/x-sentry-envelope")
+             |> post("/api/telemetry/api/1/envelope/", body)
+             |> json_response(400)
+    end
+  end
+
+  test "preserves Pulse category backoff on accepted and rejected envelopes", %{conn: conn, bearer: bearer} do
+    for status <- [200, 429] do
+      expect(Req, :request, fn _ ->
+        {:ok,
+         %Req.Response{
+           status: status,
+           body: "{}",
+           headers: %{
+             "retry-after" => ["37"],
+             "x-sentry-rate-limits" => ["37:error:organization"],
+             "set-cookie" => ["not-forwarded=true"]
+           }
+         }}
+      end)
+
+      response =
+        conn
+        |> recycle()
+        |> put_req_header("authorization", "Bearer #{bearer}")
+        |> put_req_header("content-type", "application/x-sentry-envelope")
+        |> post("/api/telemetry/api/1/envelope/", @envelope)
+
+      assert response.status == status
+      assert get_resp_header(response, "retry-after") == ["37"]
+      assert get_resp_header(response, "x-sentry-rate-limits") == ["37:error:organization"]
+      assert get_resp_header(response, "set-cookie") == []
+    end
+  end
+
   test "refuses, without retry, a user blocked from sending", %{conn: conn, user: user, bearer: bearer} do
     # Only the user who isn't blocked reaches Pulse.
     expect(Req, :request, fn _ -> {:ok, %Req.Response{status: 200, body: ""}} end)

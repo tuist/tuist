@@ -101,11 +101,14 @@ defmodule TuistWeb.API.TelemetryController do
          :ok <- admit_request(conn),
          {:ok, body, conn} <- read(conn),
          true <- byte_size(body) <= producer.max_bytes() || {:error, :too_large, conn},
+         {:ok, body} <- producer.prepare_envelope(body),
          :ok <- admit_bytes(conn, byte_size(body)),
-         {:ok, status, response} <-
+         {:ok, status, response, headers} <-
            Pulse.forward_sentry_envelope(producer.service(), "1", body, [
              {"content-type", "application/x-sentry-envelope"}
            ]) do
+      conn = Enum.reduce(headers, conn, fn {name, value}, conn -> put_resp_header(conn, name, value) end)
+
       if status in 200..299,
         do: conn |> put_resp_content_type("application/json") |> send_resp(status, response),
         else: sentry_error(conn, {:pulse, status})
@@ -206,6 +209,13 @@ defmodule TuistWeb.API.TelemetryController do
     conn
     |> put_resp_content_type(content_type(format), nil)
     |> send_resp(status, OTLP.status(format, code, message))
+  end
+
+  # Pulse already supplied category-specific backoff. Only locally enforced
+  # request/byte limits below restrict every category.
+  defp sentry_error(conn, {:pulse, _status} = error) do
+    {status, _code, message} = failure(error)
+    conn |> put_status(status) |> json(%{detail: message})
   end
 
   defp sentry_error(conn, error) do

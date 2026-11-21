@@ -76,7 +76,8 @@ defmodule TuistWeb.API.PulseSentryController do
          :ok <- Authorization.authorize(:pulse_write, Authentication.authenticated_subject(conn), account),
          true <- Pulse.available?(account) || :not_enrolled,
          {:ok, body, headers, conn} <- read_envelope(conn),
-         {:ok, status, response} <- Pulse.forward_sentry_envelope(service, project_id, body, headers) do
+         {:ok, status, response, headers} <- Pulse.forward_sentry_envelope(service, project_id, body, headers) do
+      conn = Enum.reduce(headers, conn, fn {name, value}, conn -> put_resp_header(conn, name, value) end)
       respond(conn, status, response)
     else
       false ->
