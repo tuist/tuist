@@ -55,7 +55,7 @@ defmodule TuistWeb.API.PulseSentryControllerTest do
                "Sentry sentry_version=7, sentry_key=sentry, sentry_secret=writer-secret"
              ]
 
-      assert request.headers["content-encoding"] == ["identity"]
+      refute Map.has_key?(request.headers, "content-encoding")
       refute Map.has_key?(request.headers, "authorization")
       {:ok, %Req.Response{status: 200, body: ~s({"id":"9ec79c33ec9942ab8353589fcb2e04dc"})}}
     end)
@@ -101,6 +101,84 @@ defmodule TuistWeb.API.PulseSentryControllerTest do
 
     assert conn |> post_envelope(account.name, auth, "at%2Flas/api/1/envelope/") |> json_response(400)
     assert conn |> post_envelope(account.name, auth, "atlas/api/one/envelope/") |> json_response(400)
+  end
+
+  defp post_encoded(conn, account, encoding, body) do
+    conn
+    |> put_req_header("content-type", "application/x-sentry-envelope")
+    |> put_req_header("content-encoding", encoding)
+    |> put_req_header("x-sentry-auth", "Sentry sentry_key=#{token(account, ["account:pulse:write"])}")
+    |> post("/api/accounts/#{account.name}/pulse/sentry/atlas/api/1/envelope/", body)
+  end
+
+  test "inflates gzip envelopes before forwarding, holding their inflated size to 1 MiB",
+       %{conn: conn, account: account} do
+    gzipped = :zlib.gzip(@envelope)
+
+    expect(Req, :request, fn request ->
+      assert request.body == @envelope
+      refute Map.has_key?(request.headers, "content-encoding")
+      {:ok, %Req.Response{status: 200, body: ~s({"id":"9ec79c33ec9942ab8353589fcb2e04dc"})}}
+    end)
+
+    assert conn |> post_encoded(account, "gzip", gzipped) |> json_response(200)
+
+    # None of these reach Pulse: the single expectation above fails any
+    # further request. A few KiB of gzip inflate past the limit; a body
+    # missing its gzip trailer is incomplete, not an envelope to forward
+    # cut short; and the server reads deflate as raw DEFLATE, which is not
+    # what the encoding means to Sentry SDKs, so it is refused.
+    bomb = :zlib.gzip(:binary.copy("a", 1_048_577))
+    assert byte_size(bomb) < 4096
+    assert conn |> post_encoded(account, "gzip", bomb) |> json_response(413)
+
+    truncated = binary_part(gzipped, 0, byte_size(gzipped) - 4)
+
+    assert conn |> post_encoded(account, "gzip", truncated) |> json_response(400) == %{
+             "message" => "The envelope could not be decompressed."
+           }
+
+    assert conn |> post_encoded(account, "deflate", :zlib.compress(@envelope)) |> json_response(400) == %{
+             "message" => "The envelope must be uncompressed, or gzip-, br- or zstd-encoded."
+           }
+  end
+
+  test "forwards brotli and zstd envelopes encoded, for Pulse to decode and limit",
+       %{conn: conn, account: account} do
+    # Stands in for a brotli body; the server does not decode it.
+    encoded = :crypto.strong_rand_bytes(64)
+
+    expect(Req, :request, 2, fn request ->
+      assert request.body == encoded
+      assert request.headers["content-encoding"] in [["br"], ["zstd"]]
+      {:ok, %Req.Response{status: 200, body: ~s({"id":"9ec79c33ec9942ab8353589fcb2e04dc"})}}
+    end)
+
+    assert conn |> post_encoded(account, "br", encoded) |> json_response(200)
+    assert conn |> post_encoded(account, "zstd", encoded) |> json_response(200)
+
+    # Pulse's own limit on the decoded envelope reads like the server's.
+    expect(Req, :request, fn _ ->
+      {:ok, %Req.Response{status: 413, body: "Failed to buffer the request body: length limit exceeded"}}
+    end)
+
+    assert conn |> post_encoded(account, "br", encoded) |> json_response(413) == %{
+             "message" => "The envelope is larger than 1 MiB."
+           }
+
+    # Pulse's JSON rejections pass through; its HTTP layer's plain-text ones,
+    # such as for a corrupt stream, are replaced by a JSON error.
+    expect(Req, :request, 2, fn request ->
+      if request.headers["content-encoding"] == ["br"],
+        do: {:ok, %Req.Response{status: 400, body: "Failed to buffer the request body"}},
+        else: {:ok, %Req.Response{status: 400, body: ~s({"error":"invalid envelope"})}}
+    end)
+
+    assert conn |> post_encoded(account, "br", encoded) |> json_response(400) == %{
+             "message" => "The envelope could not be read."
+           }
+
+    assert conn |> post_encoded(account, "zstd", encoded) |> json_response(400) == %{"error" => "invalid envelope"}
   end
 
   test "reports the server's own Pulse failures as unavailable, not as the caller's", %{conn: conn, account: account} do
