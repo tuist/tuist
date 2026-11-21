@@ -82,6 +82,11 @@ enable_api_server = false
 ## The address to bind the dedicated HTTP API server, in the same form as `addr`.
 ## Defaults to `127.0.0.1:4006`.
 api_server_addr = "127.0.0.1:4006"
+## Error events each service may send per minute to the Sentry envelope endpoint
+## (`/v1/sentry/<service>/api/<project>/envelope/`), counted by each frontend on its own.
+## Beyond it, events are refused with `429`, `Retry-After` and `X-Sentry-Rate-Limits`, which
+## Sentry SDKs obey. Set to 0 to disable the limit.
+sentry_events_per_minute = 600
 
 ## The gRPC server options.
 [grpc]

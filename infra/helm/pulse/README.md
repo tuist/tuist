@@ -203,8 +203,9 @@ Each environment moves in this order:
    metrics/logs/traces, the `loki_otlp` pipeline (`loki-otlp.yaml`), the `errors`
    table (`errors.sql`, append-only, 90-day TTL in production, 7 days
    elsewhere), the `error_issue_hours` table and `error_issues` flow
-   (`error-issues.sql`) and the `sentry_errors` pipeline (`sentry-errors.yaml`;
-   see [Errors](#errors)), flushes the flow, and smoke
+   (`error-issues.sql`), the `sentry_errors` pipeline (`sentry-errors.yaml`;
+   see [Errors](#errors)) and the `sessions` table (`sessions.sql`, same TTL as
+   `errors`; see [Release health](#release-health)), flushes the flow, and smoke
    tests dashboard reads, rejected dashboard mutation, rejected writer reads and
    unauthenticated rejection, then rereads the data after restarting every
    stateful component.
@@ -395,6 +396,34 @@ that resends count once, and the issue rollup and its queries. To run it locally
 ```bash
 PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/pulse/test-sentry-errors.mjs
 ```
+
+## Release health
+
+The same endpoint accepts Sentry's `session` and `sessions` items and writes
+them to `sessions` (`sessions.sql`): one row per session, whose later updates
+replace it (primary key `service, release, environment, session_id`), or one per
+pre-aggregated group from server-mode SDKs. `sessions` counts the sessions a row
+stands for, and `errored`, `crashed`, `abnormal` and `unhandled` split them by
+outcome; `distinct_id` is the SDK's user or device ID, hashed. Pulse never
+creates this table itself, so sessions sent before the deploy installs it are
+dropped. Crash-free rates per release:
+
+```sql
+SELECT "release",
+  1 - CAST(sum(crashed + abnormal + unhandled) AS DOUBLE) / sum(sessions) AS crash_free_sessions,
+  1 - CAST(count(DISTINCT CASE WHEN crashed + abnormal + unhandled > 0 THEN distinct_id END) AS DOUBLE)
+    / count(DISTINCT distinct_id) AS crash_free_users
+FROM sessions
+WHERE service = 'server' AND started > now() - INTERVAL '1 day'
+GROUP BY "release"
+```
+
+User rates count only rows with a distinct ID; Sentry treats `abnormal` as
+crashed for its crash-free figures, and so does this query. The endpoint also
+writes Sentry `log` items to `opentelemetry_logs` and spans to
+`opentelemetry_traces` (see `pulse/FORK.md`), and limits each service to
+`http.sentry_events_per_minute` error events per frontend (600 by default),
+answering more with Sentry's `429` rate-limit headers.
 
 ## Rollback boundaries
 

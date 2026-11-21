@@ -173,6 +173,13 @@ try {
         await sqlResult(statement);
       }
       await request('/v1/pipelines/sentry_errors', errorsPipeline, {'Content-Type': 'application/x-yaml'});
+      // Release health from Sentry sessions, kept as long as errors. Pulse
+      // writes sessions only into this table, never one it creates itself.
+      enter('sessions table');
+      const sessionsTable = process.env.PULSE_SESSIONS_TABLE;
+      if (!sessionsTable) throw new Error();
+      await sqlResult(sessionsTable);
+      await sqlResult(`ALTER TABLE sessions SET 'ttl' = '${errorsTtl}'`);
       enter('errors ingestion');
       const error = await fetch(`${base}/v1/ingest?${new URLSearchParams({db: 'public', table: 'errors', pipeline_name: 'sentry_errors'})}`, {
         method: 'POST', signal: AbortSignal.timeout(10000),
@@ -242,6 +249,7 @@ try {
       // in the same hour count too.
       const issueHours = ingest || errors?.length !== 1 ? null :
         await sql(`SELECT events FROM error_issue_hours WHERE "service" = 'pulse-ci' AND fingerprint = '${errors[0][2]}' AND last_seen > now() - INTERVAL '1 hour'`);
+      const sessionsDdl = ingest ? null : (await sql('SHOW CREATE TABLE sessions'))?.[0]?.[1];
       const errorsRetention = errorsTtl === '90d' ? /ttl\s*=\s*'(?:90d|90days|2months 29days 2h 52m 48s)'/ : /ttl\s*=\s*'7(?:d|days)'/;
       const checks = {
         metrics: metrics.status === 'success' && metrics.data?.resultType === 'vector' &&
@@ -257,6 +265,7 @@ try {
           /^[0-9a-f]{64}$/.test(errors[0][2]) && errors[0][3] === 'pulse-ci' &&
           typeof errorsDdl === 'string' && errorsRetention.test(errorsDdl) && /append_mode\s*=\s*'true'/.test(errorsDdl)),
         'error issues': ingest || (issueHours?.length >= 1 && issueHours.every(row => Number(row[0]) >= 1)),
+        sessions: ingest || (typeof sessionsDdl === 'string' && errorsRetention.test(sessionsDdl)),
       };
       waiting = Object.keys(checks).filter(name => !checks[name]);
       qualified = waiting.length === 0;
@@ -275,7 +284,7 @@ try {
     phase = `query results, missing ${waiting.join(', ')}`;
     throw new Error();
   }
-  console.log(`${elapsed()}: PASS: ${environment} database TTL ${ttl}; configured scoped identities; authenticated PromQL value/label, error log, trace and Sentry error (TTL ${errorsTtl}, append-only) identity and issue rollup; anonymous SQL rejected`);
+  console.log(`${elapsed()}: PASS: ${environment} database TTL ${ttl}; configured scoped identities; authenticated PromQL value/label, error log, trace and Sentry error (TTL ${errorsTtl}, append-only) identity and issue rollup; sessions table (TTL ${errorsTtl}); anonymous SQL rejected`);
 } catch {
   console.error(`FAIL: Pulse pilot (${phase})`);
   process.exitCode = 1;

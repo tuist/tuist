@@ -120,6 +120,7 @@ ryu.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 session.workspace = true
+sha2 = "0.10"
 simd-json.workspace = true
 smallvec.workspace = true
 snafu.workspace = true

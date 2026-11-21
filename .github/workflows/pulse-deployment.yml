@@ -463,9 +463,10 @@ jobs:
             --rawfile errors_table infra/helm/pulse/errors.sql \
             --rawfile errors_pipeline infra/helm/pulse/sentry-errors.yaml \
             --rawfile error_issues infra/helm/pulse/error-issues.sql \
+            --rawfile sessions_table infra/helm/pulse/sessions.sql \
             '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline},
               {name:"PULSE_ERRORS_TABLE",value:$errors_table},{name:"PULSE_ERRORS_PIPELINE",value:$errors_pipeline},
-              {name:"PULSE_ERROR_ISSUES",value:$error_issues}]' \
+              {name:"PULSE_ERROR_ISSUES",value:$error_issues},{name:"PULSE_SESSIONS_TABLE",value:$sessions_table}]' \
             "$dir/native.json" > "$dir/smoke.json"
       - name: Install private backend, retaining state on failure
         run: |
