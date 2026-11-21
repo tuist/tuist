@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import TSCBasic
+import TuistConfig
 import TuistCore
 import XcodeGraph
 
@@ -43,6 +44,13 @@ extension XcodeGraph.Graph {
 
         let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
             .allTargets()
+        // Match targets by name or by `tag:` query, the same way `tuist generate` does.
+        let queriedTargets: Set<GraphTarget>? = targetsToFilter.isEmpty ? nil : graphTraverser.filterIncludedTargets(
+            basedOn: allTargets,
+            testPlan: nil,
+            includedTargets: Set(targetsToFilter.map(TargetQuery.init(stringLiteral:))),
+            excludedTargets: []
+        )
         let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
             if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
                 return false
@@ -56,7 +64,7 @@ extension XcodeGraph.Graph {
                 return false
             }
 
-            if !targetsToFilter.isEmpty, !targetsToFilter.contains(target.target.name) {
+            if let queriedTargets, !queriedTargets.contains(target) {
                 return false
             }
 
