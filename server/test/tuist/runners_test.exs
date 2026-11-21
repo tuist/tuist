@@ -1099,6 +1099,48 @@ defmodule Tuist.RunnersTest do
       assert {:ok, %{workflow_job_id: 90_102}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
+    test "holds an account whose GitHub App permission prevents minting instead of re-claiming it on the next poll" do
+      failed_account = account_fixture()
+      eligible_account = account_fixture()
+      failed_candidate = candidate_with_label(failed_account, "tuist-default", workflow_job_id: 90_111)
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 90_112)
+
+      stub_mint_failure_then_success(
+        failed_account,
+        failed_candidate,
+        eligible_account,
+        eligible_candidate,
+        {:error, {:repository_administration_permission_required, 403, %{"message" => "Forbidden"}}},
+        :account
+      )
+
+      assert {:ok, %{workflow_job_id: 90_112}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      # Another idle runner polls while the failed job is still the queue head.
+      # It must skip the held account before claiming: no claim, no mint, no
+      # re-queue.
+      stub(K8sClient, :get_pod, fn "tuist-runners", "pod-2" ->
+        {:ok, pod_with_image("pod-2", "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      stub(K8sClient, :get_service_account, fn "tuist-runners", "pod-2" ->
+        {:ok, sa_with_pool_label("pod-2", "fleet-a")}
+      end)
+
+      stub(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [failed_candidate]} end)
+
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+        assert excluded_account_ids == [failed_account.id]
+        {:error, :empty}
+      end)
+
+      reject(&Claims.attempt/6)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-2")
+    end
+
     test "skips only the repository whose runner endpoint returns not found" do
       account = account_fixture()
 
