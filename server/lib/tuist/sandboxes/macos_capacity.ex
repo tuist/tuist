@@ -136,10 +136,12 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       %Sandbox{state: :archived} = sandbox ->
         with :ok <- quota(sandbox), do: placement(environment)
 
-      %Sandbox{} = sandbox ->
+      %Sandbox{state: state, node_name: node_name} = sandbox when state != :error or is_binary(node_name) ->
         with :ok <- quota(sandbox), do: host_admission(sandbox)
 
-      nil ->
+      # Nothing, or an errored one without a node, which is replaced
+      # (`Router.find_or_create_sandbox/3`).
+      _new ->
         with :ok <- Capacity.quota(environment.account_id, environment), do: placement(environment)
     end
   end

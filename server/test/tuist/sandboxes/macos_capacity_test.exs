@@ -2,10 +2,12 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
   import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
@@ -13,6 +15,9 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.Router
+  alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxEvent
 
   setup do
     name = "mac-#{System.unique_integer([:positive])}"
@@ -250,8 +255,113 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     # A refusal whose cleanup also failed is not only a refusal.
     error = "macOS sandbox capacity unavailable: sandbox disk reserve\nreservation release failed"
-    expect(Nodes, :call, fn _name, "create", _args, _opts -> {:error, error} end)
+
+    expect(Nodes, :call, 2, fn
+      _name, "create", _args, _opts -> {:error, error}
+      _name, "delete", _args, _opts -> {:ok, %{}}
+    end)
+
     assert {:error, ^error} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+  end
+
+  test "a failed create is deleted from its host at once and holds nothing there", %{node: node} do
+    name = node.name
+    error = "workspace: diskutil apfs addVolume disk3 APFS TuistSandboxWorkspace: exit status 1"
+
+    expect(Nodes, :call, 2, fn
+      ^name, "create", %{node_uid: "node-uid"}, _opts -> {:error, error}
+      ^name, "delete", %{sandbox_id: _id, node_uid: "node-uid"}, _opts -> {:ok, %{}}
+    end)
+
+    assert {:error, ^error} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+
+    failed = Repo.one!(from(s in Sandbox, where: s.platform == :darwin and s.state == :error))
+    assert %{node_name: nil, node_uid: nil, resident: false, error_message: ^error} = failed
+
+    # The host had room for one 8-vCPU VM: the failed create no longer takes it.
+    expect(Nodes, :call, fn ^name, "create", _args, _opts -> {:ok, %{}} end)
+    assert {:ok, created} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+    assert %{state: :running, node_name: ^name} = created
+
+    # The failure is kept on its `failed` event, which outlives the row.
+    assert [%{error_message: ^error, node_name: ^name, template: "macos"}] =
+             ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^failed.id and e.event == "failed"))
+  end
+
+  test "a failed create its host could not delete is deleted when the host reports it", %{node: node} do
+    name = node.name
+
+    expect(Nodes, :call, 2, fn
+      ^name, "create", _args, _opts -> {:error, :timeout}
+      ^name, "delete", _args, _opts -> {:error, :not_connected}
+    end)
+
+    assert {:error, :timeout} = Sandboxes.create_sandbox(account_fixture(), %{platform: :darwin})
+    failed = Repo.one!(from(s in Sandbox, where: s.platform == :darwin and s.state == :error))
+    assert %{node_name: ^name, resident: true} = failed
+    assert {:error, :no_capacity} = Capacity.place(sandbox())
+
+    failed_id = failed.id
+    expect(Nodes, :call, fn ^name, "delete", %{sandbox_id: ^failed_id, node_uid: "node-uid"}, _opts -> {:ok, %{}} end)
+
+    report = %{
+      "generation" => node.generation,
+      "sandboxes" => [%{"id" => failed.id, "state" => "error", "resident" => false, "error" => "lost"}]
+    }
+
+    assert :ok = Sandboxes.reconcile_node_report(name, report)
+    assert %{state: :error, node_name: nil, resident: false} = Repo.reload!(failed)
+    assert {:ok, ^name} = Capacity.place(sandbox())
+  end
+
+  test "errored rows the host no longer lists stop holding it", %{node: node} do
+    old = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+    held = [node_name: node.name, node_uid: node.generation, state: :error, resident: true]
+
+    errored = fn opts ->
+      held |> Keyword.merge(opts) |> sandbox() |> Ecto.Changeset.change(updated_at: old) |> Repo.update!()
+    end
+
+    never_ran = errored.([])
+    used = errored.(last_active_at: old)
+    other_host = errored.(node_uid: "replaced-uid")
+    just_failed = sandbox(held)
+
+    assert :ok = Sandboxes.reconcile_node_report(node.name, %{"generation" => node.generation, "sandboxes" => []})
+
+    # The retention still counts from the failure.
+    assert %{node_name: nil, node_uid: nil, resident: false, updated_at: ^old} = Repo.reload!(never_ran)
+    assert %{node_name: name, resident: false, state: :error} = Repo.reload!(used)
+    assert name == node.name
+    # Another incarnation of the host says nothing about it, and a report can
+    # predate a failure that just happened.
+    assert %{resident: true} = Repo.reload!(other_host)
+    assert %{resident: true} = Repo.reload!(just_failed)
+  end
+
+  test "an errored session sandbox without a node is replaced, a placed one needs recovery", %{node: node} do
+    environment = agent_environment_fixture(platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192)
+    session_id = "sesn_#{System.unique_integer([:positive])}"
+    name = node.name
+
+    placed =
+      sandbox(
+        agent_environment_id: environment.id,
+        anthropic_session_id: session_id,
+        state: :error,
+        node_name: name,
+        node_uid: node.generation
+      )
+
+    assert {:error, :sandbox_recovery_required} = Router.find_or_create_sandbox(environment, session_id)
+
+    placed |> Ecto.Changeset.change(node_name: nil, node_uid: nil) |> Repo.update!()
+    assert :ok = MacosCapacity.admission(environment, session_id)
+
+    expect(Nodes, :call, fn ^name, "create", _args, _opts -> {:ok, %{}} end)
+    assert {:ok, created, true} = Router.find_or_create_sandbox(environment, session_id)
+    assert %{state: :running, node_name: ^name} = created
+    refute Repo.get(Sandbox, placed.id)
   end
 
   test "Linux placement never chooses a macOS node advertising the same template" do

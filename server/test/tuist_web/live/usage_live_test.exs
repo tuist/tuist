@@ -763,6 +763,9 @@ defmodule TuistWeb.UsageLiveTest do
             boot_source: "",
             duration_ms: 0,
             guaranteed_cpu_milli: 0,
+            error_message: "",
+            node_name: "",
+            template: "",
             inserted_at: at
           }
         end

@@ -212,7 +212,10 @@ defmodule Tuist.Sandboxes.Router do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming, :archived] ->
         {:ok, sandbox, false}
 
-      %Sandbox{platform: :darwin, state: :error} ->
+      # A placed macOS sandbox keeps its disk for recovery. One without a
+      # node (a create refused for room, or a failed create whose host
+      # deleted it) holds nothing and is replaced below.
+      %Sandbox{platform: :darwin, state: :error, node_name: node_name} when is_binary(node_name) ->
         {:error, :sandbox_recovery_required}
 
       # A sandbox that died or was deleted from under us cannot be

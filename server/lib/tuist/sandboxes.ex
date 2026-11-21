@@ -616,6 +616,8 @@ defmodule Tuist.Sandboxes do
   crashes in the analytics. Its row is still kept in `error` like any failed
   create, since callers such as Amp Orbs and threads replace it on their
   next attempt, and `Tuist.Runners.MacosSandboxWarmPools` counts it as demand.
+  A macOS create that fails otherwise is deleted from its host at once and
+  keeps its row the same way, without a node (`release_failed_create/1`).
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
@@ -760,11 +762,64 @@ defmodule Tuist.Sandboxes do
 
         {:error, :no_capacity}
 
+      # Reloaded for the node placement recorded, which the `failed` event
+      # keeps with the error.
       {:error, reason} ->
         Logger.warning("sandboxes: sandbox creation failed", sandbox_id: sandbox.id, reason: inspect(reason))
-        {:ok, _} = update_sandbox(sandbox, %{state: :error, hostname: hostname, error_message: error_message(reason)})
+
+        {:ok, failed} =
+          sandbox
+          |> Repo.reload!()
+          |> update_sandbox(%{state: :error, hostname: hostname, error_message: error_message(reason)})
+
+        release_failed_create(failed)
         {:error, reason}
     end
+  end
+
+  # A macOS create that failed never ran, so nothing on its host is worth
+  # keeping, while its reservation (CPU, memory and a VM slot while
+  # `resident`, its disk while the host lists it) refuses every create
+  # after it. Its host deletes the VM at once and the row keeps no node:
+  # an `error` row without one holds nothing, and Amp Orbs, Claude Code
+  # sessions and Managed Agents sessions replace it with a fresh create.
+  # The row stays as the failure's record, with its error, shape, template
+  # and account, until a retry or the retention removes it; its `failed`
+  # event also names the host. A host that cannot delete it now does it
+  # when it reports the sandbox (`reconcile_reported/3`).
+  defp release_failed_create(
+         %Sandbox{platform: :darwin, state: :error, last_active_at: nil, node_name: node_name} = sandbox
+       )
+       when is_binary(node_name) do
+    case node_call(sandbox, "delete", %{sandbox_id: sandbox.id}, []) do
+      {:ok, _data} ->
+        Logger.info("sandboxes: deleted a failed macOS create from its host", sandbox_id: sandbox.id, node: node_name)
+        release_failed_row(sandbox)
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: failed to delete a failed macOS create from its host",
+          sandbox_id: sandbox.id,
+          node: node_name,
+          reason: inspect(reason)
+        )
+    end
+
+    :ok
+  end
+
+  defp release_failed_create(_sandbox), do: :ok
+
+  # `updated_at` stays the failure's time, which the retention counts from.
+  defp release_failed_row(%Sandbox{} = sandbox) do
+    Repo.update_all(
+      from(s in Sandbox,
+        where:
+          s.id == ^sandbox.id and s.state == :error and s.node_name == ^sandbox.node_name and is_nil(s.last_active_at)
+      ),
+      set: [node_name: nil, node_uid: nil, resident: false]
+    )
+
+    :ok
   end
 
   # Places and boots the sandbox, placing it again every few seconds while
@@ -2150,7 +2205,8 @@ defmodule Tuist.Sandboxes do
             inc: [residency_epoch: 1]
           )
 
-        if released == 1 and sandbox.state != :error, do: Events.record(sandbox, "failed")
+        if released == 1 and sandbox.state != :error,
+          do: Events.record(sandbox, "failed", %{error_message: "node left the cluster"})
       end
     end)
   end
@@ -2178,8 +2234,40 @@ defmodule Tuist.Sandboxes do
       end
     end)
 
-    :ok
+    release_unlisted_macos_errors(node_name, reported_ids, generation, settled_before)
   end
+
+  # An errored macOS VM its host no longer lists holds nothing there: the
+  # host deleted it (it deletes a create that did not finish by itself) or
+  # lost it. `resident` is only cleared by an error report, which such a
+  # host never sends, so it is cleared here, and a failed create that never
+  # ran also gives up its node, as `release_failed_create/1` does.
+  defp release_unlisted_macos_errors(node_name, reported_ids, generation, settled_before) when is_binary(generation) do
+    Sandbox
+    |> where(node_name: ^node_name, node_uid: ^generation, platform: :darwin, state: :error)
+    |> where(
+      [s],
+      s.id not in ^reported_ids and s.updated_at < ^settled_before and (s.resident or is_nil(s.last_active_at))
+    )
+    |> Repo.all()
+    |> Enum.each(fn sandbox ->
+      Logger.info("sandboxes: releasing an errored macOS sandbox its host no longer lists",
+        sandbox_id: sandbox.id,
+        node: node_name
+      )
+
+      if is_nil(sandbox.last_active_at) do
+        release_failed_row(sandbox)
+      else
+        Repo.update_all(
+          from(s in Sandbox, where: s.id == ^sandbox.id and s.state == :error and s.node_uid == ^generation),
+          set: [resident: false]
+        )
+      end
+    end)
+  end
+
+  defp release_unlisted_macos_errors(_node_name, _reported_ids, _generation, _settled_before), do: :ok
 
   defp reconcile_known_report(sandbox, node_name, generation, reported) do
     if sandbox.platform != :darwin or sandbox.state == :archived or
@@ -2223,9 +2311,19 @@ defmodule Tuist.Sandboxes do
 
     # A row already errored for an interrupted lazy-disk restore is still
     # reverted, so an Orb the server errored before this rule spawns again.
-    if sandbox.state != :error or Archives.loading_disks?(sandbox) do
-      Logger.warning("sandboxes: node reports sandbox in error", sandbox_id: sandbox.id, reason: reported["error"])
-      error_or_revert(sandbox, reported["error"] || "error on the node", sandbox.state)
+    cond do
+      sandbox.state != :error or Archives.loading_disks?(sandbox) ->
+        Logger.warning("sandboxes: node reports sandbox in error", sandbox_id: sandbox.id, reason: reported["error"])
+        error_or_revert(sandbox, reported["error"] || "error on the node", sandbox.state)
+
+      # A failed macOS create its host still holds, such as one whose host
+      # could not be reached when it failed or that failed before this rule:
+      # the host deletes it off the socket process.
+      match?(%Sandbox{platform: :darwin, last_active_at: nil}, sandbox) ->
+        Tasks.run_async(fn -> release_failed_create(sandbox) end)
+
+      true ->
+        :ok
     end
 
     :ok
@@ -2455,7 +2553,7 @@ defmodule Tuist.Sandboxes do
       revert_restore(sandbox)
     else
       if mark_error(sandbox.id, message, from_state) == 1 and sandbox.state != :error,
-        do: Events.record(sandbox, "failed")
+        do: Events.record(sandbox, "failed", %{error_message: message})
 
       :ok
     end
