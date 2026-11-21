@@ -12,7 +12,7 @@ jq -e '
   def one(kind; name): [.[] | select(.kind == kind and .metadata.name == name)] | select(length == 1) | .[0];
   all(.[]; .kind != "Secret" and .kind != "Ingress" and .kind != "ClusterRole") and
   ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment") | .metadata.name] | sort ==
-    ["pulse-datanode","pulse-etcd","pulse-frontend","pulse-kafka","pulse-metasrv"]) and
+    ["pulse-datanode","pulse-etcd","pulse-flownode","pulse-frontend","pulse-kafka","pulse-metasrv"]) and
   (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0] |
     .image == "ghcr.io/tuist/pulse:1.44.0-canary.4" and .resources.requests == {cpu:"250m",memory:"768Mi"}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
@@ -160,7 +160,7 @@ jq -e '
   def spread(component): .spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution ==
     [{topologyKey:"kubernetes.io/hostname",labelSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":component}}}];
   all(.[]; .kind != "Secret" and .kind != "Ingress" and .kind != "ClusterRole") and
-  ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment")] | length == 5 and all(.[];
+  ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment")] | length == 6 and all(.[];
     .spec.template.spec.nodeSelector == {"node.cluster.x-k8s.io/pool":"general"} and
     .spec.template.spec.automountServiceAccountToken == false)) and
   ([.[] | select(.kind == "StatefulSet")] | all(.[]; .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"})) and
@@ -192,7 +192,15 @@ jq -e '
     "replication_factor = 3", "enable_region_failover = true", "allow_region_failover_on_local_wal = false")) and
   (config("pulse-datanode-config") | contains("provider = \"kafka\"", "overwrite_entry_start_id = false",
     "bucket = \"tuist-pulso-production\"", "root = \"pulse/distributed/\"") and (contains("raft_engine") | not)) and
-  (config("pulse-frontend-config") | contains("user_provider = \"static_user_provider:file:")) and
+  (config("pulse-frontend-config") | contains("user_provider = \"static_user_provider:file:", "[internal_grpc]\nbind_addr = \"0.0.0.0:4010\"")) and
+  # One flownode runs the error_issues flow; it reaches the frontends on their
+  # internal port, which no policy opens outside Pulse.
+  (one("Deployment"; "pulse-frontend").spec.template.spec.containers[0].args | contains(["--internal-grpc-server-addr", "$(POD_IP):4010"])) and
+  (one("Deployment"; "pulse-flownode") | .spec.replicas == 1 and .spec.strategy == {type:"Recreate"} and
+    .spec.template.spec.containers[0].args[0:2] == ["flownode","start"]) and
+  (config("pulse-flownode-config") | contains("node_id = 0", "metasrv_addrs = [\"pulse-metasrv.observability.svc.cluster.local:3002\"]")) and
+  ([.[] | select(.kind == "NetworkPolicy" or .kind == "CiliumNetworkPolicy") | .. | objects | select(has("port")) | .port | tostring] |
+    all(. == "4000" or . == "4003")) and
   (one("NetworkPolicy"; "pulse-internal").spec.ingress == [{from:[{podSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse"}}}]}]) and
   # Only the metrics collector reaches the datanodes from outside Pulse.
   (one("NetworkPolicy"; "pulse-datanode-metrics").spec ==
@@ -217,7 +225,7 @@ sed -e 's/^min.insync.replicas=2$/min.insync.replicas=3/' -e 's/^num_topics = 16
   "$chart/templates/_cluster-config.tpl" > "$tmp/edited/templates/_cluster-config.tpl"
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$tmp/edited")" '
   ([$before["pulse-kafka", "pulse-metasrv", "pulse-datanode", "pulse-frontend"]] | all(length == 16)) and
-  ($after | to_entries | length == 5) and
+  ($after | to_entries | length == 6) and
   ($before["pulse-kafka"] != $after["pulse-kafka"]) and
   ($before["pulse-metasrv"] != $after["pulse-metasrv"]) and
   ($before["pulse-datanode"] == $after["pulse-datanode"]) and

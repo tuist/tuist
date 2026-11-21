@@ -148,7 +148,10 @@ defmodule Atlas.Engineering.Errors do
       {:ok, _} = Event.Buffer.insert(row)
 
       :ok =
-        IssueCoalescer.observe(IssueCoalescer, project, fingerprint, event, domain_id: domain_id)
+        IssueCoalescer.observe(IssueCoalescer, project, fingerprint, event,
+          domain_id: domain_id,
+          legacy_fingerprint: Fingerprint.compute_legacy(event)
+        )
 
       :ok = observe_impacted_account(issue_id, event)
 

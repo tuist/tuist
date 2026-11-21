@@ -23,6 +23,7 @@ defmodule Atlas.Engineering.Errors.SentryEvent do
     :tracing_name,
     :exception_type,
     :exception_value,
+    :exception_chain,
     :top_frame,
     :message,
     :user,
@@ -59,6 +60,7 @@ defmodule Atlas.Engineering.Errors.SentryEvent do
       tracing_name: parse_tracing_name(payload),
       exception_type: exception_type,
       exception_value: exception_value,
+      exception_chain: exception_chain(exception_values),
       top_frame: top_frame,
       message: parse_message(payload),
       user: parse_user(payload["user"]),
@@ -143,6 +145,21 @@ defmodule Atlas.Engineering.Errors.SentryEvent do
   end
 
   defp first_exception(_), do: {nil, nil, []}
+
+  # `{type, value}` of every exception after the first. Sentry orders a
+  # chain oldest first, so these are the errors that wrapped the root
+  # cause, outermost last. Grouping only: titles use the first one.
+  defp exception_chain([_first | rest]) do
+    Enum.map(rest, fn
+      exception when is_map(exception) -> {text(exception["type"]), text(exception["value"])}
+      _ -> {"", ""}
+    end)
+  end
+
+  defp exception_chain(_), do: []
+
+  defp text(value) when is_binary(value), do: value
+  defp text(_), do: ""
 
   defp top_in_app_frame([]), do: nil
 

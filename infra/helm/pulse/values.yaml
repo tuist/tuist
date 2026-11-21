@@ -70,6 +70,11 @@ cluster:
     resources:
       requests: {cpu: 50m, memory: 128Mi}
       limits: {memory: 512Mi}
+  # Runs the error_issues flow, whose queries execute on the frontends.
+  flownode:
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {memory: 512Mi}
   datanode:
     replicas: 3
     # Environments whose datanodes restart one at a time with their regions

@@ -192,6 +192,69 @@ defmodule Atlas.Engineering.Errors.IssueCoalescerTest do
     end
   end
 
+  describe "regrouping" do
+    setup ctx do
+      legacy = String.duplicate("1", 64)
+      user = Atlas.TimeOffFixtures.user_fixture()
+      first_seen = ~U[2026-01-01 00:00:00.000000Z]
+      :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, legacy, fake_event(timestamp: first_seen))
+      :ok = IssueCoalescer.flush(ctx.coalescer)
+      legacy_id = Issue.deterministic_id(ctx.project.id, legacy)
+      Repo.update_all(from(i in Issue, where: i.id == ^legacy_id), set: [assignee_id: user.id])
+
+      %{legacy: legacy, legacy_id: legacy_id, user: user, first_seen: first_seen}
+    end
+
+    defp observe_regrouped(ctx, fingerprint, timestamp) do
+      event = fake_event(timestamp: timestamp)
+      :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, event, legacy_fingerprint: ctx.legacy)
+      :ok = IssueCoalescer.flush(ctx.coalescer)
+      Repo.get!(Issue, Issue.deterministic_id(ctx.project.id, fingerprint))
+    end
+
+    test "a new issue starts from its legacy issue", ctx do
+      issue = observe_regrouped(ctx, String.duplicate("2", 64), ~U[2026-02-01 00:00:00.000000Z])
+
+      assert issue.assignee_id == ctx.user.id
+      assert issue.first_seen == ctx.first_seen
+      assert issue.status == :unresolved
+      assert issue.event_count == 1
+    end
+
+    test "a resolved legacy issue regresses only on a newer event", ctx do
+      resolved_at = ~U[2026-03-01 00:00:00.000000Z]
+
+      Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id),
+        set: [status: :resolved, resolved_at: resolved_at]
+      )
+
+      older = observe_regrouped(ctx, String.duplicate("3", 64), ~U[2026-02-01 00:00:00.000000Z])
+      assert {older.status, older.resolved_at} == {:resolved, resolved_at}
+
+      newer = observe_regrouped(ctx, String.duplicate("4", 64), ~U[2026-04-01 00:00:00.000000Z])
+      assert {newer.status, newer.resolved_at} == {:unresolved, nil}
+    end
+
+    test "an ignored legacy issue stays ignored", ctx do
+      Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id), set: [status: :ignored])
+
+      assert observe_regrouped(ctx, String.duplicate("5", 64), ~U[2026-04-01 00:00:00.000000Z]).status == :ignored
+    end
+
+    test "an existing current issue keeps its own state", ctx do
+      fingerprint = String.duplicate("6", 64)
+      :ok = IssueCoalescer.observe(ctx.coalescer, ctx.project, fingerprint, fake_event())
+      :ok = IssueCoalescer.flush(ctx.coalescer)
+      Repo.update_all(from(i in Issue, where: i.id == ^ctx.legacy_id), set: [status: :ignored])
+
+      issue = observe_regrouped(ctx, fingerprint, DateTime.utc_now())
+
+      assert issue.status == :unresolved
+      assert issue.assignee_id == nil
+      assert issue.event_count == 2
+    end
+  end
+
   describe "deterministic id" do
     test "same inputs always produce the same id" do
       project_id = Ecto.UUID.generate()

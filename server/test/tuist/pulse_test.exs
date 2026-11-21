@@ -1102,8 +1102,8 @@ defmodule Tuist.PulseTest do
              ]},
             {"errors", "errors", ~w(events fatal services),
              [
-               ~s|count(*) AS "events"|,
-               ~s|count(*) FILTER (WHERE "level" = 'fatal') AS "fatal"|,
+               ~s|count(DISTINCT event_id) AS "events"|,
+               ~s|count(DISTINCT event_id) FILTER (WHERE "level" = 'fatal') AS "fatal"|,
                ~s|count(DISTINCT nullif(service, '')) AS "services"|
              ]}
           ] do

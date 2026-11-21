@@ -1381,7 +1381,8 @@ subject and retention follows the tables above.
 Services whose Sentry DSN points at Pulse, or that send it a copy beside Atlas
 (the server's web instances and Kura, with the tuist chart's `sentryPulse`;
 `/v1/sentry/<service>/...`, see `infra/helm/pulse/README.md`), have their error events stored in the
-`errors` table of the same `public` database, one row per event, so its storage
+`errors` table of the same `public` database, one row per received event (an
+SDK's resend of an event is a second row with the same `event_id`), so its storage
 location, buckets and access identities are those of the telemetry above. Other
 services' events, and these when their copy is off, go only to Atlas. Rows hold the occurrence time, the producing service, the
 Atlas-compatible grouping `fingerprint`, Sentry `event_id`, level, environment,
@@ -1403,6 +1404,12 @@ credentials in URLs, query strings, emails, bearer and Basic credentials, Tuist
 tokens, JWTs and IPv4 and IPv6 addresses in every stored string. Exception messages and breadcrumbs can still contain other
 identifiers. Production keeps errors for 90 days and staging and canary for 7
 days (table TTL); physical object reclamation can lag logical expiry.
+
+The `error_issues` flow (`infra/helm/pulse/error-issues.sql`) also keeps
+`error_issue_hours`, one row per issue and hour it occurred in: service,
+fingerprint, the hour, the first and last occurrence in it and its count of
+distinct events. It holds no event content or account, and it has no TTL, so it
+outlives `errors` in every environment.
 
 For a legal export, query `errors` with the read-only `dashboard` identity as
 above: match the subject's handles in `account_handle`, then search `title`,

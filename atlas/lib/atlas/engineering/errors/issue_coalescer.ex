@@ -29,6 +29,16 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
         than `resolved_at`; older backfilled events do not regress
       * unresolved stays unresolved
 
+  ## Regrouping
+
+  When `Atlas.Engineering.Errors.Fingerprint` changes its rules, the same
+  events hash to a new fingerprint and so a new issue id. Pass the event's
+  `:legacy_fingerprint` to `observe/5`: an issue created under the current
+  rules then starts from its legacy issue's status, assignee, resolution and
+  first sighting, with the regression rules above applied to it, and alert
+  rules see the legacy issue as its previous state. Counts and impacted
+  accounts start over; the legacy issue keeps its history and stops growing.
+
   ## Shutdown
 
   `terminate/2` runs a final flush so pending observations from the
@@ -58,12 +68,14 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   `{project.id, domain_id, fingerprint}` inside the coalescer. Pass
   `:domain_id` in `opts` when the event came in through a domain-scoped
   Data Source Name; omit it (or pass nil) for the project-level DSN.
-  Non-blocking.
+  `:legacy_fingerprint` names the issue a new one carries over from (see
+  Regrouping). Non-blocking.
   """
   def observe(server, %Project{} = project, fingerprint, %SentryEvent{} = event, opts \\ [])
       when is_binary(fingerprint) do
     domain_id = Keyword.get(opts, :domain_id)
-    GenServer.cast(server, {:observe, project, domain_id, fingerprint, event})
+    legacy = Keyword.get(opts, :legacy_fingerprint)
+    GenServer.cast(server, {:observe, project, domain_id, fingerprint, legacy, event})
   end
 
   @doc """
@@ -93,10 +105,10 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   end
 
   @impl true
-  def handle_cast({:observe, project, domain_id, fingerprint, event}, state) do
+  def handle_cast({:observe, project, domain_id, fingerprint, legacy, event}, state) do
     key = {project.id, domain_id, fingerprint}
     entry = Map.get(state.accumulator, key)
-    updated = merge_observation(entry, project, domain_id, fingerprint, event)
+    updated = merge_observation(entry, project, domain_id, fingerprint, legacy, event)
     {:noreply, %{state | accumulator: Map.put(state.accumulator, key, updated)}}
   end
 
@@ -125,11 +137,13 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
   # matching). The most-recently-observed values win for the mutable
   # metadata (title/culprit/level/platform/environment); count is
   # additive; first/last-seen are min/max of every event's timestamp.
-  defp merge_observation(nil, project, domain_id, fingerprint, event) do
+  defp merge_observation(nil, project, domain_id, fingerprint, legacy, event) do
     ts = event_timestamp(event)
 
     %{
       id: Issue.deterministic_id(project.id, domain_id, fingerprint),
+      legacy_id:
+        if(is_binary(legacy) and legacy != fingerprint, do: Issue.deterministic_id(project.id, domain_id, legacy)),
       project_id: project.id,
       project_name: project.name,
       project_slack_alert_channel: Map.get(project, :slack_alert_channel),
@@ -146,7 +160,7 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     }
   end
 
-  defp merge_observation(entry, _project, _domain_id, _fingerprint, event) do
+  defp merge_observation(entry, _project, _domain_id, _fingerprint, _legacy, event) do
     ts = event_timestamp(event)
 
     %{
@@ -193,8 +207,9 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     # repeat. New fingerprints show up here as empty structs so the
     # alert evaluator still gets a `before` argument.
     before_by_id = snapshot_before(ids)
+    legacy_by_id = legacy_issues(entries, before_by_id)
 
-    rows = Enum.map(entries, &row_for_upsert(&1, now))
+    rows = Enum.map(entries, &(&1 |> row_for_upsert(now) |> carry_over(Map.get(legacy_by_id, &1.id))))
 
     try do
       {_inserted, after_issues} =
@@ -206,7 +221,7 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
           returning: true
         )
 
-      evaluate_alerts_for(after_issues, entries, before_by_id)
+      evaluate_alerts_for(after_issues, entries, Map.merge(legacy_by_id, before_by_id))
       length(after_issues)
     rescue
       error ->
@@ -233,6 +248,34 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
     |> Map.new(&{&1.id, &1})
   end
 
+  # Legacy issues of entries whose current issue does not exist yet, keyed by
+  # the current issue's id.
+  defp legacy_issues(entries, before_by_id) do
+    pending = Enum.filter(entries, &(&1.legacy_id && not Map.has_key?(before_by_id, &1.id)))
+    legacy = snapshot_before(Enum.map(pending, & &1.legacy_id))
+
+    for entry <- pending, issue = legacy[entry.legacy_id], into: %{}, do: {entry.id, issue}
+  end
+
+  defp carry_over(row, nil), do: row
+
+  defp carry_over(row, %Issue{} = legacy) do
+    regressed? =
+      legacy.status == :resolved and not is_nil(legacy.resolved_at) and
+        DateTime.after?(row.last_seen, legacy.resolved_at)
+
+    {status, resolved_at} =
+      if regressed?, do: {:unresolved, nil}, else: {legacy.status, legacy.resolved_at}
+
+    %{
+      row
+      | status: status,
+        resolved_at: resolved_at,
+        assignee_id: legacy.assignee_id,
+        first_seen: min_dt(row.first_seen, legacy.first_seen)
+    }
+  end
+
   defp row_for_upsert(entry, now) do
     %{
       id: entry.id,
@@ -248,6 +291,7 @@ defmodule Atlas.Engineering.Errors.IssueCoalescer do
       last_seen: entry.last_seen,
       event_count: entry.count,
       resolved_at: nil,
+      assignee_id: nil,
       inserted_at: now,
       updated_at: now
     }

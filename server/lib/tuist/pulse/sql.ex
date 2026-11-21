@@ -4,6 +4,7 @@ defmodule Tuist.Pulse.SQL do
   # SQL is authored here, never supplied by a dashboard user. The database
   # credential is independently read-only. OTLP stores dotted resource keys
   # inside JSON, not as promoted service_name columns on the logs table.
+  @distinct_events "count(DISTINCT event_id)"
   @log_service ~s|json_get_string(resource_attributes, '["service.name"]')|
 
   def query(signal, opts, request) do
@@ -95,7 +96,8 @@ defmodule Tuist.Pulse.SQL do
     end
   end
 
-  def counts?(signal, ids), do: Enum.all?(ids, &(elem(aggregate_expression(signal, &1), 1) == "count(*)"))
+  def counts?(signal, ids),
+    do: Enum.all?(ids, &(elem(aggregate_expression(signal, &1), 1) in ["count(*)", @distinct_events]))
 
   # The buckets of a range partition its window exactly and a missing bucket is
   # a zero count, so a count's total is the sum of its buckets. One bucketed scan
@@ -161,8 +163,10 @@ defmodule Tuist.Pulse.SQL do
   defp aggregate_expression("traces", "duration_p95"),
     do: {"opentelemetry_traces", "approx_percentile_cont(duration_nano, 0.95) / 1000000000.0", nil}
 
-  defp aggregate_expression("errors", "events"), do: {"errors", "count(*)", nil}
-  defp aggregate_expression("errors", "fatal"), do: {"errors", "count(*)", ~s|"level" = 'fatal'|}
+  # `errors` keeps an SDK's resends as rows with the same event ID and
+  # timestamp, so they always share a bucket and these counts still add up.
+  defp aggregate_expression("errors", "events"), do: {"errors", @distinct_events, nil}
+  defp aggregate_expression("errors", "fatal"), do: {"errors", @distinct_events, ~s|"level" = 'fatal'|}
   defp aggregate_expression("errors", "services"), do: {"errors", "count(DISTINCT nullif(service, ''))", nil}
 
   def bounds(start, finish),

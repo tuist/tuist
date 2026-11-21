@@ -146,6 +146,14 @@ covered by this list.
   `body_limit` would otherwise allow.
   `tests-integration`'s `test_sentry_envelope` sends envelopes captured from
   sentry-elixir and sentry-rust.
+  Grouping and issues need no fork code: the `sentry_errors` pipeline
+  groups on the normalized message and every exception in the chain, the
+  same rules as Atlas (`sentry-errors-cases.json`). The `errors` table is
+  append-only, because its primary key `(service, fingerprint)` would
+  otherwise merge two events of one issue at one timestamp, so readers count
+  `DISTINCT event_id`. The stock `error_issues` flow on the chart's flownode
+  keeps lifetime first seen, last seen and counts in `error_issue_hours`
+  ([`infra/helm/pulse/error-issues.sql`](../infra/helm/pulse/error-issues.sql)).
 - **rust-protobuf 3** ([`src/log-store`](src/log-store), [`third-party/raft-engine`](third-party/raft-engine)).
   `log-store` generates its raft-engine messages with `protobuf-codegen` 3.7.2
   instead of `protoc-rust` 2.28. Published `raft-engine` 0.4.2 requires

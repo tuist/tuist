@@ -84,6 +84,10 @@ addr = "0.0.0.0:4000"
 timeout = "30s"
 [grpc]
 bind_addr = "0.0.0.0:4001"
+# The flownode queries frontends here, without the static users. Only Pulse's
+# own pods reach this port (pulse-internal); clients reach 4000 and 4003.
+[internal_grpc]
+bind_addr = "0.0.0.0:4010"
 [mysql]
 enable = false
 [postgres]
@@ -93,6 +97,19 @@ addr = "0.0.0.0:4003"
 {{- else }}
 enable = false
 {{- end }}
+[meta_client]
+metasrv_addrs = {{ $metasrv }}
+{{ include "pulse.logging" . }}
+{{- end }}
+
+{{- define "pulse.flownodeConfig" -}}
+{{- $metasrv := printf "[\"%s:3002\"]" (include "pulse.svc" "pulse-metasrv") -}}
+# One flownode, so its ID never changes; the Deployment never runs two.
+node_id = 0
+[grpc]
+bind_addr = "0.0.0.0:3004"
+[http]
+addr = "0.0.0.0:4000"
 [meta_client]
 metasrv_addrs = {{ $metasrv }}
 {{ include "pulse.logging" . }}
