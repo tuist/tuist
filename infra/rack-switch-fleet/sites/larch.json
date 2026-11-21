@@ -153,7 +153,7 @@
       "mgmt_address": "192.168.61.6",
       "credential_item": "rack-switch-controller picos admin",
       "console_baud": 115200,
-      "apply_order": 2,
+      "apply_order": 1,
       "apply_note": "Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
       "mac": "64:9d:99:d9:81:0b",
       "adopted": true,
@@ -203,7 +203,7 @@
       "mac": "64:9d:99:d9:81:0e",
       "credential_item": "rack-switch-controller picos admin",
       "console_baud": 115200,
-      "apply_order": 1,
+      "apply_order": 2,
       "apply_note": "Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-tor-b and the rack is still up.",
       "adopted": true,
       "feeds": [
@@ -300,9 +300,7 @@
           "port": 30,
           "media": "dac",
           "nic": "n225p-1",
-          "purpose": "data",
-          "native_vlan": 20,
-          "note": "Carries the management VLAN untagged until larch-edge-b is installed: its preinstalled installer asks for DHCP untagged, and the provisioning range is on the management VLAN."
+          "purpose": "data"
         },
         {
           "switch": "larch-tor-b",
@@ -329,7 +327,7 @@
       "name": "larch-store-a",
       "role": "storage",
       "hardware": "rs501a-e12",
-      "status": "planned",
+      "status": "installed",
       "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-tor-a over SFP28. Its BMC is on larch-tor-b copper port 22, so losing larch-tor-a still leaves its out-of-band path: ports 29 to 32 are one speed group on the S5860, and a 1G module there would not commit beside the 25G edge legs.",
       "feeds": [
         "feed-a",
@@ -341,7 +339,8 @@
           "port": 31,
           "media": "dac",
           "nic": "n225p-1",
-          "purpose": "data"
+          "purpose": "data",
+          "mac": "34:d8:68:5a:10:5a"
         },
         {
           "switch": "larch-tor-b",

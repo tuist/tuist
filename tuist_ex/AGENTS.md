@@ -118,8 +118,10 @@ test paths are test code. A line belongs to the function whose clause head
 starts closest above it. Generated functions (`__*`, `module_info`), such as
 those on a `defmodule`, `schema` or `use` line, are not listed, but their
 lines still count for the file, as `cover` and Mix count them; the file page
-says how many covered lines no listed function owns. Coverage that compresses past the server's inline
-threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
+says how many covered lines no listed function owns. Coverage whose
+uncompressed size is past the server's inline threshold is uploaded first,
+compressed (`/tests/coverage/uploads`): the server holds a run's body to its
+limit after inflating it. Retries never carry
 `--cover`. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.

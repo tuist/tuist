@@ -110,6 +110,7 @@ larch_ready() {
     [ "$(port 29)" = '[1,[10,20,4000,4001]]' ]
     [ "$(port 25)" = '[1,[10,20,4000,4001]]' ]
     [ "$(port 27)" = '[4001,[]]' ]
+    # larch-store-a's leg, on the machines VLAN.
     [ "$(port 31)" = '[10,[]]' ]
 }
 

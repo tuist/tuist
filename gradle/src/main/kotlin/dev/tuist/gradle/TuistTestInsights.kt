@@ -858,10 +858,11 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor(
                 config.project?.let { tuistProject.set(it) }
                 useEnvironmentProxy.set(config.network.proxy)
                 rootDirectory.set(project.layout.projectDirectory)
+                val commitProperty = project.providers.gradleProperty("tuist.coverage.commit")
                 commitSha.set(
-                    project.providers.gradleProperty("tuist.coverage.commit")
-                        .orElse(project.providers.of(GitInfoValueSource::class.java) {}.map { it.commitSha() ?: "" })
+                    commitProperty.orElse(project.providers.of(GitInfoValueSource::class.java) {}.map { it.commitSha() ?: "" })
                 )
+                commitFromCheckout.set(commitProperty.map { false }.orElse(true))
             }
         }
         if (coverageEnabled) {

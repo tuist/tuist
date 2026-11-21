@@ -10,14 +10,14 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | feed-a |  | larch-ats-b | source-1 | power | feed | installed |
 | feed-a |  | larch-edge-a | psu-1 | power | feed | planned |
 | feed-a |  | larch-edge-b | psu-1 | power | feed | planned |
-| feed-a |  | larch-store-a | psu-1 | power | feed | planned |
+| feed-a |  | larch-store-a | psu-1 | power | feed | installed |
 | feed-a |  | larch-tor-a | psu-1 | power | feed | installed |
 | feed-a |  | larch-tor-b | psu-1 | power | feed | installed |
 | feed-b |  | larch-ats-a | source-2 | power | feed | installed |
 | feed-b |  | larch-ats-b | source-2 | power | feed | installed |
 | feed-b |  | larch-edge-a | psu-2 | power | feed | planned |
 | feed-b |  | larch-edge-b | psu-2 | power | feed | planned |
-| feed-b |  | larch-store-a | psu-2 | power | feed | planned |
+| feed-b |  | larch-store-a | psu-2 | power | feed | installed |
 | feed-b |  | larch-tor-a | psu-2 | power | feed | installed |
 | feed-b |  | larch-tor-b | psu-2 | power | feed | installed |
 | larch-ats-a |  | larch-pdu-a | inlet | power | power | planned |
@@ -35,14 +35,14 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | larch-tor-a | 28 | larch-edge-b | bmc | copper | management | planned |
 | larch-tor-a | 29 | larch-edge-a | n225p-1 | dac | data | planned |
 | larch-tor-a | 30 | larch-edge-b | n225p-1 | dac | data | planned |
-| larch-tor-a | 31 | larch-store-a | n225p-1 | dac | data | planned |
+| larch-tor-a | 31 | larch-store-a | n225p-1 | dac | data | installed |
 | larch-tor-b | 1 | larch-runner-b01 | en0 | copper | data | installed |
 | larch-tor-b | 2 | larch-runner-b02 | en0 | copper | data | installed |
 | larch-tor-b | 3 | larch-runner-b03 | en0 | copper | data | installed |
 | larch-tor-b | 4 | larch-runner-b04 | en0 | copper | data | installed |
 | larch-tor-b | 5 | larch-runner-b05 | en0 | copper | data | installed |
 | larch-tor-b | 21 | larch-edge-a | bmc | copper | management | planned |
-| larch-tor-b | 22 | larch-store-a | bmc | copper | management | planned |
+| larch-tor-b | 22 | larch-store-a | bmc | copper | management | installed |
 | larch-tor-b | 23 | larch-pdu-a | netpack | copper | management | planned |
 | larch-tor-b | 24 | larch-ats-a | netpack | copper | management | installed |
 | larch-tor-b | 25 | larch-tor-a |  | dac | isl | installed |

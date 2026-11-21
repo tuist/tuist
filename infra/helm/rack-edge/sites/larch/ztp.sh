@@ -6,7 +6,10 @@ case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
   *) echo "$NODE_NAME provisions no ToR"; exec sleep infinity ;;
 esac
 if [ "${1:-}" = console ]; then
-  exec rack-tor-console -address "$tor_address"
+  # The container's /dev has the console's tty but not udev's
+  # /dev/serial/by-id links, so the default glob never matched. The console
+  # cable is the edge's only USB serial device.
+  exec rack-tor-console -address "$tor_address" -device '/dev/ttyUSB*'
 fi
 ip link set "$interface" up
 ip addr replace "$address" dev "$interface"

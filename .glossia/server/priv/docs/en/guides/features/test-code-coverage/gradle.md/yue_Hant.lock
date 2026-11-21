@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d594f4c52ae4aa566398b0e6e2ad443bac4af2bdcaf9e66dd5761761409e7f72",
+  "hash": "d9f82bfa3f67c7dcd4d8d189420ae7a1d8bc60d0de0637ea60989ea6a21df983",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,7 +35,7 @@
                   "content_hash": "2bb1ffcc1bdc609641d92107a6ddb01969b93143f601a1c2479a2ebd015b0a7f"
                 },
                 "### Complete each commit on CI {#complete-each-commit}": {
-                  "content_hash": "acf3765b437b1d43d8ef669218001de9d96ca7960e341ab961fd2c6178895575"
+                  "content_hash": "948779be4a8ceb8d54d2f6dea1217f2a5c40b28062e01abb05ad490878d6d4fe"
                 },
                 "### Sharded runs {#sharded-runs}": {
                   "content_hash": "30d64c8eedaf71016edf9ca060c31e2a23ea6be8ead2721a77493aa14d731095"
@@ -62,11 +62,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "a45b1e2834f80e9102288a7e8c9d898cf74471cb432b83eeca3d58de851e740f",
+          "hash": "b2ebe432eae92f42a7e1739dc6db5bcc1fde88551b70370a6dcff3b2efbf5107",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/gradle.md",
           "metadata": {
-            "content_hash": "3a95e0732c45af7ce8a9ea12507f6c0b27b922f26f1563e2f039d7adb6bc317f"
+            "content_hash": "e114e4eace214bd2cd308ee66eed2233172907da8cbed5cd497163c304fa68c9"
           }
         },
         {
@@ -269,14 +269,14 @@
         }
       ],
       "details": {},
-      "hash": "d594f4c52ae4aa566398b0e6e2ad443bac4af2bdcaf9e66dd5761761409e7f72",
+      "hash": "d9f82bfa3f67c7dcd4d8d189420ae7a1d8bc60d0de0637ea60989ea6a21df983",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/gradle.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d8ca75e52089a149ff8ec4c19b761044d521f9641b2115ece5cb51e480606051",
+  "output_hash": "d113a1ad7875fbd03a6b3deef956eb9dc45ba7f539e1395bf33888f382b4bbcb",
   "output_path": "server/priv/docs/yue_Hant/guides/features/test-code-coverage/gradle.md",
   "protection_state": "recorded",
   "provider": "",
@@ -298,8 +298,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5f6b0c6761cf60e6ba412eb3de60cafd4a5b924e",
+  "source_commit_sha": "45d391232f8669748139ceede136a285ccc25487",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/gradle.md",
-  "translated_at": "2026-11-19T14:46:55.478329Z",
-  "translation_session_id": "01a1f43c-cc79-7fa7-97c3-b1bca0dda8f1"
+  "translated_at": "2026-11-21T04:20:44.114541Z",
+  "translation_session_id": "01a1fc52-caee-730a-bde9-ae99800aad65"
 }
