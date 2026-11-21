@@ -15,6 +15,7 @@ defmodule Mix.Tasks.Tuist.Coverage.Complete do
 
   use Mix.Task
 
+  alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
 
@@ -37,13 +38,22 @@ defmodule Mix.Tasks.Tuist.Coverage.Complete do
     case HTTP.project_request(:post, "/tests/coverage/commits/#{sha}/complete", %{}, options) do
       {:ok, %{"coverage" => coverage}} ->
         Mix.shell().info(
-          "Coverage of commit #{String.slice(sha, 0, 7)} is complete: #{coverage}%."
+          "Coverage of commit #{String.slice(sha, 0, 7)} is complete: #{coverage}%.\n" <>
+            "  See the commit's coverage at #{commits_url(options)}/#{sha}"
         )
 
       {:ok, _pending} ->
+        # Usually the runs are still being processed, but a signal kept for a
+        # commit the runs didn't report never applies, so name the commit and
+        # how to signal another. The commit's own page is a 404 until one of
+        # its runs is processed, so the commits list is linked instead.
         Mix.shell().info(
-          "No run of commit #{String.slice(sha, 0, 7)} has reported coverage yet. " <>
-            "Its coverage is marked complete once one does."
+          "No run of commit #{String.slice(sha, 0, 7)}#{origin(options)} has reported coverage yet. " <>
+            "That's expected while its runs are still being processed: the signal is kept, " <>
+            "and the commit's coverage is marked complete once one is.\n" <>
+            "  If your test runs reported another commit, signal that one with " <>
+            "`mix tuist.coverage.complete --commit <sha>`\n" <>
+            "  See the commits your runs reported coverage for at #{commits_url(options)}"
         )
 
       {:error, reason} ->
@@ -51,5 +61,19 @@ defmodule Mix.Tasks.Tuist.Coverage.Complete do
           "Could not mark the coverage of commit #{String.slice(sha, 0, 7)} complete: #{inspect(reason)}"
         )
     end
+  end
+
+  defp origin(options) do
+    cond do
+      options[:commit] -> ""
+      System.get_env("GIT_COMMIT") -> ", from GIT_COMMIT,"
+      true -> ", the checkout's HEAD,"
+    end
+  end
+
+  # The request that just succeeded resolved the same configuration.
+  defp commits_url(options) do
+    {:ok, %{url: url, project_handle: handle}} = Config.resolve(options)
+    "#{url}/#{handle.account}/#{handle.project}/tests/coverage/commits"
   end
 end
