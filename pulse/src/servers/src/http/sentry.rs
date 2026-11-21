@@ -47,6 +47,10 @@ use crate::http::event::{LogState, PipelineIngestRequest, ingest_logs_inner};
 use crate::interceptor::LogIngestInterceptor;
 
 pub const SENTRY_PATH_PREFIX: &str = "/v1/sentry/";
+/// The largest envelope accepted once decompressed: Sentry's limit for an
+/// event item, which the Tuist server's account Sentry endpoint also applies
+/// before forwarding envelopes here.
+pub const ENVELOPE_LIMIT: usize = 1024 * 1024;
 const PIPELINE: &str = "sentry_errors";
 const TABLE: &str = "errors";
 const AUTH_HEADER: &str = "x-sentry-auth";

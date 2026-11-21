@@ -137,6 +137,9 @@ covered by this list.
   `sentry_errors` pipeline and `errors` table that
   [`infra/helm/pulse`](../infra/helm/pulse) installs; other items
   are dropped. Responses carry the envelope's event ID, as Sentry's do.
+  Envelopes are held to 1 MiB once decompressed (`sentry::ENVELOPE_LIMIT`,
+  a route-level body limit in `http.rs`), which the server-wide 64 MiB
+  `body_limit` would otherwise allow.
   `tests-integration`'s `test_sentry_envelope` sends envelopes captured from
   sentry-elixir and sentry-rust.
 - **rust-protobuf 3** ([`src/log-store`](src/log-store), [`third-party/raft-engine`](third-party/raft-engine)).

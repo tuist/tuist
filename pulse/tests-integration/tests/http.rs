@@ -3010,6 +3010,12 @@ pub async fn test_sentry_envelope(store_type: StorageType) {
     .await;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
+    // Envelopes are held to 1 MiB once decompressed, however small compressed.
+    let mut large = b"{}\n{\"type\":\"session\"}\n".to_vec();
+    large.resize(1024 * 1024 + 1, b'a');
+    let res = send_req(&client, vec![auth("t0k3n")], &envelope("kura"), large, true).await;
+    assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
     let rows = get_rows_from_output(
         &query(
             "SELECT service, event_id, exception_type, exception_value, \"level\", environment, \"release\" \

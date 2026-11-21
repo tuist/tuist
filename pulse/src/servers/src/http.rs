@@ -1392,6 +1392,9 @@ impl HttpServer {
                 memory_limit::decoded_body_accounting_middleware,
             ))
             .layer(ServiceBuilder::new().layer(RequestDecompressionLayer::new()))
+            // Tuist: replaces the server-wide body limit for these routes. The
+            // extractor applies it to the decompressed body.
+            .layer(DefaultBodyLimit::max(sentry::ENVELOPE_LIMIT))
             .layer(middleware::from_fn_with_state(
                 BatchingProtocol::Logs,
                 set_http_write_batching,
