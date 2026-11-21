@@ -1771,10 +1771,12 @@ rackFleet:
   # Production rents no macOS hosts, so a job waits for a rack slot rather
   # than spilling over.
   #
-  # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the compute allocator. A 16 vCPU
-  # profile's guest takes a whole host, so that shape's ceiling is the host
-  # count.
+  # The budget is the racks' 52 guest slots (26 hosts x 2: ber1's 16 and
+  # larch's 10), which these pools and the `ber1` and `larch` smoke pools
+  # share through the compute allocator. A 16 vCPU profile's guest takes a
+  # whole host, so that shape's ceiling is the host count. The ceilings only
+  # cap: the allocator sizes the pools to the guest slots Ready minis
+  # advertise.
   #
   # Warm floors are learned from each pool's own jobs. Only a warm runner
   # claims a job in under 10 s: a cold one is the scale-up and the boot, a
@@ -1811,20 +1813,20 @@ rackFleet:
       enabled: true
       minWarmPoolFloor: 0
       maxLearnedWarmPoolFloor: 8
-      maxReplicas: 32
+      maxReplicas: 52
     xcodeOverrides:
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
-          maxReplicas: 32
+          maxReplicas: 52
       "27.2":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
-          maxReplicas: 32
+          maxReplicas: 52
       # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
       # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
       # first while it is the most recently used pool, so on a full rack the
@@ -1834,7 +1836,7 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 11
-          maxReplicas: 32
+          maxReplicas: 52
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
       # starting from no history, and a cold 16 vCPU job has to wait for a
@@ -1848,14 +1850,14 @@ rackFleet:
               enabled: true
               minWarmPoolFloor: 1
               maxLearnedWarmPoolFloor: 3
-              maxReplicas: 16
+              maxReplicas: 26
     shapes:
       16vcpu-48gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 1
-          maxReplicas: 16
+          maxReplicas: 26
   # The fleet's sites other than ber1 (`site`). While a site's runners are off,
   # its minis register with their own fleet, tuist-tuist-rack-fleet-<site>, and
   # run nothing. Turning them on moves the minis onto the rack fleet, so the
@@ -1863,10 +1865,12 @@ rackFleet:
   # at whichever site claims it first (infra/rack-nodes/AGENTS.md, "Several
   # sites"). The site then runs `runners` above as is.
   sites:
-    # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its runners stay off
-    # until its minis are declared and its internet port is up. When turning
-    # them on, raise the rack pools' maxReplicas to the guest slots of both
-    # sites, and decide whether to rename the pools in the same change.
+    # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its runners are on
+    # since its acceptance (infra/rack-nodes/site-bring-up.md, step 17): its
+    # minis carry the rack fleet, so the rack's pools span ber1 and larch. The
+    # pools keep their ber1 names (infra/rack-nodes/AGENTS.md, "Several
+    # sites"). To take larch out of service, cordon its minis, let their jobs
+    # finish, and turn this off.
     larch:
       # larch-edge-a and larch-edge-b on the machines segment
       # (management.edge.machines in larch.json).
@@ -1874,7 +1878,7 @@ rackFleet:
         - 10.20.0.2/32
         - 10.20.0.3/32
       runners:
-        enabled: false
+        enabled: true
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -2476,16 +2480,21 @@ runnersFleet:
       pod:
         cpuMilli: 8000
         memoryMB: 24576
-    # The larch rack's Larch Smoke pool (`runs-on: tuist-larch-smoke`). While
-    # larch's runners are off, its minis carry their own fleet,
-    # tuist-tuist-rack-fleet-larch, which only this pool selects, so no
-    # customer job lands there. Twenty is every guest slot at larch.
+    # The larch rack's smoke pool (`runs-on: tuist-larch-smoke`, the Larch
+    # Smoke workflow), pinned to larch like the `ber1` pool to ber1. Before
+    # larch's acceptance it selected larch's own fleet, so the smoke jobs were
+    # the only work there; since larch's runners are on, its minis carry the
+    # rack fleet and this pool selects that, its `site` keeping it on larch.
+    #
+    # No warm floor: smoke runs are dispatched by hand, and failover tests
+    # run with no runner on the site. Twenty is larch's guest slots (ten hosts
+    # x 2).
     - name: larch
       site: larch
       platform: macos
       xcodeVersion: "26.6"
       dispatchLabel: tuist-larch-smoke
-      fleetSelector: tuist-tuist-rack-fleet-larch
+      fleetSelector: tuist-tuist-rack-fleet
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
