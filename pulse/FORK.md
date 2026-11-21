@@ -107,6 +107,10 @@ covered by this list.
   configuration reference, the Docker builds other than `docker/buildx/ubuntu`,
   and the Makefile targets that used them are gone. The `AGENTS.md` guides are
   kept for agents working in those crates.
+- **Clippy on the pinned toolchain.** `ScanInput::uses_scan_memory_limit` and
+  `ScanInput::total_rows` in `src/mito2/src/read/scan_region.rs` return their
+  expressions directly instead of through a `let` binding, which
+  `clippy::let_and_return` rejects. Behavior is unchanged.
 
 - **Query nesting limits** ([`src/sql/src/nesting.rs`](src/sql/src/nesting.rs)).
   Upstream v1.3.0 aborts the whole process with a stack overflow on short,

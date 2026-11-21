@@ -1359,11 +1359,9 @@ impl ScanInputBuilder {
 
 impl ScanInput {
     pub(crate) fn uses_scan_memory_limit(&self) -> bool {
-        let covered = self
-            .scan_memory_tracker
+        self.scan_memory_tracker
             .as_ref()
-            .is_some_and(|tracker| tracker.limit() > 0);
-        covered
+            .is_some_and(|tracker| tracker.limit() > 0)
     }
 
     /// Builds memtable ranges to scan by `index`.
@@ -1673,8 +1671,7 @@ impl ScanInput {
         let rows_in_files: usize = self.files.iter().map(|f| f.num_rows()).sum();
         let rows_in_memtables: usize = self.memtables.iter().map(|m| m.stats().num_rows()).sum();
 
-        let rows = rows_in_files + rows_in_memtables;
-        rows
+        rows_in_files + rows_in_memtables
     }
 
     pub(crate) fn predicate_group(&self) -> &PredicateGroup {
