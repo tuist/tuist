@@ -1692,7 +1692,7 @@ rackFleet:
         outlet: "1"
     - name: larch-runner-b02
       site: larch
-      serial: HV6M92P673
+      serial: HV6M92PG73
       address: 10.20.0.152
       rack: r1
       shelf: mount-9
