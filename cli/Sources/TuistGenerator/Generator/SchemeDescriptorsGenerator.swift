@@ -223,7 +223,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
 
         return (
-            SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
+            SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden, orderHint: scheme.orderHint),
             testPlanSideEffects
         )
     } // swiftlint:enable function_body_length

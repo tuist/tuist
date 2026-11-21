@@ -396,6 +396,27 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateProjectSchemes_keepsOrderHint() throws {
+        // Given
+        let project = Project.test(schemes: [
+            Scheme(name: "SchemeA", orderHint: 0),
+            Scheme(name: "SchemeB"),
+        ])
+        let generatedProject = generatedProject(targets: Array(project.targets.values))
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let (schemeDescriptors, _) = try subject.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(schemeDescriptors.map(\.orderHint), [0, nil])
+    }
+
     func test_buildAction_runPostActionsOnFailure() throws {
         // Given
         let schemeA = Scheme(
