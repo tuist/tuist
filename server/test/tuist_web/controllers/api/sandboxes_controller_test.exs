@@ -730,6 +730,12 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     test "limits how fast an account creates sandboxes", %{conn: conn, account: account} do
       stub(Capacity, :place, fn _ -> {:error, :no_node} end)
 
+      # The limit is a fixed one-minute window aligned to the clock, which a
+      # burst crossing a minute boundary would split in two; start it after the
+      # next boundary when one is close.
+      until_next_window = 60_000 - rem(System.system_time(:millisecond), 60_000)
+      if until_next_window < 10_000, do: Process.sleep(until_next_window + 50)
+
       for _ <- 1..10 do
         assert %{"code" => "no_node"} =
                  conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{}) |> json_response(:service_unavailable)
