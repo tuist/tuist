@@ -9,13 +9,14 @@ func debugSettings() -> SettingsDictionary {
     return settings
 }
 
+/// Scheme actions don't inherit the shell's PATH, so look for mise where its installer and
+/// Homebrew put it.
 func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect build",
         scriptText: """
-        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-        tuist inspect build
+        export PATH="$HOME/.local/bin:$HOME/.local/share/mise/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+        mise x -C "$SRCROOT" -- tuist inspect build
         """,
         target: target
     )
@@ -25,9 +26,8 @@ func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
     .executionAction(
         title: "Inspect test",
         scriptText: """
-        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-
-        tuist inspect test
+        export PATH="$HOME/.local/bin:$HOME/.local/share/mise/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+        mise x -C "$SRCROOT" -- tuist inspect test
         """,
         target: target
     )
