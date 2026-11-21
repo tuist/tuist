@@ -110,10 +110,8 @@ larch_ready() {
     [ "$(port 29)" = '[1,[10,20,4000,4001]]' ]
     [ "$(port 25)" = '[1,[10,20,4000,4001]]' ]
     [ "$(port 27)" = '[4001,[]]' ]
-    # larch-store-a's leg: on the management VLAN untagged while its
-    # preinstalled installer needs a provisioning lease (its link's
-    # native_vlan), back to '[10,[]]' with that override.
-    [ "$(port 31)" = '[20,[]]' ]
+    # larch-store-a's leg, on the machines VLAN.
+    [ "$(port 31)" = '[10,[]]' ]
 }
 
 @test "a site with a management switch keeps its ports on the management VLAN" {

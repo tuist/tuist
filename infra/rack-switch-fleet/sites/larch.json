@@ -340,9 +340,7 @@
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data",
-          "mac": "34:d8:68:5a:10:5a",
-          "native_vlan": 20,
-          "note": "Carries the management VLAN untagged until larch-store-a is installed: its preinstalled installer asks for DHCP untagged, and the provisioning range is on the management VLAN. Back to the machines VLAN once it is."
+          "mac": "34:d8:68:5a:10:5a"
         },
         {
           "switch": "larch-tor-b",
