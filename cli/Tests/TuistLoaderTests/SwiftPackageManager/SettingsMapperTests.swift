@@ -541,6 +541,165 @@ struct SettingsMapperConditionalTests {
                 .array(["$(inherited)", "Define1"])
         )
     }
+
+    @Test
+    func mapSettingsAppliesSettingsOfEnabledTraits() throws {
+        let enabledTrait = PackageInfo.PackageConditionDescription(platformNames: [], config: nil, traits: ["Enabled"])
+        let disabledTrait = PackageInfo.PackageConditionDescription(platformNames: [], config: nil, traits: ["Disabled"])
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .c, name: .define, condition: nil, value: ["UNCONDITIONAL"]),
+            .init(tool: .c, name: .define, condition: enabledTrait, value: ["ENABLED_C"]),
+            .init(tool: .c, name: .define, condition: disabledTrait, value: ["DISABLED_C"]),
+            .init(tool: .cxx, name: .unsafeFlags, condition: enabledTrait, value: ["-fenabled-cxx"]),
+            .init(tool: .cxx, name: .unsafeFlags, condition: disabledTrait, value: ["-fdisabled-cxx"]),
+            .init(tool: .swift, name: .define, condition: enabledTrait, value: ["ENABLED_SWIFT"]),
+            .init(tool: .swift, name: .define, condition: disabledTrait, value: ["DISABLED_SWIFT"]),
+            .init(tool: .linker, name: .unsafeFlags, condition: enabledTrait, value: ["-lenabled"]),
+            .init(tool: .linker, name: .unsafeFlags, condition: disabledTrait, value: ["-ldisabled"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: ["Enabled"]
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(
+            resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS"] ==
+                .array(["$(inherited)", "ENABLED_C=1", "UNCONDITIONAL=1"])
+        )
+        #expect(resolvedSettings["OTHER_CPLUSPLUSFLAGS"] == .array(["$(inherited)", "-fenabled-cxx"]))
+        #expect(resolvedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "ENABLED_SWIFT"]))
+        #expect(resolvedSettings["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lenabled"]))
+        #expect(resolvedSettings.keys.allSatisfy { !$0.contains("[sdk=") })
+    }
+
+    @Test
+    func mapSettingsAppliesSettingsWhenAnyOfTheirTraitsIsEnabled() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(
+                tool: .c,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(
+                    platformNames: [],
+                    config: nil,
+                    traits: ["Disabled", "Enabled"]
+                ),
+                value: ["ANY_ENABLED"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: ["Enabled"]
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS"] == .array(["$(inherited)", "ANY_ENABLED=1"]))
+    }
+
+    @Test
+    func mapSettingsDropsTraitConditionedSettingsWhenNoTraitsAreEnabled() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .c, name: .define, condition: nil, value: ["UNCONDITIONAL"]),
+            .init(
+                tool: .c,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: [], config: nil, traits: ["Enabled"]),
+                value: ["ENABLED_C"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS"] == .array(["$(inherited)", "UNCONDITIONAL=1"]))
+    }
+
+    @Test
+    func mapSettingsAppliesTraitAndPlatformConditionedSettingsToThatPlatform() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(
+                tool: .c,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(
+                    platformNames: ["macos"],
+                    config: nil,
+                    traits: ["Enabled"]
+                ),
+                value: ["MACOS_ENABLED"]
+            ),
+            .init(
+                tool: .c,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(
+                    platformNames: ["macos"],
+                    config: nil,
+                    traits: ["Disabled"]
+                ),
+                value: ["MACOS_DISABLED"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: ["Enabled"]
+        )
+
+        let resolvedSettings = try mapper.mapSettings()
+
+        #expect(resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS"] == nil)
+        #expect(
+            resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS[sdk=macosx*]"] ==
+                .array(["$(inherited)", "MACOS_ENABLED=1"])
+        )
+        #expect(resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS[sdk=iphoneos*]"] == nil)
+    }
+
+    @Test
+    func settingsForBuildConfigurationAppliesTraitAndConfigurationConditionedSettings() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: [], config: "debug", traits: ["Enabled"]),
+                value: ["DEBUG_ENABLED"]
+            ),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: [], config: "debug", traits: ["Disabled"]),
+                value: ["DEBUG_DISABLED"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: ["Enabled"]
+        )
+
+        #expect(try mapper.mapSettings()["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+        #expect(
+            try mapper.settingsForBuildConfiguration("Debug")["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "DEBUG_ENABLED"])
+        )
+        #expect(try mapper.settingsForBuildConfiguration("Release")["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+    }
 }
 
 // OTHER_LDFLAGS
