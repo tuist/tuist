@@ -4,4 +4,14 @@ metadata:
   name: larch
   labels:
     tuist.dev/site: larch
-spec: {}
+spec:
+  contractedPower:
+    - from: "2026-11-09"
+      watts: 3000
+    - from: "2027-05-09"
+      watts: 5000
+    - from: "2027-08-09"
+      watts: 6000
+  powerBudget:
+    chainAmps: "8"
+    otherWatts: 600
