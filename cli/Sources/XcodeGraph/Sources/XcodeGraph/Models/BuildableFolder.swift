@@ -34,14 +34,25 @@ public struct BuildableFolder: Sendable, Codable, Equatable, Hashable {
     /// The files resolved from this buildable folder, each with any per-file compiler flags.
     public var resolvedFiles: [BuildableFolderFile]
 
+    /// What the folder declares it will contain. When set, generation classifies the folder by it instead of by
+    /// `resolvedFiles`.
+    public var contents: Set<BuildableFolderContent>?
+
     /// Creates a new `BuildableFolder` instance.
     /// - Parameters:
     ///   - path: The absolute path to the buildable folder.
     ///   - exceptions: The set of exceptions (such as excluded files or custom compiler flags) for the folder.
     ///   - resolvedFiles: The list of files resolved from the folder, each file optionally having compiler flags.
-    public init(path: AbsolutePath, exceptions: BuildableFolderExceptions, resolvedFiles: [BuildableFolderFile]) {
+    ///   - contents: What the folder declares it will contain, or `nil` to classify it by its files.
+    public init(
+        path: AbsolutePath,
+        exceptions: BuildableFolderExceptions,
+        resolvedFiles: [BuildableFolderFile],
+        contents: Set<BuildableFolderContent>? = nil
+    ) {
         self.path = path
         self.exceptions = exceptions
         self.resolvedFiles = resolvedFiles
+        self.contents = contents
     }
 }

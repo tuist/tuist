@@ -151,7 +151,8 @@ extension Target {
                 + Self.validHeaderExtensions
         )
         return buildableFolders.contains { folder in
-            folder.resolvedFiles.contains { !sourceExtensions.contains($0.path.extension ?? "") }
+            if let contents = folder.contents { return contents.contains(.resources) }
+            return folder.resolvedFiles.contains { !sourceExtensions.contains($0.path.extension ?? "") }
         }
     }
 

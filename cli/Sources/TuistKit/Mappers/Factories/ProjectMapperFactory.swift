@@ -65,6 +65,9 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         // Delete current derived
         mappers.append(DeleteDerivedDirectoryProjectMapper())
 
+        // Create buildable folders with declared contents
+        mappers.append(CreateBuildableFoldersProjectMapper())
+
         // Target script file lists
         mappers.append(GenerateTargetScriptFileListProjectMapper())
 
