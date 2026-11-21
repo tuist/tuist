@@ -504,8 +504,9 @@ defmodule Tuist.Kura.Regions do
   # region per site named after it (`<site>-runners`, on node pool
   # `rack-storage-<site>`). Only the site's runner pools take it
   # (`Tuist.Runners.Catalog.fleet_site/1`) and only accounts on the
-  # `runner_site` or `runner_site_cache` flag get a node, so a site that racks
-  # no pool yet holds none. The display name and the site ID reach customers,
+  # `runner_site` or `runner_site_cache` flag get a node, at every available
+  # site once their cache traffic comes from any rack
+  # (`Tuist.Kura.RunnerCache`). The display name and the site ID reach customers,
   # so neither names the facility, the city or the provider.
   #
   # The storage node is an ordinary cluster node: it runs Cilium, and the

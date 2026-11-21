@@ -260,6 +260,36 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(no_jobs) == []
   end
 
+  test "traffic from one site admits the account at every site's region" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
+    at_ber1 = account_with_profiles([:macos], site_job: false)
+    build_in_job(at_ber1, @site_macos_pool, site: "ber1")
+    at_larch = account_with_profiles([:macos], site_job: false)
+    build_in_job(at_larch, @site_macos_pool, site: "larch")
+    no_traffic = account_with_profiles([:macos], site_job: false)
+    set_runner_availability([at_ber1.id, at_larch.id, no_traffic.id])
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(at_ber1) == ["ber1-runners", "larch-runners"]
+    assert server_regions(at_larch) == ["ber1-runners", "larch-runners"]
+    assert server_regions(no_traffic) == []
+  end
+
+  test "keeps every site's nodes when one site's traffic cannot be read" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners", "larch-runners"] end)
+    account = account_with_profiles([:macos], site_job: false)
+    build_in_job(account, @site_macos_pool, site: "ber1")
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == ["ber1-runners", "larch-runners"]
+
+    stub(Builds, :ci_runs_with_remote_cache_hits, fn _project_ids, _ci_run_ids, _since -> {:error, :timeout} end)
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(account) == ["ber1-runners", "larch-runners"]
+  end
+
   test "keeps a site's node while it serves hits and tears it down once they stop" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
     account = account_with_profiles([:macos], site_job: false)
