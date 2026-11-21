@@ -2469,6 +2469,24 @@ runnersFleet:
       pod:
         cpuMilli: 8000
         memoryMB: 24576
+    # The larch rack's Larch Smoke pool (`runs-on: tuist-larch-smoke`). While
+    # larch's runners are off, its minis carry their own fleet,
+    # tuist-tuist-rack-fleet-larch, which only this pool selects, so no
+    # customer job lands there. Twenty is every guest slot at larch.
+    - name: larch
+      site: larch
+      platform: macos
+      xcodeVersion: "26.6"
+      dispatchLabel: tuist-larch-smoke
+      fleetSelector: tuist-tuist-rack-fleet-larch
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 20
+        holdRecentPeak: false
+      pod:
+        cpuMilli: 8000
+        memoryMB: 24576
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
