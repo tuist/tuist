@@ -39,9 +39,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   processes' lines in the snapshot of the run that hashed the target the
   same way the commit's run did: the same inputs, so the same tests over
   the same code. The guards above apply to it as to a test, but for the
-  blobs, which the hash covers. It needs no observer scope per test, so it
-  covers Swift Testing without the attribution trait and tests that ran in
-  parallel.
+  blobs and the tracked files: the hash is trusted for every build input,
+  so a commit that changes a tracked file still carries its targets skipped
+  by hash, and nothing else.
+  It needs no observer scope per test, so it covers Swift Testing without
+  the attribution trait and tests that ran in parallel.
 
   A skipped test that fails any of these is a **gap**: nothing is carried for
   it and the figure is a lower bound, which `kind` says (`partial`), and
@@ -199,7 +201,8 @@ defmodule Tuist.Tests.Coverage.Reported do
       blobs: run_blobs(project.id, run_ids),
       excluded: ExcludedPaths.compile(excluded),
       baseline: skipping.baseline,
-      impact_run_ids: skipping.impact_run_ids
+      impact_run_ids: skipping.impact_run_ids,
+      only_hashed: Map.get(skipping, :only_hashed, false)
     }
 
     {units, reasons, plan} = carry_units(context, skipped)
@@ -238,18 +241,28 @@ defmodule Tuist.Tests.Coverage.Reported do
     {units, reasons, Carry.plan(units)}
   end
 
-  # A commit whose tracked files differ from every parent's carries nothing:
-  # every ancestor's evidence predates the change, so it is decided before
-  # any of it is read. Only an ancestor from before a change this commit
-  # undoes would still qualify, which is not worth carrying for. A merge
-  # whose tracked files match one parent's can still carry from that side.
-  # Without the listings, each source is checked as usual.
-  defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
+  # Which of the skipped tests a commit's own tracked-file change leaves
+  # carriable: `:all` when its tracked files match some parent's, and
+  # otherwise `:hashed` when targets were skipped by their hash, which is
+  # trusted for every build input, or `:none`. Every ancestor's evidence
+  # predates such a change, so it is decided before any of it is read. Only
+  # an ancestor from before a change this commit undoes would still qualify,
+  # which is not worth carrying for. A merge whose tracked files match one
+  # parent's can still carry from that side. Without the listings, each
+  # source is checked as usual.
+  defp carriable(%{repository_id: repository_id}, _hits) when repository_id in [nil, 0], do: :all
 
-  defp changes_tracked_files?(context) do
+  defp carriable(context, hits) do
     case GitHistory.parents(context.repository_id, context.sha) do
-      [] -> false
-      parents -> Enum.all?(parents, &(validity(context, &1) == :tracked_file_changed))
+      [] ->
+        :all
+
+      parents ->
+        cond do
+          not Enum.all?(parents, &(validity(context, &1) == :tracked_file_changed)) -> :all
+          hits != [] -> :hashed
+          true -> :none
+        end
     end
   end
 
@@ -502,10 +515,19 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp tuist_skipped(_context, {_runs, [], [], _clean}, []), do: %{skipped: [], gaps: [], baseline: [], indexed: %{}}
 
   defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs, impact_skipped) do
-    # A commit that changes a tracked file carries nothing.
-    if changes_tracked_files?(context),
-      do: %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}},
-      else: skipped_tests(project, repository_id, sha, runs, impact_skipped)
+    {_runs, hits, _skips, _clean} = runs
+
+    # A commit that changes a tracked file carries nothing, but for the
+    # targets skipped by their hash.
+    case carriable(context, hits) do
+      :none ->
+        %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}}
+
+      carriable ->
+        project
+        |> skipped_tests(repository_id, sha, runs, impact_skipped)
+        |> Map.put(:only_hashed, carriable == :hashed)
+    end
   end
 
   defp skipped_tests(_project, repository_id, _sha, _runs, _impact_skipped) when repository_id in [nil, 0],
