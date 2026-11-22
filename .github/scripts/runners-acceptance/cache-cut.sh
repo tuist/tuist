@@ -11,7 +11,7 @@
 # stalls past CUT_BUILD_TIMEOUT_SECONDS), then lifts the rule and rebuilds once
 # more to show the cache proxy recovers without restarting.
 #
-# Env: TUIST_URL, TUIST_CACHE_ENDPOINT, CUT_AFTER_SECONDS (default 3),
+# Env: TUIST_URL, TUIST_CACHE_ENDPOINT, CUT_AFTER_SECONDS (default 1),
 # CUT_BUILD_TIMEOUT_SECONDS (default 600).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
@@ -44,6 +44,7 @@ cut() {
   # Connections already open keep passing on their pf state, so drop those too.
   sudo -n pfctl -k 0.0.0.0/0 -k "${address}" >/dev/null 2>&1 || true
   sudo -n pfctl -a "${anchor}" -s rules
+  cas_log_mark="$(wc -l < "${state_dir}/cas.log" 2>/dev/null || echo 0)"
   echo "cut: $(date -u +%T) dropping tcp to ${address}:443 inside this VM"
 }
 restore() {
@@ -93,16 +94,21 @@ build cold "" 120
 [ "${outcome}" = completed ] || { tail -n 40 "${work}/cold.log"; fail "Cache cut" "the cold build ${outcome} before anything was cut"; }
 
 rm -rf "${work}/derived-data"
-build cut "${CUT_AFTER_SECONDS:-3}" "${CUT_BUILD_TIMEOUT_SECONDS:-600}"
+build cut "${CUT_AFTER_SECONDS:-1}" "${CUT_BUILD_TIMEOUT_SECONDS:-600}"
 cut_outcome="${outcome}"
 echo "--- rebuild log tail"; tail -n 40 "${work}/cut.log"
-echo "--- cache errors the client logged after the cut"
-grep -hE "${CACHE_ERROR_PATTERN}|timed out|timeout|unreachable|cancel" "${work}/cut.log" "${state_dir}/cas.log" 2>/dev/null | tail -n 20 || true
+sleep 12
+echo "--- what the cache proxy logged after the cut"
+tail -n +"$((${cas_log_mark:-0} + 1))" "${state_dir}/cas.log" 2>/dev/null | grep -v "^\s*$" | tail -n 40 || true
+echo "--- proxy counters per build store (remote_hits went over the network)"
+grep -hF "proxy stats: ${work}/cas-" "${state_dir}/cas.log" 2>/dev/null | sed "s|${work}/||" | awk -F"proxy stats: " "{split(\$2,a,\"/\"); last[a[1]]=\$0} END {for (s in last) print last[s]}" || true
 
 restore
 rm -rf "${work}/derived-data"
 build restored "" 180
 restored_outcome="${outcome}"
+sleep 12
+grep -hF "proxy stats: ${work}/cas-restored/" "${state_dir}/cas.log" 2>/dev/null | tail -n 1 || true
 
 [ "${cut_outcome}" = completed ] || fail "Cache cut" "with its cache endpoint cut mid-build, the rebuild ${cut_outcome} instead of finishing locally"
 [ "${restored_outcome}" = completed ] || fail "Cache cut" "after the path came back, the next build ${restored_outcome}"
