@@ -102,6 +102,12 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 		out.ClientCIDRs = make([]string, len(in.ClientCIDRs))
 		copy(out.ClientCIDRs, in.ClientCIDRs)
 	}
+	if in.GatewayEntrances != nil {
+		out.GatewayEntrances = make([]GatewayEntrance, len(in.GatewayEntrances))
+		for i := range in.GatewayEntrances {
+			in.GatewayEntrances[i].DeepCopyInto(&out.GatewayEntrances[i])
+		}
+	}
 	if in.PodAnnotations != nil {
 		out.PodAnnotations = make(map[string]string, len(in.PodAnnotations))
 		for key, value := range in.PodAnnotations {
@@ -144,6 +150,12 @@ func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	}
 	if in.EndpointLastCheckedAt != nil {
 		out.EndpointLastCheckedAt = in.EndpointLastCheckedAt.DeepCopy()
+	}
+	if in.GatewayEntrances != nil {
+		out.GatewayEntrances = make([]GatewayEntranceStatus, len(in.GatewayEntrances))
+		for i := range in.GatewayEntrances {
+			in.GatewayEntrances[i].DeepCopyInto(&out.GatewayEntrances[i])
+		}
 	}
 	if in.LastReconciledAt != nil {
 		out.LastReconciledAt = in.LastReconciledAt.DeepCopy()
@@ -242,6 +254,45 @@ func (in *NodeLocalNetwork) DeepCopy() *NodeLocalNetwork {
 		return nil
 	}
 	out := new(NodeLocalNetwork)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *GatewayEntrance) DeepCopyInto(out *GatewayEntrance) {
+	*out = *in
+	if in.ClientCIDRs != nil {
+		out.ClientCIDRs = make([]string, len(in.ClientCIDRs))
+		copy(out.ClientCIDRs, in.ClientCIDRs)
+	}
+	if in.NodeSelector != nil {
+		out.NodeSelector = make(map[string]string, len(in.NodeSelector))
+		for key, value := range in.NodeSelector {
+			out.NodeSelector[key] = value
+		}
+	}
+}
+
+func (in *GatewayEntrance) DeepCopy() *GatewayEntrance {
+	if in == nil {
+		return nil
+	}
+	out := new(GatewayEntrance)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *GatewayEntranceStatus) DeepCopyInto(out *GatewayEntranceStatus) {
+	*out = *in
+	if in.LastCheckedAt != nil {
+		out.LastCheckedAt = in.LastCheckedAt.DeepCopy()
+	}
+}
+
+func (in *GatewayEntranceStatus) DeepCopy() *GatewayEntranceStatus {
+	if in == nil {
+		return nil
+	}
+	out := new(GatewayEntranceStatus)
 	in.DeepCopyInto(out)
 	return out
 }

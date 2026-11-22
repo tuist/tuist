@@ -320,3 +320,7 @@ retries, including recovery from interrupted preparation.
 binding, runtime acknowledgment bridge and restricted reset procedure. Source
 node unselection stops new moves, not deletions already issued; a ready bridge
 cannot be reset to bypass an incomplete handoff.
+
+## Gateway entrances
+
+`spec.gatewayEntrances` publishes a private instance on other rack sites' host-network gateways (`controllers/gateway_entrances.go`): per site an HTTP and a gRPC Ingress on that site's class, admitting that site's client CIDRs, and a DNSEndpoint at a Ready gateway node of that site. Entrances serve only the shared wildcard certificate and never mint one. Each is observed independently in `status.gatewayEntrances`; the instance's own `privateHost` and its readiness never depend on an entrance, and a dark site keeps its entrance's last DNS target. A rate limit turns on in-memory proxy buffering (`proxy-max-temp-file-size: 0`), since ingress-nginx ignores `limit-rate` without it. Entrance objects are found by label for pruning.
