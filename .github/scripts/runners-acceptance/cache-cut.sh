@@ -45,6 +45,7 @@ cut() {
   sudo -n pfctl -k 0.0.0.0/0 -k "${address}" >/dev/null 2>&1 || true
   sudo -n pfctl -a "${anchor}" -s rules
   cas_log_mark="$(wc -l < "${state_dir}/cas.log" 2>/dev/null || echo 0)"
+  cut_ms="$(($(date +%s) * 1000))"
   echo "cut: $(date -u +%T) dropping tcp to ${address}:443 inside this VM"
 }
 restore() {
@@ -96,10 +97,10 @@ build cold "" 120
 rm -rf "${work}/derived-data"
 build cut "${CUT_AFTER_SECONDS:-1}" "${CUT_BUILD_TIMEOUT_SECONDS:-600}"
 cut_outcome="${outcome}"
-echo "--- rebuild log tail"; tail -n 40 "${work}/cut.log"
+grep -E "BUILD (SUCCEEDED|FAILED)|error:" "${work}/cut.log" | tail -n 10 || true
 sleep 12
 echo "--- what the cache proxy logged after the cut"
-tail -n +"$((${cas_log_mark:-0} + 1))" "${state_dir}/cas.log" 2>/dev/null | grep -v "^\s*$" | tail -n 40 || true
+tail -n +"$((${cas_log_mark:-0} + 1))" "${state_dir}/cas.log" 2>/dev/null | grep -vE "cas create:|ingest:|^\s*$" | awk -v cut="${cut_ms:-0}" "match(\$0, /t=[0-9]+/) { printf \"+%6.1fs %s\\n\", (substr(\$0, RSTART + 2, RLENGTH - 2) - cut) / 1000, substr(\$0, 1, 220) }" | head -n 150 || true
 echo "--- proxy counters per build store (remote_hits went over the network)"
 grep -hF "proxy stats: ${work}/cas-" "${state_dir}/cas.log" 2>/dev/null | sed "s|${work}/||" | awk -F"proxy stats: " "{split(\$2,a,\"/\"); last[a[1]]=\$0} END {for (s in last) print last[s]}" || true
 
