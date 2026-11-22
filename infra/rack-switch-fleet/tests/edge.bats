@@ -1163,7 +1163,7 @@ STUB
       gateway: 149.6.170.30"* ]]
     [ "$(grep -c '^    wan:$' <<<"$output")" -eq 2 ]
     # before the carrier assigns it, the edges carry no WAN to take
-    jq '.management.edge.wan |= {vlan}' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nowanaddress.json"
+    jq '.management.edge.wan |= {vlan} | del(.management.edge.inter_site)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nowanaddress.json"
     run fleet_edge_install "$BATS_TEST_TMPDIR/nowanaddress.json"
     [ "$status" -eq 0 ]
     [[ "$output" == *"vrrp:"* ]]
@@ -1222,10 +1222,10 @@ STUB
     [[ "$output" != *"vlan 10"* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | yq -o=json '.spec.config' | jq -c '[(.ports[] | select(.port == 2) | {nativeVlan, taggedVlans}), ([.vlans[].id])]'"
     [ "$status" -eq 0 ]
-    [ "$output" = '[{"nativeVlan":10,"taggedVlans":[]},[10,4000,4001]]' ]
+    [ "$output" = '[{"nativeVlan":10,"taggedVlans":[]},[10,4000,4001,4002]]' ]
     # a site without the segment leaves the runner on the management VLAN, and
     # the spare WAN optic's port is the one port with a native VLAN of its own
-    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    jq '.management.edge.machines = {vlan: null, gateway: null} | del(.management.edge.inter_site) | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
     run fleet_render "$BATS_TEST_TMPDIR/nomachines.json" ber1-tor-b
     [ "$status" -eq 0 ]
     [[ "$output" != *"vlan 10"* ]]
@@ -1273,7 +1273,7 @@ STUB
     iifname "machines0" drop'* ]]
     # and all of it in the one transaction the path already loads
     [ "$(grep -c "^nft -f - <<'NFT'$" <<<"$output")" -eq 1 ]
-    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    jq '.management.edge.machines = {vlan: null, gateway: null} | del(.management.edge.inter_site) | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/nomachines.json"
     [ "$status" -eq 0 ]
     [[ "$output" != *"machines0"* ]]
@@ -1310,7 +1310,7 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-host=bc:74:ea:b7:76:b0,10.10.0.150,ber1-runner-b01,infinite"* ]]
     # a site without the segment serves nothing there
-    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
+    jq '.management.edge.machines = {vlan: null, gateway: null} | del(.management.edge.inter_site) | .vlans |= map(select(.id != 10))' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomachines.json"
     run fleet_edge_machines_dhcp "$BATS_TEST_TMPDIR/nomachines.json"
     [ "$status" -eq 0 ]
     [[ "$output" != *"interface="* ]]
@@ -1424,7 +1424,7 @@ STUB
     run routes_advertised "$script"
     [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32,10.10.0.110/32,10.10.0.111/32,10.10.0.112/32,10.10.0.113/32,10.10.0.114/32,10.10.0.115/32,10.10.0.116/32" ]
     # a site without the segment withdraws whatever an edge advertised
-    jq '.management.edge.machines = {vlan: null, gateway: null} | .vlans |= map(select(.id != 10))' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/nomachines.json"
+    jq '.management.edge.machines = {vlan: null, gateway: null} | del(.management.edge.inter_site) | .vlans |= map(select(.id != 10))' "$BATS_TEST_TMPDIR/nopower.json" > "$BATS_TEST_TMPDIR/nomachines.json"
     fleet_edge_routes "$BATS_TEST_TMPDIR/nomachines.json" > "$script"
     run routes_advertised "$script"
     [ "$status" -eq 0 ]

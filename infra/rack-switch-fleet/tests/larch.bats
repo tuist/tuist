@@ -107,8 +107,8 @@ larch_ready() {
     [ "$(port 23)" = '[20,[]]' ]
     [ "$(port 28)" = '[20,[]]' ]
     # larch-edge-a's leg and the ISL carry the management VLAN tagged, not untagged too.
-    [ "$(port 29)" = '[1,[10,20,4000,4001]]' ]
-    [ "$(port 25)" = '[1,[10,20,4000,4001]]' ]
+    [ "$(port 29)" = '[1,[10,20,4000,4001,4002]]' ]
+    [ "$(port 25)" = '[1,[10,20,4000,4001,4002]]' ]
     [ "$(port 27)" = '[4001,[]]' ]
     # larch-store-a's leg, on the machines VLAN.
     [ "$(port 31)" = '[10,[]]' ]
@@ -221,4 +221,111 @@ larch_ready() {
     [ -z "$output" ]
     run edge_sh "fleet_picos_bootstrap '$site'"
     [[ "$output" == *"wan_paths=''"* ]]
+}
+
+# --- the carrier link between alder and larch ---------------------------------
+
+# A copy of a site whose end of the link is live, as it is once the circuit is
+# patched in: until then each end is planned and its edges run without it.
+live() {
+    jq '.management.edge.inter_site.status = "live"' "$1" > "$BATS_TEST_TMPDIR/$(basename "$1")"
+    echo "$BATS_TEST_TMPDIR/$(basename "$1")"
+}
+
+@test "the link port carries the link VLAN untagged and nothing else, and the edges carry it tagged" {
+    run fleet_sh "fleet_render_k8s '$LARCH' larch-tor-b"
+    [ "$status" -eq 0 ]
+    ports="$(yq -o=json '.spec.config.ports' <<<"$output")"
+    port() { jq -c --argjson n "$1" '.[] | select(.port == $n) | [.nativeVlan, .taggedVlans]' <<<"$ports"; }
+    [ "$(port 28)" = '[4002,[]]' ]
+    [ "$(port 29)" = '[1,[10,20,4000,4001,4002]]' ]
+    # A mini never sees it.
+    [ "$(port 1)" = '[10,[]]' ]
+}
+
+@test "each master holds its end of the link and runs iBGP with BFD to the other's" {
+    SITE_FILE="$(live "$SITE_FILE")"; LARCH="$(live "$LARCH")"
+    run edge_sh "fleet_edge_keepalived '$SITE_FILE' ber1-edge-b"
+    [[ "$output" == *"10.255.254.1/29 dev sites0"* ]]
+    run edge_sh "fleet_edge_bgp '$SITE_FILE'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"local 10.255.254.1 as 218377;"* ]]
+    [[ "$output" == *"neighbor 10.255.254.4 as 218377;"* ]]
+    [[ "$output" == *"bfd on;"* ]]
+    # alder accepts larch's machines and WAN address, and nothing of its own
+    [[ "$output" == *"if net ~ [ 10.20.0.0/24, 149.6.170.1/32 ] then accept;"* ]]
+    [[ "$output" == *$'route 10.10.0.0/24 blackhole;\n  route 149.6.170.31/32 blackhole;'* ]]
+    # only what the link taught goes into the node's table
+    [[ "$output" == *'export where proto = "link4";'* ]]
+    run edge_sh "fleet_edge_bgp '$LARCH'"
+    [[ "$output" == *"neighbor 10.255.254.1 as 218377;"* ]]
+    [[ "$output" == *"if net ~ [ 10.10.0.0/24, 149.6.170.31/32 ] then accept;"* ]]
+}
+
+@test "the other site's machines are reached over the link or not at all" {
+    SITE_FILE="$(live "$SITE_FILE")"
+    run edge_sh "fleet_edge_path '$SITE_FILE'"
+    [ "$status" -eq 0 ]
+    bash -n <<<"$output"
+    [[ "$output" == *"ip route replace unreachable 10.20.0.0/24 metric 4000 proto static"* ]]
+    # not translated onto the link, so the far side sees the mini itself
+    [[ "$output" == *'oifname != { "tailscale0", "machines0", "enp87s0", "sites0" } ip saddr 10.10.0.0/24 masquerade'* ]]
+    # the storage node reaches larch's WAN address over the link under its own
+    [[ "$output" == *'oifname "sites0" ip saddr { 10.10.0.11 } ip daddr 149.6.170.1 snat ip to 149.6.170.31'* ]]
+    # a mini reaches larch's segment and nothing else over the link
+    [[ "$output" == *'iifname "machines0" oifname "sites0" ip daddr 10.20.0.0/24 accept'* ]]
+    [[ "$output" == *$'ip daddr 149.6.170.1 accept\n    iifname "machines0" oifname "sites0" drop'* ]]
+    # from the link, only larch's segment reaches only alder's storage node
+    [[ "$output" == *'iifname "sites0" oifname "machines0" ip saddr 10.20.0.0/24 ip daddr { 10.10.0.11 } accept'* ]]
+    [[ "$output" == *$'iifname "sites0" ip saddr 10.255.254.0/29 tcp dport 179 accept'* ]]
+}
+
+@test "a planned link renders nothing on the edges, so landing it rolls no edge" {
+    site="$(larch_with 'del(.management.edge.inter_site)')"
+    run edge_sh "fleet_edge_path '$site'"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"sites0"* ]]
+    # the same but for the header naming the file it was rendered from
+    without="${output//larch-edit/larch}"
+    run edge_sh "fleet_edge_bgp '$site'"
+    [[ "$output" != *"link4"* ]]
+    # the planned end renders exactly what no link does, on every edge file
+    [ "$(jq -r .management.edge.inter_site.status "$LARCH")" = planned ]
+    run edge_sh "fleet_edge_path '$LARCH'"
+    [ "$output" = "$without" ]
+    for render in "fleet_edge_bgp %s" "fleet_edge_keepalived %s larch-edge-a"; do
+        a="$(edge_sh "$(printf "$render" "'$LARCH'")")"
+        b="$(edge_sh "$(printf "$render" "'$site'")")"
+        [ "$a" = "${b//larch-edit/larch}" ]
+    done
+    # and going live is what puts it there
+    run edge_sh "fleet_edge_path '$(live "$LARCH")'"
+    [[ "$output" == *"sites0"* ]]
+    # a status the edges would not know is refused
+    site="$(larch_with '.management.edge.inter_site.status = "patched"')"
+    run edge_sh "fleet_edge_check_inter_site '$site'"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"status \"patched\" is neither planned nor live"* ]]
+}
+
+@test "the link is refused unless exactly one other site shares its prefix with addresses of its own" {
+    site="$(larch_with '.management.edge.inter_site.prefix = "10.255.253.0/29" | .management.edge.inter_site.address = "10.255.253.4" | .management.edge.inter_site.members[0].address = "10.255.253.5" | .management.edge.inter_site.members[1].address = "10.255.253.6"')"
+    # a copy is not a site, so check the real larch with an edited prefix in its place
+    cp "$LARCH" "$BATS_TEST_TMPDIR/larch.orig"
+    cp "$site" "$LARCH"
+    run edge_sh "fleet_edge_check_inter_site '$LARCH'"
+    cp "$BATS_TEST_TMPDIR/larch.orig" "$LARCH"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no other site has a link on 10.255.253.0/29"* ]]
+
+    jq '.management.edge.inter_site.address = "10.255.254.1"' "$BATS_TEST_TMPDIR/larch.orig" > "$LARCH"
+    run edge_sh "fleet_edge_check_inter_site '$LARCH'"
+    cp "$BATS_TEST_TMPDIR/larch.orig" "$LARCH"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"link address 10.255.254.1 of the master edge is already used on the link"* ]]
+
+    site="$(larch_with '.management.edge.inter_site.members |= .[:1]')"
+    run edge_sh "fleet_edge_check_inter_site '$site'"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"members are larch-edge-a, but the site's edges are larch-edge-a, larch-edge-b"* ]]
 }

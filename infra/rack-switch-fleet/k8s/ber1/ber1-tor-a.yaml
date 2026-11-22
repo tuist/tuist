@@ -15,7 +15,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the WAN ports, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
   credentialItem: ber1-tor-a switch admin
-  configRevision: 41892aa072f09560
+  configRevision: 0e12042e7e6b7ad3
   config:
     hostname: ber1-tor-a
     managementVlan: 1
@@ -31,6 +31,8 @@ spec:
         name: edge-vrrp
       - id: 4001
         name: wan
+      - id: 4002
+        name: inter-site
     lags:
       - id: 1
         name: isl ber1-tor-b
@@ -166,6 +168,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
       - port: 26
         description: ""
         spanningTree: true
@@ -174,6 +177,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
       - port: 27
         description: ""
         spanningTree: true
@@ -202,6 +206,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
       - port: 32
         description: isl ber1-tor-b
         spanningTree: true
@@ -210,6 +215,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
   ports:
     - port: 2
       purpose: data

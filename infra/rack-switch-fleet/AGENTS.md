@@ -1257,6 +1257,39 @@ addresses and the gateways.
   replicate pod to pod over VXLAN between the two WAN addresses, the same
   path store-a already uses to Hetzner. Nothing routes one site's machines
   segment to the other's.
+- **Between the sites, over their link.** `management.edge.inter_site` is a
+  site's end of a carrier's layer 2 link to another site's rack: a VLAN of
+  the edges (4002), untagged and alone on the ToR port the link lands on
+  (`purpose: inter_site`, alder's ToR B 29 and larch's ToR B 28, both
+  `planned` until the circuit is patched), a /29 both sites share, the
+  address the master holds on it and each edge's own. Each edge bonds it as
+  `sites0`. The two masters run iBGP (AS218377) with BFD from their floating
+  addresses and announce each other their machines segment and WAN address,
+  nothing else, and BIRD exports only those two routes into the node
+  (`protocol kernel`, which is why the `bgp` container gets NET_ADMIN at a
+  linked site). So:
+  - the machines segments reach each other over the link only:
+    `mgmt-path.sh` holds an unreachable route under the far segment, which
+    the learned route beats while the session is up, and the edges never
+    translate it onto the WAN. A mini keeps its own address to the far
+    segment; the far edge lets the near segment reach its storage nodes and
+    nothing else on its segment.
+  - the storage nodes, Cilium nodes at their WAN addresses, reach each other
+    over the link while the session is up and over the internet otherwise:
+    the near edge translates its storage node to its WAN address towards the
+    far WAN address, and the far edge forwards the cluster's ports arriving on
+    `sites0` as it does on `wan0` (`tuist_cluster_forwards`).
+  - the link is not tracked by keepalived: losing it changes nothing a
+    failover would fix.
+  `render` refuses a link without exactly one other site on its prefix, in
+  the same AS, with every edge a member and addresses of its own.
+  - `inter_site.status: planned` keeps the link off the edges: the switches
+    carry its VLAN, but every edge file renders as if there were no link, so
+    landing it rolls no edge. Flipping one site to `live` changes only that
+    site's edge files, and `omada-deployment.yml` rolls only that site's
+    edges. Each roll fails VRRP over and back, which has cost the site's BGP
+    to Cogent minutes before, so flip one site per change, in a quiet window,
+    and wait for its session to settle before the other.
 
 ### Addresses across sites
 

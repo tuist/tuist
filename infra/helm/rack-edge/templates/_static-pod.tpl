@@ -209,6 +209,11 @@ spec:
     # edges run it, and only the one holding the WAN address has a session
     # (see fleet_edge_bgp in lib/edge.sh). It installs no routes into the
     # node: the default route through the WAN is keepalived's.
+    {{- /* Except at a site whose link to another one is live: the other
+    site's machines segment and WAN address, learned over the link, which
+    takes NET_ADMIN and BFD's port 3784. A template comment, so the static
+    pod of a site without a live link renders as it did and keeps its hash. */}}
+    {{- $linked := contains "protocol kernel" ($root.Files.Get (printf "sites/%s/bird.conf" $site)) }}
     - name: bgp
       image: {{ $image | quote }}
       imagePullPolicy: {{ $root.Values.image.pullPolicy }}
@@ -218,7 +223,7 @@ spec:
         capabilities:
           drop: [ALL]
           # Port 179.
-          add: [NET_BIND_SERVICE]
+          add: [NET_BIND_SERVICE{{ if $linked }}, NET_ADMIN{{ end }}]
       resources:
         {{- toYaml $root.Values.resources | nindent 8 }}
       volumeMounts:

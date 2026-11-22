@@ -48,5 +48,6 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | larch-tor-b | 25 | larch-tor-a |  | dac | isl | installed |
 | larch-tor-b | 26 | larch-tor-a |  | dac | isl | installed |
 | larch-tor-b | 27 | spare |  | fibre | wan | planned |
+| larch-tor-b | 28 | cogent alder |  | fibre | inter_site | planned |
 | larch-tor-b | 29 | larch-edge-a | n225p-2 | dac | data | planned |
 | larch-tor-b | 30 | larch-edge-b | n225p-2 | dac | data | planned |

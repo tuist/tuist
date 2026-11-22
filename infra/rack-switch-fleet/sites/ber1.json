@@ -91,6 +91,22 @@
         "egress": {
           "prefix": "95.130.119.16/28"
         }
+      },
+      "inter_site": {
+        "vlan": 4002,
+        "prefix": "10.255.254.0/29",
+        "address": "10.255.254.1",
+        "members": [
+          {
+            "node": "ber1-edge-a",
+            "address": "10.255.254.2"
+          },
+          {
+            "node": "ber1-edge-b",
+            "address": "10.255.254.3"
+          }
+        ],
+        "status": "planned"
       }
     },
     "controller": {
@@ -140,6 +156,14 @@
           "peer": "ber1-tor-a",
           "media": "dac",
           "description": "isl ber1-tor-a"
+        },
+        "29": {
+          "purpose": "inter_site",
+          "peer": "cogent larch",
+          "media": "fibre",
+          "description": "inter-site larch",
+          "spanning_tree": false,
+          "status": "planned"
         }
       },
       "note": "Carries the spare LR optic in port 30, rendered as a WAN port like ber1-tor-a 30, so a failover is a matter of moving the LC jumper rather than sourcing hardware or changing the switch.",
@@ -844,6 +868,11 @@
     {
       "id": 4001,
       "name": "wan",
+      "carried_by": "edges"
+    },
+    {
+      "id": 4002,
+      "name": "inter-site",
       "carried_by": "edges"
     }
   ],

@@ -570,7 +570,10 @@ fleet_prefix_mask() {
 # else, so the machine never sees the management VLAN. A `wan` port carries the
 # site's WAN VLAN untagged and nothing else once the site has one, so the
 # upstream sees the edges and nothing of the rack; without one it stays on the
-# management VLAN, the way a router uplink into it is cabled.
+# management VLAN, the way a router uplink into it is cabled. An `inter_site`
+# port, the carrier's link to another site's rack, carries the edges' link
+# VLAN (management.edge.inter_site.vlan) untagged and nothing else the same
+# way, so neither site's VLANs, which reuse the same ids, cross it.
 #
 # At a site with no management switch the management VLAN is one the edges
 # carry, and a port carries it untagged only when a management link lands on
@@ -605,16 +608,18 @@ fleet_port_settings() {
       ($members | any(. as $m | $d.ports[($m | tostring)].purpose == "isl"))) as $edge_facing |
     ($machines_vlan != null and ($members | any(. as $m | $machine_ports | index($m)))) as $machine_facing |
     ($wan_vlan != null and $lag == null and $p.purpose == "wan") as $wan_facing |
+    (.management.edge.inter_site.vlan // null) as $link_vlan |
+    ($link_vlan != null and $lag == null and $p.purpose == "inter_site") as $link_facing |
     [ $g.prefix, $g.unit, ($n | tostring),
       (if $lag then ($lag.name // "lag\($lag.id)") else ($p.description // "") end),
       ((if $p | has("spanning_tree") then $p.spanning_tree else true end) | tostring),
       (if $lag then ($lag.id | tostring) else "" end),
-      ((if $wan_facing then []
+      ((if $wan_facing or $link_facing then []
         elif $machine_facing then ((if $lag then $lag.vlans else $p.vlans end) // [])
         else (if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) +
           (if $edge_facing then $edge_vlans else [] end) end) - [$link_natives[($n | tostring)]] | unique | map(tostring) | join(",")),
       (if $link_natives[($n | tostring)] != null then ($link_natives[($n | tostring)] | tostring)
-       elif $wan_facing then ($wan_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
+       elif $wan_facing then ($wan_vlan | tostring) elif $link_facing then ($link_vlan | tostring) elif $machine_facing then ($machines_vlan | tostring)
        elif $management_on_uplinks and ($members | any(. as $m | $management_ports | index($m)) | not) then "1"
        else "" end)
     ] | join("\u001f")

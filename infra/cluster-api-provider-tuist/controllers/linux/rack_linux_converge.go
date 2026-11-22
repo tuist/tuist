@@ -377,7 +377,10 @@ table ip tuist_cluster_health {
 // set is declared, never flushed, and only the chain is rewritten. Cilium
 // decapsulates a VXLAN packet from any source, so the tunnel must not be open
 // to the internet. The WAN filter lets what this translates through
-// (infra/rack-switch-fleet, `ct status dnat`).
+// (infra/rack-switch-fleet, `ct status dnat`). The same ports arrive on
+// sites0, the carrier link to another site's rack, from that site's storage
+// node under its WAN address (fleet_edge_inter_site), and are let through
+// there the same way.
 func rackClusterForwardsRules(forwards []infrav1.RackLinuxHostClusterNetwork) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "add table ip %s\n", rackClusterForwardsTable)
@@ -385,7 +388,7 @@ func rackClusterForwardsRules(forwards []infrav1.RackLinuxHostClusterNetwork) st
 	fmt.Fprintf(&b, "add chain ip %s prerouting { type nat hook prerouting priority dstnat; policy accept; }\n", rackClusterForwardsTable)
 	fmt.Fprintf(&b, "flush chain ip %s prerouting\n", rackClusterForwardsTable)
 	for _, f := range forwards {
-		match := fmt.Sprintf(`add rule ip %s prerouting iifname "wan0" ip daddr %s ip saddr @%s`, rackClusterForwardsTable, f.PublicAddress, rackClusterForwardsSet)
+		match := fmt.Sprintf(`add rule ip %s prerouting iifname { "wan0", "sites0" } ip daddr %s ip saddr @%s`, rackClusterForwardsTable, f.PublicAddress, rackClusterForwardsSet)
 		fmt.Fprintf(&b, "%s udp dport %d dnat to %s\n", match, ciliumTunnelPort, f.Address)
 		fmt.Fprintf(&b, "%s tcp dport { %d, %d } dnat to %s\n", match, ciliumHealthPort, kubeletPort, f.Address)
 	}

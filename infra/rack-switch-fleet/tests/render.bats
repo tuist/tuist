@@ -76,8 +76,9 @@ load helpers
     # the hostname, the address, the copper WAN port tor-b has no twin of, the
     # name of the WAN optic's port (tor-b's holds the spare), the name of
     # tor-a's ISL lag on its two members and its port-channel, and ber1-store-a's
-    # port on the machines segment, whose pair ber1-store-b is still planned
-    [ "${#lines[@]}" -eq 14 ]
+    # port on the machines segment, whose pair ber1-store-b is still planned,
+    # and the spanning tree on the port tor-b gives the link between the sites
+    [ "${#lines[@]}" -eq 15 ]
     [[ "$output" == *'description "wan cogent"'* ]]
     [[ "$output" == *"switchport pvid 10"* ]]
     [[ "$output" == *'hostname "ber1-tor-a"'* ]]

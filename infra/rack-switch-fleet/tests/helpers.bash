@@ -63,7 +63,7 @@ setup() {
 # The site as it was before it had a WAN of its own, for the tests of what an
 # edge does on a management VLAN that reaches the internet by itself.
 site_without_wan() {
-    jq '.management.edge.wan = {vlan: null, address: null} | .vlans |= map(select(.id != 4001))' \
+    jq '.management.edge.wan = {vlan: null, address: null} | del(.management.edge.inter_site) | .vlans |= map(select(.id != 4001 and .id != 4002))' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/nowan.json"
     echo "$BATS_TEST_TMPDIR/nowan.json"
 }
@@ -91,7 +91,7 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 # them.
 render_as_captured() {
     jq 'del(.management.edge) | del(.vlans) | del(.devices[].lags) |
-        (.devices[].ports) |= (if . then with_entries(select(.value.purpose != "wan")) else . end) |
+        (.devices[].ports) |= (if . then with_entries(select(.value.purpose != "wan" and .value.purpose != "inter_site")) else . end) |
         (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
     fleet_render "$BATS_TEST_TMPDIR/captured-site.json" "$1"
 }

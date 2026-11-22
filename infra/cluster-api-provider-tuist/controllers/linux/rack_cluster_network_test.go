@@ -108,8 +108,8 @@ func TestRackNodeConfigForwardsTheSitesClusterNetworkHostsFromTheEdge(t *testing
 	for _, want := range []string{
 		"add set ip tuist_cluster_forwards nodes { type ipv4_addr; }",
 		"flush chain ip tuist_cluster_forwards prerouting",
-		`iifname "wan0" ip daddr 149.6.170.31 ip saddr @nodes udp dport 8472 dnat to 10.10.0.11`,
-		`iifname "wan0" ip daddr 149.6.170.31 ip saddr @nodes tcp dport { 4240, 10250 } dnat to 10.10.0.11`,
+		`iifname { "wan0", "sites0" } ip daddr 149.6.170.31 ip saddr @nodes udp dport 8472 dnat to 10.10.0.11`,
+		`iifname { "wan0", "sites0" } ip daddr 149.6.170.31 ip saddr @nodes tcp dport { 4240, 10250 } dnat to 10.10.0.11`,
 	} {
 		if !strings.Contains(rules, want) {
 			t.Errorf("the forwards lack %q:\n%s", want, rules)

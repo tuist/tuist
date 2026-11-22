@@ -15,7 +15,7 @@ spec:
   applyOrder: 1
   applyNote: No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.
   credentialItem: ber1-tor-b switch admin
-  configRevision: 322070b8bd051a70
+  configRevision: d3d355cc50d969fc
   config:
     hostname: ber1-tor-b
     managementVlan: 1
@@ -31,6 +31,8 @@ spec:
         name: edge-vrrp
       - id: 4001
         name: wan
+      - id: 4002
+        name: inter-site
     lags:
       - id: 1
         name: isl ber1-tor-a
@@ -166,6 +168,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
       - port: 26
         description: ""
         spanningTree: true
@@ -174,6 +177,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
       - port: 27
         description: ""
         spanningTree: true
@@ -185,9 +189,9 @@ spec:
         nativeVlan: 1
         taggedVlans: []
       - port: 29
-        description: ""
-        spanningTree: true
-        nativeVlan: 1
+        description: inter-site larch
+        spanningTree: false
+        nativeVlan: 4002
         taggedVlans: []
       - port: 30
         description: wan spare
@@ -202,6 +206,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
       - port: 32
         description: isl ber1-tor-a
         spanningTree: true
@@ -210,6 +215,7 @@ spec:
           - 10
           - 4000
           - 4001
+          - 4002
   ports:
     - port: 2
       purpose: data
@@ -251,6 +257,10 @@ spec:
       purpose: data
       peer: ber1-edge-b
       detail: edge/sfp28-1
+    - port: 29
+      purpose: inter_site
+      peer: cogent larch
+      detail: fibre
     - port: 30
       purpose: wan
       peer: cogent spare

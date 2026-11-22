@@ -89,6 +89,22 @@
         "egress": {
           "prefix": "95.130.119.32/28"
         }
+      },
+      "inter_site": {
+        "vlan": 4002,
+        "prefix": "10.255.254.0/29",
+        "address": "10.255.254.4",
+        "members": [
+          {
+            "node": "larch-edge-a",
+            "address": "10.255.254.5"
+          },
+          {
+            "node": "larch-edge-b",
+            "address": "10.255.254.6"
+          }
+        ],
+        "status": "planned"
       }
     },
     "picos": {
@@ -125,6 +141,11 @@
     {
       "id": 4001,
       "name": "wan",
+      "carried_by": "edges"
+    },
+    {
+      "id": 4002,
+      "name": "inter-site",
       "carried_by": "edges"
     }
   ],
@@ -199,6 +220,14 @@
           "peer": "spare",
           "media": "fibre",
           "description": "wan spare",
+          "spanning_tree": false,
+          "status": "planned"
+        },
+        "28": {
+          "purpose": "inter_site",
+          "peer": "cogent alder",
+          "media": "fibre",
+          "description": "inter-site alder",
           "spanning_tree": false,
           "status": "planned"
         }

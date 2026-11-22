@@ -69,7 +69,132 @@ fleet_edge_check() {
   fleet_edge_check_wan "$site_file" || return 1
   fleet_edge_check_tor_management "$site_file" || return 1
   fleet_edge_check_sites "$site_file" || return 1
+  fleet_edge_check_inter_site "$site_file" || return 1
   fleet_edge_check_power "$site_file"
+}
+
+# --- the link between two sites' racks ---------------------------------------
+#
+# management.edge.inter_site is this site's end of a carrier's layer 2 link to
+# another site's rack: a VLAN of the edges (`vlan`), carried untagged on the
+# ToR port the link lands on (`purpose: inter_site`), a prefix both sites share
+# (`prefix`), the address the site's master edge holds on it (`address`,
+# floated by keepalived), and each edge's own (`members`). The far end is the
+# one other site whose inter_site has the same prefix. Over it the two masters
+# run iBGP with BFD and announce each other their machines segment and their
+# WAN address, and nothing else: the machines segments reach each other over
+# the link only, and the storage nodes, Cilium nodes at their WAN addresses,
+# reach each other over it and over the internet when it is down.
+
+# The other site at the far end of the link, as its file: every real site
+# under sites/ (not a copy the tests make) whose inter_site has this one's
+# prefix, space separated, which the check wants to be exactly one.
+fleet_edge_inter_site_peer() {
+  local site_file="$1" site prefix other other_site found=""
+  prefix="$(jq -r '.management.edge.inter_site.prefix // ""' "$site_file")"
+  [ -n "$prefix" ] || return 0
+  site="$(jq -r '.site' "$site_file")"
+  for other in "$FLEET_ROOT"/sites/*.json; do
+    other_site="$(jq -r '.site // ""' "$other" 2>/dev/null)"
+    if [ "$other_site" != "$(basename "$other" .json)" ] || [ "$other_site" = "$site" ]; then continue; fi
+    [ "$(jq -r '.management.edge.inter_site.prefix // ""' "$other")" = "$prefix" ] || continue
+    found="${found:+$found }$other"
+  done
+  echo "$found"
+}
+
+# The machines addresses of the site's storage nodes, comma separated: what the
+# far site's machines may reach over the link, and what may reach the far
+# site's WAN address over it.
+fleet_edge_storage() {
+  local site_file="$1" names
+  names=" $(jq -r '[.nodes[]? | select(.role == "storage") | .name] | join(" ")' "$site_file") "
+  fleet_edge_machines "$site_file" | awk -F'\037' -v want="$names" '$3 != "" && index(want, " " $1 " ") {print $3}' |
+    paste -sd, - | sed 's/,/, /g'
+}
+
+# What the edge files need of the link, split by the unit separator: its VLAN,
+# its prefix, this site's floating address on it, the far site's, the far
+# site's machines network and WAN address, this site's machines network and
+# WAN address, and this site's storage nodes (fleet_edge_storage). Nothing for
+# a site without a link, or whose link is still planned (`status: planned`):
+# the switches carry its VLAN, but its edges run as if it were not there, so
+# each site's edges change, and roll, only when that site's end goes live.
+fleet_edge_inter_site_live() {
+  jq -e '.management.edge.inter_site != null and .management.edge.inter_site.status != "planned"' "$1" >/dev/null
+}
+
+fleet_edge_inter_site() {
+  local site_file="$1" peer vlan prefix address peer_address machines wan peer_machines peer_wan
+  fleet_edge_inter_site_live "$site_file" || return 0
+  peer="$(fleet_edge_inter_site_peer "$site_file")"
+  IFS=$'\x1f' read -r vlan prefix address machines wan < <(jq -r '.management.edge as $e | [
+      $e.inter_site.vlan, $e.inter_site.prefix, $e.inter_site.address, $e.machines.gateway, $e.wan.address
+    ] | map(tostring) | join("\u001f")' "$site_file")
+  IFS=$'\x1f' read -r peer_address peer_machines peer_wan < <(jq -r '.management.edge as $e | [
+      $e.inter_site.address, $e.machines.gateway, $e.wan.address
+    ] | map(tostring) | join("\u001f")' "$peer")
+  printf '%s\037' "$vlan" "$(fleet_network "$prefix")" "$address" "$peer_address" \
+    "$(fleet_network "$peer_machines")" "${peer_wan%/*}" "$(fleet_network "$machines")" "${wan%/*}"
+  fleet_edge_storage "$site_file"
+}
+
+# The link needs what it carries: the site's machines segment, its WAN address
+# and its BGP, a VLAN the switches carry to the edges, every edge as a member,
+# addresses inside the prefix that no one else on the link uses, and exactly
+# one far site, in the same AS. Its status is `planned` until the circuit is
+# patched in and the site's edges should run it, and `live` (or none) after.
+fleet_edge_check_inter_site() {
+  local site_file="$1" bad peer prefix address node asn
+  jq -e '.management.edge.inter_site' "$site_file" >/dev/null || return 0
+  bad="$(jq -r '
+    .management.edge as $e | $e.inter_site as $l |
+    ([.nodes[]? | select(.role == "edge") | .name] | sort) as $edges |
+    ([$l.members[]?.node] | sort) as $members |
+    (if ([.vlans[]? | select(.id == $l.vlan and .carried_by == "edges")] | length) == 0
+     then "management.edge.inter_site.vlan \($l.vlan | tojson) is not a site VLAN carried_by the edges" else empty end),
+    (if ($l.status // "live") as $s | ["planned", "live"] | index($s) | not
+     then "management.edge.inter_site.status \($l.status | tojson) is neither planned nor live" else empty end),
+    (if $members != $edges
+     then "management.edge.inter_site.members are \($members | join(", ")), but the site'"'"'s edges are \($edges | join(", "))" else empty end),
+    (if $e.machines.gateway == null then "the link carries the machines segment, and the site has none" else empty end),
+    (if $e.wan.address == null or $e.wan.bgp == null
+     then "the link carries the WAN address, announced over BGP, and the site has no WAN address or no management.edge.wan.bgp" else empty end)
+  ' "$site_file")"
+  prefix="$(jq -r '.management.edge.inter_site.prefix // ""' "$site_file")"
+  if ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}"; then
+    bad="${bad:+$bad$'\n'}management.edge.inter_site.prefix '$prefix' is not a prefix"
+  else
+    peer="$(fleet_edge_inter_site_peer "$site_file")"
+    if [ -z "$peer" ]; then
+      bad="${bad:+$bad$'\n'}no other site has a link on $prefix"
+    elif [ "$peer" != "${peer%% *}" ]; then
+      bad="${bad:+$bad$'\n'}more than one other site has a link on $prefix: $(for f in $peer; do basename "$f" .json; done | paste -sd' ' -)"
+    else
+      asn="$(jq -r '.management.edge.wan.bgp.asn // ""' "$site_file")"
+      if [ "$(jq -r '.management.edge.wan.bgp.asn // ""' "$peer")" != "$asn" ]; then
+        bad="${bad:+$bad$'\n'}$(basename "$peer" .json), at the far end, is not in AS$asn, and the link runs iBGP"
+      fi
+    fi
+    local -a used=()
+    [ -n "$peer" ] && [ "$peer" = "${peer%% *}" ] &&
+      mapfile -t used < <(jq -r '.management.edge.inter_site | .address, .members[]?.address' "$peer")
+    while IFS=$'\t' read -r node address; do
+      if ! fleet_is_ipv4 "$address" || ! fleet_in_network "$address" "$prefix"; then
+        bad="${bad:+$bad$'\n'}link address $address of $node is not in $prefix"
+      elif [ "$address" = "$(fleet_network "$prefix" | cut -d/ -f1)" ]; then
+        bad="${bad:+$bad$'\n'}link address $address of $node is the network address of $prefix"
+      elif [[ " ${used[*]} " == *" $address "* ]]; then
+        bad="${bad:+$bad$'\n'}link address $address of $node is already used on the link"
+      fi
+      used+=("$address")
+    done < <(jq -r '.management.edge.inter_site | "the master edge\t\(.address)", (.members[]? | "\(.node)\t\(.address)")' "$site_file")
+  fi
+  if [ -n "$bad" ]; then
+    echo "error: the link to the other site is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
 }
 
 # A site's IPv4 networks, one "<kind> <name> <network>" per line. `internal`
@@ -400,6 +525,64 @@ ${export}
 }
 CONF
   done
+  fleet_edge_bgp_inter_site "$site_file" "$asn"
+}
+
+# The link to the other site, appended to bird.conf: an iBGP session between
+# the two masters' floating addresses on it, so only the masters have one and
+# it moves with keepalived, like the upstream's. BFD takes it down within half
+# a second of the link going dark. Each side announces its machines segment
+# and its WAN address, accepts exactly the other's two, and those are the only
+# routes BIRD puts into the node's table. Gone with the session, the WAN
+# address falls back to the default route, the internet, and the machines
+# segment to the unreachable route mgmt-path.sh holds under it, so the
+# machines segments never reach each other over the internet.
+fleet_edge_bgp_inter_site() {
+  local site_file="$1" asn="$2" link
+  link="$(fleet_edge_inter_site "$site_file")"
+  [ -n "$link" ] || return 0
+  local address peer_address peer_machines peer_wan machines wan
+  IFS=$'\x1f' read -r _ _ address peer_address peer_machines peer_wan machines wan _ <<<"$link"
+  cat <<CONF
+
+protocol bfd {
+  interface "sites0" {
+    min rx interval 100 ms;
+    min tx interval 100 ms;
+    multiplier 5;
+  };
+}
+
+protocol static link_originate4 {
+  ipv4;
+  route $machines blackhole;
+  route $wan/32 blackhole;
+}
+
+protocol bgp link4 {
+  local $address as $asn;
+  neighbor $peer_address as $asn;
+  direct;
+  bfd on;
+  connect retry time 5;
+  ipv4 {
+    import filter {
+      if net ~ [ $peer_machines, $peer_wan/32 ] then accept;
+      reject;
+    };
+    import limit 10 action block;
+    export where proto = "link_originate4";
+    next hop self;
+  };
+}
+
+protocol kernel {
+  ipv4 {
+    import none;
+    export where proto = "link4";
+  };
+}
+CONF
 }
 
 # The power devices the tailnet reaches through the edge, one management
@@ -700,8 +883,11 @@ SCRIPT
   # rx_missed_errors. Setting the counts a ring already has changes nothing.
   # A NIC whose rings hold fewer gets its most (`ring_max` in node_models.json):
   # ethtool refuses a count above it, which would stop this script.
-  local node address uplink_names vrrp_length machines peer member
+  local node address uplink_names vrrp_length machines peer member link link_address
+  local link_vlan link_prefix link_peer_machines link_peer_wan link_wan link_storage
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
+  link="$(fleet_edge_inter_site "$site_file")"
+  [ -n "$link" ] && IFS=$'\x1f' read -r link_vlan link_prefix _ _ link_peer_machines link_peer_wan _ link_wan link_storage <<<"$link"
   mapfile -t members < <(fleet_edge_members "$site_file")
   local limited ring=""
   limited="$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" '[.nodes[]? | select(.role == "edge") | . as $n | .links[] |
@@ -723,7 +909,11 @@ SCRIPT
       ring=" ring=$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" --arg n "$node" '.nodes[] | select(.name == $n) | . as $n |
         [4096, (.links[] | select(.purpose == "data") | $hw[0][$n.hardware // ""].interfaces[.nic].ring_max // empty)] | min' "$site_file")"
     fi
-    printf '  %s) vrrp_address=%s%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$peer" "$ring" "$uplink_names"
+    link_address=""
+    if [ -n "$link" ]; then
+      link_address=" link_address=$(jq -r --arg n "$node" '.management.edge.inter_site.members[] | select(.node == $n) | .address' "$site_file")/$(fleet_prefix_length "$link_prefix")"
+    fi
+    printf '  %s) vrrp_address=%s%s%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$link_address" "$peer" "$ring" "$uplink_names"
   done
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
@@ -773,6 +963,16 @@ SCRIPT
     echo "edge_vlan_bond machines0 $machines_vlan"
     # shellcheck disable=SC2016  # expanded by the rendered script, per edge
     echo 'ip addr replace "$machines_address" dev machines0'
+  fi
+  # The link to the other site: this edge's own address on it, and under the
+  # route BIRD learns from the far master (fleet_edge_bgp_inter_site), an
+  # unreachable one for the far site's machines segment, so that segment is
+  # reached over the link or not at all, never translated onto the WAN.
+  if [ -n "$link" ]; then
+    echo "edge_vlan_bond sites0 $link_vlan"
+    # shellcheck disable=SC2016  # expanded by the rendered script, per edge
+    echo 'ip addr replace "$link_address" dev sites0'
+    echo "ip route replace unreachable $link_peer_machines metric 4000 proto static"
   fi
   if [ -n "$wan_vlan" ]; then
     echo "edge_vlan_bond wan0 $wan_vlan"
@@ -849,10 +1049,17 @@ SCRIPT
         paste -sd, - | sed 's/,/, /g')"
     fi
     [ -n "$uplinks" ] && uplinks+=$'\n'
+    # Over the link, a machine keeps its own address to the far segment, which
+    # routes it back the same way, and a storage node takes the WAN address
+    # to the far site's, the address that site's edges forward the cluster's
+    # ports from (tuist_cluster_forwards), as it does over the internet.
+    if [ -n "$link" ] && [ -n "$link_storage" ]; then
+      uplinks+="    oifname \"sites0\" ip saddr { $link_storage } ip daddr $link_peer_wan snat ip to $link_wan"$'\n'
+    fi
     if [ -n "$egress_sources" ]; then
       uplinks+="    oifname \"wan0\" ip saddr { $egress_sources } snat ip to $(fleet_prefix_range "$egress_prefix") persistent"$'\n'
     fi
-    uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\" } ip saddr $(fleet_network "$machines_gateway") masquerade"
+    uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\"${link:+, \"sites0\"} } ip saddr $(fleet_network "$machines_gateway") masquerade"
   fi
   # The standby edge goes out through the master from its address on the
   # edges' link, and the switches and power devices reach their time and
@@ -860,6 +1067,9 @@ SCRIPT
   if [ -n "$wan_vlan" ]; then
     [ -n "$uplinks" ] && uplinks+=$'\n'
     uplinks+="    oifname \"wan0\" ip saddr { $(fleet_network "$vrrp_prefix"), $(fleet_network "$prefix") } masquerade"
+    # And over the link to the far site's WAN address, where an untranslated
+    # VRRP address would be the far site's own.
+    [ -n "$link" ] && uplinks+=$'\n'"    oifname \"sites0\" ip saddr { $(fleet_network "$vrrp_prefix"), $(fleet_network "$prefix") } masquerade"
   fi
   # The tailnet reaches the power devices through the master's switch port,
   # translated to the edge address there: their gateway is not an edge, so a
@@ -918,7 +1128,8 @@ SCRIPT
   }
 }
 SCRIPT
-  [ -n "$machines_vlan" ] && fleet_edge_machines_filter "$site_file"
+  [ -n "$machines_vlan" ] && fleet_edge_machines_filter "$site_file" "$link"
+  [ -n "$link" ] && fleet_edge_link_filter "$link"
   [ -n "$wan_vlan" ] && fleet_edge_wan_filter
   echo NFT
 }
@@ -928,13 +1139,23 @@ SCRIPT
 # provisioning range, the edges' VRRP link, the switches' port and the tailnet
 # are all closed to it, and of the edge itself only DHCP and ping are open. A
 # machine on the tailnet reaches it through its own client, not through an
-# edge.
+# edge. Over the link to the other site (a second argument, fleet_edge_inter_site),
+# a machine reaches the far site's machines segment, whose edges decide what
+# of it, and only a storage node reaches the far site's WAN address: that
+# leaves translated to this site's WAN address, which the far site's edges
+# forward the cluster's ports from.
 fleet_edge_machines_filter() {
-  local site_file="$1" interface closed
+  local site_file="$1" link="${2:-}" interface closed link_rules="" peer_machines peer_wan storage
   interface="$(jq -r '.management.edge.interface' "$site_file")"
   # Each as its network: nft refuses a prefix with host bits set.
-  closed="$(jq -r '.management.prefix, (.management.edge.provisioning // empty), .management.edge.vrrp.prefix' "$site_file" |
+  closed="$(jq -r '.management.prefix, (.management.edge.provisioning // empty), .management.edge.vrrp.prefix, (.management.edge.inter_site | select(. != null and .status != "planned") | .prefix)' "$site_file" |
     while read -r prefix; do fleet_network "$prefix"; done | paste -sd, - | sed 's/,/, /g')"
+  if [ -n "$link" ]; then
+    IFS=$'\x1f' read -r _ _ _ _ peer_machines peer_wan _ _ storage <<<"$link"
+    link_rules="    iifname \"machines0\" oifname \"sites0\" ip daddr $peer_machines accept"$'\n'
+    [ -n "$storage" ] && link_rules+="    iifname \"machines0\" oifname \"sites0\" ip saddr { $storage } ip daddr $peer_wan accept"$'\n'
+    link_rules+="    iifname \"machines0\" oifname \"sites0\" drop"$'\n'
+  fi
   cat <<SCRIPT
 table inet tuist_rack_machines
 delete table inet tuist_rack_machines
@@ -944,13 +1165,46 @@ table inet tuist_rack_machines {
     iifname "machines0" ct state established,related accept
     iifname "machines0" oifname { "tailscale0", "vrrp0", "$interface" } drop
     iifname "machines0" ip daddr { $closed } drop
-  }
+${link_rules}  }
   chain input {
     type filter hook input priority filter;
     iifname "machines0" ct state established,related accept
     iifname "machines0" udp dport 67 accept
     iifname "machines0" icmp type echo-request accept
     iifname "machines0" drop
+  }
+}
+SCRIPT
+}
+
+# What the other site may reach over the link (fleet_edge_inter_site): of the
+# edge, the BGP session and its BFD from the link's addresses, ping, and
+# tailscaled's port; through it, replies, the cluster ports the edge forwards
+# itself (tuist_cluster_forwards, from the cluster's nodes only, as on the
+# WAN), and this site's storage nodes from the far site's machines segment,
+# which is what the far site's runners read their cache from.
+fleet_edge_link_filter() {
+  local link="$1" link_prefix peer_machines storage forward=""
+  IFS=$'\x1f' read -r _ link_prefix _ _ peer_machines _ _ _ storage <<<"$link"
+  [ -n "$storage" ] && forward="    iifname \"sites0\" oifname \"machines0\" ip saddr $peer_machines ip daddr { $storage } accept"$'\n'
+  cat <<SCRIPT
+table inet tuist_rack_sites
+delete table inet tuist_rack_sites
+table inet tuist_rack_sites {
+  chain input {
+    type filter hook input priority filter;
+    iifname "sites0" ct state established,related accept
+    iifname "sites0" meta l4proto { icmp, ipv6-icmp } accept
+    iifname "sites0" ip saddr $link_prefix tcp dport 179 accept
+    iifname "sites0" ip saddr $link_prefix udp dport 3784 accept
+    iifname "sites0" udp dport 41641 accept
+    iifname "sites0" drop
+  }
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "sites0" ct state established,related accept
+    iifname "sites0" ct status dnat accept
+${forward}    iifname "sites0" drop
   }
 }
 SCRIPT
@@ -1206,6 +1460,13 @@ CONF
   [ -n "$provisioning" ] && printf '    %s dev %s\n' "$provisioning" "$interface"
   [ -n "$machines_gateway" ] && printf '    %s/32 dev machines0\n' "${machines_gateway%/*}"
   [ -n "$wan_address" ] && printf '    %s dev wan0\n' "$wan_address"
+  # The link to the other site: its iBGP session runs from this address, so
+  # only the master has one. The link is not tracked: losing it sends the
+  # storage nodes over the internet and cuts the machines segments apart, and
+  # moving the master to the other edge would change neither.
+  local link_address link_prefix
+  IFS=$'\x1f' read -r link_address link_prefix < <(jq -r '.management.edge.inter_site | select(. != null and .status != "planned") // {} | [(.address // ""), (.prefix // "")] | join("\u001f")' "$site_file")
+  [ -n "$link_address" ] && printf '    %s/%s dev sites0\n' "$link_address" "$(fleet_prefix_length "$link_prefix")"
   printf '  }\n'
   # An IPv4 instance's adverts carry IPv4 addresses only, so the IPv6 WAN
   # address moves with the instance without being advertised.
