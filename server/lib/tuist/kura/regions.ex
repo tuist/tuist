@@ -546,6 +546,13 @@ defmodule Tuist.Kura.Regions do
         runner_platforms: [:macos],
         data_plane: :private_gateway,
         client_cidrs: [rack.client_cidr],
+        # The other sites' gateways publish this site's nodes as a fallback
+        # for jobs there (`Tuist.Kura.runner_cache_endpoint_url/3`). Until the
+        # sites have a private link that traffic crosses both sites' internet
+        # ports, so each response is capped (~52 Mbit/s) and each runner
+        # address may hold at most 16 connections through an entrance.
+        entrance_rate_limit_kbps: 6400,
+        entrance_connection_limit: 16,
         tolerations: [
           %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
@@ -1214,6 +1221,14 @@ defmodule Tuist.Kura.Regions do
           if(spec[:data_plane] == :private_gateway,
             do: "{account_handle}-{cluster_id}-runners#{managed_region_host_suffix()}.kura.tuist.dev"
           ),
+        # A rack site's node published on another site's gateway: one more
+        # label of the wildcard zone, so the shared certificate covers it.
+        entrance_host_template:
+          if(spec[:data_plane] == :private_gateway and is_binary(spec[:site]),
+            do: "{account_handle}-{cluster_id}-runners-via-{site}#{managed_region_host_suffix()}.kura.tuist.dev"
+          ),
+        entrance_rate_limit_kbps: Map.get(spec, :entrance_rate_limit_kbps),
+        entrance_connection_limit: Map.get(spec, :entrance_connection_limit),
         ingress_class_name: Map.get(spec, :ingress_class_name),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: egress_bandwidth_pod_annotations(spec),
