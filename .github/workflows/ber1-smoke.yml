@@ -28,6 +28,10 @@ on:
         description: Guest slots to load (the rack's hosts x 2)
         required: false
         default: "32"
+      cache_cut:
+        description: Also cut this job VM's own path to its cache endpoint mid-build (see cache-cut.sh)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -128,6 +132,36 @@ jobs:
           [ "$code" = 200 ] || { echo "::error::read returned $code"; exit 1; }
           cmp /tmp/blob /tmp/got
           echo "read back the 1 MiB blob byte for byte from $endpoint"
+
+  # Only the job VM's own pf changes; the gateways, edges and other jobs are untouched.
+  cache-cut:
+    name: Survive the cache endpoint dying mid-build
+    if: inputs.cache_cut
+    needs: server
+    runs-on: tuist-ber1-smoke
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TUIST_URL: ${{ needs.server.outputs.url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            mise
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate with Tuist
+        timeout-minutes: 3
+        run: tuist auth login
+      - name: Cut the cache path mid-build
+        timeout-minutes: 20
+        run: .github/scripts/runners-acceptance/cache-cut.sh
 
   slots:
     name: Plan load slots
