@@ -919,7 +919,7 @@ SCRIPT
 }
 SCRIPT
   [ -n "$machines_vlan" ] && fleet_edge_machines_filter "$site_file"
-  [ -n "$wan_vlan" ] && fleet_edge_wan_filter
+  [ -n "$wan_vlan" ] && fleet_edge_wan_filter "$site_file"
   echo NFT
 }
 
@@ -963,8 +963,23 @@ SCRIPT
 # are the ones the edge translated itself: the cluster ports of the site's
 # cluster-network hosts, from the cluster's nodes only, which the CAPI
 # operator renders into the edge's node configuration (tuist_cluster_forwards).
+#
+# A BGP segment from the upstream that this edge has no connection for is
+# answered with a reset rather than dropped. After a failover the upstream
+# still holds the session the other edge had from the same WAN address, and
+# its next keepalive reaches this edge. Dropped, the upstream kept that
+# session until its hold timer ran out, and this edge's own came up only then
+# (larch, 2026-11-20 and 2026-11-21: about three minutes without IPv4 BGP).
+# Reset, the upstream closes it at its next keepalive.
 fleet_edge_wan_filter() {
-  cat <<'SCRIPT'
+  local site_file="$1" gateway gateway6 bgp=""
+  IFS=$'\x1f' read -r gateway gateway6 < <(jq -r '.management.edge.wan | select(.bgp != null) |
+    [(.gateway // ""), (.gateway6 // "")] | join("\u001f")' "$site_file")
+  [ -n "$gateway" ] && bgp+="    iifname \"wan0\" ip saddr $gateway tcp sport 179 reject with tcp reset"$'\n'
+  [ -n "$gateway" ] && bgp+="    iifname \"wan0\" ip saddr $gateway tcp dport 179 reject with tcp reset"$'\n'
+  [ -n "$gateway6" ] && bgp+="    iifname \"wan0\" ip6 saddr $gateway6 tcp sport 179 reject with tcp reset"$'\n'
+  [ -n "$gateway6" ] && bgp+="    iifname \"wan0\" ip6 saddr $gateway6 tcp dport 179 reject with tcp reset"$'\n'
+  cat <<SCRIPT
 table inet tuist_rack_wan
 delete table inet tuist_rack_wan
 table inet tuist_rack_wan {
@@ -973,7 +988,7 @@ table inet tuist_rack_wan {
     iifname "wan0" ct state established,related accept
     iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
     iifname "wan0" udp dport 41641 accept
-    iifname "wan0" drop
+${bgp}    iifname "wan0" drop
   }
   chain forward {
     type filter hook forward priority filter;

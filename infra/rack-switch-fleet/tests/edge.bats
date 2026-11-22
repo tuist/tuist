@@ -484,7 +484,9 @@ STUB
     # the path never sets the WAN address or a route through it; it names
     # them only to give up what the edge's install took on its own
     ! grep -E '^ *ip (addr|route) (add|replace) .*149\.6\.170\.' <<<"$output"
-    [[ "$output" != *"2001:978:"* ]]
+    # (the WAN filter names the upstream's IPv6 address, to reset its BGP)
+    re='ip (-6 )?(addr|route)[^'$'\n'']*2001:978:'
+    [[ ! "$output" =~ $re ]]
     [[ "$output" == *"edge_vlan_bond wan0 4001
 if [ -s /run/rack-edge/first-wan ]; then
   read -r first_wan </run/rack-edge/first-wan
@@ -547,13 +549,20 @@ fi"* ]]
     [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
     # and the WAN lets in replies, ping, neighbour discovery and the tailnet's
     # direct path, what the edge forwards itself (the cluster-network hosts' ports,
-    # tuist_cluster_forwards), and nothing else
+    # tuist_cluster_forwards), and nothing else. A BGP segment from the
+    # upstream with no connection behind it, the session the other edge had
+    # before a failover, is reset rather than dropped, so the upstream lets go
+    # of it at its next keepalive instead of its hold timer.
     [[ "$output" == *'table inet tuist_rack_wan {
   chain input {
     type filter hook input priority filter;
     iifname "wan0" ct state established,related accept
     iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
     iifname "wan0" udp dport 41641 accept
+    iifname "wan0" ip saddr 149.6.170.30 tcp sport 179 reject with tcp reset
+    iifname "wan0" ip saddr 149.6.170.30 tcp dport 179 reject with tcp reset
+    iifname "wan0" ip6 saddr 2001:978:2:b::4:10 tcp sport 179 reject with tcp reset
+    iifname "wan0" ip6 saddr 2001:978:2:b::4:10 tcp dport 179 reject with tcp reset
     iifname "wan0" drop
   }
   chain forward {
@@ -563,6 +572,9 @@ fi"* ]]
     iifname "wan0" drop
   }
 }'* ]]
+    # a site that announces nothing has no session to reset
+    jq 'del(.management.edge.wan.bgp)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nobgp.json"
+    [[ "$(fleet_edge_wan_filter "$BATS_TEST_TMPDIR/nobgp.json")" != *"reject"* ]]
     fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]

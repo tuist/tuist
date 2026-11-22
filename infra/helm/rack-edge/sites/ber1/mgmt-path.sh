@@ -105,6 +105,10 @@ table inet tuist_rack_wan {
     iifname "wan0" ct state established,related accept
     iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
     iifname "wan0" udp dport 41641 accept
+    iifname "wan0" ip saddr 149.6.170.30 tcp sport 179 reject with tcp reset
+    iifname "wan0" ip saddr 149.6.170.30 tcp dport 179 reject with tcp reset
+    iifname "wan0" ip6 saddr 2001:978:2:b::4:10 tcp sport 179 reject with tcp reset
+    iifname "wan0" ip6 saddr 2001:978:2:b::4:10 tcp dport 179 reject with tcp reset
     iifname "wan0" drop
   }
   chain forward {
