@@ -2403,6 +2403,40 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
     end
 
+    test "publishes a rack site's node on every other available site's gateway" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_tuist_base_url, fn -> "http://tuist.tuist.svc.cluster.local" end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ber1-runners", "larch-runners"] end)
+      region = Regions.get("larch-runners")
+      account = %Account{id: 1, name: "Tuist", subscriptions: []}
+      manifest = KubernetesController.manifest("kura-tuist-larch", "0.5.2", account, region, %Server{})
+
+      # The entrance is served by alder's gateway and admits alder's runners,
+      # while its host and limits describe larch's node.
+      assert manifest["spec"]["gatewayEntrances"] == [
+               %{
+                 "site" => "ber1",
+                 "host" => "tuist-larch-runners-via-ber1.kura.tuist.dev",
+                 "ingressClassName" => "kura-ber1-runners",
+                 "clientCIDRs" => ["10.10.0.0/24"],
+                 "nodeSelector" => %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"},
+                 "rateLimitKBps" => 6400,
+                 "connectionLimit" => 16
+               }
+             ]
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] =~ "+entrances"
+
+      # With no other site available there is nothing to publish, and the
+      # revision is the one instances already carry, so nothing re-applies.
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "larch-runners"] end)
+      alone = KubernetesController.manifest("kura-tuist-larch", "0.5.2", account, region, %Server{})
+      refute Map.has_key?(alone["spec"], "gatewayEntrances")
+      refute alone["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] =~ "+entrances"
+    end
+
     test "keeps cluster-routed private regions on the cluster network" do
       stub(Tuist.Environment, :env, fn -> :prod end)
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)

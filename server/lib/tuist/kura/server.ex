@@ -182,6 +182,12 @@ defmodule Tuist.Kura.Server do
     # Shared stable-host readiness, retaining the controller's observation time.
     field :stable_endpoint, :map
 
+    # A private rack-site node's entrances on other sites' gateways, by site:
+    # `%{"larch" => %{"url" => ..., "observed_at" => iso8601}}`, each the
+    # controller's observation. Dispatch hands one to a job at that site only
+    # while it is fresh and the site has no serving node of its own.
+    field :gateway_entrances, :map
+
     # When the reconciler first saw the region template render a public host
     # different from `url`. Set only while such a change is outstanding, and the
     # clock the endpoint probe is held on so it cannot resolve the new host
@@ -323,7 +329,8 @@ defmodule Tuist.Kura.Server do
       :current_image_tag,
       :observed_image_tag,
       :last_observed_at,
-      :last_ready_at
+      :last_ready_at,
+      :gateway_entrances
     ])
     |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:observed_image_tag, max: 128)

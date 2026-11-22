@@ -1450,6 +1450,42 @@ defmodule Tuist.KuraTest do
       {:ok, _active} = Kura.activate_server(server, "0.5.2")
       assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
     end
+
+    test "a site without a serving node of its own falls back to another site's through its entrance", %{
+      account: account
+    } do
+      [alder] = Repo.all(from(s in Server, where: s.account_id == ^account.id and s.region == "ber1-runners"))
+      via_larch = "https://tuist-ber1-runners-via-larch.kura.tuist.dev"
+      fresh = DateTime.to_iso8601(DateTime.truncate(DateTime.utc_now(), :second))
+      set_entrances = &(alder |> Repo.reload!() |> Ecto.Changeset.change(&1) |> Repo.update!())
+
+      set_entrances.(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => fresh}})
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
+      # Alder's own jobs keep alder's own host; an entrance is never handed to
+      # the site it belongs to.
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == "https://tuist-ber1-runners.kura.tuist.dev"
+
+      # A local node that serves always wins over the entrance.
+      {:ok, larch} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
+      {:ok, larch} = Kura.activate_server(larch, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
+
+      # Once larch's node stops serving, the fallback takes over again.
+      larch |> Ecto.Changeset.change(last_ready_at: ~U[2020-01-01 00:00:00Z]) |> Repo.update!()
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == via_larch
+
+      # A stale entrance observation is not handed out: larch's gateway is dark.
+      set_entrances.(gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => "2020-01-01T00:00:00Z"}})
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
+
+      # Nor is a fresh entrance to a node that itself stopped serving.
+      set_entrances.(
+        gateway_entrances: %{"larch" => %{"url" => via_larch, "observed_at" => fresh}},
+        last_ready_at: ~U[2020-01-01 00:00:00Z]
+      )
+
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
+    end
   end
 
   describe "runner_cache_elsewhere/2" do

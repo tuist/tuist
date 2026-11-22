@@ -92,3 +92,5 @@
   removing a composite share is not. Include retired versions and retained
   backups before retiring a root.
   See `infra/kura-volumes-csi/security/key-management.md` for activation/recovery.
+
+- Rack sites form one runner-cache region for serving: each rack-site node also gets a `gatewayEntrances` entry per other available site (`<handle>-<site>-runners-via-<other>.kura.tuist.dev`, served by the other site's gateway, which proxies to the node over the cluster network). Dispatch (`Kura.runner_cache_endpoint_url/3`) hands a job its own site's serving node first, then another site's node through the local entrance when both the node's heartbeat and the entrance's observation (`kura_servers.gateway_entrances`) are fresh, then nothing. Placement stays per site; entrances never provision. Entrances are rate- and connection-limited per response/client address (`entrance_rate_limit_kbps`, `entrance_connection_limit`) because before the inter-site link that traffic crosses both sites' billed internet ports. A single-site environment renders no entrances and keeps its manifest revision.
