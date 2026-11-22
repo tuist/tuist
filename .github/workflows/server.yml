@@ -300,17 +300,20 @@ jobs:
       # require their modules without triggering redefinition warnings.
       - name: Setup database without rebuilding
         run: mise run --no-deps db:reset -- --no-compile --no-deps-check
-      # On main the shards also report the server's coverage to tuist/server.
+      # On main and on pull requests the shards also report the server's
+      # coverage to tuist/server (forks and drafts never reach this job; the
+      # merge queue's temporary branches stay out). A pull request reports its
+      # merge commit, the checkout's HEAD.
       # A run from a dirty checkout keeps its coverage off the commit: a cold
       # cache install writes checksums into mise.lock and deps.get can rewrite
       # mix.lock, neither of which changes the measured code. Git is told to
       # ignore them rather than having them restored, which would leave the
       # fetched dependencies out of step with mix.lock and stop Mix.
       - name: Ignore lockfile changes for coverage
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         run: git update-index --assume-unchanged ../mise.lock mix.lock
       - name: Run shard ${{ matrix.shard }}
-        run: mix 'do' deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover' || '' }}
+        run: mix 'do' deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && '--cover' || '' }}
   test-clickhouse-floor:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
@@ -369,15 +372,17 @@ jobs:
         run: mise run --no-deps db:reset -- --no-compile --no-deps-check
       - name: Run shard ${{ matrix.shard }}
         run: mix 'do' deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
-  # On main, tells the server the commit's coverage is all in once every
-  # shard ran: a shard with a failing test still reported its coverage. A
-  # failed signal leaves the commit in progress without turning the run red.
+  # On main and on pull requests, tells the server the commit's coverage is
+  # all in once every shard ran: a shard with a failing test still reported
+  # its coverage. On a pull request the commit is the merge commit, the same
+  # HEAD the shards checked out. A failed signal leaves the commit in
+  # progress without turning the run red.
   coverage-complete:
     name: Complete Coverage
     runs-on: tuist-linux
     timeout-minutes: 15
     needs: test
-    if: always() && github.event_name == 'push' && (needs.test.result == 'success' || needs.test.result == 'failure')
+    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request') && (needs.test.result == 'success' || needs.test.result == 'failure')
     continue-on-error: true
     permissions:
       contents: read

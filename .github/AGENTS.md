@@ -371,8 +371,8 @@ server's project-local compile function must guard the bootstrap on
 `--no-compile`; list aliases pass flags only to their final action.
 The build, format and seed jobs retain both `deps` and `_build` through the normal
 setup action. Shards attach only `deps` and download the exact build. Always
-resolve dependencies and compile the builder on cache hits. On push, instrument
-only the current shards' downloaded builds for coverage; those builds are not
+resolve dependencies and compile the builder on cache hits. On push and pull
+requests, instrument only the current shards' downloaded builds for coverage; those builds are not
 retained in cache volumes. The builder always archives plain outputs, keeping
 its ordinary `_build` volume reusable by both main and PRs without copying.
 This trades one instrumentation pass in the builder for a pass in each coverage shard.
@@ -396,14 +396,17 @@ Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsha
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
 
-On push to main, the current ClickHouse shards also run with `--cover`,
-reporting the server's coverage to `tuist/server`,
-and `coverage-complete` then runs `mix tuist.coverage.complete`. The build
+On push to main and on pull requests, the current ClickHouse shards also run
+with `--cover`, reporting the server's coverage to `tuist/server`,
+and `coverage-complete` then runs `mix tuist.coverage.complete`; a pull
+request reports and completes its merge commit, the checkout's HEAD. Both
+need the lockfile `assume-unchanged` step, or the dirty checkout's coverage
+is discarded. The build
 job plans them without `--cover`; `mix tuist.test --no-download --cover`
 instruments each disposable downloaded build using native line counters.
 Keep coverage
-off pull requests, the merge queue, the floor shards and the unsharded
-fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
+off forks and drafts (they never reach the sharded jobs), the merge queue,
+the floor shards and the unsharded fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
 from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
 a pull request the unit, app and acceptance tests run selectively: hashing
