@@ -4,6 +4,7 @@ import Foundation
 import Path
 import Testing
 import TuistProcess
+import TuistServer
 import TuistTestSupport
 @testable import TuistCargoCommand
 
@@ -33,6 +34,32 @@ struct CargoCoverageTests {
     ])
     func narrowed(arguments: [String], expected: Bool) {
         #expect(CargoCoverage.narrowed(arguments) == expected)
+    }
+
+    @Test func explainsThatDirtyRunsDontCountAndWhereToSeeTheRuns() throws {
+        let coverage = CommitCoverage(
+            gitCommitSHA: "abcdef1234567",
+            coverage: 0,
+            coveredLines: 0,
+            executableLines: 0,
+            schemes: [""],
+            partialSchemes: [""],
+            complete: true,
+            incomplete: true,
+            gapReasons: ["dirty_run_excluded"]
+        )
+
+        let message = CargoCoverage.dirtyRunsExcluded(
+            coverage, serverURL: try #require(URL(string: "https://tuist.dev")), fullHandle: "acme/app"
+        )
+
+        #expect(message.hasPrefix("Some runs came from a checkout with uncommitted changes and don't count"))
+        #expect(message.contains("keep the files the CI job writes out of it"))
+        #if os(macOS)
+            #expect(message.hasSuffix("See which runs count with `tuist coverage runs --commit abcdef1234567`."))
+        #else
+            #expect(message.hasSuffix("See which runs count at https://tuist.dev/acme/app/tests/coverage/commits/abcdef1234567."))
+        #endif
     }
 
     @Test func partialWhenAFailureStoppedTheRun() {

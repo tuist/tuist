@@ -254,11 +254,27 @@ extension CargoCoverage {
         let message = switch completion {
         case let .complete(coverage):
             "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%."
-                + (coverage.incomplete ? " The figure is incomplete, so the actual coverage may be higher." : "")
+                + (
+                    coverage.excludesDirtyRuns
+                        ? " " + dirtyRunsExcluded(coverage, serverURL: serverURL, fullHandle: handle)
+                        : coverage.incomplete ? " The figure is incomplete, so the actual coverage may be higher." : ""
+                )
         case .pending:
             "No run of commit \(commit.prefix(7)) has reported coverage yet. Its coverage is marked complete once one does."
         }
         FileHandle.standardOutput.write(Data((message + "\n").utf8))
+    }
+
+    /// Why dirty runs don't count and how to fix it. `tuist coverage` exists only in the macOS CLI, so
+    /// elsewhere the commit's page shows its runs.
+    static func dirtyRunsExcluded(_ coverage: CommitCoverage, serverURL: URL, fullHandle: String) -> String {
+        #if os(macOS)
+            let runs = "with `tuist coverage runs --commit \(coverage.gitCommitSHA)`"
+        #else
+            let runs = "at " + serverURL.appendingPathComponent(fullHandle)
+                .appendingPathComponent("tests/coverage/commits/\(coverage.gitCommitSHA)").absoluteString
+        #endif
+        return "Some runs came from a checkout with uncommitted changes and don't count, because they measured code that isn't the commit's, so the actual coverage may be higher. Keep the checkout clean while the tests run, or keep the files the CI job writes out of it. See which runs count \(runs)."
     }
 }
 
