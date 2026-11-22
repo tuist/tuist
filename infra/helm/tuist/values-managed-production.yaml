@@ -1484,7 +1484,10 @@ rackFleet:
   #
   # Route hosts one deploy at a time in `routeHosts`, after the prewarm set has
   # synced; each one re-pushes that mini's launchd config. Taking a host out is
-  # its rollback.
+  # its rollback. ber1-runner-b03 goes first: on 22 Nov its tailscale ping to
+  # larch-store-a went direct (via 149.6.170.1, 1 ms) and zot answered 200.
+  # Add more alder hosts only if its mirror pulls beat upstream
+  # (`tart_kubelet_image_pull_seconds{source}`).
   #
   # 1 TiB holds the prewarmed set through a release (each image is 55-62 GB,
   # a release beside its predecessor ~578 GB) plus a fetch's staging. Memory
@@ -1492,7 +1495,7 @@ rackFleet:
   # requested by Kura), so the limit is half the chart's default.
   imageCache:
     enabled: true
-    routeHosts: []
+    routeHosts: ["ber1-runner-b03"]
     nodes:
       - name: larch-store-a
         address: 100.66.71.20
