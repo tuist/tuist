@@ -583,6 +583,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePublicDNSEndpoint(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileGatewayEntrances(ctx, instance, pods, r.retainedRuntimeStatuses(instance, pods), primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}

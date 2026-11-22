@@ -111,7 +111,13 @@ func (r *KuraInstanceReconciler) gatewayPods(ctx context.Context, class string) 
 }
 
 func (r *KuraInstanceReconciler) readyGatewayNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) (map[string]string, error) {
-	pods, err := r.gatewayPods(ctx, instance.Spec.IngressClassName)
+	return r.readyGatewayNodesFor(ctx, instance.Spec.IngressClassName, instance.Spec.NodeSelector)
+}
+
+// readyGatewayNodesFor maps each Ready node in the selected pool that runs a
+// Ready host-network gateway of the class to its private IPv4 address.
+func (r *KuraInstanceReconciler) readyGatewayNodesFor(ctx context.Context, class string, selector map[string]string) (map[string]string, error) {
+	pods, err := r.gatewayPods(ctx, class)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +135,7 @@ func (r *KuraInstanceReconciler) readyGatewayNodes(ctx context.Context, instance
 			return nil, err
 		}
 		ip := net.ParseIP(node.Labels["tuist.dev/pn-ipv4"])
-		if nodeReady(node) && ip.To4() != nil && ip.IsPrivate() && k8slabels.SelectorFromSet(instance.Spec.NodeSelector).Matches(k8slabels.Set(node.Labels)) {
+		if nodeReady(node) && ip.To4() != nil && ip.IsPrivate() && k8slabels.SelectorFromSet(selector).Matches(k8slabels.Set(node.Labels)) {
 			nodes[node.Name] = ip.String()
 		}
 	}
@@ -243,22 +249,10 @@ func (r *KuraInstanceReconciler) privateGatewayStatus(ctx context.Context, insta
 	if host == "" {
 		return pending("InvalidConfiguration", "Private gateway requires a host-network ingress class and valid nonempty clientCIDRs")
 	}
-	status, fresh := samples[primary]
-	if !fresh {
-		return pending("PrimaryStatusUnavailable", "No fresh runtime sample for the selected primary")
+	if reason, message := primaryUnavailable(primary, pods, samples); reason != "" {
+		return pending(reason, message)
 	}
-	// Availability differs from promotion suitability. A serving primary remains
-	// available with one ring member while its sibling rolls or refills.
 	ready := false
-	for i := range pods {
-		if pods[i].Name == primary {
-			ready = podReady(&pods[i])
-			break
-		}
-	}
-	if !ready || !runtimeStatusServing(status) {
-		return pending("PrimaryUnavailable", "Selected primary is not Ready and serving with its writer lock")
-	}
 	// A host the shared wildcard spans has no certificate of its own to read,
 	// because none is minted for it. Coverage is established there against the
 	// issued leaf itself, which is the same guarantee this branch reaches by
@@ -316,11 +310,34 @@ func (r *KuraInstanceReconciler) privateGatewayStatus(ctx context.Context, insta
 	return privateEndpointObservation{URL: "https://" + host, Reason: "Ready", Message: "Private gateway, certificate, DNS and serving primary are ready"}, nil
 }
 
+// primaryUnavailable explains why the selected primary cannot serve a client
+// entrance, or returns an empty reason when it can. Availability differs from
+// promotion suitability: a serving primary remains available with one ring
+// member while its sibling rolls or refills.
+func primaryUnavailable(primary string, pods []corev1.Pod, samples map[string]runtimeStatus) (string, string) {
+	status, fresh := samples[primary]
+	if !fresh {
+		return "PrimaryStatusUnavailable", "No fresh runtime sample for the selected primary"
+	}
+	ready := false
+	for i := range pods {
+		if pods[i].Name == primary {
+			ready = podReady(&pods[i])
+			break
+		}
+	}
+	if !ready || !runtimeStatusServing(status) {
+		return "PrimaryUnavailable", "Selected primary is not Ready and serving with its writer lock"
+	}
+	return "", ""
+}
+
 // This observation is independent of workload convergence. Run it after client
 // routing and before storage maintenance can return early; patch only its fields
 // so workload status retains its own meaning and timestamp.
 func (r *KuraInstanceReconciler) observePrivateEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primary string, pods []corev1.Pod, samples map[string]runtimeStatus) error {
-	if instance.Spec.PrivateHost == "" && instance.Status.PrivateURL == "" {
+	if instance.Spec.PrivateHost == "" && instance.Status.PrivateURL == "" &&
+		len(instance.Spec.GatewayEntrances) == 0 && len(instance.Status.GatewayEntrances) == 0 {
 		return nil
 	}
 	observation, err := r.privateGatewayStatus(ctx, instance, primary, pods, samples)
@@ -334,6 +351,7 @@ func (r *KuraInstanceReconciler) observePrivateEndpoint(ctx context.Context, ins
 	instance.Status.EndpointMessage = observation.Message
 	instance.Status.EndpointObservedGeneration = instance.Generation
 	instance.Status.EndpointLastCheckedAt = &now
+	instance.Status.GatewayEntrances = r.gatewayEntranceStatuses(ctx, instance, primary, pods, samples, now)
 	if patchErr := r.Status().Patch(ctx, instance, client.MergeFrom(before)); patchErr != nil {
 		return patchErr
 	}
