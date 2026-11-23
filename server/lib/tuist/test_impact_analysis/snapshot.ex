@@ -10,7 +10,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshot do
   checked out. A checkpoint of a selective run whose skips were all
   carried also holds copies of the targets selective testing skipped by hash
   (`carried_targets`, `name <> "\\u001F" <> hash`), measured as early as
-  `evidence_measured_at`. This is a PostgreSQL entity.
+  `evidence_measured_at`; a skipped target without tests is listed there
+  without a row. This is a PostgreSQL entity.
   """
   use Ecto.Schema
 

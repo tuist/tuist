@@ -133,11 +133,16 @@ defmodule Tuist.Tests.Coverage.Reported do
       skipping = skipping(context, {runs, hits, skips, clean})
       skipping = %{skipping | gaps: skipping.gaps ++ uninstrumented(project.id, runs)}
 
+      # The hit targets that hold no tests, which a selective run's
+      # checkpoint records as carried without copying a row
+      # (`Tuist.TestImpactAnalysis.Snapshots.record/3`).
+      empty = Map.get(skipping, :empty, [])
+
       if skipping.skipped == [] and skipping.gaps == [] do
-        result(observed, "measured", [], [], {0, []}, [])
+        observed |> result("measured", [], [], {0, []}, []) |> Map.put(:empty_targets, empty)
       else
         context = Map.merge(context, skipping)
-        carry(context, {run_ids, hits, covered_schemes}, observed, excluded)
+        context |> carry({run_ids, hits, covered_schemes}, observed, excluded) |> Map.put(:empty_targets, empty)
       end
     end
   end
@@ -585,18 +590,24 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     ran = ran(project.id, Enum.map(runs, & &1.test_run_id))
 
+    {empty, unlisted} =
+      hits |> Enum.reject(&Map.has_key?(inventory, &1.name)) |> Enum.split_with(&empty?(&1, listed, list_gaps))
+
     %{
       skipped: candidates |> Enum.uniq_by(& &1.test_case_id) |> Enum.reject(&MapSet.member?(ran, &1.test_case_id)),
-      gaps:
-        hits
-        |> Enum.reject(&Map.has_key?(inventory, &1.name))
-        |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history))
-        |> Enum.reject(&is_nil/1)
-        |> Enum.uniq(),
+      gaps: unlisted |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history)) |> Enum.uniq(),
+      empty: empty |> Enum.map(&%{module: &1.name, hash: &1.hash}) |> Enum.uniq(),
       baseline: baseline,
       indexed: indexed
     }
   end
+
+  # A hit target that holds no tests: `baseline_lists/4` found it empty, or
+  # the baseline's checkpoint copied it under its hash without a row, which
+  # a checkpoint only does for a target a run skipped empty: a copied target
+  # with tests is copied whole.
+  defp empty?(hit, listed, list_gaps),
+    do: match?({:ok, nil}, Map.fetch(list_gaps, hit.name)) or match?({:checkpoint, _id}, listed[hit.name])
 
   # The run each hit target was recorded under with the hash it was skipped
   # with (`Tuist.Tests.Coverage.TargetSources`).
