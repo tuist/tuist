@@ -266,10 +266,7 @@ defmodule Tuist.Sandboxes.Capacity do
           # resume; move them, the ones just paused included, to storage.
           if ci_reclaim?(node_name), do: Archives.move_off_node(node_name)
 
-          case keep_warm(node, pressure) || shrink(node, pressure) do
-            {:error, reason} -> {:error, reason}
-            _ -> :ok
-          end
+          reconcile_result(keep_warm(node, pressure) || shrink(node, pressure))
         else
           :ok
         end
@@ -278,6 +275,12 @@ defmodule Tuist.Sandboxes.Capacity do
         :ok
     end
   end
+
+  # :superseded means another growth or shrink rewrote the size asked for
+  # while this one reclaimed; that writer resizes the Pod itself.
+  defp reconcile_result({:error, :superseded}), do: :ok
+  defp reconcile_result({:error, reason}), do: {:error, reason}
+  defp reconcile_result(_resized_or_unchanged), do: :ok
 
   # A remote execution worker's share of the compute allocator's floor
   # (`allocation_warm_bytes`): its carve-out grows to it ahead of any
