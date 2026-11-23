@@ -1866,11 +1866,6 @@ rackFleet:
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 11
           maxReplicas: 52
-      # 27.0's 8 vCPU pool keeps one warm runner whatever its history: Qonto's
-      # `tuist-macos` profile resolves to it, and a learned floor only counts
-      # an account's jobs once they are in the pool's 14 days of history, so
-      # their first job of the day otherwise boots cold.
-      #
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
       # starting from no history, and a cold 16 vCPU job has to wait for a
@@ -1878,11 +1873,6 @@ rackFleet:
       # week to 2026-10-29 on 27.1's pool). The other Xcodes' 16 vCPU pools
       # keep the shape's scaling below.
       "27.0":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxLearnedWarmPoolFloor: 8
-          maxReplicas: 52
         shapes:
           16vcpu-48gb:
             autoscaling:
