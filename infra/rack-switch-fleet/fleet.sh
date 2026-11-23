@@ -1431,7 +1431,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp|env|helm-values>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|ready|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp|env|helm-values>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   RACK="$(jq -r '.site // empty' "$(site_file)")"
@@ -1446,6 +1446,7 @@ main() {
     save)       refuse_adopted "$@" && cmd_save "$@";;
     sessions)   cmd_sessions "$@";;
     preflight)  cmd_preflight "$@";;
+    ready)      fleet_check_site "$(site_file)" && fleet_check_ready "$(site_file)" && echo "$SITE is ready to rack";;
     publish)    cmd_publish "$@";;
     ports)      cmd_ports "$@";;
     locate)     cmd_locate "$@";;

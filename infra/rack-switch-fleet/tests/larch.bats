@@ -222,3 +222,39 @@ larch_ready() {
     run edge_sh "fleet_picos_bootstrap '$site'"
     [[ "$output" == *"wan_paths=''"* ]]
 }
+
+@test "rack 2 is ready to rack" {
+    run fleet_check_ready "$LARCH"
+    [ "$status" -eq 0 ]
+}
+
+@test "a site missing what its bring-up needs is not ready, with every gap named" {
+    site="$(larch_with 'del(.power_budget)
+        | (.devices[] | select(.name == "larch-tor-a")).mac = null
+        | (.nodes[] | select(.name == "larch-pdu-b")).mac = null')"
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "larch-edge-a")).tpmCheckCode = "e3b0-c442-98fc-1c14"
+        | .rackLinuxFleet.boot.sites = []' "$FLEET_RACK_VALUES" > "$values"
+    grep -v '"10.20.0.152/32",' "$FLEET_ROOT/../tailscale/acls.json" > "$BATS_TEST_TMPDIR/acls.json"
+
+    run fleet_check_ready "$site" "$values" "$BATS_TEST_TMPDIR/acls.json"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no power_budget"* ]]
+    [[ "$output" == *"larch-tor-a has no mac"* ]]
+    [[ "$output" == *"larch-pdu-b has no mac"* ]]
+    [[ "$output" != *"larch-pdu-a has no mac"* ]]
+    [[ "$output" == *"larch-edge-a: tpmCheckCode e3b0-c442-98fc-1c14 is the empty-key hash"* ]]
+    [[ "$output" == *"no boot server: rackLinuxFleet.boot.sites has no entry for larch"* ]]
+    [[ "$output" == *"larch-runner-b02: 10.20.0.152/32 is not in tag:tuist-k8s-production's tcp:22 grant"* ]]
+    [[ "$output" != *"larch-runner-b01"* ]]
+}
+
+@test "a site's first edge without its TPM check code is not ready" {
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    yq 'del(.rackLinuxFleet.hosts[] | select(.hostname == "larch-edge-a") | .tpmCheckCode)' "$FLEET_RACK_VALUES" > "$values"
+    run fleet_check_ready "$LARCH" "$values"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"larch-edge-a, the first edge, has no tpmCheckCode"* ]]
+    [[ "$output" != *"larch-edge-b"* ]]
+}
