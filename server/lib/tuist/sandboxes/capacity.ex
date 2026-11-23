@@ -1469,8 +1469,7 @@ defmodule Tuist.Sandboxes.Capacity do
            true <- pod_name == elastic.pod_name,
            row = at_least_floor(row, elastic.memory_floor_bytes),
            false <- (held?(row) or executing?(node)) and not urgent do
-        held_paused = if urgent, do: 0, else: node_name |> recently_paused() |> Enum.map(&charge_bytes/1) |> Enum.sum()
-        needed = reserved_bytes(node_name) + held_paused + @daemon_reserve_bytes
+        needed = reserved_bytes(node_name) + held_paused_bytes(node_name, urgent) + @daemon_reserve_bytes
 
         target =
           needed
@@ -1516,6 +1515,11 @@ defmodule Tuist.Sandboxes.Capacity do
         where: s.paused_at > ago(@shrink_hold_seconds, "second")
     )
   end
+
+  defp held_paused_bytes(_node_name, true = _urgent), do: 0
+
+  defp held_paused_bytes(node_name, false = _urgent),
+    do: node_name |> recently_paused() |> Enum.map(&charge_bytes/1) |> Enum.sum()
 
   defp held?(%SandboxNode{grown_at: nil}), do: false
 
