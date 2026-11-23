@@ -110,8 +110,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   stays queued. The chart's floor is 1 GiB, so every node's first sandbox
   grows its carve-out. `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker` (every
   minute) shrinks carve-outs back toward what their running sandboxes hold,
-  never below the floor, retaining an in-flight growth for at most 15 seconds,
-  sending the daemon `reclaim` before the resize because the kubelet refuses
+  never below the floor. It keeps a growth, and the room (memory and CPU
+  guarantee) of an agent sandbox paused on the node, for five minutes, since
+  each deferred growth retires an idle warm runner and each shrink lets a new
+  one take the room; CI pressure or reclaim shrinks at once. It sends the daemon `reclaim` before the resize because the kubelet refuses
   to lower a limit below current usage; it also retries a shrink the kubelet
   has not applied and cancels a deferred growth no longer needed.
 - Daemon CPU requests (`Capacity.sync_cpu/1`): a daemon that reports a CPU
@@ -127,7 +129,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   grant's `cpu_free_milli` plus `cpu_reclaimable_milli` (idle warm runners'
   CPU, which the runners-controller retires when the kubelet defers the
   growth); a request the grant stops funding is lowered, since a deferred
-  resize holds up memory growths. A shrink always goes. Run on every
+  resize holds up memory growths. A shrink always goes, after the five-minute hold above for a paused sandbox's guarantee. Run on every
   `reconcile_allocation/1` and by `ShrinkCarveOutsWorker`; the last request
   the kubelet applied is cached per node and Pod for five minutes so an
   unchanged guarantee reads nothing. Placement holds

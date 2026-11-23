@@ -253,6 +253,21 @@ defmodule Tuist.Sandboxes.AllocationTest do
       assert {:ok, 2250} = Capacity.sync_cpu(node)
     end
 
+    test "a sandbox that paused a moment ago keeps its guarantee until CI reclaims the node", %{cpu_node: node} do
+      ago = fn seconds -> DateTime.add(DateTime.utc_now(:second), -seconds, :second) end
+      sandbox_fixture(node_name: node.name, state: :running, vcpus: 1, memory_mb: 2048)
+      sandbox_fixture(node_name: node.name, state: :paused, paused_at: ago.(60), memory_mb: 8192)
+      sandbox_fixture(node_name: node.name, state: :paused, paused_at: ago.(600), memory_mb: 16_384)
+
+      # 250m floor + 500m running + 2000m for the one paused a minute ago; the
+      # one paused ten minutes ago has given its 4000m back.
+      assert :ok = Capacity.update_allocation(grant(node, %{"cpu_free_milli" => 8000}))
+      assert {:ok, 2750} = Capacity.sync_cpu(node)
+
+      assert :ok = Capacity.update_allocation(grant(node, %{"reclaim" => true, "cpu_free_milli" => 0}))
+      assert {:ok, 750} = Capacity.sync_cpu(node)
+    end
+
     test "grows into idle warm runners' CPU, and lowers a deferred growth the grant stops funding", %{
       cpu_node: node,
       pod: pod

@@ -748,6 +748,26 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert limit == 9 * @gib
     end
 
+    test "keeps room for an agent sandbox that paused a moment ago, until CI needs it", %{template: template} do
+      node = connect_elastic(template, %{capacity: %{memory_bytes: 16 * @gib, cpus: 16}})
+      insert_row(node, "sandboxd-" <> node, 16 * @gib, DateTime.add(DateTime.utc_now(), -600, :second))
+      resident(template, node)
+      ago = fn seconds -> DateTime.add(DateTime.utc_now(:second), -seconds, :second) end
+      sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096, paused_at: ago.(60))
+      sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096, paused_at: ago.(600))
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+
+      # The running guest and the one paused a minute ago (2 × 4160 MiB plus
+      # the reserve) round up to 9 GiB; the one paused ten minutes ago is not kept.
+      assert {:ok, limit} = Capacity.shrink(node_info(node))
+      assert limit == 9 * @gib
+
+      # CI pressure takes the held room too, down to the floor.
+      assert {:ok, limit} = Capacity.shrink(node_info(node), true)
+      assert limit == 8 * @gib
+    end
+
     test "holds a carve-out grown a moment ago", %{template: template} do
       node = connect_elastic(template, %{capacity: %{memory_bytes: 12 * @gib, cpus: 16}})
       insert_row(node, "sandboxd-" <> node, 12 * @gib, DateTime.utc_now(:second))

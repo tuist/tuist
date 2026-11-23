@@ -97,9 +97,14 @@ defmodule Tuist.Sandboxes.Capacity do
   @advisory_lock_namespace 7_302
   # Elastic carve-outs move in whole GiB.
   @carve_out_step_bytes @gib
-  # Keep only an in-flight growth while admission awaits it. Pauses and CI
-  # pressure bypass this provisioning interval; there is no warm-memory hold.
-  @shrink_hold_seconds 15
+  # How long a carve-out keeps a growth, and the room of an agent sandbox
+  # that paused, before a shrink gives them back; CI pressure shrinks at
+  # once. Each growth the kubelet defers makes the runners-controller retire
+  # an idle warm runner, and a shrink lets a new one take the room, so
+  # giving memory back between an Orb's pause and its next turn, or as a
+  # remote execution worker's warm floor moves between workers, retired a
+  # warm runner per cycle (production, November 2026).
+  @shrink_hold_seconds 300
   # `Tuist.RemoteExecution.Scheduler`'s `@warm_hold_ms`.
   @execution_hold_seconds 60
   @allocation_ttl_seconds 15
@@ -1464,7 +1469,8 @@ defmodule Tuist.Sandboxes.Capacity do
            true <- pod_name == elastic.pod_name,
            row = at_least_floor(row, elastic.memory_floor_bytes),
            false <- (held?(row) or executing?(node)) and not urgent do
-        needed = reserved_bytes(node_name) + @daemon_reserve_bytes
+        held_paused = if urgent, do: 0, else: node_name |> recently_paused() |> Enum.map(&charge_bytes/1) |> Enum.sum()
+        needed = reserved_bytes(node_name) + held_paused + @daemon_reserve_bytes
 
         target =
           needed
@@ -1499,6 +1505,17 @@ defmodule Tuist.Sandboxes.Capacity do
     do: row |> SandboxNode.changeset(%{memory_limit_bytes: floor}) |> Repo.update!()
 
   defp at_least_floor(row, _floor), do: row
+
+  # Agent sandboxes on the node that paused within the hold: most resume
+  # for their session's next turn, so the carve-out keeps their memory and
+  # CPU guarantee for them.
+  defp recently_paused(node_name) do
+    Repo.all(
+      from s in Sandbox,
+        where: s.node_name == ^node_name and s.purpose == :agent and s.state == :paused,
+        where: s.paused_at > ago(@shrink_hold_seconds, "second")
+    )
+  end
 
   defp held?(%SandboxNode{grown_at: nil}), do: false
 
@@ -1634,21 +1651,17 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  # A recently paused sandbox keeps its guarantee, like its memory
+  # (`recently_paused/1`), unless CI is reclaiming the node.
   defp desired_cpu_milli(%{name: node_name, elastic: %{cpu_floor_milli: floor}} = node) do
-    min(floor + guaranteed_cpu_milli(node_name), cpu_ceiling_milli(node))
+    held = if ci_reclaim?(node_name), do: [], else: recently_paused(node_name)
+    min(floor + guaranteed_cpu_milli(node_name, held), cpu_ceiling_milli(node))
   end
 
-  defp guaranteed_cpu_milli(node_name) do
-    from(s in Sandbox,
-      where: s.node_name == ^node_name and s.purpose == :agent and s.state in ^@charged_states,
-      select: %{
-        platform: s.platform,
-        vcpus: s.vcpus,
-        memory_mb: s.memory_mb,
-        guaranteed_cpu_milli: s.guaranteed_cpu_milli
-      }
-    )
+  defp guaranteed_cpu_milli(node_name, held) do
+    from(s in Sandbox, where: s.node_name == ^node_name and s.purpose == :agent and s.state in ^@charged_states)
     |> Repo.all()
+    |> Enum.concat(held)
     |> Enum.map(&Sandbox.guaranteed_cpu_milli/1)
     |> Enum.sum()
   end
@@ -1673,7 +1686,7 @@ defmodule Tuist.Sandboxes.Capacity do
       Map.get(node, :cpu_guarantees) == true and cpu_elastic?(node) ->
         guarantee = Sandbox.guaranteed_cpu_milli(sandbox)
 
-        node.elastic.cpu_floor_milli + guaranteed_cpu_milli(node.name) + guarantee <= cpu_ceiling_milli(node) and
+        node.elastic.cpu_floor_milli + guaranteed_cpu_milli(node.name, []) + guarantee <= cpu_ceiling_milli(node) and
           case cpu_room(Repo.get(SandboxNode, node.name), node) do
             :unbounded -> true
             :unreported -> not Sandbox.picked_guarantee?(sandbox)
