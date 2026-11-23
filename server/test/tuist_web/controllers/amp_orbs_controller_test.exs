@@ -114,6 +114,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     for {reason, status, hint} <- [
           {:no_capacity, 503, ["admission"]},
           {{:host_busy, :ci}, 503, ["admission"]},
+          {:not_connected, 503, ["admission"]},
           {:sandbox_concurrency_limit, 429, ["admission"]},
           {:sandbox_account_busy, 409, ["admission"]},
           {:locked, 409, ["admission"]},
