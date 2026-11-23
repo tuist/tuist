@@ -92,6 +92,13 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         assert args.build_url.(%{project: project, build: %{id: build_id}}) ==
                  url(~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build_id}")
 
+        # A pull request's report links its coverage page, a commit's report the commit's.
+        assert args.coverage_url.(%{project: project, sha: "abc123", pull_request_number: 123}) ==
+                 url(~p"/#{project.account.name}/#{project.name}/tests/coverage/pulls/#{123}")
+
+        assert args.coverage_url.(%{project: project, sha: "abc123", pull_request_number: nil}) ==
+                 url(~p"/#{project.account.name}/#{project.name}/tests/coverage/commits/abc123")
+
         :ok
       end)
 

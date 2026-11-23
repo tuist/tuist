@@ -12,6 +12,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.ClaudeCodeSnapshots
+  alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
@@ -291,6 +292,22 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert %DiskSnapshot{state: :building} = Repo.get!(DiskSnapshot, build.id)
 
     stub_node(test_pid)
+    assert {:snooze, 30} = advance(build)
+    assert [{:create, _create}, {:exec, _start}] = node_calls()
+  end
+
+  test "a builder whose host CI took before its first command is replaced on a later check", %{
+    build: build,
+    test_pid: test_pid
+  } do
+    stub_node(test_pid)
+    stub(Commands, :start, fn sandbox, params -> call_original(Commands, :start, [sandbox, params]) end)
+    expect(Commands, :start, fn _sandbox, %{id: id} when id == build.id -> {:error, {:host_busy, :ci}} end)
+
+    assert {:snooze, 60} = advance(build)
+    assert %DiskSnapshot{state: :building} = Repo.get!(DiskSnapshot, build.id)
+    assert [{:create, _create}, {:delete, _delete}] = node_calls()
+
     assert {:snooze, 30} = advance(build)
     assert [{:create, _create}, {:exec, _start}] = node_calls()
   end

@@ -166,6 +166,11 @@ type SandboxInfo struct {
 	// actually uses.
 	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
 	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
+	// MemoryCurrentBytes is what the VM's own cgroup is charged
+	// (memory.current): its process's memory plus the host page cache its
+	// disks filled. It is what memory bursting meters against the VM's
+	// request. Omitted without per-VM memory accounting.
+	MemoryCurrentBytes uint64 `json:"memory_current_bytes,omitempty"`
 	// DiskBytes is what the sandbox's jail holds on the node that no
 	// template or other sandbox shares, measured with the disk report, so
 	// the server can reserve a paused sandbox's use instead of its ceiling.
@@ -281,8 +286,12 @@ type Report struct {
 	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
 	Memory        MemoryReport       `json:"memory"`
 	Disk          DiskReport         `json:"disk"`
-	// Templates is sent by macOS hosts, whose warm VMs change between hellos.
-	Templates []TemplateInfo `json:"templates,omitempty"`
+	// Templates is sent by macOS hosts, whose warm VMs change between hellos,
+	// and by Linux daemons that follow their template's current tag, whose
+	// templates and default tag change when the installer adds a tag.
+	Templates          []TemplateInfo `json:"templates,omitempty"`
+	DefaultTemplate    string         `json:"default_template,omitempty"`
+	DefaultTemplateTag string         `json:"default_template_tag,omitempty"`
 }
 
 type Command struct {

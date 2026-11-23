@@ -55,12 +55,12 @@ To use a different value, pass `--jobs` on the command line, or set it in `.baze
 
 ### Executor sizes {#executor-sizes}
 
-Actions use 2 GB of memory and 1 vCPU by default, which suits single-threaded compile actions. Set the `tuist-memory-gb` execution property to request a larger VM for multi-threaded tests or memory-hungry links:
+Actions use 4 GB of memory and 2 vCPUs by default. Set the `tuist-memory-gb` execution property to request a smaller or larger VM:
 
 | `tuist-memory-gb` | Memory | vCPUs | Workspace disk |
 | --- | --- | --- | --- |
-| `2` (default) | 2 GB | 1 | 30 GB |
-| `4` | 4 GB | 2 | 30 GB |
+| `2` | 2 GB | 1 | 30 GB |
+| `4` (default) | 4 GB | 2 | 30 GB |
 | `8` | 8 GB | 4 | 30 GB |
 | `16` | 16 GB | 8 | 30 GB |
 
@@ -70,7 +70,7 @@ For example, add this **after** the `try-import` line in `.bazelrc` to request 8
 build --remote_default_exec_properties=tuist-memory-gb=8
 ```
 
-For one target, use `exec_properties = {"tuist-memory-gb": "8"}` in its Bazel rule instead. Only `4`, `8` and `16` are supported. Larger actions consume proportionately more of the account's allocated vCPU and memory limits, reducing how many can run simultaneously. A shape must fit both limits. The generated `--jobs` uses the default shape; override it if needed when requesting larger shapes.
+For one target, use `exec_properties = {"tuist-memory-gb": "8"}` in its Bazel rule instead. Only `2`, `4`, `8` and `16` are supported. `2` runs twice as many actions at once within the same limits, but large compiler and linker steps can run out of memory in it; set those targets back to `4` or more. Larger actions consume proportionately more of the account's allocated vCPU and memory limits, reducing how many can run simultaneously. A shape must fit both limits. The generated `--jobs` uses the default shape; override it if needed when requesting larger shapes.
 
 Executors currently use Tuist's Linux amd64 image. Arbitrary container images, other execution operating systems and architectures, persistent action workers and bring-your-own executors are not configurable through setup. Rerun setup to obtain the current image and endpoint.
 

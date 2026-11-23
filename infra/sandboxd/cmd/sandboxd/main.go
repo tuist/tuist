@@ -255,7 +255,32 @@ func main() {
 		logger.Error("no templates under data dir; the init container must seed vmlinux and rootfs.ext4", "dir", store.Dir)
 		os.Exit(1)
 	}
-	defaultTemplate, err := store.Resolve(templateName, templateTag)
+	// With TEMPLATE_TAG set the daemon runs that tag until it restarts.
+	// Without it, it follows the tag the template installer DaemonSet
+	// completed last (the template's current file), so a template upgrade
+	// reaches the node without restarting the daemon and its VMs.
+	followCurrent := templateTag == ""
+	// keepTag is the tag pruning keeps besides the ones in use; empty while
+	// nothing names one, which keeps every tag.
+	keepTag := templateTag
+	startTag := templateTag
+	if followCurrent {
+		if keepTag, err = store.CurrentTag(templateName); err != nil {
+			logger.Error("reading the current template tag", "template", templateName, "error", err)
+			os.Exit(1)
+		}
+		startTag = keepTag
+		if startTag == "" {
+			// No installer has run on this node yet: the tag the last
+			// template init container installed (it rewrote that tag's
+			// metadata.json), or the only one on disk.
+			if startTag, err = store.PreviousTag(templateName, ""); err != nil {
+				logger.Error("finding the newest template tag", "template", templateName, "error", err)
+				os.Exit(1)
+			}
+		}
+	}
+	defaultTemplate, err := store.Resolve(templateName, startTag)
 	if err != nil {
 		logger.Error("resolving default template", "error", err)
 		os.Exit(1)
@@ -352,19 +377,22 @@ func main() {
 	// with, so a node that dropped it during an OnDelete rollout would take
 	// no work until most nodes rolled. Older tags serve nothing; keeping
 	// every one filled runner disks past the blob cache's free-space floor.
-	prune := templateTag != ""
-	inUse := map[string]bool{}
-	if prune && executionSlots > 0 {
-		previous, err := store.PreviousTag(templateName, templateTag)
-		if err != nil {
-			// Keep every tag rather than drop the one a rollout still needs.
-			logger.Warn("finding the previous template tag", "template", templateName, "error", err)
-			prune = false
-		} else if previous != "" {
-			inUse[previous] = true
+	pruneTemplateTags := func(current string) {
+		if current == "" {
+			return
 		}
-	}
-	if prune {
+		inUse := map[string]bool{}
+		if executionSlots > 0 {
+			previous, err := store.PreviousTag(templateName, current)
+			if err != nil {
+				// Keep every tag rather than drop the one a rollout still needs.
+				logger.Warn("finding the previous template tag", "template", templateName, "error", err)
+				return
+			}
+			if previous != "" {
+				inUse[previous] = true
+			}
+		}
 		for _, sb := range manager.List() {
 			if sb.Template == templateName {
 				inUse[sb.TemplateTag] = true
@@ -375,13 +403,14 @@ func main() {
 				inUse[snap.TemplateTag] = true
 			}
 		}
-		removed, err := store.RemoveStaleTags(templateName, templateTag, func(tag string) bool { return inUse[tag] })
+		removed, err := store.RemoveStaleTags(templateName, current, func(tag string) bool { return inUse[tag] })
 		if err != nil {
 			logger.Warn("removing stale template tags", "template", templateName, "removed", removed, "error", err)
 		} else if len(removed) > 0 {
 			logger.Info("removed stale template tags", "template", templateName, "tags", removed)
 		}
 	}
+	pruneTemplateTags(keepTag)
 
 	go func() {
 		for _, shape := range prebuild {
@@ -473,7 +502,7 @@ func main() {
 					CacheGrants:          cacheImages != nil,
 					CacheDriveInTemplate: cacheDriveInTemplate,
 					DefaultTemplate:      templateName,
-					DefaultTemplateTag:   defaultTemplate.Tag,
+					DefaultTemplateTag:   manager.DefaultTemplateTag(),
 					DaemonVersion:        version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: disk,
 					Templates: manager.Templates(), Sandboxes: withDisk(sandboxes, disk), DiskSnapshots: manager.DiskSnapshots(),
 				}
@@ -486,7 +515,13 @@ func main() {
 				metrics.DiskSandboxesBytes.Set(float64(report.SandboxesBytes))
 				metrics.DiskAvailableBytes.Set(float64(report.AvailableBytes))
 				metrics.ObserveVMs(sandboxes)
-				return protocol.Report{Capacity: hostinfo.Capacity(), Sandboxes: withDisk(sandboxes, report), DiskSnapshots: manager.DiskSnapshots(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
+				out := protocol.Report{Capacity: hostinfo.Capacity(), Sandboxes: withDisk(sandboxes, report), DiskSnapshots: manager.DiskSnapshots(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
+				if followCurrent {
+					out.Templates = manager.Templates()
+					out.DefaultTemplate = templateName
+					out.DefaultTemplateTag = manager.DefaultTemplateTag()
+				}
+				return out
 			},
 			Handler: func(ctx context.Context, cmd protocol.Command, stream func(protocol.Stream)) protocol.Result {
 				return sandbox.Dispatch(ctx, manager, cmd, stream)
@@ -504,6 +539,14 @@ func main() {
 	} else {
 		close(serverDone)
 		logger.Info("SERVER_URL not set; running admin-only")
+	}
+
+	if followCurrent {
+		go followTemplate(ctx, logger, store, builder, manager, templateName, prebuild, keepTag != "", pruneTemplateTags, func() {
+			if serverClient != nil {
+				serverClient.ReportNow()
+			}
+		})
 	}
 
 	logger.Info("sandboxd started", "version", version, "node", nodeName, "firecracker", fcVersion, "jailer", jailerEnabled, "data_dir", dataDir, "dns", dns)
@@ -659,5 +702,76 @@ func watchMemoryLimit(ctx context.Context, initial uint64, changed func(uint64))
 				changed(limit)
 			}
 		}
+	}
+}
+
+// templateFollowInterval is how often a daemon without TEMPLATE_TAG checks
+// its template's current file, and templateRetryAfter how long it waits
+// before building a tag whose shapes failed to build again.
+var (
+	templateFollowInterval = 30 * time.Second
+	templateRetryAfter     = 10 * time.Minute
+)
+
+// followTemplate moves the daemon's default template to the tag the
+// installer completed last. The prebuilt shapes are built first, so the
+// first sandbox on the new tag does not wait for a template boot, and the
+// switch happens only once they are ready; until then creates keep using the
+// previous tag. Sandboxes already created keep their own tag. Tags nothing
+// uses any longer are removed after each switch, and report announces the
+// new default to the server.
+func followTemplate(ctx context.Context, logger *slog.Logger, store *template.Store, builder *template.Builder, manager *sandbox.Manager,
+	name string, prebuild []template.Shape, pruned bool, prune func(current string), report func(),
+) {
+	var failedTag string
+	var failedAt time.Time
+	ticker := time.NewTicker(templateFollowInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		tag, err := store.CurrentTag(name)
+		if err != nil {
+			logger.Warn("reading the current template tag", "template", name, "error", err)
+			continue
+		}
+		if tag == "" {
+			continue
+		}
+		if tag == manager.DefaultTemplateTag() {
+			// The daemon started before the installer first named its tag.
+			if !pruned {
+				prune(tag)
+				pruned = true
+			}
+			continue
+		}
+		if tag == failedTag && time.Since(failedAt) < templateRetryAfter {
+			continue
+		}
+		tmpl, err := store.Get(name, tag)
+		if err == nil {
+			for _, shape := range prebuild {
+				if _, err = builder.Ensure(ctx, tmpl, shape); err != nil {
+					break
+				}
+			}
+		}
+		if err != nil {
+			if ctx.Err() == nil {
+				logger.Error("preparing the current template tag; creates keep the previous one", "template", name, "tag", tag, "error", err)
+				failedTag, failedAt = tag, time.Now()
+			}
+			continue
+		}
+		previous := manager.DefaultTemplateTag()
+		manager.SetDefaultTemplateTag(tag)
+		logger.Info("default template tag changed", "template", name, "from", previous, "to", tag)
+		prune(tag)
+		pruned = true
+		report()
 	}
 }

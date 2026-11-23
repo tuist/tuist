@@ -1963,8 +1963,9 @@ rackLinuxFleet:
         - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
   # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its hosts set `site:
   # larch`. Each is declared once racked with its real TPM check code, read on
-  # the box: primeLine's unit sheets give e3b0-c442-98fc-1c14, the SHA-256 of
-  # empty input, which is no TPM's.
+  # the box. e3b0-c442-98fc-1c14 is the SHA-256 of empty input, which is no
+  # TPM's: an early `rack-node check-code` gave it when it could not read the
+  # TPM's key, and the unit sheets it was run for carry it.
   sites:
     larch:
       roles:

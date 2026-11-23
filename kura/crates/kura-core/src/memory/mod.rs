@@ -635,8 +635,10 @@ impl MemoryController {
     /// Admission for a batch-read response the floor-derived pool cannot take
     /// right now, from the ceiling headroom above the floor instead.
     ///
-    /// Only while pressure is normal, and capped at half the elastic pool so
-    /// a read burst cannot crowd out write decoding. Unlike
+    /// Only while pressure is normal, and capped at the whole elastic pool: a
+    /// read burst may take headroom write decoding would otherwise borrow,
+    /// which stress runs showed costs writes nothing, because queued reads on
+    /// a full floor refuse writes sooner than borrowed reads do. Unlike
     /// `reserve_response_materialization` this never waits. The caller must
     /// hand the permit to a [`BorrowedResponse`], which bounds how long the
     /// unprotected memory stays held; holding it in a `ResponseTransportGuard`

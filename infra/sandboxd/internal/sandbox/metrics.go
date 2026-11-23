@@ -29,6 +29,7 @@ type Metrics struct {
 	VMReservedBytes prometheus.Gauge
 	VMAnonBytes     prometheus.Gauge
 	VMFileBytes     prometheus.Gauge
+	VMCurrentBytes  prometheus.Gauge
 	VMResidentShare prometheus.Histogram
 }
 
@@ -85,6 +86,9 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		VMFileBytes: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "sandboxd_vm_file_bytes", Help: "File-backed memory the running VMs' processes hold (Pss): pages still mapped from the memory file they restored from.",
 		}),
+		VMCurrentBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sandboxd_vm_cgroup_bytes", Help: "Memory charged to the running VMs' own cgroups (memory.current): their processes' memory plus the page cache their disks filled.",
+		}),
 		VMResidentShare: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name: "sandboxd_vm_resident_share", Help: "Each running VM's resident memory (anonymous and file, Pss) over its guest memory, observed per report.",
 			Buckets: []float64{0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1},
@@ -94,7 +98,7 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		registry.MustRegister(
 			m.Create, m.Resume, m.Pause, m.TemplateBuild, m.Sandboxes, m.Workers, m.Operations, m.Phases,
 			m.MemoryBudgetBytes, m.MemoryUsedBytes, m.DiskBudgetBytes, m.DiskSandboxesBytes, m.DiskAvailableBytes,
-			m.VMReservedBytes, m.VMAnonBytes, m.VMFileBytes, m.VMResidentShare,
+			m.VMReservedBytes, m.VMAnonBytes, m.VMFileBytes, m.VMCurrentBytes, m.VMResidentShare,
 		)
 	}
 	return m
@@ -117,7 +121,7 @@ func (m *Metrics) ObserveVMs(infos []protocol.SandboxInfo) {
 	if m == nil {
 		return
 	}
-	var reserved, anon, file uint64
+	var reserved, anon, file, current uint64
 	for _, info := range infos {
 		if info.State != protocol.StateRunning || info.MemoryMB <= 0 || info.MemoryAnonBytes+info.MemoryFileBytes == 0 {
 			continue
@@ -126,9 +130,11 @@ func (m *Metrics) ObserveVMs(infos []protocol.SandboxInfo) {
 		reserved += guest
 		anon += info.MemoryAnonBytes
 		file += info.MemoryFileBytes
+		current += info.MemoryCurrentBytes
 		m.VMResidentShare.Observe(float64(info.MemoryAnonBytes+info.MemoryFileBytes) / float64(guest))
 	}
 	m.VMReservedBytes.Set(float64(reserved))
 	m.VMAnonBytes.Set(float64(anon))
 	m.VMFileBytes.Set(float64(file))
+	m.VMCurrentBytes.Set(float64(current))
 }

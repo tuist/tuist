@@ -35,12 +35,12 @@ The design and the alternatives considered are in [`sites.md`](sites.md).
   Pod, including jobs GitHub places on the runner; cleared on requeue).
   `Kura.RunnerCache` attributes jobs to a site by that column, falling back to
   the pool's site for rows claimed before it existed.
-- Cache affinity is a bounded claim preference only
-  (`Sites.prefer_cache_site/3`): a runner passes over a job whose account's
-  runner cache is warm at another site, and none at its own, for the job's
-  first 60 seconds in the queue. Never let it hold a job longer; it must not
-  stall work when the warm site is busy or dark. It reads nothing while no
-  available private region is at another site, so one site costs no query.
+- No cache-site preference at claim: a runner takes the oldest job it can,
+  whichever site holds the account's runner cache. A 60-second preference was
+  removed on 2026-11-23: an account with a cache at one site only (`tuist`, at
+  larch) had most of its jobs wait out the full grace while idle runners at the
+  other site sat by. A job claimed away from its account's cache node reaches
+  it through the claim site's gateway entrance (`Kura.runner_cache_endpoint_url/3`).
 - `SiteSpilloverWorker` is only the rented-fleet fallback, for an env that
   rents macOS hosts. The rack pool is down (`Sites.status/1`) only when no Node
   at any site fits or nothing claims.

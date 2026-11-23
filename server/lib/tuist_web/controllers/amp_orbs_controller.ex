@@ -56,6 +56,11 @@ defmodule TuistWeb.AmpOrbsController do
   # The Mac that holds a paused macOS Orb can't take it yet.
   defp respond(conn, {:error, {:host_busy, _why}}), do: respond(conn, {:error, :no_capacity})
 
+  # The node holding the Orb is away, usually its daemon restarting during a
+  # deploy. The command never reached it, so the Orb is unchanged and the
+  # spawn is safe to retry. A disconnect or timeout mid-command stays final.
+  defp respond(conn, {:error, :not_connected}), do: respond(conn, {:error, :no_capacity})
+
   defp respond(conn, {:error, :no_capacity}) do
     conn
     |> put_resp_header("x-tuist-orb-retry", "admission")

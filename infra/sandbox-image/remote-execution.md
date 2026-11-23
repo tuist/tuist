@@ -90,8 +90,8 @@ advertises leases in the capabilities response; nodes serve claims on
 
 The account's `remote_execution_vcpus_limit` and
 `remote_execution_memory_gb_limit` (16 vCPUs and 32 GB by default, set on the
-ops account page) bound its **VMs**, not its actions: a default VM charges 1
-vCPU and 2 GB, so the defaults hold sixteen, and a larger one charges its size
+ops account page) bound its **VMs**, not its actions: a default VM charges 2
+vCPUs and 4 GB, so the defaults hold eight, and a larger one charges its size
 (see "VM sizes"). Every VM has a
 `sandboxes` row (`purpose = remote_execution`) inserted under an account advisory
 lock before the VM is created and deleted only after the node acknowledges VM
@@ -149,11 +149,9 @@ what any action can reach.
 
 ### VM sizes
 
-An action that needs more than the default 1 vCPU, 2 GB VM sets the
-`tuist-memory-gb` execution property to 4, 8 or 16, which gives it a 2x4096,
-4x8192 or 8x16384 VM (one vCPU per 2 GB); 2 is the default. Most compile
-actions are single-threaded, so the default buys one action per vCPU of the
-account's limit; multi-threaded tests and large links ask for more. Values are generic
+An action that needs another size than the default 2 vCPU, 4 GB VM sets the
+`tuist-memory-gb` execution property to 2, 8 or 16, which gives it a 1x2048,
+4x8192 or 8x16384 VM (one vCPU per 2 GB); 4 is the default. Values are generic
 memory sizes, not per-toolchain pools, and the property is part of the action
 digest like the image. The gateway always sends the size to the server, so
 neither relies on the other's default while one of them is rolled out.
@@ -376,7 +374,7 @@ therefore always have capacity CI cannot take back, in one of two modes:
 The [chart](../helm/remote-execution/values.yaml) publishes `EXECUTION_SLOTS`
 (the ceiling on shared hosts). Every execution daemon serves every account.
 Placement requires the deployment's image ready on the node, memory/disk capacity, and the daemon's
-`execution_deadlines` capability; old daemons are rejected. Each slot is 2 vCPUs (two default VMs),
+`execution_deadlines` capability; old daemons are rejected. Each slot is 2 vCPUs,
 4 GiB guest RAM, 64 MiB VM overhead and a 10 GiB workspace; the daemon reserves
 another 512 MiB. On shared hosts only the floor's CPU is requested; guests above
 it use idle cores. Disk budgets must cover templates, rootfs clones, workspaces

@@ -155,8 +155,9 @@ spec:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      # Each host pulls the template image before it is Ready (6-11 min in
-      # production), so one host at a time outlasts the deploy's Helm wait.
+      # A daemon restart pauses the node's running sandboxes, so a few nodes
+      # roll at a time. Template upgrades do not roll it (see the installer
+      # DaemonSet below).
       maxUnavailable: 3
   template:
     metadata:
@@ -198,23 +199,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        # Seeds the node with this template version's kernel and rootfs. The
-        # daemon builds the per-shape snapshots from them on the node, because
-        # Firecracker snapshots are tied to the host CPU.
-        - name: template
-          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
-          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
-          env:
-            - name: TEMPLATE_TAG
-              value: {{ $templateTag | quote }}
-            - name: TEMPLATE_DIR
-              value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
-            - name: ROOTFS_SIZE
-              value: "{{ .Values.sandboxes.rootfsGiB }}G"
-          volumeMounts:
-            - name: data
-              mountPath: /host
       containers:
         - name: sandboxd
           image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
@@ -237,10 +221,11 @@ spec:
               value: /var/run/secrets/tuist/token
             - name: DATA_DIR
               value: /data/sandboxes
+            # No TEMPLATE_TAG: the daemon follows the tag the installer
+            # DaemonSet below completed last, so a template upgrade never
+            # restarts it.
             - name: TEMPLATE_NAME
               value: {{ .Values.sandboxes.templateName | quote }}
-            - name: TEMPLATE_TAG
-              value: {{ $templateTag | quote }}
             - name: PREBUILD_SHAPES
               value: {{ .Values.sandboxes.prebuildShapes | quote }}
             - name: ALLOWED_SHAPES
@@ -374,6 +359,95 @@ spec:
                   audience: tuist-sandboxes
                   expirationSeconds: 3600
                   path: token
+---
+# Installs the guest template on every sandbox node. Its init container seeds
+# this template version's kernel and rootfs under the node's
+# /data/sandboxes/templates and then names it in the template's `current`
+# file; the daemon there builds the per-shape snapshots (Firecracker
+# snapshots are tied to the host CPU) and switches new sandboxes to it without
+# restarting. A template upgrade therefore rolls only these Pods, which hold
+# no sandboxes, so every node rolls at once.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}-template
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox-template
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sandbox-template
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: "100%"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sandbox-template
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: sandbox-template
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.sandboxes.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      priorityClassName: {{ $name }}
+      terminationGracePeriodSeconds: 5
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      {{- toYaml .Values.sandboxes.nodePools | nindent 22 }}
+      {{- with .Values.sandboxes.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: template
+          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
+          env:
+            - name: TEMPLATE_TAG
+              value: {{ $templateTag | quote }}
+            - name: TEMPLATE_NAME
+              value: {{ .Values.sandboxes.templateName | quote }}
+            - name: TEMPLATE_DIR
+              value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
+            - name: ROOTFS_SIZE
+              value: "{{ .Values.sandboxes.rootfsGiB }}G"
+          volumeMounts:
+            - name: data
+              mountPath: /host
+      containers:
+        # Keeps the Pod, and with it the installed version, until the next
+        # template upgrade replaces it.
+        - name: installed
+          image: "{{ .Values.sandboxes.templateImage.repository }}:{{ $templateTag }}"
+          imagePullPolicy: {{ .Values.sandboxes.templateImage.pullPolicy }}
+          command: ["/bin/sh", "-c", "trap 'exit 0' TERM; while :; do sleep 3600 & wait $!; done"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 8Mi
+            limits:
+              memory: 16Mi
+      volumes:
+        - name: data
+          hostPath:
+            path: /data/sandboxes
+            type: DirectoryOrCreate
 {{- if .Values.sandboxes.admin.enabled }}
 ---
 # Stable in-cluster address for the admin API during bring-up. With more

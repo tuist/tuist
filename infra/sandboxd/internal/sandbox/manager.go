@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
@@ -47,7 +48,8 @@ type Config struct {
 	DefaultTemplate string
 	// DefaultTemplateTag is the tag creates use for the default template
 	// when the caller names none, so older template versions left on disk
-	// never make the default ambiguous.
+	// never make the default ambiguous. SetDefaultTemplateTag moves it when
+	// the installer completes a newer tag.
 	DefaultTemplateTag string
 	BootTimeout        time.Duration
 	WorkerPath         string
@@ -131,6 +133,9 @@ type Manager struct {
 	checkoutLimits checkout.Limits
 	workspaces     *checkout.Workspaces
 	cgroups        *hostinfo.VMCgroups
+
+	// defaultTag is the current DefaultTemplateTag.
+	defaultTag atomic.Pointer[string]
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -218,7 +223,7 @@ func New(cfg Config, deps Deps) *Manager {
 	if deps.HTTPClient == nil {
 		deps.HTTPClient = defaultHTTPClient()
 	}
-	return &Manager{
+	m := &Manager{
 		cfg: cfg, store: deps.Store, builder: deps.Builder, launcher: deps.Launcher, net: deps.Network,
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
@@ -229,7 +234,17 @@ func New(cfg Config, deps Deps) *Manager {
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
+	m.SetDefaultTemplateTag(cfg.DefaultTemplateTag)
+	return m
 }
+
+// DefaultTemplateTag is the tag creates of the default template use when
+// the caller names none.
+func (m *Manager) DefaultTemplateTag() string { return *m.defaultTag.Load() }
+
+// SetDefaultTemplateTag makes creates that name no tag use tag from now on.
+// Sandboxes already created keep the tag they were created from.
+func (m *Manager) SetDefaultTemplateTag(tag string) { m.defaultTag.Store(&tag) }
 
 // Claims holds the claimed execs waiting for their direct caller.
 func (m *Manager) Claims() *Claims { return m.claims }
@@ -476,7 +491,7 @@ func (m *Manager) resolveTemplate(name, tag string) (template.Template, error) {
 		name = m.cfg.DefaultTemplate
 	}
 	if tag == "" && name == m.cfg.DefaultTemplate {
-		tag = m.cfg.DefaultTemplateTag
+		tag = m.DefaultTemplateTag()
 	}
 	return m.store.Resolve(name, tag)
 }
@@ -504,7 +519,9 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 		}
 		// Without its own cgroup the VM still runs, in the daemon's, as
 		// before guarantees: it then shares the daemon's weight.
-		if cgroup, err := m.cgroups.Open(meta.ID, guarantee); err != nil {
+		// The shape's guest memory is the VM's request: the container's
+		// limit reclaims from the daemon's page cache before it.
+		if cgroup, err := m.cgroups.Open(meta.ID, guarantee, uint64(meta.MemoryMB)<<20); err != nil { //nolint:gosec // Shapes are positive.
 			m.log.Warn("opening the sandbox's cgroup failed; it runs in the daemon's", "sandbox", meta.ID, "error", err)
 		} else {
 			defer cgroup.Close()
@@ -653,6 +670,20 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 	return m.attach(ctx, sb, inst, meta, false, fail)
 }
 
+// releaseCgroup removes the cgroup of a VM whose process is gone. The page
+// cache it is still charged for (the memory image a pause wrote, its disk
+// I/O) moves to the container's cgroup, out of the VM's memory.min, so the
+// reclaim before a carve-out shrink can drop it. The next spawn opens a
+// fresh cgroup.
+func (m *Manager) releaseCgroup(id string) {
+	if m.cgroups == nil {
+		return
+	}
+	if err := m.cgroups.Remove(id); err != nil {
+		m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
+	}
+}
+
 // watch turns an unexpected Firecracker exit into the error state.
 func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 	<-inst.Done()
@@ -673,6 +704,7 @@ func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 	_ = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
 	m.log.Error("sandbox died", "sandbox", meta.ID, "reason", reason, "log", vm.LogTail(filepath.Join(sb.root, vm.LogFileName), 1024))
+	m.releaseCgroup(meta.ID)
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.refreshGauges()
 	m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventSandboxDied, SandboxID: meta.ID, Reason: reason})
@@ -701,6 +733,7 @@ func (m *Manager) discard(sb *Sandbox) {
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
+	m.releaseCgroup(meta.ID)
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.dropLazyDisks(sb)
 	_ = os.RemoveAll(vm.JailDir(m.cfg.JailBase, meta.ID))
@@ -907,6 +940,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.markDied(sb, fmt.Sprintf("pause: firecracker did not die: %v", err))
 		return res, err
 	}
+	m.releaseCgroup(id)
 	// A restore whose disks still arrive from its archive holds them
 	// whole only once the fill ends.
 	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
@@ -1028,11 +1062,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	sb.inst = nil
 	sb.mu.Unlock()
 	m.dropLazyDisks(sb)
-	if m.cgroups != nil {
-		if err := m.cgroups.Remove(id); err != nil {
-			m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
-		}
-	}
+	m.releaseCgroup(id)
 	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err
@@ -1282,10 +1312,10 @@ func (m *Manager) Status(ctx context.Context, id string) (protocol.SandboxInfo, 
 	if err != nil {
 		return protocol.SandboxInfo{}, err
 	}
-	return sb.info(), nil
+	return sb.info(m.cgroups), nil
 }
 
-func (sb *Sandbox) info() protocol.SandboxInfo {
+func (sb *Sandbox) info(cgroups *hostinfo.VMCgroups) protocol.SandboxInfo {
 	sb.mu.Lock()
 	info := sb.meta.Info(sb.worker != nil)
 	inst := sb.inst
@@ -1296,6 +1326,9 @@ func (sb *Sandbox) info() protocol.SandboxInfo {
 		}
 		if mem, ok := inst.ResidentMemory(); ok {
 			info.MemoryAnonBytes, info.MemoryFileBytes = mem.AnonBytes, mem.FileBytes
+		}
+		if current, ok := cgroups.MemoryCurrent(info.ID); ok {
+			info.MemoryCurrentBytes = current
 		}
 	}
 	return info
@@ -1310,7 +1343,7 @@ func (m *Manager) List() []protocol.SandboxInfo {
 	m.mu.Unlock()
 	infos := make([]protocol.SandboxInfo, 0, len(all))
 	for _, sb := range all {
-		infos = append(infos, sb.info())
+		infos = append(infos, sb.info(m.cgroups))
 	}
 	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	return infos

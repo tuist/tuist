@@ -13,7 +13,10 @@ resource reservations survive errors until acknowledged VM deletion. An executor
 on a shared runner host connects as `<node>.remote-execution` with its own
 carve-out: execution placement uses memory its Pod holds without a grant and may
 grow past the grant's bytes, but never past a revoked or expired grant. Agent
-admission keeps requiring the grant.
+admission keeps requiring the grant. Both daemons on a host take the host's
+lock, and each grant loses what the other carve-out was asked to grow by since
+the controller counted it (`allocation_sibling_memory_bytes`), so they cannot
+both grow into the same free memory.
 See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
 
 ## Pieces
@@ -414,7 +417,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   placed only on a host where it leaves a granted slot free
   (`MacosCapacity`'s `slots/1`): it holds a slot for up to an hour and
   serves no session, so it waits for an idle host instead of taking one CI
-  could use. A Linux environment's `macos_setup_script`
+  could use. A new Mac's idle pause can beat the builder's first command,
+  and CI can take the slot it freed: that resume's `{:host_busy, _}`
+  deletes the builder and a later step places a new one, rather than
+  failing the build for an hour. A Linux environment's `macos_setup_script`
   prepares the Macs its sessions create through `Query.run(:create)` (the
   `create_sandbox` tool's `repository`, a github.com `owner/name` one of the
   account's projects is connected to; `mac_source/3`): the Mac boots from the

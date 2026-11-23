@@ -53,7 +53,7 @@ func (m *Manager) serveBlobs(sb *Sandbox, args protocol.ExecArgs) func() {
 	sb.mu.Unlock()
 	// Only the template deployed with this daemon is known to seal before
 	// the command runs; older tags kept ready for a rollout read the CAS.
-	if inst == nil || tag == "" || tag != m.cfg.DefaultTemplateTag {
+	if inst == nil || tag == "" || tag != m.DefaultTemplateTag() {
 		return func() {}
 	}
 	path := inst.VsockPath() + "_" + strconv.Itoa(blobcache.GuestPort)

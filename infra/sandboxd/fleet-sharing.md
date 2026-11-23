@@ -93,7 +93,11 @@ The lexicographically first enabled pool in each fleet publishes per-node grants
 through `POST /api/internal/sandboxes/allocation`, authenticated as the exact
 runners-controller ServiceAccount. A grant is an admission ceiling, not a request
 to grow a daemon. It carries the daemon Pod name, observation timestamp, maximum
-memory, currently free memory and a reclaim flag. Grants expire after 15 seconds.
+memory, currently free memory and a reclaim flag. On a host that also runs a
+remote execution worker, each daemon's grant also carries the memory it counted
+the other carve-out at; the server takes what that carve-out was asked to grow
+by since then off the grant, and both daemons share the host's advisory lock.
+Grants expire after 15 seconds.
 The database stores them on `sandbox_nodes`, under the node advisory lock, and
 rejects older/equal observations. Controller and server clocks must be synchronized;
 observations more than one second in the future are refused. Pod replacement
@@ -167,7 +171,10 @@ Inside the daemon's Pod, each VM runs in its own cgroup (`vm-<id>`, beside the
 daemon's own `sandboxd` leaf) with `cpu.weight` a tenth of its guarantee in
 millicores, so under contention the guests split the Pod's share in proportion
 to their guarantees and one busy sandbox cannot take a neighbour's. Memory stays
-accounted and limited at the container's cgroup. A creator can pick a larger
+limited at the container's cgroup, but each VM's cgroup also accounts its own
+(`memory.current`, reported as `memory_current_bytes`) and protects its guest
+memory with `memory.min`, so the reclaim the container's limit drives takes the
+daemon's page cache before a guest's pages. A creator can pick a larger
 guarantee for a Linux sandbox (1, 2, 4 or 8 vCPUs: API and MCP
 `guaranteed_vcpus`, CLI `--guaranteed-vcpus`). A sandbox is only placed on a
 node whose hello offers `cpu_guarantees` if its guarantee fits under the

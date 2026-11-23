@@ -1,4 +1,4 @@
-// Package template discovers the golden templates the init container seeds
+// Package template discovers the golden templates the installer seeds
 // under DATA_DIR/templates/<name>/<tag> and builds their per-shape
 // snapshots on the node.
 package template
@@ -29,8 +29,11 @@ const (
 	SnapshotFile  = "snapshot"
 	MetadataFile  = "metadata.json"
 	ReadyFile     = "ready"
-	shapesDir     = "shapes"
-	buildSuffix   = ".building"
+	// CurrentFile, beside a template's tag directories, names the tag the
+	// installer last completed: the one a daemon without a pinned tag uses.
+	CurrentFile = "current"
+	shapesDir   = "shapes"
+	buildSuffix = ".building"
 )
 
 // Shape is the vCPU and memory size a snapshot was taken with. A snapshot
@@ -348,6 +351,28 @@ func (s *Store) Resolve(name, tag string) (Template, error) {
 		}
 		return Template{}, fmt.Errorf("template %q has several tags (%s); set TEMPLATE_TAG or pass template_tag", name, strings.Join(tags, ", "))
 	}
+}
+
+// CurrentTag returns the tag template `name`'s current file names, or ""
+// when the installer has not written one. The tag must be installed: the
+// installer writes the file only once the tag's files are in place.
+func (s *Store) CurrentTag(name string) (string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return "", fmt.Errorf("template name: %w", err)
+	}
+	data, err := os.ReadFile(filepath.Join(s.Dir, name, CurrentFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	tag, err := safepath.Segment(strings.TrimSpace(string(data)))
+	if err != nil {
+		return "", fmt.Errorf("template %s current tag: %w", name, err)
+	}
+	return tag, nil
 }
 
 // RemoveStaleTags deletes every tag directory of template `name` other than

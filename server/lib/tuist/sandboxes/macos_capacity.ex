@@ -248,7 +248,9 @@ defmodule Tuist.Sandboxes.MacosCapacity do
         true -> :ok
       end
     else
-      %{"node_uid" => _} -> :grant_mismatch
+      # tart-kubelet forwards an empty grant when its Node has no grant
+      # annotation, so an empty `node_uid` means no grant, not another Node's.
+      %{"node_uid" => uid} when uid not in [nil, ""] -> :grant_mismatch
       _ -> :no_grant
     end
   end

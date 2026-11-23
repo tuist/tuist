@@ -194,19 +194,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_borrowing_is_capped_at_half_the_headroom() {
+    async fn read_borrowing_is_capped_at_the_headroom() {
         let memory = controller();
-        let borrows: Vec<_> = (0..3)
+        let borrows: Vec<_> = (0..6)
             .map(|_| {
                 memory
                     .try_borrow_response_materialization(8 * MIB as usize)
-                    .expect("three 16 MiB borrows fit the 48 MiB read cap")
+                    .expect("six 16 MiB borrows fit the 96 MiB headroom")
             })
             .collect();
-        assert_eq!(memory.elastic_transient_reserved_bytes(), 48 * MIB);
+        assert_eq!(memory.elastic_transient_reserved_bytes(), 96 * MIB);
         assert!(
             memory.try_borrow_response_materialization(1).is_err(),
-            "reads must leave the other half of the headroom to writes"
+            "reads cannot borrow past the headroom"
         );
         drop(borrows);
         assert_eq!(memory.elastic_transient_reserved_bytes(), 0);

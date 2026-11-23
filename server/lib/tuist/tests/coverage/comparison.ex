@@ -1,7 +1,7 @@
 defmodule Tuist.Tests.Coverage.Comparison do
   @moduledoc """
-  A commit's coverage against its pull request's base: the total, each
-  target's and the changed files' figures, and how far they moved.
+  A commit's coverage against its pull request's base, as the pull request
+  comment reports it (`Tuist.VCS`).
 
   Only a complete commit is compared (`Commits.status/1`): an in-progress
   one may still be missing schemes or shards, and an incomplete one's figure
@@ -37,6 +37,8 @@ defmodule Tuist.Tests.Coverage.Comparison do
   `:complete` commit has the rest:
 
   - `requested_base_sha`: the pull request's base commit, nil when unknown;
+  - `requested_base_measured`: whether a run gave `requested_base_sha` a
+    figure, complete or not;
   - `base`: the commit compared with, `requested_base_sha` itself or its
     nearest first-parent ancestor with a complete figure, with `distance`
     commits between them; nil when there is none;
@@ -78,6 +80,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
       status: :complete,
       head: head,
       requested_base_sha: requested,
+      requested_base_measured: measured?(project, requested, base),
       base: base,
       change: base && Float.round(head.coverage - base.coverage, 1),
       targets: target_changes(targets, base && Map.new(base_targets, &{&1.name, &1})),
@@ -101,6 +104,10 @@ defmodule Tuist.Tests.Coverage.Comparison do
       target |> Map.put(:coverage, coverage) |> Map.put(:change, change)
     end)
   end
+
+  defp measured?(_project, nil, _base), do: false
+  defp measured?(_project, sha, %{git_commit_sha: sha}), do: true
+  defp measured?(project, sha, _base), do: not is_nil(Commits.summary(project.id, sha))
 
   defp base_sha(project, head) do
     reported_merge_base(head) || graph_merge_base(project, head)

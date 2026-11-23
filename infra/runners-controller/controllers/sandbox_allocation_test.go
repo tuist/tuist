@@ -256,3 +256,51 @@ func TestSandboxGrowthRetiresOnlyIdleRunnersEvenWithQueuedCI(t *testing.T) {
 		t.Fatalf("unexpected victims: %v", marked)
 	}
 }
+
+// Each grant on a host running both carve-outs says what it counted the
+// other at, so the server can take the other's later growth off it; a host
+// with only the agent daemon sends none.
+func TestSandboxAllocationsCountTheHostsOtherCarveOut(t *testing.T) {
+	pool := linuxFleetPool("small", 1, 8192, 1, 10)
+	shared := linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024)
+	alone := linuxNodeWithResources("node-b", "runners-linux", 32, 64*1024)
+	worker := sandboxDaemonPod("worker", shared.Name, 9, 9, false)
+	worker.Labels = map[string]string{executionDaemonLabel: "true"}
+	r, _ := sandboxFixture(t, pool, shared, alone, sandboxDaemonPod("daemon", shared.Name, 3, 2, false), worker, sandboxDaemonPod("daemon-b", alone.Name, 1, 1, false))
+	grants := map[string]scaling.SandboxAllocation{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		var grant scaling.SandboxAllocation
+		if err := json.NewDecoder(req.Body).Decode(&grant); err != nil {
+			t.Error(err)
+		}
+		grants[grant.Node] = grant
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	r.SignalsClient = sandboxAllocationClient(t)
+	r.SignalsClient.BaseURL = server.URL
+	r.SandboxesNamespace = "tuist-sandboxes"
+	fleet := &fleetAllocation{members: map[string]fleetMember{pool.Name: {pool: pool}}}
+	if err := r.publishSandboxAllocations(context.Background(), pool, fleet); err != nil {
+		t.Fatal(err)
+	}
+	sibling := func(name string) int64 {
+		grant, ok := grants[name]
+		if !ok {
+			t.Fatalf("no grant for %s: %v", name, grants)
+		}
+		if grant.SiblingMemoryBytes == nil {
+			return -1
+		}
+		return *grant.SiblingMemoryBytes
+	}
+	if got := sibling("node-a"); got != 9*gib {
+		t.Fatalf("agent daemon's grant counted the worker at %d, want 9 GiB", got)
+	}
+	if got := sibling("node-a.remote-execution"); got != 3*gib {
+		t.Fatalf("worker's grant counted the agent daemon at %d, want its 3 GiB request", got)
+	}
+	if got := sibling("node-b"); got != -1 {
+		t.Fatalf("a host with one carve-out sent sibling memory %d", got)
+	}
+}

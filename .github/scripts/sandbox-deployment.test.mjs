@@ -339,8 +339,10 @@ for (const environment of ['staging', 'canary', 'production', 'disabled']) {
     });
     assert.equal(updated.status, 0, updated.stderr);
     assert.match(updated.stdout, /image: "ghcr.io\/tuist\/tuist-sandbox-template:sha-abcdef012345"/);
-    // Both the init container and sandboxd must select the installed version.
-    assert.equal((updated.stdout.match(/name: TEMPLATE_TAG\s+value: "sha-abcdef012345"/g) || []).length, 2);
+    // Only the template installer pins the version; sandboxd follows the
+    // installer's current tag, so a template upgrade does not roll it.
+    assert.equal((updated.stdout.match(/name: TEMPLATE_TAG\s+value: "sha-abcdef012345"/g) || []).length, 1);
+    assert.equal((updated.stdout.match(/name: TEMPLATE_TAG\b/g) || []).length, 1);
     assert.match(updated.stdout, /image: "ghcr.io\/tuist\/sandboxd:sha-0123456789ab"/);
   });
 }

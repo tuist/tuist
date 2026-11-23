@@ -1240,37 +1240,34 @@ defmodule Tuist.Runners do
   # pick the one to hand this node: the oldest candidate whose master this node
   # likely holds, unless the head has waited past the age tolerance, else the
   # head. With no node identity or no residency, this is exactly today's
-  # "oldest queued job". A runner at a rack site first passes over, for a short
-  # while, the jobs whose runner cache is warm at another site
-  # (`Sites.prefer_cache_site/3`).
+  # "oldest queued job".
   defp pick_affine_candidate(
          fleet_name,
-         %{node_name: node_name, site: site},
+         %{node_name: node_name},
          excluded_account_ids,
          excluded_repositories,
          excluded_workflow_job_ids
        ) do
     result =
-      with {:ok, candidates} <-
-             Jobs.pick_queued_top_k(
-               fleet_name,
-               excluded_account_ids,
-               excluded_repositories,
-               excluded_workflow_job_ids,
-               volume_affinity_top_k()
-             ),
-           [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
-        if volume_affinity_enabled?(fleet_name) do
-          select_affine_candidate(candidates, fleet_name, node_name)
-        else
-          # No volumes on this fleet: hand out the plain oldest-queued head, no
-          # affinity scoring or reordering. A nil outcome means "affinity never
-          # ran here", which is what suppresses the metric for this fleet.
-          {:ok, List.first(candidates), nil}
-        end
-      else
-        {:error, :empty} -> {:error, :empty}
-        [] -> {:error, :empty}
+      case Jobs.pick_queued_top_k(
+             fleet_name,
+             excluded_account_ids,
+             excluded_repositories,
+             excluded_workflow_job_ids,
+             volume_affinity_top_k()
+           ) do
+        {:ok, candidates} ->
+          if volume_affinity_enabled?(fleet_name) do
+            select_affine_candidate(candidates, fleet_name, node_name)
+          else
+            # No volumes on this fleet: hand out the plain oldest-queued head, no
+            # affinity scoring or reordering. A nil outcome means "affinity never
+            # ran here", which is what suppresses the metric for this fleet.
+            {:ok, List.first(candidates), nil}
+          end
+
+        {:error, :empty} ->
+          {:error, :empty}
       end
 
     note_poll(fleet_name, node_name, result)

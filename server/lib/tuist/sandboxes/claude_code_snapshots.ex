@@ -392,9 +392,22 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
            cwd: "/",
            timeout_ms: @build_timeout_ms
          }) do
-      {:ok, _command} -> {:snooze, @poll_seconds}
-      {:error, reason} when reason in @retryable_errors -> {:snooze, @retry_seconds}
-      {:error, reason} -> fail(build, sandbox, reason)
+      {:ok, _command} ->
+        {:snooze, @poll_seconds}
+
+      {:error, reason} when reason in @retryable_errors ->
+        {:snooze, @retry_seconds}
+
+      # A Mac's idle pause can beat the first command, and CI can take the
+      # slot it freed before the command resumes it. The builder has done
+      # nothing yet: drop it, and the next step places a new one on a host
+      # with an idle slot.
+      {:error, {:host_busy, _why}} ->
+        _ = Sandboxes.delete(sandbox)
+        {:snooze, @retry_seconds}
+
+      {:error, reason} ->
+        fail(build, sandbox, reason)
     end
   end
 

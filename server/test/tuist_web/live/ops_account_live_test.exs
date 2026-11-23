@@ -115,15 +115,15 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert {account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit} == {6, 20}
     assert {account.sandbox_vcpus_limit, account.sandbox_memory_gb_limit} == {8, 24}
 
-    # One VM needs 1 vCPU and 2 GB.
+    # One VM needs 2 vCPUs and 4 GB.
     html =
       lv
       |> form("#remote-execution-concurrency-form", %{
-        "account" => %{"remote_execution_vcpus_limit" => "0", "remote_execution_memory_gb_limit" => "1"}
+        "account" => %{"remote_execution_vcpus_limit" => "1", "remote_execution_memory_gb_limit" => "3"}
       })
       |> render_submit()
 
-    assert html =~ "must hold one VM: at least 1 vCPU"
+    assert html =~ "must hold one VM: at least 2 vCPUs"
     assert Repo.reload!(account).remote_execution_vcpus_limit == 6
   end
 

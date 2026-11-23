@@ -39,7 +39,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     assert %{
              "cas_endpoint" => "grpcs://cache.example:443",
              "client_cas_endpoint" => "grpcs://same-cache.example:443",
-             "max_concurrency" => 16,
+             "max_concurrency" => 8,
              "execution_root" => "/workspace/action"
            } =
              conn
