@@ -522,6 +522,45 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       assert copied_nodes(snapshot) == ["node-b"]
     end
 
+    test "a Linux environment's macOS snapshot is popular through the Macs created for its repository and template" do
+      account = AccountsFixtures.account_fixture()
+
+      agent_environment =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_04")
+
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          agent_environment_id: agent_environment.id,
+          repository: "acme/app",
+          setup_sha256: "abc",
+          platform: :darwin,
+          template: "macos-xcode-27-2",
+          disk_bytes: 1024,
+          node_name: "host-a",
+          archive_key: "snapshot-key",
+          archive_bytes: 2048,
+          archive_sha256: "cafe",
+          archived_at: DateTime.utc_now()
+        )
+
+      # The environment's Linux sessions, another repository's Mac and the
+      # repository's Mac on another Xcode do not count.
+      for id <- ~w(s1 s2) do
+        sandbox_fixture(account: account, agent_environment_id: agent_environment.id, anthropic_session_id: id)
+      end
+
+      sandbox_fixture(account: account, platform: :darwin, repository: "acme/other", template: "macos-xcode-27-2")
+      sandbox_fixture(account: account, platform: :darwin, repository: "acme/app", template: "macos-xcode-27-0")
+      sandbox_fixture(account: account, platform: :darwin, repository: "acme/app", template: "macos-xcode-27-2")
+
+      refute DiskSnapshots.queue_copies(snapshot)
+
+      sandbox_fixture(account: account, platform: :darwin, repository: "acme/app", template: "macos-xcode-27-2")
+
+      assert DiskSnapshots.queue_copies(snapshot)
+    end
+
     test "a failed copy gives its reservation back" do
       snapshot = popular_snapshot()
       stub(Nodes, :connected_nodes, fn -> [copy_node("node-a"), copy_node("node-b")] end)

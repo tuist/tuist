@@ -56,6 +56,9 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :amp_orb_id, :string
     field :amp_base_snapshot_id, :string
     field :amp_snapshot_lineage_id, :string
+    # The repository a Mac created through the account API was prepared
+    # for, whose macOS snapshot it boots from or would have.
+    field :repository, :string
     field :amp_creator_user_id, :string
     field :amp_creator_username, :string
     field :amp_creator_name, :string
@@ -190,6 +193,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :amp_orb_id,
       :amp_base_snapshot_id,
       :amp_snapshot_lineage_id,
+      :repository,
       :amp_integration_id,
       :provider_environment_id,
       :template,

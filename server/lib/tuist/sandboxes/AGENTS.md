@@ -432,6 +432,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   account's projects is connected to; `mac_source/3`): the Mac boots from the
   repository's darwin snapshot of its Xcode template and workspace size, else
   bare with a build requested (`request_mac_build/1`, the default macOS shape).
+  Such a Mac records the repository (`sandboxes.repository`): the Macs
+  created for it on the snapshot's template in 24 hours are the snapshot's
+  spawns, which make it popular and so copied out like an Orb snapshot (the
+  environment's Linux sessions count only for its Linux snapshots).
   Such a build clones to `$HOME/work/<name>`, `tuist sandbox sync`'s default
   (the name in the worktree's `origin` URL, so a local directory of another
   name lands there too):
