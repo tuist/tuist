@@ -369,7 +369,7 @@ func main() {
 	go checkouts.Start(context.Background())
 	// Separate from the job prefetcher, so a missed master never waits behind a
 	// listed one: at most one download of each kind at a time.
-	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HasMaster, restore: backend.PrefetchSpare, checkout: prefetchCheckout(checkouts), observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
+	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HoldsLineage, restore: backend.PrefetchSpare, checkout: prefetchCheckout(checkouts), observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
 	go listed.run(context.Background())
 	go func() {
 		for {
