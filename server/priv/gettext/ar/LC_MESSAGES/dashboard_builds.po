@@ -120,7 +120,7 @@ msgstr "تشغيل البناء"
 msgid "Build Runs"
 msgstr "عمليات تشغيل البناء"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:632
+#: lib/tuist_web/live/bazel_invocation_live.ex:622
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -183,7 +183,7 @@ msgstr "المجلدات القابلة للبناء"
 msgid "Builds"
 msgstr "عمليات البناء"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:641
+#: lib/tuist_web/live/bazel_invocation_live.ex:631
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -192,7 +192,7 @@ msgstr "عمليات البناء"
 msgid "Built at"
 msgstr "تم البناء في"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:627
+#: lib/tuist_web/live/bazel_invocation_live.ex:617
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -363,7 +363,7 @@ msgstr "تنظيف"
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
 #: lib/tuist_web/live/bazel_invocation_live.ex:252
-#: lib/tuist_web/live/bazel_invocation_live.ex:608
+#: lib/tuist_web/live/bazel_invocation_live.ex:598
 #: lib/tuist_web/live/bazel_remote_action_live.html.heex:157
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
@@ -508,7 +508,7 @@ msgstr "معدل نقل بيانات التنزيل"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
-#: lib/tuist_web/live/bazel_invocation_live.ex:1467
+#: lib/tuist_web/live/bazel_invocation_live.ex:1457
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
 #: lib/tuist_web/live/bazel_remote_action_live.html.heex:69
@@ -995,7 +995,7 @@ msgid "Overview"
 msgstr "نظرة عامة"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:1347
+#: lib/tuist_web/live/bazel_invocation_live.ex:1337
 #: lib/tuist_web/live/bazel_remote_action_live.ex:166
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
@@ -1150,7 +1150,7 @@ msgstr "المخطط:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:979
+#: lib/tuist_web/live/bazel_invocation_live.ex:969
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1224,7 +1224,7 @@ msgstr "المصادر"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
 #: lib/tuist_web/live/bazel_invocation_live.ex:260
 #: lib/tuist_web/live/bazel_invocation_live.ex:348
-#: lib/tuist_web/live/bazel_invocation_live.ex:617
+#: lib/tuist_web/live/bazel_invocation_live.ex:607
 #: lib/tuist_web/live/bazel_remote_action_live.html.heex:57
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
@@ -2576,7 +2576,7 @@ msgstr "لا توجد عمليات بحث مسجلة"
 msgid "Not found in this project."
 msgstr "غير موجود في هذا المشروع."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1510
+#: lib/tuist_web/live/bazel_invocation_live.ex:1500
 #: lib/tuist_web/live/bazel_remote_action_live.ex:179
 #: lib/tuist_web/live/bazel_remote_action_live.ex:182
 #: lib/tuist_web/live/build_entity_live.ex:518
@@ -3372,25 +3372,25 @@ msgstr "مُستخدم"
 msgid "Compiled without consulting the cache because it could not be cached."
 msgstr "تم التجميع دون الرجوع إلى ذاكرة التخزين المؤقت لأنه لم يكن قابلاً للتخزين المؤقت."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1473
+#: lib/tuist_web/live/bazel_invocation_live.ex:1463
 #: lib/tuist_web/live/bazel_remote_action_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Execution"
 msgstr "التنفيذ"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1472
+#: lib/tuist_web/live/bazel_invocation_live.ex:1462
 #: lib/tuist_web/live/bazel_remote_action_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Input fetch"
 msgstr "جلب المدخلات"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1474
+#: lib/tuist_web/live/bazel_invocation_live.ex:1464
 #: lib/tuist_web/live/bazel_remote_action_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Output upload"
 msgstr "رفع المخرجات"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1471
+#: lib/tuist_web/live/bazel_invocation_live.ex:1461
 #: lib/tuist_web/live/bazel_remote_action_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Queue"
@@ -3510,23 +3510,23 @@ msgstr "التنفيذ p50"
 msgid "p90 execution"
 msgstr "التنفيذ p90"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:572
+#: lib/tuist_web/live/bazel_invocation_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
 msgstr "يلزم وجود ملف تعريف يحتوي على فترات زمنية واضحة لمرحلتي الإجراء والخادم. قد لا تحتوي الملفات القديمة أو غير المكتملة على هذه التوقيتات. حمّل ملفًا جديدًا لعرضها."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:570
+#: lib/tuist_web/live/bazel_invocation_live.ex:560
 #, elixir-autogen, elixir-format
 msgid "No remote action timings"
 msgstr "لا توجد توقيتات للإجراءات عن بُعد"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:523
+#: lib/tuist_web/live/bazel_invocation_live.ex:513
 #, elixir-autogen, elixir-format
 msgid "Phases"
 msgstr "المراحل"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:517
-#: lib/tuist_web/live/bazel_invocation_live.ex:1466
+#: lib/tuist_web/live/bazel_invocation_live.ex:507
+#: lib/tuist_web/live/bazel_invocation_live.ex:1456
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr "بدأت في"
@@ -3831,3 +3831,8 @@ msgstr "يتم عرض %{shown} من أصل %{count} مخرجات؛ لم يتم �
 #, elixir-autogen, elixir-format
 msgid "Waiting / running for"
 msgstr "في انتظار / قيد التشغيل لمدة"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:346
+#, elixir-autogen, elixir-format
+msgid "Empty"
+msgstr "فارغ"

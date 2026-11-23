@@ -7,6 +7,11 @@ defmodule Tuist.Kura.StorageRollup do
   count to block occupancy shrink, exclude pressure bytes from turnover, and
   clear retention ages so a constrained runtime ring cannot establish the
   configured ring's fit.
+
+  `shed_age_counts` counts the day's evictions that shed content younger than
+  each growth threshold (`Tuist.Kura.ClaimSizing.shed_age_thresholds/1`), keyed
+  by the threshold in seconds, so a growth window can pool its days' evictions
+  rather than read each day's median alone. It is nil wherever the medians are.
   """
 
   use Ecto.Schema
@@ -22,6 +27,7 @@ defmodule Tuist.Kura.StorageRollup do
     field :min_shed_age_seconds, :integer
     field :median_shed_age_seconds, :integer
     field :median_ring_span_seconds, :integer
+    field :shed_age_counts, :map
     field :snapshot_count, :integer, default: 0
     field :max_occupancy_percent, :integer
     field :max_live_segment_bytes, :integer

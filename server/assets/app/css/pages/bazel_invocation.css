@@ -81,26 +81,11 @@
       display: flex;
       min-width: 0;
 
-      & > [data-part="cell"],
-      & > [data-part="action-link"] > [data-part="cell"] {
+      & > [data-part="cell"] {
         min-width: 0;
 
         & [data-part="column"] {
           max-width: none;
-        }
-      }
-
-      /* Rows with a recorded execution open its inspector; only the title
-       * underlines, on hover, like other table links. */
-      & > [data-part="action-link"] {
-        display: flex;
-        min-width: 0;
-        color: inherit;
-        text-decoration: none;
-
-        &:hover [data-part="label"],
-        &:focus-visible [data-part="label"] {
-          text-decoration: underline;
         }
       }
     }

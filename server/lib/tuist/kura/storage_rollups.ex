@@ -9,6 +9,7 @@ defmodule Tuist.Kura.StorageRollups do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Kura.ClaimSizing
   alias Tuist.Kura.StorageRollup
   alias Tuist.Kura.StorageTelemetry
   alias Tuist.Repo
@@ -22,6 +23,7 @@ defmodule Tuist.Kura.StorageRollups do
     :min_shed_age_seconds,
     :median_shed_age_seconds,
     :median_ring_span_seconds,
+    :shed_age_counts,
     :snapshot_count,
     :max_occupancy_percent,
     :max_live_segment_bytes,
@@ -77,9 +79,25 @@ defmodule Tuist.Kura.StorageRollups do
     |> Repo.all()
   end
 
+  @doc """
+  The dates within `[earliest_date, latest_date]` holding a row with measured
+  shed ages but no shed-age counts: rolled up before the counts existed. The
+  claim sizing worker rolls them up again, so a growth window does not wait for
+  them to age out before it can pool them.
+  """
+  def dates_missing_shed_age_counts(earliest_date, latest_date) do
+    StorageRollup
+    |> where([rollup], rollup.date >= ^earliest_date and rollup.date <= ^latest_date)
+    |> where([rollup], not is_nil(rollup.median_shed_age_seconds) and is_nil(rollup.shed_age_counts))
+    |> distinct(true)
+    |> select([rollup], rollup.date)
+    |> Repo.all()
+  end
+
   # Homogeneous keys: `insert_all` requires them.
   defp merge_aggregates(evictions, snapshots, hits) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    thresholds = ClaimSizing.shed_age_thresholds()
 
     eviction_rows =
       Map.new(evictions, fn aggregate ->
@@ -92,7 +110,8 @@ defmodule Tuist.Kura.StorageRollups do
            evicted_artifact_count: aggregate.evicted_artifact_count,
            min_shed_age_seconds: aggregate.min_shed_age_seconds,
            median_shed_age_seconds: aggregate.median_shed_age_seconds,
-           median_ring_span_seconds: aggregate.median_ring_span_seconds
+           median_ring_span_seconds: aggregate.median_ring_span_seconds,
+           shed_age_counts: shed_age_counts(aggregate, thresholds)
          })}
       end)
 
@@ -135,6 +154,7 @@ defmodule Tuist.Kura.StorageRollups do
       min_shed_age_seconds: nil,
       median_shed_age_seconds: nil,
       median_ring_span_seconds: nil,
+      shed_age_counts: nil,
       snapshot_count: 0,
       max_occupancy_percent: nil,
       max_live_segment_bytes: nil,
@@ -144,6 +164,13 @@ defmodule Tuist.Kura.StorageRollups do
       inserted_at: now,
       updated_at: now
     }
+  end
+
+  # A pressure day has no median to count against, and so no counts either.
+  defp shed_age_counts(%{median_shed_age_seconds: nil}, _thresholds), do: nil
+
+  defp shed_age_counts(%{shed_age_seconds: ages}, thresholds) do
+    Map.new(thresholds, fn threshold -> {Integer.to_string(threshold), Enum.count(ages, &(&1 < threshold))} end)
   end
 
   # Postgres binds at most 65,535 parameters per statement, one per column of

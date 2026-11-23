@@ -106,6 +106,37 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     assert rollup.evicted_bytes == 536_870_912
   end
 
+  test "rolls up again a day rolled up before it had shed-age counts", %{account: account} do
+    # Delivered long before this pass, so only the missing counts bring the
+    # day back: growth would otherwise read it by its median until it aged out.
+    happened = Date.add(Date.utc_today(), -9)
+    delivered = NaiveDateTime.new!(happened, ~T[11:00:00])
+
+    IngestRepo.insert_all(EvictionEvent, [
+      %{
+        event_id: "counted-#{account.id}",
+        account_id: account.id,
+        node_id: "kura-0",
+        region: "us-east",
+        segment_id: "segment-counted-#{account.id}",
+        reason: "capacity",
+        evicted_at: NaiveDateTime.new!(happened, ~T[10:00:00]),
+        segment_created_at: NaiveDateTime.new!(happened, ~T[08:00:00]),
+        newest_content_at: NaiveDateTime.new!(happened, ~T[09:00:00]),
+        artifact_count: 5,
+        bytes: 536_870_912,
+        inserted_at: delivered
+      }
+    ])
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    rollup = account |> StorageRollups.for_account(happened) |> Enum.find(&(&1.date == happened))
+
+    assert rollup.eviction_count == 1
+    assert rollup.shed_age_counts["12960"] == 1
+  end
+
   test "reports a refused apply instead of dropping it", %{account: account} do
     # A refusal leaves the proposal open and the next pass retries it forever.
     # Dropped, it reads exactly like an account nothing has proposed for, which

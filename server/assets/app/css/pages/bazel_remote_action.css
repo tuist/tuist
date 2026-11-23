@@ -122,6 +122,11 @@
     & dd {
       margin: 0;
     }
+
+    /* Matches build_run.css's label selector, which sets the primary color. */
+    & [data-part="metadata-row"] > [data-part="metadata"] > dd[data-part="label"][data-empty] {
+      color: var(--noora-surface-label-tertiary);
+    }
   }
 
   /* An action without recognised diagnostics shows the end of its stderr. */

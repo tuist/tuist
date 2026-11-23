@@ -120,7 +120,7 @@ msgstr "빌드 실행"
 msgid "Build Runs"
 msgstr "빌드 실행"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:632
+#: lib/tuist_web/live/bazel_invocation_live.ex:622
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -183,7 +183,7 @@ msgstr "빌드 가능 폴더"
 msgid "Builds"
 msgstr "빌드"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:641
+#: lib/tuist_web/live/bazel_invocation_live.ex:631
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -192,7 +192,7 @@ msgstr "빌드"
 msgid "Built at"
 msgstr "빌드 시간"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:627
+#: lib/tuist_web/live/bazel_invocation_live.ex:617
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -363,7 +363,7 @@ msgstr "정리"
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
 #: lib/tuist_web/live/bazel_invocation_live.ex:252
-#: lib/tuist_web/live/bazel_invocation_live.ex:608
+#: lib/tuist_web/live/bazel_invocation_live.ex:598
 #: lib/tuist_web/live/bazel_remote_action_live.html.heex:157
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
@@ -508,7 +508,7 @@ msgstr "다운로드 처리량"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
-#: lib/tuist_web/live/bazel_invocation_live.ex:1467
+#: lib/tuist_web/live/bazel_invocation_live.ex:1457
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
 #: lib/tuist_web/live/bazel_remote_action_live.html.heex:69
@@ -995,7 +995,7 @@ msgid "Overview"
 msgstr "개요"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:1347
+#: lib/tuist_web/live/bazel_invocation_live.ex:1337
 #: lib/tuist_web/live/bazel_remote_action_live.ex:166
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
@@ -1150,7 +1150,7 @@ msgstr "스키마:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:979
+#: lib/tuist_web/live/bazel_invocation_live.ex:969
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1224,7 +1224,7 @@ msgstr "소스"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
 #: lib/tuist_web/live/bazel_invocation_live.ex:260
 #: lib/tuist_web/live/bazel_invocation_live.ex:348
-#: lib/tuist_web/live/bazel_invocation_live.ex:617
+#: lib/tuist_web/live/bazel_invocation_live.ex:607
 #: lib/tuist_web/live/bazel_remote_action_live.html.heex:57
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
@@ -2571,7 +2571,7 @@ msgstr "기록된 조회 없음"
 msgid "Not found in this project."
 msgstr "이 프로젝트에서 찾을 수 없습니다."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1510
+#: lib/tuist_web/live/bazel_invocation_live.ex:1500
 #: lib/tuist_web/live/bazel_remote_action_live.ex:179
 #: lib/tuist_web/live/bazel_remote_action_live.ex:182
 #: lib/tuist_web/live/build_entity_live.ex:518
@@ -3367,25 +3367,25 @@ msgstr "사용됨"
 msgid "Compiled without consulting the cache because it could not be cached."
 msgstr "캐시할 수 없어 캐시를 참조하지 않고 컴파일되었습니다."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1473
+#: lib/tuist_web/live/bazel_invocation_live.ex:1463
 #: lib/tuist_web/live/bazel_remote_action_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Execution"
 msgstr "실행"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1472
+#: lib/tuist_web/live/bazel_invocation_live.ex:1462
 #: lib/tuist_web/live/bazel_remote_action_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Input fetch"
 msgstr "입력 가져오기"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1474
+#: lib/tuist_web/live/bazel_invocation_live.ex:1464
 #: lib/tuist_web/live/bazel_remote_action_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Output upload"
 msgstr "출력 업로드"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1471
+#: lib/tuist_web/live/bazel_invocation_live.ex:1461
 #: lib/tuist_web/live/bazel_remote_action_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Queue"
@@ -3505,23 +3505,23 @@ msgstr "p50 실행"
 msgid "p90 execution"
 msgstr "p90 실행"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:572
+#: lib/tuist_web/live/bazel_invocation_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
 msgstr "명확한 액션 및 서버 페이즈 구간이 포함된 프로파일이 필요합니다. 이전 또는 불완전한 프로파일에는 이러한 시간이 포함되지 않을 수 있습니다. 새 프로파일을 업로드하여 확인하세요."
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:570
+#: lib/tuist_web/live/bazel_invocation_live.ex:560
 #, elixir-autogen, elixir-format
 msgid "No remote action timings"
 msgstr "원격 액션 시간 없음"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:523
+#: lib/tuist_web/live/bazel_invocation_live.ex:513
 #, elixir-autogen, elixir-format
 msgid "Phases"
 msgstr "페이즈"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:517
-#: lib/tuist_web/live/bazel_invocation_live.ex:1466
+#: lib/tuist_web/live/bazel_invocation_live.ex:507
+#: lib/tuist_web/live/bazel_invocation_live.ex:1456
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr "시작 시간"
@@ -3826,3 +3826,8 @@ msgstr "%{count}개 중 %{shown}개 출력 표시; 나머지는 기록되지 않
 #, elixir-autogen, elixir-format
 msgid "Waiting / running for"
 msgstr "대기 중 / 실행 중"
+
+#: lib/tuist_web/live/bazel_remote_action_live.ex:346
+#, elixir-autogen, elixir-format
+msgid "Empty"
+msgstr "비어 있음"
