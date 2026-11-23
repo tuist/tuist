@@ -4121,8 +4121,12 @@ clickhouse:
       # Every other day. Sunday is the last day of its ISO week, so it still
       # pairs with Monday's full.
       incrementalSchedule: "0 1 * * 0,2,3,4,5,6"
-      # Under the default object-storage bucket, then the namespace, so
-      # environments sharing a bucket cannot restore over each other.
+      # Bucket the backups go to, reached with the object-storage endpoint and
+      # credentials. Empty uses the default object-storage bucket. A bucket of
+      # their own keeps their retention rules apart from customer artifacts.
+      bucket: ""
+      # Under the bucket, then the namespace, so environments sharing a bucket
+      # cannot restore over each other.
       prefix: clickhouse-backups
       # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
       # in W42, growing with the dataset, and a Job that hits its deadline is

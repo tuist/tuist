@@ -1189,7 +1189,7 @@ replicas.
         <disks>
           <backups>
             <type>s3_plain</type>
-            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) (include "tuist.objectStorageBucketDefault" .) $m.backup.prefix .Release.Namespace }}</endpoint>
+            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) ($m.backup.bucket | default (include "tuist.objectStorageBucketDefault" .)) $m.backup.prefix .Release.Namespace }}</endpoint>
             <access_key_id from_env="BACKUP_S3_ACCESS_KEY_ID" />
             <secret_access_key from_env="BACKUP_S3_SECRET_ACCESS_KEY" />
             <region>{{ include "tuist.objectStorageRegion" . }}</region>

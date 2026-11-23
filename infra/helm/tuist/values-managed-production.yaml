@@ -791,6 +791,12 @@ clickhouse:
       proxyGroup: tailnet-ingress
     backup:
       enabled: true
+      # Apart from customer artifacts in tuist-prod-storage. Its lifecycle rules
+      # expire `full/` after 21 days and `incremental/` after 14, which keeps
+      # two weeks of restore points and never deletes a full before the
+      # incrementals based on it. Backups taken before the move stay under the
+      # same prefix in tuist-prod-storage, with the same rules, until they expire.
+      bucket: tuist-prod-clickhouse-backups
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
       # 2026-09-27 and grows with the dataset.
       maxMemoryUsageForUserBytes: "25769803776"
