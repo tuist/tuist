@@ -202,6 +202,26 @@ variable "go_sha256_darwin_arm64" {
   default     = "91a44a2b8a716600ad94a4f143e156116620db8828086a6e3602291be9bd0bb4"
 }
 
+variable "jdk21_release" {
+  type        = string
+  description = "Temurin JDK 21 release tag, as on https://github.com/adoptium/temurin21-binaries/releases."
+  # Pinned like Go. Renovate proposes only update releases of 21; another
+  # Java major is a deliberate change (see renovate.json).
+  # renovate: datasource=github-releases depName=adoptium/temurin21-binaries
+  default = "jdk-21.0.13.1+2"
+}
+
+variable "jdk21_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the release's aarch64 mac JDK tar.gz, from its .sha256.txt asset."
+  default     = "48067f2b7c958ed104a9d8a5749be7d25220b0a356b4d2d1bcfaab3e16ad0b14"
+}
+
+locals {
+  # jdk-21.0.13.1+2 -> OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.13.1_2.tar.gz
+  jdk21_archive = "OpenJDK21U-jdk_aarch64_mac_hotspot_${replace(trimprefix(var.jdk21_release, "jdk-"), "+", "_")}.tar.gz"
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -586,6 +606,25 @@ build {
     ]
   }
 
+  # JDK 21, the current LTS and GitHub-hosted images' default Java, for
+  # Gradle, Android and other JVM tooling. Installed where macOS looks for
+  # JDKs, so /usr/bin/java and /usr/libexec/java_home find it, with
+  # JAVA_HOME and GitHub's JAVA_HOME_21_arm64 in runner's login shell.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o jdk.tar.gz https://github.com/adoptium/temurin21-binaries/releases/download/${replace(var.jdk21_release, "+", "%2B")}/${local.jdk21_archive}",
+      "echo '${var.jdk21_sha256_darwin_arm64}  jdk.tar.gz' | shasum -a 256 -c -",
+      "mkdir -p /tmp/jdk && tar -C /tmp/jdk -xzf jdk.tar.gz",
+      "echo 'admin' | sudo -S mkdir -p /Library/Java/JavaVirtualMachines",
+      "echo 'admin' | sudo -S mv /tmp/jdk/${var.jdk21_release} /Library/Java/JavaVirtualMachines/temurin-21.jdk",
+      "echo 'admin' | sudo -S chown -R root:wheel /Library/Java/JavaVirtualMachines/temurin-21.jdk",
+      "rm -rf jdk.tar.gz /tmp/jdk",
+      "printf '\\nexport JAVA_HOME_21_arm64=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home\\nexport JAVA_HOME=\"$JAVA_HOME_21_arm64\"\\n' | sudo tee -a /Users/runner/.zprofile >/dev/null"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
@@ -924,6 +963,7 @@ build {
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
       "[ \"$(sudo -u runner -H /bin/zsh -lc 'go env GOVERSION')\" = 'go${var.go_version}' ] || { echo 'sanity check: the go on runner PATH is not the pinned Go' >&2; exit 1; }",
+      "sudo -u runner -H /bin/zsh -lc 'for j in \"$JAVA_HOME/bin/java\" java; do $j -version 2>&1 | grep -q \"version .21\\\\.\" || exit 1; done' || { echo 'sanity check: JAVA_HOME or java on runner PATH is not JDK 21' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
       "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
     ]

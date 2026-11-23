@@ -39,7 +39,7 @@ Each image contains **exactly one Xcode**, which is selected with `xcode-select`
 - **Apple tooling:** Xcode (one per image), simulator runtimes, Metal toolchain, `xcodes`, `xcbeautify`
 - **Swift and iOS tooling:** SwiftLint, SwiftFormat, SwiftGen, LicensePlist, Mint, Carthage, CocoaPods, fastlane
 - **Devices:** `libimobiledevice`, `ideviceinstaller`, `ios-deploy`
-- **Languages and runtimes:** Ruby through `rbenv` (2.7 and the two latest 3.x releases, the newest as default) with Bundler, Node.js 24 with npm, Yarn and pnpm, Go
+- **Languages and runtimes:** Ruby through `rbenv` (2.7 and the two latest 3.x releases, the newest as default) with Bundler, Node.js 24 with npm, Yarn and pnpm, Go, Java 21 (Temurin, set as `JAVA_HOME`)
 - **Package and version managers:** Homebrew, mise
 - **Version control:** Git, Git LFS, Git Credential Manager, GitHub CLI (`gh`)
 - **Utilities:** `jq`, `yq`, `curl`, `wget`, `zip`/`unzip`, CMake, GCC, AWS CLI
@@ -64,7 +64,7 @@ Tool versions come from Homebrew when the image is built, and images are rebuilt
 - **The Tuist CLI.** Install it in the job, for example with mise, so your project controls the version.
 - **Other Xcode versions.** Use a profile per Xcode version instead of `xcode-select`.
 - **Docker.** macOS runners have no Docker daemon. Use a Linux profile; see <.localized_link href="/guides/features/runners/docker">Docker</.localized_link>.
-- **Toolchains GitHub bundles on macOS** that iOS builds rarely need, such as Java, the Android SDK, .NET, Rust, Python versions or browsers. Install them in a step with Homebrew, mise or a setup action.
+- **Toolchains GitHub bundles on macOS** that iOS builds rarely need, such as other Java versions, the Android SDK, .NET, Rust, Python versions or browsers. Install them in a step with Homebrew, mise or a setup action.
 
 ## Linux {#linux}
 
