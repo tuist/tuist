@@ -138,7 +138,7 @@ public struct ShardService: ShardServicing {
                     let shardArchiveDestinationPath = downloadedArtifactsPath
                         .appending(component: "artifact-\(downloadIndex).aar")
                     try await retryProvider.runWithRetries {
-                        try await fileClient.download(url: downloadURL, to: shardArchiveDestinationPath)
+                        try await fileClient.downloadInParallel(url: downloadURL, to: shardArchiveDestinationPath)
                     }
                     try await appleArchiver.decompress(archive: shardArchiveDestinationPath, to: extractedTestProductsPath)
                     try? await fileSystem.remove(shardArchiveDestinationPath)

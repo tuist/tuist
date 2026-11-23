@@ -172,6 +172,71 @@
             #expect(try String(contentsOf: download.destination.url, encoding: .utf8) == "whole")
         }
 
+        /// 1000 bytes in 100-byte probe: the other 900 split into 8 ranges of 113 bytes, the second at 213-325.
+        @Test func parallel_download_retries_only_the_bytes_a_failed_range_did_not_receive() async throws {
+            let body = Data((0 ..< 1000).map { UInt8(truncatingIfNeeded: $0 * 7) })
+            let download = try await makeRangeDownload(
+                object: RangeURLProtocol.Object(body: body, etag: "\"v1\"", failOnceAt: 213)
+            )
+
+            let error = await #expect(throws: (any Error).self) {
+                try await download.subject.downloadInParallel(url: download.url, to: download.destination)
+            }
+            #expect(HTTPRetryPolicy.isRetryable(try #require(error)))
+            let firstAttempt = RangeURLProtocol.requests(for: download.url).count
+            try await download.subject.downloadInParallel(url: download.url, to: download.destination)
+
+            let retried = RangeURLProtocol.requests(for: download.url).dropFirst(firstAttempt)
+            // The failed range sent half of its 113 bytes (56) before failing.
+            #expect(retried.map { $0["Range"] } == ["bytes=269-325"])
+            #expect(retried.map { $0["If-Range"] } == ["\"v1\""])
+            #expect(try Data(contentsOf: download.destination.url) == body)
+        }
+
+        @Test func parallel_download_falls_back_to_one_request_when_the_server_ignores_ranges() async throws {
+            let body = Data((0 ..< 1000).map { UInt8(truncatingIfNeeded: $0) })
+            let download = try await makeRangeDownload(
+                object: RangeURLProtocol.Object(body: body, etag: "\"v1\"", honorsRanges: false)
+            )
+
+            try await download.subject.downloadInParallel(url: download.url, to: download.destination)
+
+            #expect(RangeURLProtocol.requests(for: download.url).map { $0["Range"] } == ["bytes=0-99", nil])
+            #expect(try Data(contentsOf: download.destination.url) == body)
+        }
+
+        @Test func parallel_download_starts_over_when_the_object_changed_between_attempts() async throws {
+            let body = Data((0 ..< 1000).map { UInt8(truncatingIfNeeded: $0) })
+            let download = try await makeRangeDownload(
+                object: RangeURLProtocol.Object(body: body, etag: "\"v1\"", failOnceAt: 213)
+            )
+            await #expect(throws: (any Error).self) {
+                try await download.subject.downloadInParallel(url: download.url, to: download.destination)
+            }
+            let replaced = Data((0 ..< 700).map { UInt8(truncatingIfNeeded: $0 * 3) })
+            RangeURLProtocol.objects.withLock { $0[download.url.path]?.body = replaced; $0[download.url.path]?.etag = "\"v2\"" }
+
+            try await download.subject.downloadInParallel(url: download.url, to: download.destination)
+
+            #expect(try Data(contentsOf: download.destination.url) == replaced)
+        }
+
+        private func makeRangeDownload(object: RangeURLProtocol.Object) async throws -> ScriptedDownload {
+            let fileSystem = FileSystem()
+            let url = URL(string: "https://tuist.dev/artifacts/\(UUID().uuidString).aar")!
+            RangeURLProtocol.objects.withLock { $0[url.path] = object }
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [RangeURLProtocol.self]
+            let destinationDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "file-client-download-test")
+            return ScriptedDownload(
+                subject: FileClient(
+                    session: URLSession(configuration: configuration), fileSystem: fileSystem, parallelRangeSize: 100
+                ),
+                url: url,
+                destination: destinationDirectory.appending(component: "shared.aar")
+            )
+        }
+
         private struct ScriptedDownload {
             let subject: FileClient
             let url: URL
@@ -248,6 +313,75 @@
                     client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
                 }
             } else {
+                client?.urlProtocolDidFinishLoading(self)
+            }
+        }
+
+        override func stopLoading() {}
+    }
+
+    /// Serves byte ranges of an object, as S3 does, and records the request headers.
+    private final class RangeURLProtocol: URLProtocol {
+        struct Object {
+            var body: Data
+            var etag: String
+            var honorsRanges = true
+            /// Fails the first request for a range starting here after sending half of it.
+            var failOnceAt: Int64?
+            var requests: [[String: String]] = []
+        }
+
+        static let objects = Mutex<[String: Object]>([:])
+
+        static func requests(for url: URL) -> [[String: String]] {
+            objects.withLock { $0[url.path]?.requests ?? [] }
+        }
+
+        override static func canInit(with _: URLRequest) -> Bool {
+            true
+        }
+
+        override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+            request
+        }
+
+        override func startLoading() {
+            let path = request.url!.path
+            let range = request.value(forHTTPHeaderField: "Range")
+            let bounds = range.flatMap { range -> (Int, Int?)? in
+                let parts = range.dropFirst("bytes=".count).split(separator: "-", omittingEmptySubsequences: false)
+                guard let start = Int(parts[0]) else { return nil }
+                return (start, parts.count > 1 ? Int(parts[1]) : nil)
+            }
+            let (object, fails) = Self.objects.withLock { objects -> (Object, Bool) in
+                objects[path]!.requests.append(request.allHTTPHeaderFields ?? [:])
+                let fails = bounds != nil && bounds.map { Int64($0.0) } == objects[path]!.failOnceAt
+                if fails { objects[path]!.failOnceAt = nil }
+                return (objects[path]!, fails)
+            }
+            var headers = ["Content-Type": "application/octet-stream", "ETag": object.etag]
+            let slice: Data
+            let statusCode: Int
+            if object.honorsRanges, let (start, end) = bounds {
+                let last = min(end ?? object.body.count - 1, object.body.count - 1)
+                slice = object.body.subdata(in: start ..< last + 1)
+                statusCode = 206
+                headers["Content-Range"] = "bytes \(start)-\(last)/\(object.body.count)"
+            } else {
+                slice = object.body
+                statusCode = 200
+            }
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: statusCode, httpVersion: "HTTP/1.1", headerFields: headers
+            )!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            if fails {
+                client?.urlProtocol(self, didLoad: slice.prefix(slice.count / 2))
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { [self] in
+                    client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
+                }
+            } else {
+                client?.urlProtocol(self, didLoad: slice)
                 client?.urlProtocolDidFinishLoading(self)
             }
         }
