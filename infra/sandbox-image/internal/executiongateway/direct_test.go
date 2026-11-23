@@ -194,8 +194,8 @@ func TestLargerVMsAreRequestedFromTheControlPlaneInsteadOfLeased(t *testing.T) {
 	lab.capabilities(auth)
 	lab.execute(auth)
 	lab.awaitLease()
-	if _, sized := lab.submitted.Load().(map[string]any)["memory_gb"]; sized {
-		t.Fatal("an action without the property asked for a larger VM")
+	if body, _ := lab.submitted.Load().(map[string]any); body != nil && body["memory_gb"] != float64(4) {
+		t.Fatalf("an action without the property asked for another size: %v", body)
 	}
 
 	if code := lab.executeAction(auth, lab.sizedAction("8")); code != 3 || lab.operations.Load() != 2 || len(lab.claims) != 0 {
