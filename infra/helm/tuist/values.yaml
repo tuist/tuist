@@ -3835,6 +3835,12 @@ registryCache:
     # package registry's content. Region/endpoint come from objectStorage.
     bucket: tuist-registry
     rootDirectory: docker-mirror
+    # Another S3 store instead of objectStorage: its endpoint (the scheme
+    # decides TLS), region, and a Secret holding access-key-id and
+    # secret-access-key. Empty uses objectStorage's.
+    endpoint: ""
+    region: ""
+    existingSecret: ""
   # Empty = registry auto-generates one per pod (fine at replicaCount 1).
   # Set a shared value before scaling past one replica behind the Service.
   httpSecret: ""
