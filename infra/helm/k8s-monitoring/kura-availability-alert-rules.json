@@ -72,7 +72,7 @@
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "OK",
     "folderUID": "df5dn1g4rckxsf",
     "for": "2m",
     "isPaused": false,

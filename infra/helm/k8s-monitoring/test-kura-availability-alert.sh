@@ -20,7 +20,7 @@ jq -e '
     and $condition.conditions[0].evaluator == {params: [0], type: "gt"}
     and $rule.isPaused == false
     and $rule.ruleGroup == "Cache availability"
-    and $rule.noDataState == "NoData" and $rule.execErrState == "Error"
+    and $rule.noDataState == "NoData" and $rule.execErrState == "OK"
     and ($rule | has("notification_settings") | not)
     and $rule.labels.affected_service == "Cache"
 ' "${rule}" > /dev/null

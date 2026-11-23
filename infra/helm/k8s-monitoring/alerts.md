@@ -3681,8 +3681,10 @@ so repeated lines, restarts and stream-label changes from one pod count once.
 Empty pod metadata is excluded from the distinct-pod count but still raises
 the single-failure warning. Both queries use `or vector(0)` and fixed
 production rule labels: a healthy window returns one zero-valued series,
-not a disappearing alert instance. No Data is OK; evaluation errors remain
-Error and notify Slack rather than on-call. This is not a log-ingestion heartbeat.
+not a disappearing alert instance. No Data is OK, and so is Error since
+2026-11-23: a slow or failed Pulse SQL query evaluates to Normal, and
+`pulse-sql-unavailable` pages when Pulse SQL is down. This is not a
+log-ingestion heartbeat.
 
 There is no pending period. The warning keeps firing for five minutes after
 its condition clears; the incident alert keeps firing for fifteen minutes.
@@ -3695,8 +3697,8 @@ notification policy in `server-vm-notification-route.json` selects `Incidents`
 only for this critical production alert in the Alerts folder. Neither rule
 pins a receiver: Grafana forwards `DatasourceError` to a rule's pinned contact
 point too, which would page through IRM's default route despite no pod failure.
-With exact alert-name matching, query errors retain Slack visibility without
-paging. Merge this policy into the current tree, preserving existing staging
+Exact alert-name matching keeps that route to this alert, not to the
+`DatasourceError` alerts the rules no longer raise. Merge this policy into the current tree, preserving existing staging
 exceptions and other rules; do not replace the tree with this single route.
 The additional IRM route
 `R9CC1Q6J55GXZ`, represented by `server-vm-incident-route.json`, matches only
