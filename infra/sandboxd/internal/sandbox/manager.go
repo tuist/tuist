@@ -915,6 +915,8 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	if cpu, ok := inst.CPUTime(); ok {
 		cpuMs = cpu.Milliseconds()
 	}
+	// Its memory too, before writing the snapshot reads every guest page.
+	mem, _ := inst.ResidentMemory()
 	memNew := filepath.Join(sb.root, "mem.new")
 	snapNew := filepath.Join(sb.root, "snapshot.new")
 	if err := api.CreateSnapshot(ctx, firecracker.SnapshotCreateParams{
@@ -972,7 +974,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		if saveErr != nil {
 			return res, saveErr
 		}
-		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced, CPUMs: cpuMs}, nil
+		return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
@@ -996,7 +998,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
 	}
 	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
-	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs}, nil
+	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced, CPUMs: cpuMs, MemoryAnonBytes: mem.AnonBytes, MemoryFileBytes: mem.FileBytes}, nil
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {

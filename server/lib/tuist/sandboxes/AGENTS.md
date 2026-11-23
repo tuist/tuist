@@ -153,7 +153,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   server adopts from a report bills it from the `cpu_ms` the paused sandbox
   reports (once: the row is no longer running afterwards). A pause from an
   older daemon, a VM the daemon lost, or one `settle_running` adopts from a
-  failed exec leaves it unbilled. `cpu_ms` counts the vCPU threads only. `Analytics.compute/2` sums those rows
+  failed exec leaves it unbilled. `cpu_ms` counts the vCPU threads only. Memory is billed max(request, use): each running session's request
+  from its lifecycle events, plus `excess_memory_mib_ms` on each usage row,
+  what the VM's process held (`memory_anon_bytes` + `memory_file_bytes`,
+  its Pss) past `Capacity.charge_bytes/1` over the interval; a pause bills
+  its last interval from the readings in the pause result. Never meter
+  `memory_current_bytes`: on staging most of it was the clean page cache of
+  the template's or the VM's own memory file. `Analytics.compute/2` sums those rows
   for bursting sessions and counts other sessions' vCPUs (macOS, and Linux
   runs from before metering, up to their first metered report).
   `Concurrency` counts guarantees. The API's analytics report guaranteed

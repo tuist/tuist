@@ -2482,13 +2482,14 @@ defmodule Tuist.Sandboxes do
   # server restart, bills the guarantee for two. The usage row is written
   # only when the row update wins its race, so a lost update is metered by
   # the next report instead.
-  defp meter(attrs, %Sandbox{state: :running, purpose: :agent, platform: :linux} = sandbox, %{
-         "state" => "running",
-         "cpu_ms" => cpu_ms
-       })
+  defp meter(
+         attrs,
+         %Sandbox{state: :running, purpose: :agent, platform: :linux} = sandbox,
+         %{"state" => "running", "cpu_ms" => cpu_ms} = reported
+       )
        when is_integer(cpu_ms) and cpu_ms >= 0 do
     at = DateTime.utc_now()
-    {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage(sandbox, cpu_ms, at)}
+    {Map.merge(attrs, %{metered_cpu_ms: cpu_ms, metered_at: at}), usage(sandbox, cpu_ms, at, resident_bytes(reported))}
   end
 
   # Daemons before the paused reading, and a VM the daemon lost rather than
@@ -2503,9 +2504,26 @@ defmodule Tuist.Sandboxes do
 
   defp meter(attrs, _sandbox, _reported), do: {attrs, nil}
 
+  # What the VM's process holds of the host's memory (`Pss`, anonymous and
+  # file-backed): the guest memory it touched and its VMM, each shared page
+  # counted once across VMs. Clean page cache its cgroup is also charged for
+  # (`memory_current_bytes`) is not use: the host drops it under pressure.
+  # Daemons before the reading send neither field.
+  defp resident_bytes(reported) do
+    case {reported["memory_anon_bytes"], reported["memory_file_bytes"]} do
+      {anon, file} when is_integer(anon) and is_integer(file) and anon >= 0 and file >= 0 -> anon + file
+      _ -> nil
+    end
+  end
+
   # The usage row billing a running Linux agent sandbox's VM from its
-  # previous meter reading to `cpu_ms`, read at `at`.
-  defp usage(sandbox, cpu_ms, at) do
+  # previous meter reading to `cpu_ms`, read at `at` with the VM holding
+  # `memory_bytes` (nil when the node did not read it). Memory is billed
+  # max(request, use): every running session's request comes from its
+  # lifecycle events (`Analytics.compute/2`), and this row adds what the VM
+  # held past its request and the VMM's overhead (`Capacity.charge_bytes/1`)
+  # over the interval, in MiB-milliseconds.
+  defp usage(sandbox, cpu_ms, at, memory_bytes \\ nil) do
     {duration_ms, used_ms} =
       case sandbox do
         %Sandbox{metered_at: %DateTime{} = last_at, metered_cpu_ms: last_ms} when is_integer(last_ms) ->
@@ -2529,15 +2547,18 @@ defmodule Tuist.Sandboxes do
       duration_ms: duration_ms,
       used_cpu_ms: used_ms,
       billed_cpu_ms: max(div(guaranteed * duration_ms, 1000), used_ms),
+      used_memory_bytes: memory_bytes || 0,
+      excess_memory_mib_ms: div(max((memory_bytes || 0) - Capacity.charge_bytes(sandbox), 0), 1024 * 1024) * duration_ms,
       inserted_at: DateTime.to_naive(at)
     }
   end
 
-  # A pause bills the time since the last report from the CPU time the
-  # node read as it paused the VM, which daemons before that reading
-  # leave out; their last interval goes unbilled.
-  defp pause_usage(%Sandbox{purpose: :agent, platform: :linux} = sandbox, %{"cpu_ms" => cpu_ms})
-       when is_integer(cpu_ms) and cpu_ms >= 0, do: usage(sandbox, cpu_ms, DateTime.utc_now())
+  # A pause bills the time since the last report from the CPU time and
+  # memory the node read as it paused the VM, which daemons before those
+  # readings leave out; their last interval goes unbilled, or bills no
+  # memory past the request.
+  defp pause_usage(%Sandbox{purpose: :agent, platform: :linux} = sandbox, %{"cpu_ms" => cpu_ms} = data)
+       when is_integer(cpu_ms) and cpu_ms >= 0, do: usage(sandbox, cpu_ms, DateTime.utc_now(), resident_bytes(data))
 
   defp pause_usage(_sandbox, _data), do: nil
 

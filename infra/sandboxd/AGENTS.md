@@ -523,7 +523,9 @@ daemon lost while running reports none. `memory_anon_bytes` and
 pages the guest wrote, and pages still mapped from the memory file it restored
 from (clean, so the host can drop and reread them). Next to `memory_mb` they
 show how much of a running guest's reservation it holds; paused sandboxes and
-hosts without `/proc` omit them.
+hosts without `/proc` omit them. A `pause` result carries the same two
+readings, taken before the snapshot, so the server bills memory past the
+request up to the pause.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker

@@ -519,6 +519,12 @@ type PauseResult struct {
 	// the time since the last report. Absent when the daemon could not
 	// read it.
 	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// MemoryAnonBytes and MemoryFileBytes are the VM's resident memory at
+	// the pause, as SandboxInfo reports it while it runs, so the server
+	// bills the memory past its request up to the pause. Absent when the
+	// daemon could not read it.
+	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
+	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
 }
 
 type SaveDisksResult struct {
