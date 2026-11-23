@@ -54,6 +54,11 @@ public protocol GitControlling {
     /// Return whether the git working tree has uncommitted changes.
     func hasUncommittedChanges(workingDirectory: AbsolutePath) async throws -> Bool
 
+    /// The paths of tracked files the working tree or the index changed, in `git status` order.
+    /// Untracked files are left out: a coverage run measured the commit's code as long as no tracked
+    /// file differs from it, whatever the CI job wrote next to it.
+    func uncommittedTrackedFiles(workingDirectory: AbsolutePath) async throws -> [String]
+
     /// Return the git URL origin
     func urlOrigin(workingDirectory: AbsolutePath) async throws -> String
 
