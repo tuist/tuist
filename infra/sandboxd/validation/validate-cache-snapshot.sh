@@ -6,14 +6,16 @@
 # With CACHE_DRIVE_IN_TEMPLATE=true, sandboxd snapshots each template shape
 # with an empty 1 MiB cache drive. A create with cache_image clones the image
 # into the jail in its place before restore and patches the drive, so the
-# guest sees the new size. The guest drops its /dev/vdc buffers and mounts.
+# guest sees the new size. The guest agent's configure drops its /dev/vdc
+# buffers, mounts it at /mnt/tuist-cache and binds the manifest's `~/` paths
+# into the sandbox user's home; nothing in this script mounts it.
 #
 # Measured, each REPS times: template creates without the flag (control),
 # with the flag and no cache, with the flag and a cache, and today's
 # disk-snapshot cold create with a cache. Checked: the guest reads the
-# image's bytes, can write to it, keeps it across pause and resume, and the
-# master stays unchanged. One sandbox mounts without dropping buffers first,
-# to show whether that step is needed.
+# image's bytes at the bound path as the sandbox user, can write to it, keeps
+# it across pause and resume, a sandbox without a cache mounts nothing, and
+# the master stays unchanged.
 # shellcheck disable=SC2016
 set -euo pipefail
 [[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]] || {
@@ -53,7 +55,8 @@ sudo mount "$loop" "$work/data"
 docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation-off sandbox-orbs-template:validation
 
 # A cache image made with runner-cache's mkfs flags, holding 256 MiB of
-# random bytes owned by UID 1000 like a CI job's cache.
+# random bytes owned by UID 1000 like a CI job's cache, in tuist-cache-volume's
+# single-path layout: `data` and a manifest naming it `~/proof`.
 cache_dir="$work/data/cache-images"
 sudo mkdir -p "$cache_dir"
 sudo truncate -s 8G "$cache_dir/proof-cache"
@@ -62,6 +65,7 @@ sudo mount -o loop,noatime "$cache_dir/proof-cache" "$work/cache-mnt"
 sudo install -d -o 1000 -g 1000 "$work/cache-mnt/data"
 sudo head -c 256M /dev/urandom | sudo tee "$work/cache-mnt/data/blob" >/dev/null
 sudo chown 1000:1000 "$work/cache-mnt/data/blob"
+echo '{"version":1,"paths":{"~/proof":"data"}}' | sudo tee "$work/cache-mnt/.tuist-paths" >/dev/null
 blob_sha=$(sudo sha256sum "$work/cache-mnt/data/blob" | cut -d' ' -f1)
 sudo umount "$work/cache-mnt"
 master_sha_before=$(sudo sha256sum "$cache_dir/proof-cache" | cut -d' ' -f1)
@@ -115,17 +119,21 @@ build_shape() {
   api POST /v1/templates/default/"$1"/build --data '{"vcpus":2,"memory_mb":4096}' | tee -a "$evidence/template-builds.txt"
   echo
 }
-# The guest side of a cache attach: drop buffers the placeholder may have
-# left, mount, and check the image's bytes. Prints timings and facts.
-mount_check='size=$(blockdev --getsize64 /dev/vdc)
-start=$(date +%s%N)
-blockdev --flushbufs /dev/vdc
-mkdir -p /cache && mount -o noatime /dev/vdc /cache
-echo "size $size"
-echo "mount_ms $(( ($(date +%s%N) - start) / 1000000 ))"
-echo "label $(blkid -s LABEL -o value /dev/vdc)"
-echo "owner $(stat -c %u:%g /cache/data/blob)"
-echo "blob $(sha256sum /cache/data/blob | cut -d" " -f1)"'
+# What the guest's own configure left: the drive at /mnt/tuist-cache, `data`
+# bound at ~/proof and handed to the sandbox user. Prints facts.
+mount_check='echo "size $(blockdev --getsize64 /dev/vdc)"
+echo "mounted $(findmnt -n -o SOURCE,OPTIONS /mnt/tuist-cache)"
+echo "bound $(findmnt -n -o SOURCE /home/user/proof)"
+echo "owner $(stat -c %U:%G /home/user/proof /home/user/proof/blob | tr "\n" " ")"
+echo "blob $(setpriv --reuid=user --regid=user --clear-groups sha256sum /home/user/proof/blob | cut -d" " -f1)"
+setpriv --reuid=user --regid=user --clear-groups touch /home/user/proof/user-write && echo "user_write ok"'
+check_mount() { # ID OUTPUT
+  [[ $(field blob "$2") == "$blob_sha" ]] || { echo "$1 read the wrong bytes"; echo "$2"; exit 1; }
+  [[ $(field mounted "$2") == '/dev/vdc '*noatime* ]] || { echo "$1 has no guest cache mount"; echo "$2"; exit 1; }
+  [[ $(field bound "$2") == '/dev/vdc[/data]' ]] || { echo "$1 has no ~/proof bind"; echo "$2"; exit 1; }
+  [[ $(field owner "$2") == 'user:user user:user' ]] || { echo "$1 left the cache to the wrong owner"; echo "$2"; exit 1; }
+  [[ $(field user_write "$2") == ok ]] || { echo "$1 cache is not writable by the user"; echo "$2"; exit 1; }
+}
 field() { awk -v k="$1" '$1 == k { $1 = ""; sub(/^ /, ""); print }' <<< "$2"; }
 
 # --- Control: today's daemon, no placeholder ------------------------------
@@ -152,7 +160,9 @@ sudo find "$work/data" -path '*/default/validation/*/2x4096/metadata.json' -exec
 echo
 for i in $(seq "$reps"); do
   create placeholder "placeholder-$i" "{\"id\":\"placeholder-$i\",$shape}"
-  guest "placeholder-$i" 'echo "vdc $(blockdev --getsize64 /dev/vdc)"; echo "workspace $(findmnt -n -o SOURCE /workspace)"' > "$evidence/placeholder-guest.txt"
+  guest "placeholder-$i" 'echo "vdc $(blockdev --getsize64 /dev/vdc)"; echo "workspace $(findmnt -n -o SOURCE /workspace)"
+mountpoint -q /mnt/tuist-cache && echo "cache mounted" || echo "cache none"' > "$evidence/placeholder-guest.txt"
+  grep -qx 'cache none' "$evidence/placeholder-guest.txt" || { echo "placeholder-$i mounted its blank placeholder"; exit 1; }
   api POST "/v1/sandboxes/placeholder-$i/delete" >/dev/null
 done
 cat "$evidence/placeholder-guest.txt"
@@ -161,26 +171,21 @@ for i in $(seq "$reps"); do
   create snapshot_cache "warm-$i" "{\"id\":\"warm-$i\",$shape,\"cache_image\":\"proof-cache\"}"
   out=$(guest "warm-$i" "$mount_check")
   echo "$out" > "$evidence/warm-$i.txt"
-  [[ $(field blob "$out") == "$blob_sha" ]] || { echo "warm-$i read the wrong bytes"; echo "$out"; exit 1; }
+  check_mount "warm-$i" "$out"
   [[ $(field size "$out") == $((8 << 30)) ]] || { echo "warm-$i saw the wrong size"; echo "$out"; exit 1; }
   if [[ $i == 1 ]]; then
     # Writable, and kept across pause and resume (a snapshot of the sandbox
     # itself, which now records the real image).
-    guest warm-1 'echo guest-write > /cache/data/guest-write && sync'
+    guest warm-1 'echo guest-write > /home/user/proof/guest-write && sync'
     api POST /v1/sandboxes/warm-1/pause --data '{}' > "$evidence/pause-warm.json"
     api POST /v1/sandboxes/warm-1/resume --data '{}' > "$evidence/resume-warm.json"
-    resumed=$(guest warm-1 'cat /cache/data/guest-write; findmnt -n -o SOURCE /cache; sha256sum /cache/data/blob | cut -d" " -f1')
+    resumed=$(guest warm-1 'cat /home/user/proof/guest-write; findmnt -n -o SOURCE /home/user/proof; sha256sum /home/user/proof/blob | cut -d" " -f1; findmnt -n /mnt/tuist-cache | wc -l')
     echo "$resumed" | tee "$evidence/warm-resumed.txt"
-    [[ $(sed -n 1p <<< "$resumed") == guest-write && $(sed -n 3p <<< "$resumed") == "$blob_sha" ]]
+    # One mount after the resume's configure, not a second on top.
+    [[ $(sed -n 1p <<< "$resumed") == guest-write && $(sed -n 2p <<< "$resumed") == '/dev/vdc[/data]' && $(sed -n 3p <<< "$resumed") == "$blob_sha" && $(sed -n 4p <<< "$resumed") == 1 ]]
   fi
   api POST "/v1/sandboxes/warm-$i/delete" >/dev/null
 done
-
-# Without dropping buffers: does the guest see stale placeholder blocks?
-create noflush noflush "{\"id\":\"noflush\",$shape,\"cache_image\":\"proof-cache\"}"
-guest noflush 'mkdir -p /cache; if mount -o noatime /dev/vdc /cache; then echo "mount ok"; sha256sum /cache/data/blob | cut -d" " -f1; else echo "mount failed"; fi; dmesg | tail -5' \
-  | tee "$evidence/noflush.txt" || true
-api POST /v1/sandboxes/noflush/delete >/dev/null || true
 
 # --- Today's path: disk snapshot plus a cold boot -------------------------
 create base base "{\"id\":\"base\",$shape}"
@@ -191,7 +196,7 @@ for i in $(seq "$reps"); do
   create cold_cache "cold-$i" "{\"id\":\"cold-$i\",$shape,\"from_disk_snapshot\":\"base\",\"cache_image\":\"proof-cache\"}"
   out=$(guest "cold-$i" "$mount_check")
   echo "$out" > "$evidence/cold-$i.txt"
-  [[ $(field blob "$out") == "$blob_sha" ]] || { echo "cold-$i read the wrong bytes"; echo "$out"; exit 1; }
+  check_mount "cold-$i" "$out"
   api POST "/v1/sandboxes/cold-$i/delete" >/dev/null
 done
 stop_daemon
@@ -205,10 +210,7 @@ summary=$(for c in control placeholder snapshot_cache cold_cache; do
   jq -n --arg c "$c" --argjson boot "$boot" --argjson wall "$wall" '{case: $c, median_boot_ms: $boot, median_create_wall_ms: $wall}'
 done | jq -s .)
 jq -n --argjson cases "$summary" --arg reps "$reps" \
-  --arg warm_mount_ms "$(cat "$evidence"/warm-*.txt | awk '$1 == "mount_ms" { print $2 }' | median)" \
-  --arg cold_mount_ms "$(cat "$evidence"/cold-*.txt | awk '$1 == "mount_ms" { print $2 }' | median)" \
-  --arg noflush "$(tr '\n' ' ' < "$evidence/noflush.txt")" \
   --argjson master_intact "$([[ $master_sha_before == "$master_sha_after" ]] && echo true || echo false)" \
-  '{reps: $reps, cases: $cases, median_guest_mount_ms: {snapshot_cache: $warm_mount_ms, cold_cache: $cold_mount_ms}, noflush: $noflush, master_intact: $master_intact}' \
+  '{reps: $reps, cases: $cases, master_intact: $master_intact}' \
   | tee "$evidence/summary.json"
 jq -e '.master_intact' "$evidence/summary.json" >/dev/null

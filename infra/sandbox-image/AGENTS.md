@@ -16,7 +16,7 @@ node only covers what is inside the VM and how the template reaches a node.
 | `internal/protocol` | Request and response frames, newline-delimited JSON. |
 | `internal/exec` | Command registry: process groups, streamed stdout/stderr, timeouts (exit 124), kill by exec id. |
 | `internal/agent` | Op dispatch behind a `System` interface, tested over `net.Pipe`. |
-| `internal/guest` | The Linux implementation of `System`: `clock_settime`, `sethostname`, neighbour flush, workspace disk. Stubs elsewhere. |
+| `internal/guest` | The Linux implementation of `System`: `clock_settime`, `sethostname`, neighbour flush, workspace disk, cache drive. Stubs elsewhere. |
 | `internal/sysconfig` | Rendering of the hostname, hosts and resolver files and kernel command line parsing. |
 | `Dockerfile`, `install-template.sh` | Template image and its entrypoint. |
 | `agent-home` | The skill installed into `user`'s home. |
@@ -70,6 +70,17 @@ accepts sandbox identity tokens at `/mcp` for anyone who adds it themselves.
   it alone. The flush is there because the block layer may still hold zero
   sectors it cached from the empty template disk before the sandbox's own disk
   file was substituted under the same device.
+- `/dev/vdc`, when sandboxd attaches one, is a private clone of a runner-cache
+  volume (or, in a template snapshot built with `CACHE_DRIVE_IN_TEMPLATE`, a
+  blank 1 MiB placeholder). After the workspace, `configure` runs `BLKFLSBUF`
+  on it and, when it holds ext4 and nothing is mounted at `/mnt/tuist-cache`,
+  mounts it there read-write with `noatime`. Each `~/` spelling of its
+  `.tuist-paths` manifest (tuist-cache-volume's layout: `data` or the
+  spelling's sha256) is bound at that path under `user`'s home, with the
+  missing directories created and the subtree handed to `user`. Absolute and
+  home-escaping spellings are skipped, and so is a symlinked path component.
+  A cache problem is logged and never fails `configure`; a resume finds the
+  mount in place and does nothing, and a cold reboot mounts it again.
 - `sbx-agent` listens on vsock port 5000, one request per connection. The
   frames are the ones in `infra/sandboxd/AGENTS.md` plus the optional boolean
   `format_workspace` on `configure`. `exec` runs as root with `/workspace` as the
