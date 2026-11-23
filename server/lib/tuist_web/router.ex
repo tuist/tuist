@@ -1505,6 +1505,7 @@ defmodule TuistWeb.Router do
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    post "/runners/pods/:pod_name/job-started", RunnerPodJobsController, :started
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
     post "/runners/jobs/bitrise/started", RunnerBitriseReportsController, :started
