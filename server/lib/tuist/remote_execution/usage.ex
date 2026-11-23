@@ -224,6 +224,17 @@ defmodule Tuist.RemoteExecution.Usage do
     end
   end
 
+  @doc "The VM memory sizes, in GB, that ran an action of `account_id` since `since`."
+  def memory_sizes_gb(account_id, %DateTime{} = since) do
+    from(e in UsageEvent,
+      where: e.account_id == ^account_id and e.inserted_at >= ^DateTime.to_naive(since),
+      distinct: true,
+      select: e.memory_mb
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(&div(&1, 1024))
+  end
+
   defp usage(account_id, from, to) do
     from(e in UsageEvent,
       where: e.account_id == ^account_id,

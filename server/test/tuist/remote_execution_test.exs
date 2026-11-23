@@ -59,7 +59,7 @@ defmodule Tuist.RemoteExecutionTest do
   # Limits that hold `max_concurrency` VMs of 2 vCPUs and 4 GB.
   defp configure(project, max_concurrency: vms) do
     {:ok, account} =
-      RemoteExecution.update_limits(project.account, %{
+      RemoteExecution.update_limits(Repo.reload!(project.account), %{
         remote_execution_vcpus_limit: vms * 2,
         remote_execution_memory_gb_limit: vms * 4
       })
@@ -414,11 +414,51 @@ defmodule Tuist.RemoteExecutionTest do
       assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^large, env: env}}
       assert %{"memory_gb" => 8} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
 
-      # The warm pool refills with default VMs once the large one is deleted.
+      # The warm pool refills with default VMs once the large one is deleted,
+      # which leave the account no room for a warm large one.
       eventually(fn ->
         rows = vm_rows(project)
         rows != [] and Enum.all?(rows, &(&1.memory_mb == 4096 and &1.id != large))
       end)
+    end
+
+    test "a size the account just used keeps one VM of it warm beside the default ones", %{project: project} do
+      {:ok, _} = configure(project, max_concurrency: 8)
+      stub_node()
+
+      assert {:ok, %{done: true}} = submit(project, %{"memory_gb" => 8})
+      assert_received {:node, "create", %{memory_mb: 8192, sandbox_id: used}}
+
+      eventually(fn ->
+        rows = vm_rows(project)
+        Enum.count(rows, &(&1.memory_mb == 8192 and &1.id != used)) == 1 and Enum.any?(rows, &(&1.memory_mb == 4096))
+      end)
+
+      # One, not the number of recent actions of that size.
+      Process.sleep(300)
+      assert project |> vm_rows() |> Enum.filter(&(&1.memory_mb == 8192 and &1.id != used)) |> length() == 1
+    end
+
+    test "a size used before the scheduler started is warmed with the first build's pool", %{project: project} do
+      {:ok, _} = configure(project, max_concurrency: 8)
+
+      Tuist.IngestRepo.insert_all(UsageEvent, [
+        %{
+          id: UUIDv7.generate(),
+          account_id: project.account_id,
+          project_id: project.id,
+          sandbox_id: UUIDv7.generate(),
+          mode: "scheduled",
+          vcpus: 4,
+          memory_mb: 8192,
+          duration_ms: 20_000,
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3_600)
+        }
+      ])
+
+      stub_node()
+      assert {:ok, %{done: true}} = submit(project)
+      assert_receive {:node, "create", %{memory_mb: 8192}}, 2_000
     end
 
     test "an action that asks for 2 GB runs in a 1 vCPU VM", %{project: project} do

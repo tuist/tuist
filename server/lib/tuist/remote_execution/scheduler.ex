@@ -18,6 +18,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Settings
+  alias Tuist.RemoteExecution.Usage
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Sandboxes.Nodes
 
@@ -35,6 +36,11 @@ defmodule Tuist.RemoteExecution.Scheduler do
   # time, and a build's peak outlives the gap between builds.
   @warm_hold_ms 60_000
   @max_warm_vms 4
+  # While the warm pool is held, one VM of each other size the account ran an
+  # action in within this window is kept ready too: a build that needs a
+  # larger VM tends to need it on every run, once, and would otherwise wait
+  # for its preparation.
+  @size_memory_ms 86_400_000
   @initial_prepare_ms 50
   # A VM is assigned only while its last renewal leaves most of the lease.
   @fresh_lease_ms 40_000
@@ -135,26 +141,33 @@ defmodule Tuist.RemoteExecution.Scheduler do
         Process.send_after(self(), :tick, @tick_ms)
         Process.send_after(self(), :renew, @renew_ms)
         Process.send_after(self(), :refresh, @refresh_ms)
+        since = DateTime.add(DateTime.utc_now(), -@size_memory_ms, :millisecond)
 
         {:ok,
-         %{
-           account_id: account_id,
-           settings: settings,
-           ops: %{},
-           queue: :queue.new(),
-           lease_waiters: :queue.new(),
-           inflight: %{},
-           vms: %{},
-           tasks: %{},
-           tokens: %{},
-           blocked_on: nil,
-           prepare_after: now_ms(),
-           active_at: now_ms(),
-           arrivals: :queue.new(),
-           prepare_ms: @initial_prepare_ms,
-           warm_peak: 0,
-           warm_peak_at: now_ms()
-         }, {:continue, :reconcile}}
+         start_task(
+           %{
+             account_id: account_id,
+             settings: settings,
+             ops: %{},
+             queue: :queue.new(),
+             lease_waiters: :queue.new(),
+             inflight: %{},
+             vms: %{},
+             tasks: %{},
+             tokens: %{},
+             blocked_on: nil,
+             prepare_after: now_ms(),
+             active_at: now_ms(),
+             arrivals: :queue.new(),
+             prepare_ms: @initial_prepare_ms,
+             warm_peak: 0,
+             warm_peak_at: now_ms(),
+             # Size => when the account last asked for it, monotonic.
+             sizes_seen: %{}
+           },
+           :sizes_seen,
+           fn -> Usage.memory_sizes_gb(account_id, since) end
+         ), {:continue, :reconcile}}
 
       _ ->
         :ignore
@@ -206,7 +219,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
                 | ops: Map.put(state.ops, op.id, op),
                   queue: :queue.in(op.id, state.queue),
                   inflight: inflight,
-                  arrivals: :queue.in(state.active_at, state.arrivals)
+                  arrivals: :queue.in(state.active_at, state.arrivals),
+                  sizes_seen: Map.put(state.sizes_seen, op.memory_gb, state.active_at)
               })
 
             wait_for(state, op.id, from, :done, wait_ms)
@@ -651,6 +665,15 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
   defp handle_task({:renew, _ids, _sent_at}, _error, state), do: state
 
+  # Sizes from before this process started count as seen now.
+  defp handle_task(:sizes_seen, sizes, state) when is_list(sizes) do
+    now = now_ms()
+    seen = Enum.reduce(sizes, state.sizes_seen, &Map.put_new(&2, &1, now))
+    reconcile(%{state | sizes_seen: seen})
+  end
+
+  defp handle_task(:sizes_seen, _error, state), do: state
+
   # The reaper deleted this row: its VM is gone or being deleted. A busy or
   # leased VM's action fails on its own; idle and retiring ones need nothing more.
   defp lost(vms, %{state: state}) when state in [:busy, :leased], do: vms
@@ -715,8 +738,19 @@ defmodule Tuist.RemoteExecution.Scheduler do
     demand = Enum.frequencies(queued)
     ready = state.vms |> Map.values() |> Enum.filter(&(&1.state == :ready))
     {stale, ready} = Enum.split_with(ready, &(not matches?(&1.sandbox, settings)))
-    # Only default VMs stay warm; another size is prepared for queued work.
-    excess = spare(ready, demand, fn size -> if size == default, do: warm, else: 0 end)
+    # The warm pool is default VMs, plus one of each other recent size while
+    # it is held; another size is prepared for queued work.
+    sizes = if warm > 0, do: other_sizes(state, default), else: []
+
+    excess =
+      spare(ready, demand, fn size ->
+        cond do
+          size == default -> warm
+          size in sizes -> 1
+          true -> 0
+        end
+      end)
+
     state = Enum.reduce(stale ++ excess, state, &retire(&2, &1.id, nil))
 
     # Each queued action without a VM of its size on the way, then the warm pool.
@@ -725,7 +759,10 @@ defmodule Tuist.RemoteExecution.Scheduler do
         if Map.get(coming, size, 0) > 0, do: {[], Map.update!(coming, size, &(&1 - 1))}, else: {[size], coming}
       end)
 
-    warming = List.duplicate(default, max(warm - Map.get(coming, default, 0), 0))
+    # Default VMs first: a larger size that does not fit holds back the ones after it.
+    warming =
+      List.duplicate(default, max(warm - Map.get(coming, default, 0), 0)) ++
+        Enum.filter(sizes, &(Map.get(coming, &1, 0) == 0))
 
     state =
       if is_nil(state.blocked_on) and now_ms() >= state.prepare_after,
@@ -852,6 +889,14 @@ defmodule Tuist.RemoteExecution.Scheduler do
 
     {min(peak, min(@max_warm_vms, state.settings.max_concurrency)),
      %{state | arrivals: arrivals, warm_peak: peak, warm_peak_at: peak_at}}
+  end
+
+  defp other_sizes(state, default) do
+    since = now_ms() - @size_memory_ms
+
+    for {size, at} <- Enum.sort(state.sizes_seen),
+        size != default and at >= since and size in Settings.memory_sizes_gb() and Settings.fits?(state.settings, size),
+        do: size
   end
 
   defp drop_old_arrivals(arrivals, since) do
