@@ -305,6 +305,8 @@ spec:
               value: {{ .Values.sandboxes.cacheDriveInTemplate | default false | quote }}
             {{- end }}
             {{- end }}
+            - name: BALLOON_FREE_PAGE_REPORTING
+              value: {{ .Values.sandboxes.balloonFreePageReporting | default false | quote }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}

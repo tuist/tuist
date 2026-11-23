@@ -54,6 +54,9 @@ type Builder struct {
 	// snapshot, so a create from it can swap a cache image in after restore
 	// instead of cold booting.
 	CacheDrive bool
+	// Balloon gives every shape snapshot firecracker.ReportingBalloon, so
+	// guests restored from it return their free memory to the host.
+	Balloon bool
 
 	mu     sync.Mutex
 	builds map[string]*build
@@ -252,6 +255,12 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		{"vsock", func() error {
 			return api.PutVsock(ctx, firecracker.Vsock{GuestCID: firecracker.GuestCID, UDSPath: inst.GuestPath(firecracker.VsockPath)})
 		}},
+		{"balloon", func() error {
+			if !b.Balloon {
+				return nil
+			}
+			return api.PutBalloon(ctx, firecracker.ReportingBalloon)
+		}},
 		{"instance start", func() error { return api.InstanceStart(ctx) }},
 	}
 	for _, step := range steps {
@@ -343,7 +352,7 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 	meta := Metadata{
 		Name: t.Name, Tag: t.Tag, Kernel: t.seedKernel(), VCPUs: shape.VCPUs, MemoryMB: shape.MemoryMB,
 		WorkspaceGB: workspaceGB, FirecrackerVersion: b.FirecrackerVersion, BuiltAt: time.Now().UTC(),
-		WorkspacePrepared: preparedWorkspace, CacheDrive: b.CacheDrive,
+		WorkspacePrepared: preparedWorkspace, CacheDrive: b.CacheDrive, Balloon: b.Balloon,
 	}
 	if err := writeJSON(filepath.Join(staging, MetadataFile), meta); err != nil {
 		return err

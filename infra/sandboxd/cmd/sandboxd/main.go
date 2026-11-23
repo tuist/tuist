@@ -241,8 +241,12 @@ func main() {
 	// startup remove shape snapshots built the other way, which the next
 	// create rebuilds.
 	cacheDriveInTemplate := os.Getenv("CACHE_IMAGE_DIR") != "" && os.Getenv("CACHE_DRIVE_IN_TEMPLATE") == "true"
+	// Experimental too: guests boot with a free-page-reporting balloon and
+	// return the memory they free. Changing it rebuilds shape snapshots the
+	// same way.
+	balloon := os.Getenv("BALLOON_FREE_PAGE_REPORTING") == "true"
 	store := &template.Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB, cacheDriveInTemplate); err != nil {
+	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB, cacheDriveInTemplate, balloon); err != nil {
 		logger.Error("cleaning partial template builds", "error", err)
 		os.Exit(1)
 	}
@@ -304,6 +308,7 @@ func main() {
 		UIDBase: uidBase, DNS: dns, FirecrackerVersion: fcVersion, WorkspaceGB: templateWorkspaceGB,
 		BootTimeout: templateBootTimeout, Log: logger, Events: events,
 		CacheDrive: cacheDriveInTemplate,
+		Balloon:    balloon,
 		Observe: func(shape template.Shape, elapsed time.Duration, err error) {
 			if err == nil {
 				metrics.TemplateBuild.WithLabelValues(shape.String()).Observe(elapsed.Seconds())

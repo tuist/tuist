@@ -956,6 +956,8 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 48
   prebuildShapes: "16x4096,16x8192"
+  # Memory bursting prototype: measure how much memory guests return.
+  balloonFreePageReporting: true
   diskGiB: 100
   archiveAfterHours: 24
   admin:

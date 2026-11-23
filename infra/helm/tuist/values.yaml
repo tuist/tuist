@@ -2829,6 +2829,11 @@ sandboxes:
   # images".
   cacheImagesGiB: 0
   cacheDriveInTemplate: false
+  # Experimental: guests boot with a free-page-reporting balloon and return
+  # the memory they free to the host. Changing it rebuilds every shape
+  # snapshot on the node. See infra/sandboxd/AGENTS.md,
+  # BALLOON_FREE_PAGE_REPORTING.
+  balloonFreePageReporting: false
   # Size of the root filesystem every sandbox gets, which holds home (mise
   # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
   # The template's init container grows the image to it, sparse, when it

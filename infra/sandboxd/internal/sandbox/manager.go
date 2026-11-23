@@ -659,6 +659,14 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 		{"vsock", func() error {
 			return api.PutVsock(ctx, firecracker.Vsock{GuestCID: firecracker.GuestCID, UDSPath: inst.GuestPath(firecracker.VsockPath)})
 		}},
+		// A cold boot gets the balloon shape snapshots get, so the sandbox
+		// returns free memory from here on whatever it was created from.
+		{"balloon", func() error {
+			if m.builder == nil || !m.builder.Balloon {
+				return nil
+			}
+			return api.PutBalloon(ctx, firecracker.ReportingBalloon)
+		}},
 		{"instance start", func() error { return api.InstanceStart(ctx) }},
 	}
 	for _, step := range steps {
