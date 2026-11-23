@@ -130,12 +130,17 @@
     }
   }
 
-  /* One image takes the whole width; baseline and new split it in two columns. */
+  /* The comparison is one framed viewer: one image takes its whole width, and
+     baseline and new split it in two panes divided by a rule, each labelled in
+     its corner with its image centred on a tinted backdrop. */
   & [data-part="panes"] {
     display: grid;
     grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
-    gap: var(--noora-spacing-6);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    overflow: hidden;
 
     @media (max-width: 768px) {
       grid-auto-flow: row;
@@ -145,12 +150,23 @@
   & [data-part="pane"] {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: var(--noora-spacing-3);
+    align-items: center;
+    gap: var(--noora-spacing-4);
     margin: 0;
+    padding: var(--noora-spacing-5) var(--noora-spacing-6) var(--noora-spacing-6);
     min-width: 0;
 
+    & + [data-part="pane"] {
+      border-inline-start: 1px solid var(--noora-surface-border-primary);
+
+      @media (max-width: 768px) {
+        border-block-start: 1px solid var(--noora-surface-border-primary);
+        border-inline-start: 0;
+      }
+    }
+
     & > figcaption {
+      align-self: flex-start;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     }
@@ -265,11 +281,23 @@
   & [data-part="compare"] {
     --snapshot-compare-position: 50;
 
+    /* The same framed, tinted viewer as the panes, with the overlay and its
+       controls centred in it, no taller than the panes' images. */
+    --snapshot-compare-width: calc(600px * var(--snapshot-aspect));
+
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: var(--noora-spacing-4);
-    /* As wide as the card, but no taller than the panes' images. */
-    max-width: calc(600px * var(--snapshot-aspect));
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-6);
+
+    & > * {
+      width: 100%;
+      max-width: var(--snapshot-compare-width);
+    }
 
     & > [data-part="compare-frame"] {
       position: relative;
@@ -916,8 +944,7 @@ body:has(#snapshot-fullscreen) {
     }
 
     & [data-part="compare"] {
-      margin-inline: auto;
-      max-width: calc((var(--snapshot-fullscreen-height) - 60px) * var(--snapshot-aspect));
+      --snapshot-compare-width: calc((var(--snapshot-fullscreen-height) - 100px) * var(--snapshot-aspect));
     }
   }
 }
