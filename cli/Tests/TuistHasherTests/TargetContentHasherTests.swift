@@ -528,6 +528,14 @@ struct TargetContentHasherTests {
             for: .test(target: nested, project: project), hashedTargets: [:], hashedPaths: [:], destination: nil
         )
         #expect(nestedHash.subhashes.headers == "\(try #require(after.subhashes.headers))-framework-headers-namespace")
+
+        // Earlier artifacts left out textually included files, such as aws-c-common's `.inl` headers.
+        var textual = package
+        textual.headers = .test(public: ["/package/include/error.inl"], sourceLayout: package.headers?.sourceLayout)
+        let textualHash = try await subject.contentHash(
+            for: .test(target: textual, project: project), hashedTargets: [:], hashedPaths: [:], destination: nil
+        )
+        #expect(textualHash.subhashes.headers == "\(try #require(after.subhashes.headers))-textual-headers")
     }
 
     @Test func hash_with_destination() async throws {

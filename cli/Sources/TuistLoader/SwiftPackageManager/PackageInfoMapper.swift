@@ -1470,7 +1470,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
         case .custom, .header: usesDirectoryModuleMap = false
         }
 
-        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        // SwiftPM's header extensions, plus files headers include textually, such as aws-c-common's
+        // `<aws/common/error.inl>`. SwiftPM reaches those through the include directory; cached artifacts
+        // only carry the headers listed here.
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def,inl,inc,tcc,tpp}"
         let excluding: [ProjectDescription.Path] = try await target.exclude.concurrentMap {
             let path = targetPath.appending(try RelativePath(validating: $0))
             let isDirectory = try await fileSystem.exists(path, isDirectory: true)
