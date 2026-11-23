@@ -220,7 +220,7 @@ A run is marked partial when it leaves tests out: its own arguments (`--only`, `
 - builds the repository's crates with `-C instrument-coverage`, and its dependencies as a plain build does;
 - starts every test process through a target runner that records the process's arguments and gives it a profile of its own;
 - reads the profiles with `llvm-profdata` and `llvm-cov`, from the toolchain's `llvm-tools` component, which it installs on a rustup toolchain that lacks it;
-- sends the `coverage` block (`tool` `llvm-cov`, the target triple as `platform`) inline, or uploaded first above the server's threshold, together with `coverage_evidence`.
+- sends the `coverage` block (`tool` `llvm-cov`, the target triple as `platform`) inline, or uploaded first when its uncompressed size is above the server's threshold, together with `coverage_evidence`.
 
 A Cargo package is a target. Its integration tests, benchmarks and examples are test code: the files under `tests/`, `benches/` and `examples/`, and a target of one of those kinds. Each executable line belongs to the function that starts closest above it. A generic function's instantiations, and a function compiled into several test binaries, count once, under the function's demangled path without its generic arguments.
 
