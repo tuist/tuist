@@ -112,15 +112,20 @@ Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
 The final stage is Alpine with GNU coreutils and e2fsprogs and carries
 `/template/vmlinux`, `/template/vmlinux.config`, `/template/rootfs.ext4` and
 `/template/metadata.json`, which records the guest `user`'s `runner_uid` and
-`runner_gid` for sandboxd's prepared checkout workspaces. sandboxd's DaemonSet runs it as an init container
-with the node's `/data/sandboxes` mounted at `/host` and `TEMPLATE_TAG` set
+`runner_gid` for sandboxd's prepared checkout workspaces. The sandboxes chart runs it as the init container
+of a template installer DaemonSet, separate from sandboxd's so a template
+upgrade never restarts the daemon, with the node's `/data/sandboxes` mounted
+at `/host` and `TEMPLATE_TAG` set
 (`TEMPLATE_NAME` defaults to `default`, `TEMPLATE_DIR` to
 `/host/templates/<name>/<tag>`, `ROOTFS_SIZE` to `12G`; the tuist chart sets
 `sandboxes.rootfsGiB`, 20, and remote execution's `bazel` template keeps the
 default). `install-template.sh` copies the files with `cp --sparse=always`
-only when `rootfs.ext4` is missing from the target, each under a temporary
-name that is renamed into place with the rootfs last, then writes
-`metadata.json` with `tag` and the installed `rootfs_bytes` added. sandboxd
+only when `rootfs.ext4` is missing from the target, into
+`/host/template-staging/<name>-<tag>` (`TEMPLATE_STAGING_DIR`, which must share
+the target's filesystem), renamed into place whole so a running daemon never
+sees a partial tag, then writes `metadata.json` with `tag` and the installed
+`rootfs_bytes` added and finally names the tag in `templates/<name>/current`,
+which sandboxd without `TEMPLATE_TAG` follows. sandboxd
 boots the template, snapshots it and writes the `ready` marker itself.
 
 The rootfs travels dense inside the image layer, so the build sizes it to its

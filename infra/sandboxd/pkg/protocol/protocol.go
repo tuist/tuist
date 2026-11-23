@@ -286,8 +286,12 @@ type Report struct {
 	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
 	Memory        MemoryReport       `json:"memory"`
 	Disk          DiskReport         `json:"disk"`
-	// Templates is sent by macOS hosts, whose warm VMs change between hellos.
-	Templates []TemplateInfo `json:"templates,omitempty"`
+	// Templates is sent by macOS hosts, whose warm VMs change between hellos,
+	// and by Linux daemons that follow their template's current tag, whose
+	// templates and default tag change when the installer adds a tag.
+	Templates          []TemplateInfo `json:"templates,omitempty"`
+	DefaultTemplate    string         `json:"default_template,omitempty"`
+	DefaultTemplateTag string         `json:"default_template_tag,omitempty"`
 }
 
 type Command struct {

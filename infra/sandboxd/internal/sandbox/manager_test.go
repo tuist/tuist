@@ -744,7 +744,7 @@ func TestCreateUsesConfiguredDefaultTemplateTag(t *testing.T) {
 	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "ambiguous", VCPUs: 2, MemoryMB: 4096}); err == nil {
 		t.Fatal("without a configured tag two versions on disk must be ambiguous")
 	}
-	h.m.cfg.DefaultTemplateTag = "t2"
+	h.m.SetDefaultTemplateTag("t2")
 	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "configured", VCPUs: 2, MemoryMB: 4096}); err != nil {
 		t.Fatalf("create with the configured default tag: %v", err)
 	}
@@ -759,6 +759,17 @@ func TestCreateUsesConfiguredDefaultTemplateTag(t *testing.T) {
 	info, _ = h.m.Status(context.Background(), "explicit")
 	if info.TemplateTag != "t1" {
 		t.Fatalf("expected the explicit tag t1, got %+v", info)
+	}
+	// Following the installer moves the default for later creates only.
+	h.m.SetDefaultTemplateTag("t1")
+	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "switched", VCPUs: 2, MemoryMB: 4096}); err != nil {
+		t.Fatalf("create after the default tag moved: %v", err)
+	}
+	if info, _ = h.m.Status(context.Background(), "switched"); info.TemplateTag != "t1" {
+		t.Fatalf("expected the new default tag t1, got %+v", info)
+	}
+	if info, _ = h.m.Status(context.Background(), "configured"); info.TemplateTag != "t2" {
+		t.Fatalf("an existing sandbox must keep its tag, got %+v", info)
 	}
 }
 

@@ -25,7 +25,7 @@ place up to `sandboxes.maxMemoryGiB` (see "Server side").
 | Piece | Where | Runs as |
 |---|---|---|
 | `sandboxd` | `infra/sandboxd` (Go) | privileged DaemonSet Pod in `tuist-sandboxes` on nodes selected by `sandboxes.nodePools` |
-| template image | `infra/sandbox-image` (Dockerfile) | init container of the DaemonSet Pod; copies `vmlinux` + `rootfs.ext4` onto the node |
+| template image | `infra/sandbox-image` (Dockerfile) | init container of the separate template installer DaemonSet (`<name>-template`); copies `vmlinux` + `rootfs.ext4` onto the node and names the tag in the template's `current` file |
 | `sbx-init` | `infra/sandbox-image/cmd/sbx-init` (Go) | PID 1 inside the guest |
 | `sbx-agent` | `infra/sandbox-image/cmd/sbx-agent` (Go) | vsock server inside the guest; exec, files, time |
 | `sbx-worker` | `infra/sandbox-image/cmd/sbx-worker` (Go) | Anthropic SDK `EnvironmentWorker.HandleItem` inside the guest, one process per residency |
@@ -37,6 +37,8 @@ Everything lives under `/data/sandboxes` on the node (`/data` is XFS with
 reflink, so rootfs clones are instant copy-on-write):
 
 ```
+/data/sandboxes/templates/<name>/current
+                      the tag the installer completed last
 /data/sandboxes/templates/<name>/<tag>/
   vmlinux             kernel from the template image
   rootfs.ext4         pristine rootfs from the template image
@@ -746,7 +748,7 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. Remote-execution daemons (`EXECUTION_SLOTS`) also keep the tag the node ran before, the other tag whose `metadata.json` the init container rewrote last, because the server keeps placing executions on it until most nodes roll. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, followed | Default template and the tag creates use for it when the caller names none. Without `TEMPLATE_TAG` (the sandboxes chart) the daemon uses the tag in `templates/<name>/current`, which the template installer writes once a tag is complete (before any installer ran, the tag whose `metadata.json` was rewritten last), checks that file every 30 s, and when it names another tag builds `PREBUILD_SHAPES` for it, then switches new creates to it, prunes unused tags and reports the new `templates` and `default_template_tag`; a tag whose shapes fail to build is retried after 10 minutes while creates keep the previous tag. A template upgrade therefore never restarts the daemon or its VMs. With a tag set (remote execution), the daemon keeps it until restarted, and startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. Remote-execution daemons (`EXECUTION_SLOTS`) also keep the tag the node ran before, the other tag whose `metadata.json` the init container rewrote last, because the server keeps placing executions on it until most nodes roll. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
@@ -47,7 +48,8 @@ type Config struct {
 	DefaultTemplate string
 	// DefaultTemplateTag is the tag creates use for the default template
 	// when the caller names none, so older template versions left on disk
-	// never make the default ambiguous.
+	// never make the default ambiguous. SetDefaultTemplateTag moves it when
+	// the installer completes a newer tag.
 	DefaultTemplateTag string
 	BootTimeout        time.Duration
 	WorkerPath         string
@@ -131,6 +133,9 @@ type Manager struct {
 	checkoutLimits checkout.Limits
 	workspaces     *checkout.Workspaces
 	cgroups        *hostinfo.VMCgroups
+
+	// defaultTag is the current DefaultTemplateTag.
+	defaultTag atomic.Pointer[string]
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -218,7 +223,7 @@ func New(cfg Config, deps Deps) *Manager {
 	if deps.HTTPClient == nil {
 		deps.HTTPClient = defaultHTTPClient()
 	}
-	return &Manager{
+	m := &Manager{
 		cfg: cfg, store: deps.Store, builder: deps.Builder, launcher: deps.Launcher, net: deps.Network,
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
@@ -229,7 +234,17 @@ func New(cfg Config, deps Deps) *Manager {
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
+	m.SetDefaultTemplateTag(cfg.DefaultTemplateTag)
+	return m
 }
+
+// DefaultTemplateTag is the tag creates of the default template use when
+// the caller names none.
+func (m *Manager) DefaultTemplateTag() string { return *m.defaultTag.Load() }
+
+// SetDefaultTemplateTag makes creates that name no tag use tag from now on.
+// Sandboxes already created keep the tag they were created from.
+func (m *Manager) SetDefaultTemplateTag(tag string) { m.defaultTag.Store(&tag) }
 
 // Claims holds the claimed execs waiting for their direct caller.
 func (m *Manager) Claims() *Claims { return m.claims }
@@ -476,7 +491,7 @@ func (m *Manager) resolveTemplate(name, tag string) (template.Template, error) {
 		name = m.cfg.DefaultTemplate
 	}
 	if tag == "" && name == m.cfg.DefaultTemplate {
-		tag = m.cfg.DefaultTemplateTag
+		tag = m.DefaultTemplateTag()
 	}
 	return m.store.Resolve(name, tag)
 }

@@ -391,6 +391,36 @@ func TestRemoveStaleTagsKeepsCurrentAndInUseTags(t *testing.T) {
 	}
 }
 
+func TestCurrentTagReadsTheInstallersPointer(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	seedTemplate(t, dir, "default", "sha-old")
+	if tag, err := store.CurrentTag("default"); err != nil || tag != "" {
+		t.Fatalf("no pointer yet: got %q, %v", tag, err)
+	}
+	current := filepath.Join(dir, "default", CurrentFile)
+	if err := os.WriteFile(current, []byte("sha-new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if tag, err := store.CurrentTag("default"); err != nil || tag != "sha-new" {
+		t.Fatalf("got %q, %v, want sha-new", tag, err)
+	}
+	// The pointer is not a tag: listing and pruning skip it.
+	if removed, err := store.RemoveStaleTags("default", "sha-new", func(string) bool { return false }); err != nil || strings.Join(removed, ",") != "sha-old" {
+		t.Fatalf("removed %v, %v", removed, err)
+	}
+	if !vm.Exists(current) {
+		t.Fatal("pruning must keep the current file")
+	}
+	// A pointer naming a path outside the template is refused.
+	if err := os.WriteFile(current, []byte("../bazel\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CurrentTag("default"); err == nil {
+		t.Fatal("expected a traversing tag to be refused")
+	}
+}
+
 func TestCleanPartialBuilds(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
