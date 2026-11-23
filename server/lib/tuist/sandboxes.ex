@@ -1522,7 +1522,7 @@ defmodule Tuist.Sandboxes do
       )
 
     with {:ok, %Sandbox{state: :paused} = paused} <- result do
-      Logger.info("sandboxes: paused a sandbox whose lifetime ended", sandbox_id: id, expires_at: paused.expires_at)
+      Logger.info("sandboxes: paused a sandbox whose lifetime ended at #{paused.expires_at}", sandbox_id: id)
     end
   end
 
