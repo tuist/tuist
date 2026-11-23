@@ -4,9 +4,8 @@ defmodule Tuist.Runners.Sites do
 
   A rack pool spans every site whose runners are on, so a queued job is bound
   to its Xcode and shape, not to a site: the Node of the runner that claims it
-  decides the site (`claim_site/2`). A runner may pass over a job for a short
-  while to leave it to the site where its account's runner cache is warm
-  (`prefer_cache_site/3`).
+  decides the site (`claim_site/2`). A runner takes the oldest job it can,
+  whichever site holds its account's runner cache.
 
   A pool is down when no Node of its fleet, at any site, is Ready, schedulable
   and large enough for its guest (`:no_capacity`), or when its oldest queued
@@ -22,7 +21,6 @@ defmodule Tuist.Runners.Sites do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kubernetes.Quantity
-  alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
@@ -38,7 +36,6 @@ defmodule Tuist.Runners.Sites do
   @status_ttl_ms 30_000
   @read_timeout to_timeout(second: 5)
   @node_site_ttl_ms to_timeout(minute: 10)
-  @cache_site_grace_seconds 60
 
   def available?(site_pool) when is_binary(site_pool) do
     status =
@@ -137,42 +134,6 @@ defmodule Tuist.Runners.Sites do
   end
 
   def node_site(_node_name), do: nil
-
-  @doc """
-  Drops from `candidates` the jobs a runner at `site` leaves, for now, to the
-  site where their account's runner cache is warm: the account has a runner
-  cache at another site and none at `site` (`Kura.runner_cache_elsewhere/2`),
-  and the job has queued for less than #{@cache_site_grace_seconds} seconds.
-  While that site has an idle runner it takes the job first. While it is busy
-  or dark the job runs here once the grace has passed, so no job waits longer
-  than that for its cache. With no site, or one site, nothing is dropped.
-  """
-  def prefer_cache_site(candidates, site, now \\ DateTime.utc_now())
-
-  def prefer_cache_site([_ | _] = candidates, site, now) when is_binary(site) do
-    elsewhere =
-      candidates
-      |> Enum.map(& &1.account_id)
-      |> Enum.uniq()
-      |> Kura.runner_cache_elsewhere(site)
-
-    if MapSet.size(elsewhere) == 0 do
-      candidates
-    else
-      waited_since = DateTime.add(now, -@cache_site_grace_seconds, :second)
-
-      Enum.reject(candidates, fn candidate ->
-        MapSet.member?(elsewhere, candidate.account_id) and within_grace?(candidate, waited_since)
-      end)
-    end
-  end
-
-  def prefer_cache_site(candidates, _site, _now), do: candidates
-
-  defp within_grace?(%{enqueued_at: %DateTime{} = enqueued_at}, waited_since),
-    do: DateTime.after?(enqueued_at, waited_since)
-
-  defp within_grace?(_candidate, _waited_since), do: false
 
   defp fits?(node, spec) do
     ready?(node) and get_in(node, ["spec", "unschedulable"]) != true and
