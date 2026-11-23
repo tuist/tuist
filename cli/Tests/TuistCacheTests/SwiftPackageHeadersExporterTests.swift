@@ -230,9 +230,13 @@ struct SwiftPackageNestedHeadersExportTests {
     /// `<AdjustSdk/Adjust.h>`. A consumer that finds the cached framework without Tuist's search paths, such as one
     /// reaching it only through a framework search path, must still resolve those imports, without warnings for the
     /// consumers that have them. A namespace header that includes a file outside its directory keeps the export as
-    /// it was, since that include only resolves from the tree.
-    @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
-    func nestedNamespaceResolvesThroughFramework(versioned: Bool, includesOutsideNamespace: Bool) async throws {
+    /// it was, since that include only resolves from the tree. Quoted includes, such as SDWebImage's
+    /// `#import "SDWebImageCompat.h"`, are framework-header warnings wherever the export puts them, so Tuist's
+    /// consumers turn that warning off.
+    enum NamespaceInclude: CaseIterable, Sendable { case angled, parentDirectory, quotedSibling }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true], NamespaceInclude.allCases)
+    func nestedNamespaceResolvesThroughFramework(versioned: Bool, include: NamespaceInclude) async throws {
         let temporary = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
         let root = temporary.appending(component: "source")
@@ -243,11 +247,14 @@ struct SwiftPackageNestedHeadersExportTests {
             from: namespace.appending(component: "Impl.h"), to: try RelativePath(validating: "../../Impl.h")
         )
         try await fileSystem.writeText(
-            "#pragma once\n\(includesOutsideNamespace ? "#include \"../../../Impl.h\"\n" : "")int deep_value(void);\n",
+            "#pragma once\n\(include == .parentDirectory ? "#include \"../../../Impl.h\"\n" : "")int deep_value(void);\n",
             at: namespace.appending(components: "sub", "Deep.h")
         )
         let umbrella = namespace.appending(component: "CLib.h")
-        try await fileSystem.writeText("#import <CLib/Impl.h>\n#import <CLib/sub/Deep.h>\n", at: umbrella)
+        try await fileSystem.writeText(
+            "\(include == .quotedSibling ? "#import \"Impl.h\"" : "#import <CLib/Impl.h>")\n#import <CLib/sub/Deep.h>\n",
+            at: umbrella
+        )
         let moduleMap = temporary.appending(component: "CLib.modulemap")
         try await fileSystem.writeText(
             "framework module CLib {\n  umbrella header \"\(umbrella.pathString)\"\n  export *\n  module * { export * }\n}",
@@ -281,11 +288,15 @@ struct SwiftPackageNestedHeadersExportTests {
             at: consumer
         )
         let publicDirectory = artifact.appending(components: "PrivateHeaders", "TuistHeaders", "include")
-        let moduleMapFlag = "-fmodule-map-file=\(artifact.appending(components: "Modules", "module.modulemap").pathString)"
+        // The flags SwiftPackageCachedHeadersMapper gives consumers.
+        let tuistFlags = [
+            "-fmodule-map-file=\(artifact.appending(components: "Modules", "module.modulemap").pathString)",
+            "-Wno-quoted-include-in-framework-header",
+        ]
         // Xcode passes header search paths before framework search paths.
-        #expect(try compiles(consumer, ["-I\(publicDirectory.pathString)", "-F\(frameworks.pathString)", moduleMapFlag]))
-        #expect(try compiles(consumer, ["-F\(frameworks.pathString)", "-I\(publicDirectory.pathString)", moduleMapFlag]))
-        #expect(try compiles(consumer, ["-F\(frameworks.pathString)"]) == !includesOutsideNamespace)
+        #expect(try compiles(consumer, ["-I\(publicDirectory.pathString)", "-F\(frameworks.pathString)"] + tuistFlags))
+        #expect(try compiles(consumer, ["-F\(frameworks.pathString)", "-I\(publicDirectory.pathString)"] + tuistFlags))
+        #expect(try compiles(consumer, ["-F\(frameworks.pathString)"]) == (include == .angled))
     }
 
     private func compiles(_ source: AbsolutePath, _ arguments: [String]) throws -> Bool {
@@ -293,7 +304,7 @@ struct SwiftPackageNestedHeadersExportTests {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         process.arguments = [
-            "clang", "-fmodules", "-fsyntax-only", "-Werror", "-x", "objective-c",
+            "clang", "-fmodules", "-fsyntax-only", "-Werror", "-Wquoted-include-in-framework-header", "-x", "objective-c",
             "-fmodules-cache-path=\(cache.pathString)",
         ] + arguments + [source.pathString]
         try process.run()
@@ -461,7 +472,7 @@ struct SwiftPackageCachedHeadersMapperTests {
             Issue.record("Missing cached header settings")
             return
         }
-        let paths = includes.filter { $0 != "$(inherited)" } + flags.filter { $0 != "$(inherited)" }
+        let paths = includes.filter { $0 != "$(inherited)" } + flags.filter { $0.hasPrefix("-fmodule-map-file=") }
             .map { String($0.dropFirst("-fmodule-map-file=".count)) }
         #expect(paths.count == 2)
         for path in paths {
@@ -507,8 +518,16 @@ struct SwiftPackageCachedHeadersMapperTests {
         ])
         let (mapped, _, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: MapperEnvironment())
         #expect(mapped.projects[root]?.targets["Client"] == project.targets["Client"])
-        #expect(mapped.projects[root]?.targets["Macros"]?.settings?.base["OTHER_CFLAGS[sdk=macosx*]"] == .array([
-            "$(inherited)", "-fmodule-map-file=\"$(BUILT_PRODUCTS_DIR)/CShims.framework/Modules/module.modulemap\"",
+        // Clang reports a package header's `#import "Sibling.h"`, such as SDWebImage's, once the header lives in a
+        // framework. Built from source the package's headers are not in one, so cached frameworks keep that build's
+        // diagnostics instead of failing consumers that treat warnings as errors.
+        let macroSettings = try #require(mapped.projects[root]?.targets["Macros"]?.settings?.base)
+        let moduleMapFlag = "-fmodule-map-file=\"$(BUILT_PRODUCTS_DIR)/CShims.framework/Modules/module.modulemap\""
+        #expect(macroSettings["OTHER_CFLAGS[sdk=macosx*]"] == .array([
+            "$(inherited)", moduleMapFlag, "-Wno-quoted-include-in-framework-header",
+        ]))
+        #expect(macroSettings["OTHER_SWIFT_FLAGS[sdk=macosx*]"] == .array([
+            "$(inherited)", "-Xcc", moduleMapFlag, "-Xcc", "-Wno-quoted-include-in-framework-header",
         ]))
     }
 }
