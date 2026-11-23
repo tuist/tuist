@@ -105,7 +105,8 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
                     schemes: coverage.schemes,
                     partialSchemes: coverage.partialSchemes,
                     complete: coverage.complete,
-                    incomplete: coverage.incomplete
+                    incomplete: coverage.incomplete,
+                    gapReasons: coverage.gapReasons
                 )
             )
             return
@@ -118,12 +119,22 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
         // A scheme whose runs all skipped tests is a gap only when their coverage couldn't be carried.
         let partial = coverage.incomplete && !partialSchemes.isEmpty
             ? " (partial: \(partialSchemes.joined(separator: ", ")))" : ""
-        let incomplete = coverage.incomplete ? " The figure is incomplete, so the actual coverage may be higher." : ""
+        let incomplete = if coverage.excludesDirtyRuns {
+            " Some runs came from a checkout with uncommitted changes and don't count, because they measured code that isn't the commit's, so the actual coverage may be higher."
+        } else if coverage.incomplete {
+            " The figure is incomplete, so the actual coverage may be higher."
+        } else {
+            ""
+        }
+        let dirtyTakeaways: [TerminalText] = coverage.excludesDirtyRuns ? [
+            "Keep the checkout clean while the tests run, or keep the files the CI job writes out of it",
+            "See which runs count with \(.command("tuist coverage runs --commit \(coverage.gitCommitSHA)"))",
+        ] : []
 
         AlertController.current.success(
             .alert(
                 "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)%\(over)\(partial).\(incomplete)",
-                takeaways: ["See the commit's coverage at \(commits.appendingPathComponent(sha).absoluteString)"]
+                takeaways: dirtyTakeaways + ["See the commit's coverage at \(commits.appendingPathComponent(sha).absoluteString)"]
             )
         )
     }
@@ -150,6 +161,7 @@ private struct CoverageCompleteOutput: Codable {
     let partialSchemes: [String]
     let complete: Bool
     let incomplete: Bool
+    let gapReasons: [String]
 
     enum CodingKeys: String, CodingKey {
         case gitCommitSHA = "git_commit_sha"
@@ -160,5 +172,6 @@ private struct CoverageCompleteOutput: Codable {
         case partialSchemes = "partial_schemes"
         case complete
         case incomplete
+        case gapReasons = "gap_reasons"
     }
 }

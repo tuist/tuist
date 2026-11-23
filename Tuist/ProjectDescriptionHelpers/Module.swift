@@ -2138,6 +2138,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .server:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.android.targetName),
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.environmentTesting.targetName),

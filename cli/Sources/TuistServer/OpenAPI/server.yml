@@ -13248,6 +13248,15 @@ components:
               type: integer
               x-struct:
               x-validate:
+            gap_reasons:
+              description: "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
             kind:
               description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
               enum:
@@ -14474,6 +14483,15 @@ components:
               type: integer
               x-struct:
               x-validate:
+            gap_reasons:
+              description: "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
             kind:
               description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
               enum:
@@ -15192,6 +15210,15 @@ components:
         gap_files_count:
           description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
           type: integer
+          x-struct:
+          x-validate:
+        gap_reasons:
+          description: "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         kind:
@@ -46323,6 +46350,15 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
+                      gap_reasons:
+                        description: "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
                       kind:
                         description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
                         enum:
@@ -57635,6 +57671,15 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
+                      gap_reasons:
+                        description: "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
                       kind:
                         description: "`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown."
                         enum:
@@ -64077,6 +64122,15 @@ paths:
                       gap_files_count:
                         description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
                         type: integer
+                        x-struct:
+                        x-validate:
+                      gap_reasons:
+                        description: "Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap."
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
                         x-struct:
                         x-validate:
                       kind:

@@ -224,7 +224,7 @@
 
             // A dirty checkout measured code that is not the commit's; the server keeps the run's
             // coverage out of the commit's, and the listing is never taken from it.
-            let dirty = (try? await gitController.hasUncommittedChanges(workingDirectory: workingDirectory)) ?? false
+            let dirty = await isDirtyCheckout(gitController, workingDirectory, warningFor: coverage ? gitInfo.sha : nil)
 
             let history: GitHistory
             do {
@@ -499,6 +499,33 @@
                 )) ?? []
             }
         )
+    }
+
+    /// Whether the checkout changed tracked files. Untracked files, such as the build outputs a CI job
+    /// writes, leave the commit's code as it is. With `sha`, a coverage run's commit, a dirty checkout
+    /// warns that the run's coverage won't count toward it, listing the first 10 changed paths. The
+    /// paths stay here: only whether the checkout is dirty goes with the run. Noora prints a warning's
+    /// later lines as they are, so they are indented to sit under the text of its bullet.
+    private func isDirtyCheckout(
+        _ gitController: GitControlling,
+        _ workingDirectory: AbsolutePath,
+        warningFor sha: String?
+    ) async -> Bool {
+        let modified = (try? await gitController.uncommittedTrackedFiles(workingDirectory: workingDirectory)) ?? []
+        guard !modified.isEmpty else { return false }
+        guard let sha else { return true }
+        let listed = modified.prefix(10).map { "       - \($0)" }
+        let rest = modified.count - listed.count
+        let warning = (
+            [
+                "This run's coverage won't count toward commit \(sha.prefix(7)) because the checkout has uncommitted changes, so it measured code that isn't the commit's:",
+            ]
+                + listed
+                + (rest > 0 ? ["       and \(rest) more"] : [])
+                + ["     Commit or discard these changes, or keep the files the CI job writes out of the checkout."]
+        ).joined(separator: "\n")
+        AlertController.current.warning(.alert("\(warning)"))
+        return true
     }
 
     /// The history a process collected per checkout and commit, and whether its commits are up, so the

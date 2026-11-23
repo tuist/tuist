@@ -25196,6 +25196,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BranchCoverage/reported/gap_files_count`.
                 public var gap_files_count: Swift.Int
+                /// Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BranchCoverage/reported/gap_reasons`.
+                public var gap_reasons: [Swift.String]?
                 /// `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BranchCoverage/reported/kind`.
@@ -25222,6 +25226,7 @@ public enum Components {
                 ///   - covered_lines:
                 ///   - executable_lines:
                 ///   - gap_files_count: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                ///   - gap_reasons: Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
                 ///   - kind: `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                 ///   - skipped_tests_count: The candidate tests no run of the commit executed.
                 public init(
@@ -25231,6 +25236,7 @@ public enum Components {
                     covered_lines: Swift.Int,
                     executable_lines: Swift.Int,
                     gap_files_count: Swift.Int,
+                    gap_reasons: [Swift.String]? = nil,
                     kind: Components.Schemas.BranchCoverage.reportedPayload.kindPayload,
                     skipped_tests_count: Swift.Int
                 ) {
@@ -25240,6 +25246,7 @@ public enum Components {
                     self.covered_lines = covered_lines
                     self.executable_lines = executable_lines
                     self.gap_files_count = gap_files_count
+                    self.gap_reasons = gap_reasons
                     self.kind = kind
                     self.skipped_tests_count = skipped_tests_count
                 }
@@ -25250,6 +25257,7 @@ public enum Components {
                     case covered_lines
                     case executable_lines
                     case gap_files_count
+                    case gap_reasons
                     case kind
                     case skipped_tests_count
                 }
@@ -26910,6 +26918,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/CommitCoverage/reported/gap_files_count`.
                 public var gap_files_count: Swift.Int
+                /// Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CommitCoverage/reported/gap_reasons`.
+                public var gap_reasons: [Swift.String]?
                 /// `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                 ///
                 /// - Remark: Generated from `#/components/schemas/CommitCoverage/reported/kind`.
@@ -26936,6 +26948,7 @@ public enum Components {
                 ///   - covered_lines:
                 ///   - executable_lines:
                 ///   - gap_files_count: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                ///   - gap_reasons: Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
                 ///   - kind: `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                 ///   - skipped_tests_count: The candidate tests no run of the commit executed.
                 public init(
@@ -26945,6 +26958,7 @@ public enum Components {
                     covered_lines: Swift.Int,
                     executable_lines: Swift.Int,
                     gap_files_count: Swift.Int,
+                    gap_reasons: [Swift.String]? = nil,
                     kind: Components.Schemas.CommitCoverage.reportedPayload.kindPayload,
                     skipped_tests_count: Swift.Int
                 ) {
@@ -26954,6 +26968,7 @@ public enum Components {
                     self.covered_lines = covered_lines
                     self.executable_lines = executable_lines
                     self.gap_files_count = gap_files_count
+                    self.gap_reasons = gap_reasons
                     self.kind = kind
                     self.skipped_tests_count = skipped_tests_count
                 }
@@ -26964,6 +26979,7 @@ public enum Components {
                     case covered_lines
                     case executable_lines
                     case gap_files_count
+                    case gap_reasons
                     case kind
                     case skipped_tests_count
                 }
@@ -27895,6 +27911,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageReported/gap_files_count`.
             public var gap_files_count: Swift.Int
+            /// Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CoverageReported/gap_reasons`.
+            public var gap_reasons: [Swift.String]?
             /// `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
             ///
             /// - Remark: Generated from `#/components/schemas/CoverageReported/kind`.
@@ -27921,6 +27941,7 @@ public enum Components {
             ///   - covered_lines:
             ///   - executable_lines:
             ///   - gap_files_count: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+            ///   - gap_reasons: Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
             ///   - kind: `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
             ///   - skipped_tests_count: The candidate tests no run of the commit executed.
             public init(
@@ -27930,6 +27951,7 @@ public enum Components {
                 covered_lines: Swift.Int,
                 executable_lines: Swift.Int,
                 gap_files_count: Swift.Int,
+                gap_reasons: [Swift.String]? = nil,
                 kind: Components.Schemas.CoverageReported.kindPayload,
                 skipped_tests_count: Swift.Int
             ) {
@@ -27939,6 +27961,7 @@ public enum Components {
                 self.covered_lines = covered_lines
                 self.executable_lines = executable_lines
                 self.gap_files_count = gap_files_count
+                self.gap_reasons = gap_reasons
                 self.kind = kind
                 self.skipped_tests_count = skipped_tests_count
             }
@@ -27949,6 +27972,7 @@ public enum Components {
                 case covered_lines
                 case executable_lines
                 case gap_files_count
+                case gap_reasons
                 case kind
                 case skipped_tests_count
             }
@@ -111874,6 +111898,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/reported/gap_files_count`.
                             public var gap_files_count: Swift.Int
+                            /// Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/reported/gap_reasons`.
+                            public var gap_reasons: [Swift.String]?
                             /// `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete/POST/responses/200/content/json/reported/kind`.
@@ -111900,6 +111928,7 @@ public enum Operations {
                             ///   - covered_lines:
                             ///   - executable_lines:
                             ///   - gap_files_count: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                            ///   - gap_reasons: Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
                             ///   - kind: `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                             ///   - skipped_tests_count: The candidate tests no run of the commit executed.
                             public init(
@@ -111909,6 +111938,7 @@ public enum Operations {
                                 covered_lines: Swift.Int,
                                 executable_lines: Swift.Int,
                                 gap_files_count: Swift.Int,
+                                gap_reasons: [Swift.String]? = nil,
                                 kind: Operations.completeCommitCoverage.Output.Ok.Body.jsonPayload.reportedPayload.kindPayload,
                                 skipped_tests_count: Swift.Int
                             ) {
@@ -111918,6 +111948,7 @@ public enum Operations {
                                 self.covered_lines = covered_lines
                                 self.executable_lines = executable_lines
                                 self.gap_files_count = gap_files_count
+                                self.gap_reasons = gap_reasons
                                 self.kind = kind
                                 self.skipped_tests_count = skipped_tests_count
                             }
@@ -111928,6 +111959,7 @@ public enum Operations {
                                 case covered_lines
                                 case executable_lines
                                 case gap_files_count
+                                case gap_reasons
                                 case kind
                                 case skipped_tests_count
                             }
@@ -143849,6 +143881,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/GET/responses/200/content/json/reported/gap_files_count`.
                             public var gap_files_count: Swift.Int
+                            /// Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/GET/responses/200/content/json/reported/gap_reasons`.
+                            public var gap_reasons: [Swift.String]?
                             /// `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/GET/responses/200/content/json/reported/kind`.
@@ -143875,6 +143911,7 @@ public enum Operations {
                             ///   - covered_lines:
                             ///   - executable_lines:
                             ///   - gap_files_count: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                            ///   - gap_reasons: Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
                             ///   - kind: `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                             ///   - skipped_tests_count: The candidate tests no run of the commit executed.
                             public init(
@@ -143884,6 +143921,7 @@ public enum Operations {
                                 covered_lines: Swift.Int,
                                 executable_lines: Swift.Int,
                                 gap_files_count: Swift.Int,
+                                gap_reasons: [Swift.String]? = nil,
                                 kind: Operations.getBranchCoverage.Output.Ok.Body.jsonPayload.reportedPayload.kindPayload,
                                 skipped_tests_count: Swift.Int
                             ) {
@@ -143893,6 +143931,7 @@ public enum Operations {
                                 self.covered_lines = covered_lines
                                 self.executable_lines = executable_lines
                                 self.gap_files_count = gap_files_count
+                                self.gap_reasons = gap_reasons
                                 self.kind = kind
                                 self.skipped_tests_count = skipped_tests_count
                             }
@@ -143903,6 +143942,7 @@ public enum Operations {
                                 case covered_lines
                                 case executable_lines
                                 case gap_files_count
+                                case gap_reasons
                                 case kind
                                 case skipped_tests_count
                             }
@@ -161600,6 +161640,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/GET/responses/200/content/json/reported/gap_files_count`.
                             public var gap_files_count: Swift.Int
+                            /// Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/GET/responses/200/content/json/reported/gap_reasons`.
+                            public var gap_reasons: [Swift.String]?
                             /// `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/GET/responses/200/content/json/reported/kind`.
@@ -161626,6 +161670,7 @@ public enum Operations {
                             ///   - covered_lines:
                             ///   - executable_lines:
                             ///   - gap_files_count: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                            ///   - gap_reasons: Why the figure is a lower bound, empty when it is whole. `dirty_run_excluded`: runs from a checkout with uncommitted changes measured code that isn't the commit's and were left out, either for a scheme only such CI runs measured or for every scheme when only such runs, local or CI, gathered coverage (so nothing is measured). Other values name why skipped tests' coverage couldn't be carried; new values may be added, so treat unknown ones as a generic gap.
                             ///   - kind: `measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: the figure is a lower bound: some skipped tests or files could not be carried, a selective run's skipped tests could not be listed, or a scheme's coverage only came from runs on a dirty checkout, which don't count. `observed`: the runs listed no candidate tests, so what they skipped is unknown.
                             ///   - skipped_tests_count: The candidate tests no run of the commit executed.
                             public init(
@@ -161635,6 +161680,7 @@ public enum Operations {
                                 covered_lines: Swift.Int,
                                 executable_lines: Swift.Int,
                                 gap_files_count: Swift.Int,
+                                gap_reasons: [Swift.String]? = nil,
                                 kind: Operations.getCommitCoverage.Output.Ok.Body.jsonPayload.reportedPayload.kindPayload,
                                 skipped_tests_count: Swift.Int
                             ) {
@@ -161644,6 +161690,7 @@ public enum Operations {
                                 self.covered_lines = covered_lines
                                 self.executable_lines = executable_lines
                                 self.gap_files_count = gap_files_count
+                                self.gap_reasons = gap_reasons
                                 self.kind = kind
                                 self.skipped_tests_count = skipped_tests_count
                             }
@@ -161654,6 +161701,7 @@ public enum Operations {
                                 case covered_lines
                                 case executable_lines
                                 case gap_files_count
+                                case gap_reasons
                                 case kind
                                 case skipped_tests_count
                             }
