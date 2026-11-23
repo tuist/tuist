@@ -93,13 +93,18 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
 
     try do
       with {:ok, _} <- Storage.download_to_file(storage_key, compressed, account),
-           :ok <- inflate(compressed, inflated, Environment.coverage_max_inflated_bytes()) do
-        Coverage.publish(
-          test,
-          Coverage.rows(test.project_id, Map.put(coverage, :path, inflated)),
-          shard_index,
-          expected_shards
-        )
+           :ok <- inflate(compressed, inflated, Environment.coverage_max_inflated_bytes()),
+           :ok <-
+             Coverage.publish(
+               test,
+               Coverage.rows(test.project_id, Map.put(coverage, :path, inflated)),
+               shard_index,
+               expected_shards
+             ) do
+        # A job that ran while the run's request was still writing is folded
+        # again when that request finishes (`Tuist.Tests.create_test/1`).
+        Coverage.enqueue_fold(test, coverage)
+        :ok
       end
     rescue
       error in JSON.DecodeError -> {:cancel, {:invalid_coverage, error}}

@@ -555,6 +555,14 @@ defmodule Tuist.Tests do
       RunSelections.enqueue(test.project_id, test.id)
     end
 
+    # Only now is everything the commit's fold reads for this run written: the
+    # test case runs were flushed through, and the fold's delay outlasts the
+    # buffers' tick for the rows still buffered (`CommitWorker.enqueue/2`).
+    # A fold scheduled earlier is pushed back to this one's time.
+    with {:ok, test} <- result do
+      Coverage.enqueue_fold(test, Map.get(attrs, :coverage))
+    end
+
     result
   end
 

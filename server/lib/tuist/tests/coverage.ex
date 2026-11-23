@@ -245,21 +245,15 @@ defmodule Tuist.Tests.Coverage do
   `expected_shards` is how many shards the run's plan has: until each of them
   reported coverage, the published totals are partial, since the missing
   shards' tests are not in them.
+
+  It does not fold the run's commit: the caller schedules that with
+  `enqueue_fold/2` once it has written the rest of the run.
   """
   def publish(test, coverage, shard_index, expected_shards \\ 1)
 
   def publish(%Test{reporting_version: 1}, _coverage, _shard_index, _expected_shards), do: :skipped
 
-  # A run that measured nothing still changes what its commit knows: a scheme
-  # selective testing skipped whole reports no coverage, and the commit's
-  # reported figure carries that scheme's tests forward only once it can see
-  # the run. It can land after the completion signal, so the commit is
-  # refolded here — but only when it is already measured, so a project that
-  # never reports coverage schedules nothing.
-  def publish(%Test{} = test, nil, _shard_index, _expected_shards) do
-    if Commits.measured?(test.project_id, test.git_commit_sha), do: Commits.enqueue_recompute(test)
-    :ok
-  end
+  def publish(%Test{}, nil, _shard_index, _expected_shards), do: :ok
 
   def publish(%Test{} = test, coverage, shard_index, expected_shards) do
     shard_index = shard_index || 0
@@ -271,10 +265,32 @@ defmodule Tuist.Tests.Coverage do
       excluded_regex = ExcludedPaths.compile(excluded)
       folded = insert_files_and_fold(test, coverage, shard_index, reported_at, others, excluded_regex)
       :ok = publish_totals(test, coverage, expected_shards, reported_at, others, folded)
-      Commits.enqueue_recompute(test)
 
       {:ok, %{files: folded.files, covered_lines: elem(folded.totals, 0), executable_lines: elem(folded.totals, 1)}}
     end)
+  end
+
+  @doc """
+  Schedules the fold of the run's commit (`Commits.enqueue_recompute/1`).
+  Call it only after everything the run reports is written, test case runs
+  included: the fold reads them, and nothing folds the commit again when they
+  land after it. `coverage` is the run's `coverage` block, or nil.
+
+  A run that measured nothing still changes what its commit knows: a scheme
+  selective testing skipped whole reports no coverage, and the commit's
+  reported figure carries that scheme's tests forward only once it can see
+  the run. It can land after the completion signal, so the commit is
+  refolded then too, but only when it is already measured, so a project that
+  never reports coverage schedules nothing.
+  """
+  def enqueue_fold(%Test{reporting_version: 1}, _coverage), do: :skipped
+  def enqueue_fold(%Test{submission_auth: "network_trusted"}, _coverage), do: :skipped
+
+  def enqueue_fold(%Test{} = test, coverage) do
+    if (not is_nil(coverage) and enabled_for_project?(test.project_id)) or
+         Commits.measured?(test.project_id, test.git_commit_sha),
+       do: Commits.enqueue_recompute(test),
+       else: :skipped
   end
 
   @doc """
