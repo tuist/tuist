@@ -320,7 +320,7 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 // one vCPU per 2 GB. Actions without it run with DefaultMemoryGB.
 const MemoryProperty = "tuist-memory-gb"
 
-const DefaultMemoryGB = 4
+const DefaultMemoryGB = 2
 
 // MaxTimeout is the longest an action's command runs, within the server's
 // 13-minute execution lease.

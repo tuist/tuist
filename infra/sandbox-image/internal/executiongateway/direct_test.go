@@ -194,7 +194,7 @@ func TestLargerVMsAreRequestedFromTheControlPlaneInsteadOfLeased(t *testing.T) {
 	lab.capabilities(auth)
 	lab.execute(auth)
 	lab.awaitLease()
-	if body, _ := lab.submitted.Load().(map[string]any); body != nil && body["memory_gb"] != float64(4) {
+	if body, _ := lab.submitted.Load().(map[string]any); body != nil && body["memory_gb"] != float64(2) {
 		t.Fatalf("an action without the property asked for another size: %v", body)
 	}
 
@@ -204,8 +204,8 @@ func TestLargerVMsAreRequestedFromTheControlPlaneInsteadOfLeased(t *testing.T) {
 	if body := lab.submitted.Load().(map[string]any); body["memory_gb"] != float64(8) {
 		t.Fatalf("submitted %v", body)
 	}
-	// The default size is the lease's, sent without the property.
-	if code := lab.executeAction(auth, lab.sizedAction("4")); code != 7 || lab.operations.Load() != 2 {
+	// The default size, asked for explicitly, is the lease's.
+	if code := lab.executeAction(auth, lab.sizedAction("2")); code != 7 || lab.operations.Load() != 2 {
 		t.Fatalf("exit %d, operations %d; want the lease", code, lab.operations.Load())
 	}
 }

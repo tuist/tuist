@@ -81,7 +81,7 @@ defmodule AtlasWeb.ConnectionsLiveTest do
     {conn, _user} = log_in_user(conn)
     {:ok, view, _html} = live(conn, ~p"/settings/connections")
 
-    for provider <- ~w(github slack google) do
+    for provider <- ~w(github slack google qonto) do
       assert has_element?(view, "#connection-#{provider}")
       refute has_element?(view, "#connection-connect-#{provider}")
     end

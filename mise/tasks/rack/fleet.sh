@@ -14,6 +14,7 @@
 # Usage:
 #   mise run rack:fleet render                  # write the desired configs
 #   mise run rack:fleet render --check          # fail if they are out of date
+#   mise run rack:fleet ready                   # is the site ready to rack (before a visit)
 #   mise run rack:fleet diff [device]           # live switch vs the render
 #   mise run rack:fleet apply <device> --dry-run
 #   mise run rack:fleet apply <device>          # rolls itself back unless it verifies

@@ -261,6 +261,10 @@ externalSecrets:
       remoteRef: "atlas-qonto/username"
     QONTO_SECRET_KEY:
       remoteRef: "atlas-qonto/credential"
+    ATLAS_QONTO_OAUTH_CLIENT_ID:
+      remoteRef: "atlas-qonto-oauth/username"
+    ATLAS_QONTO_OAUTH_CLIENT_SECRET:
+      remoteRef: "atlas-qonto-oauth/credential"
     MERCURY_API_TOKEN:
       remoteRef: "atlas-mercury/credential"
     ATLAS_GTM_INGEST_TOKEN:

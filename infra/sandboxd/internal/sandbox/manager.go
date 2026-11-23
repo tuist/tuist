@@ -1294,6 +1294,9 @@ func (sb *Sandbox) info() protocol.SandboxInfo {
 		if cpu, ok := inst.CPUTime(); ok {
 			info.CPUMs = cpu.Milliseconds()
 		}
+		if mem, ok := inst.ResidentMemory(); ok {
+			info.MemoryAnonBytes, info.MemoryFileBytes = mem.AnonBytes, mem.FileBytes
+		}
 	}
 	return info
 }

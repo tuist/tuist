@@ -1199,13 +1199,17 @@ while true; do
       JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
       WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
-      rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      # The workflow run of the job GitHub gave this runner, which the hook
+      # records before any step runs (see the report below).
+      JOB_RUN_FILE=/tmp/tuist-runner-job-run
+      rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}" "${JOB_RUN_FILE}"
       # The hook also mounts the job's cached checkout at its workspace before
       # the first step, so a stock actions/checkout reuses it instead of
       # cloning. The host decides whether there is one; any miss leaves the
       # workspace empty and the job checks out exactly as before.
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
+printf '%s' "\${GITHUB_RUN_ID:-}" >"${JOB_RUN_FILE}" 2>/dev/null || true
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 [ -d "${STATUS_SHARE}" ] && { : >"${STATUS_SHARE}/boot-job-started"; } 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
@@ -1414,6 +1418,38 @@ AGENT_CONFIG
         done
       ) &
       job_message_watch_pid=$!
+      # Tell the server which run the job GitHub gave this runner belongs to,
+      # once, as soon as the hook records it. GitHub places any queued job
+      # whose labels this runner satisfies, including jobs the server never
+      # hears about, and then nothing else tells it the claimed job is still
+      # waiting: it stayed stuck until this VM halted and a minute after that.
+      # A job of another run frees the claimed job at once.
+      job_run_report_pid=""
+      if [ -n "${TUIST_RUNNER_POD_NAME:-}" ]; then
+        (
+          while kill -0 "${runner_pid}" 2>/dev/null; do
+            if [ -s "${JOB_RUN_FILE}" ]; then
+              run_id=$(head -c 32 "${JOB_RUN_FILE}")
+              case "${run_id}" in '' | *[!0-9]*) exit 0 ;; esac
+              for _ in 1 2 3; do
+                status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+                  --request POST \
+                  --header "Authorization: Bearer ${SA_TOKEN}" \
+                  --header "Content-Type: application/json" \
+                  --data "{\"run_id\":${run_id}}" \
+                  "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/pods/${TUIST_RUNNER_POD_NAME}/job-started" 2>/dev/null) || status=000
+                case "${status}" in
+                  5* | 000) sleep 1 ;;
+                  *) exit 0 ;;
+                esac
+              done
+              exit 0
+            fi
+            sleep 1
+          done
+        ) &
+        job_run_report_pid=$!
+      fi
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
         (
           waited=0
@@ -1482,6 +1518,7 @@ AGENT_CONFIG
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       kill "${job_message_watch_pid}" 2>/dev/null || true
+      [ -n "${job_run_report_pid}" ] && kill "${job_run_report_pid}" 2>/dev/null || true
       JOB_RESULT=$(read_job_result github)
       fi
       # Only a job that succeeded may save its cache volumes (see read_job_result

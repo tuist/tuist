@@ -515,7 +515,13 @@ the same reading, taken as the VM's vCPUs stop and before the snapshot, so
 the server bills the time since the last report; a paused sandbox keeps
 reporting it (`paused_cpu_ms` in its metadata), so a pause the server only
 learns of from a report, such as a shutdown's, is billed too. A VM the
-daemon lost while running reports none.
+daemon lost while running reports none. `memory_anon_bytes` and
+`memory_file_bytes` of a running sandbox are its Firecracker process's
+`Pss_Anon`, and `Pss_File` plus `Pss_Shmem`, from `/proc/<pid>/smaps_rollup`:
+pages the guest wrote, and pages still mapped from the memory file it restored
+from (clean, so the host can drop and reread them). Next to `memory_mb` they
+show how much of a running guest's reservation it holds; paused sandboxes and
+hosts without `/proc` omit them.
 
 Every command gets exactly one `result`. `exec` emits `stream` frames before
 its result (`data.exit_code`). `start_worker` results as soon as the worker
@@ -882,6 +888,10 @@ inside an error.
 `sandboxd_pause_seconds`, `sandboxd_template_build_seconds{shape}`
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
+Each report also sets `sandboxd_vm_reserved_bytes`, `sandboxd_vm_anon_bytes`
+and `sandboxd_vm_file_bytes` (the running VMs' guest memory and what their
+processes hold, summed over the node) and observes every running VM's
+resident share of its guest memory in `sandboxd_vm_resident_share`.
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
 `sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.

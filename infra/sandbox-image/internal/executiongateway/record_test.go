@@ -117,7 +117,7 @@ func TestExecutedActionIsRecordedAfterTheClientHasItsResult(t *testing.T) {
 	got := body.Actions[0]
 	if got.OperationID != id || got.ActionHash != action.Hash || got.InvocationID != "inv-1" || got.Mnemonic != "CppCompile" ||
 		got.Target != "//pkg:foo" || got.ToolVersion != "8.4.0" || got.ExecutionPath != "scheduled" || got.SandboxID != "vm-1" ||
-		got.MemoryGB != 4 || got.TimeoutMS != 90_000 || got.ExitCode != 1 || got.WorkingDirectory != "pkg" {
+		got.MemoryGB != 2 || got.TimeoutMS != 90_000 || got.ExitCode != 1 || got.WorkingDirectory != "pkg" {
 		t.Fatalf("record identity and outcome: %+v", got)
 	}
 	if want := []string{"gcc", "-c", "foo.c", "--api_token=****", "--password", "****", "-o", "bazel-out/foo.o"}; !reflect.DeepEqual(got.Arguments, want) {

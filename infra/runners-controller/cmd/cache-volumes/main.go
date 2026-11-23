@@ -64,6 +64,10 @@ type agent struct {
 	sandboxNamespace string
 	sandboxSeeds     chan struct{}
 	sandboxExports   sync.Map
+	// goneUIDs remembers Pods whose teardown gone already confirmed. A UID is
+	// never reused, so the fence stays passed; a published head's slot is kept
+	// for days and would otherwise list containerd on every pass.
+	goneUIDs sync.Map
 	// actions serves the GitHub Actions cache to runner Pods here; nil when off.
 	actions *cachevolumes.ActionsCache
 	// maxVolumeBytes is the largest volume this host accepts.
@@ -190,6 +194,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"directory": identity.Scope, "warm": warm, "id": identity.ID})
 }
 func (a *agent) gone(name, uid string) (bool, error) {
+	if _, ok := a.goneUIDs.Load(uid); ok {
+		return true, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, name, metav1.GetOptions{})
@@ -199,7 +206,29 @@ func (a *agent) gone(name, uid string) (bool, error) {
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	return runtimeGone(ctx, a.runtime, uid)
+	done, err := runtimeGone(ctx, a.runtime, uid)
+	if done && err == nil {
+		a.goneUIDs.Store(uid, struct{}{})
+	}
+	return done, err
+}
+
+// forgetGone drops remembered Pods no journal slot names any more.
+func (a *agent) forgetGone() {
+	slots, err := a.store.Snapshot()
+	if err != nil {
+		return
+	}
+	held := map[string]bool{}
+	for _, slot := range slots {
+		held[slot.PodUID] = true
+	}
+	a.goneUIDs.Range(func(uid, _ any) bool {
+		if !held[uid.(string)] {
+			a.goneUIDs.Delete(uid)
+		}
+		return true
+	})
 }
 
 // reconcile settles every slot, then cleans up Pod directories and advertises
@@ -207,9 +236,10 @@ func (a *agent) gone(name, uid string) (bool, error) {
 // writer fence did not answer within its budget, is retried next round and
 // fails this one, but must not hold back the rest: those steps do not depend on it.
 func (a *agent) reconcile() error {
-	return errors.Join(a.store.Reconcile(a.gone, a.report), a.reconcileNode())
+	err := a.store.Reconcile(a.gone, a.report)
+	a.forgetGone()
+	return errors.Join(err, a.reconcileNode())
 }
-
 func (a *agent) reconcileNode() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

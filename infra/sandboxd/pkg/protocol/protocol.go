@@ -159,6 +159,13 @@ type SandboxInfo struct {
 	// a paused VM it is the reading taken at its pause, as in PauseResult,
 	// so the server can bill a pause it learns of from a report.
 	CPUMs int64 `json:"cpu_ms,omitempty"`
+	// MemoryAnonBytes and MemoryFileBytes are what a running VM's process
+	// holds resident (proportional to sharing): anonymous pages the guest
+	// wrote, and pages still backed by the memory file it restored from.
+	// Next to MemoryMB they show how much of the reservation the guest
+	// actually uses.
+	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
+	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
 	// DiskBytes is what the sandbox's jail holds on the node that no
 	// template or other sandbox shares, measured with the disk report, so
 	// the server can reserve a paused sandbox's use instead of its ceiling.

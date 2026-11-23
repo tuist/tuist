@@ -639,6 +639,65 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "record_started_run/2" do
+    defp queued_in_run!(account, workflow_job_id, run_id) do
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: "fleet-a",
+          platform: "linux",
+          vcpus: 1,
+          memory_gb: 1,
+          repository: "acme/cli",
+          workflow_run_id: run_id
+        })
+    end
+
+    # GitHub gave the runner a job we never heard of, so no webhook or
+    # lookup will name it. The claimed job must become claimable now, while
+    # the Pod keeps the slot its runner is using.
+    test "re-queues the claimed job when the runner started a job of another run" do
+      account = pro_account_fixture()
+      queued_in_run!(account, 7401, 500)
+      {:ok, _} = Claims.attempt(7401, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7401, "runner-foreign")
+
+      assert {:displaced, %{workflow_job_id: 7401, requeued: true}} = Claims.record_started_run("pod-1", 501)
+
+      assert Repo.get!(WorkflowJob, 7401).status == "queued"
+      assert Repo.one!(from(c in Claim, where: c.pod_name == "pod-1")).workflow_job_id == nil
+      assert Claims.counts_per_account() == %{account.id => 1}
+      assert {:ok, _} = Claims.attempt(7401, account.id, "fleet-a", "pod-2", @linux_resources)
+    end
+
+    # The runner may be running the claimed job itself, or a sibling whose
+    # report names it; either way it is not ours to undo on this evidence.
+    test "leaves the claim alone when the runner started a job of the claimed job's run" do
+      account = pro_account_fixture()
+      queued_in_run!(account, 7402, 500)
+      {:ok, _} = Claims.attempt(7402, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7402, "runner-same")
+
+      assert :same_run = Claims.record_started_run("pod-1", 500)
+
+      assert Repo.get!(WorkflowJob, 7402).status == "running"
+      assert Repo.one!(from(c in Claim, where: c.pod_name == "pod-1")).workflow_job_id == 7402
+    end
+
+    test "does nothing once GitHub has reported what the runner executes" do
+      account = pro_account_fixture()
+      queued_in_run!(account, 7403, 500)
+      {:ok, _} = Claims.attempt(7403, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7403, "runner-bound")
+      assert :matched = Claims.record_execution("runner-bound", 7403, account.id)
+
+      assert :noop = Claims.record_started_run("pod-1", 501)
+
+      assert Repo.get!(WorkflowJob, 7403).status == "running"
+    end
+  end
+
   describe "record_execution/2" do
     test "binds the executed job and reports :matched when it equals the claim" do
       account = pro_account_fixture()

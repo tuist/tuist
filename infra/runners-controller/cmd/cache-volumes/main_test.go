@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -108,6 +109,14 @@ func TestGoneWaitsForAPIDeletionAndRuntimeTeardown(t *testing.T) {
 	a.runtime = testRuntime{}
 	if gone, err := a.gone("p", "u"); err != nil || !gone {
 		t.Fatal("finished teardown not reclaimed")
+	}
+	// A confirmed teardown is final: a slow containerd no longer fails the fence.
+	a.runtime = testRuntime{err: errors.New("context deadline exceeded")}
+	if gone, err := a.gone("p", "u"); err != nil || !gone {
+		t.Fatalf("asked containerd again for a Pod already gone: %v %v", gone, err)
+	}
+	if gone, err := a.gone("q", "v"); err == nil || gone {
+		t.Fatal("remembered a Pod whose teardown was never confirmed")
 	}
 }
 func TestRefusesRootFilesystem(t *testing.T) {

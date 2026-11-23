@@ -68,7 +68,7 @@ defmodule Atlas.Connections do
     end
   end
 
-  def disconnect(%User{} = user, provider) when provider in ~w(github slack google) do
+  def disconnect(%User{} = user, provider) when provider in ~w(github slack google qonto) do
     # Serialize with refresh so a rotating token cannot resurrect a disconnected grant.
     Repo.transaction(fn ->
       case locked_connection(user, provider) do

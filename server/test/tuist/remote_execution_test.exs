@@ -56,12 +56,12 @@ defmodule Tuist.RemoteExecutionTest do
     %{project: project}
   end
 
-  # Limits that hold `max_concurrency` VMs of 2 vCPUs and 4 GB.
+  # Limits that hold `max_concurrency` VMs of 1 vCPU and 2 GB.
   defp configure(project, max_concurrency: vms) do
     {:ok, account} =
       RemoteExecution.update_limits(project.account, %{
-        remote_execution_vcpus_limit: vms * 2,
-        remote_execution_memory_gb_limit: vms * 4
+        remote_execution_vcpus_limit: vms,
+        remote_execution_memory_gb_limit: vms * 2
       })
 
     RemoteExecution.available_settings(account.id)
@@ -211,7 +211,7 @@ defmodule Tuist.RemoteExecutionTest do
     assert {:ok, %{running: 1, queued: 1, actions: [first, second], invocations: invocations}} =
              RemoteExecution.activity(project)
 
-    assert %{state: "running", action_digest: "#{@hash}/10", vcpus: 2, memory_gb: 4} = first
+    assert %{state: "running", action_digest: "#{@hash}/10", vcpus: 1, memory_gb: 2} = first
     assert %{invocation_id: "build-1", mnemonic: "CppCompile", target: nil} = first
     assert %{state: "queued", action_digest: "#{@hash}/11", invocation_id: nil} = second
     # Kura has not reported the build, so only its actions describe it.
@@ -267,8 +267,9 @@ defmodule Tuist.RemoteExecutionTest do
         %{
           name: "reserved-linux",
           execution_deadlines: true,
+          # One vCPU: room for one default VM.
           execution_slots: 1,
-          capacity: %{cpus: 8, memory_bytes: 32 * 1024 * 1024 * 1024},
+          capacity: %{cpus: 1, memory_bytes: 32 * 1024 * 1024 * 1024},
           templates: [%{name: "bazel", tag: @image, ready: true}],
           disk: %{}
         }
@@ -299,8 +300,9 @@ defmodule Tuist.RemoteExecutionTest do
         %{
           name: "reserved-linux",
           execution_deadlines: true,
+          # One vCPU: room for one default VM.
           execution_slots: 1,
-          capacity: %{cpus: 8, memory_bytes: 32 * 1024 * 1024 * 1024},
+          capacity: %{cpus: 1, memory_bytes: 32 * 1024 * 1024 * 1024},
           templates: [%{name: "bazel", tag: @image, ready: true}],
           disk: %{}
         }
@@ -363,10 +365,10 @@ defmodule Tuist.RemoteExecutionTest do
     stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "http://kura.tuist.svc:4000" end)
     account = project_fixture().account
 
-    # 16 vCPUs and 32 GB hold eight VMs of 2 vCPUs and 4 GB.
+    # 16 vCPUs and 32 GB hold sixteen VMs of 1 vCPU and 2 GB.
     assert {:ok,
             %{
-              max_concurrency: 8,
+              max_concurrency: 16,
               image_tag: @image,
               cas_endpoint: "grpc://kura.tuist.svc:4000",
               executor_endpoint: "grpcs://execution.example"
@@ -384,7 +386,7 @@ defmodule Tuist.RemoteExecutionTest do
     {:ok, account} =
       RemoteExecution.update_limits(project.account, %{
         remote_execution_vcpus_limit: 8,
-        remote_execution_memory_gb_limit: 7
+        remote_execution_memory_gb_limit: 3
       })
 
     assert {:ok, %{max_concurrency: 1} = settings} = RemoteExecution.available_settings(account.id)
@@ -392,7 +394,7 @@ defmodule Tuist.RemoteExecutionTest do
     assert {:error, :busy} = VMs.reserve(account.id, settings)
 
     assert {:error, changeset} =
-             RemoteExecution.update_limits(account, %{remote_execution_vcpus_limit: 1})
+             RemoteExecution.update_limits(account, %{remote_execution_vcpus_limit: 0})
 
     assert %{remote_execution_vcpus_limit: [_]} = errors_on(changeset)
   end
@@ -409,35 +411,27 @@ defmodule Tuist.RemoteExecutionTest do
     test "an action that asks for more memory runs in a VM of that size outside the warm pool", %{project: project} do
       stub_node()
 
-      assert {:ok, %{done: true, code: 0}} = submit(project, %{"memory_gb" => 8})
-      assert_received {:node, "create", %{vcpus: 4, memory_mb: 8192, sandbox_id: large}}
+      assert {:ok, %{done: true, code: 0}} = submit(project, %{"memory_gb" => 4})
+      assert_received {:node, "create", %{vcpus: 2, memory_mb: 4096, sandbox_id: large}}
       assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^large, env: env}}
-      assert %{"memory_gb" => 8} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+      assert %{"memory_gb" => 4} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
 
       # The warm pool refills with default VMs once the large one is deleted.
       eventually(fn ->
         rows = vm_rows(project)
-        rows != [] and Enum.all?(rows, &(&1.memory_mb == 4096 and &1.id != large))
+        rows != [] and Enum.all?(rows, &(&1.memory_mb == 2048 and &1.id != large))
       end)
     end
 
-    test "an action that asks for 2 GB runs in a 1 vCPU VM", %{project: project} do
-      stub_node()
-
-      assert {:ok, %{done: true, code: 0}} = submit(project, %{"memory_gb" => 2})
-      assert_received {:node, "create", %{vcpus: 1, memory_mb: 2048, sandbox_id: small}}
-      assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^small}}
-    end
-
     test "a larger action takes the room idle warm VMs hold", %{project: project} do
-      # 4 vCPUs and 8 GB: two warm default VMs fill the account.
+      # 2 vCPUs and 4 GB: two warm default VMs fill the account.
       stub_node()
       assert {:ok, %{done: true}} = submit(project)
       eventually(fn -> match?([%{state: :running}, %{state: :running}], vm_rows(project)) end)
       flush_node_messages()
 
-      assert {:ok, %{done: true, code: 0}} = submit(project, %{"size" => 11, "memory_gb" => 8})
-      assert_received {:node, "create", %{memory_mb: 8192}}
+      assert {:ok, %{done: true, code: 0}} = submit(project, %{"size" => 11, "memory_gb" => 4})
+      assert_received {:node, "create", %{memory_mb: 4096}}
     end
 
     test "an action larger than the account's limits fails without a VM", %{project: project} do
@@ -449,15 +443,15 @@ defmodule Tuist.RemoteExecutionTest do
     end
 
     test "a larger action waits for the room a running action holds", %{project: project} do
-      # 4 vCPUs and 8 GB, with a default action holding half.
+      # 2 vCPUs and 4 GB, with a default action holding half.
       stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
       first = Task.async(fn -> submit(project) end)
       assert_receive {:holding, held}, 5_000
 
       assert {:ok, %{done: false, state: "queued", id: large}} =
-               submit(project, %{"size" => 11, "memory_gb" => 8}, wait: 300)
+               submit(project, %{"size" => 11, "memory_gb" => 4}, wait: 300)
 
-      refute_received {:node, "create", %{memory_mb: 8192}}
+      refute_received {:node, "create", %{memory_mb: 4096}}
 
       stub_node()
       send(held, :release)
@@ -471,7 +465,7 @@ defmodule Tuist.RemoteExecutionTest do
       assert waits["account_limit"] >= 250
       assert waits["vm_preparing"] > 0
       refute Map.has_key?(waits, "node_capacity")
-      assert_received {:node, "create", %{memory_mb: 8192}}
+      assert_received {:node, "create", %{memory_mb: 4096}}
     end
   end
 
@@ -635,7 +629,7 @@ defmodule Tuist.RemoteExecutionTest do
       assert {:ok, %{done: true}} = submit(project)
 
       eventually(fn ->
-        match?([%{mode: "scheduled", duration_ms: 1_500, vcpus: 2, memory_mb: 4096}], usage_events(project))
+        match?([%{mode: "scheduled", duration_ms: 1_500, vcpus: 1, memory_mb: 2048}], usage_events(project))
       end)
 
       assert {:ok, %{sandbox_id: id}} = RemoteExecution.lease(project, wait: 5_000)

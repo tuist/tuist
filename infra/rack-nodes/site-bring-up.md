@@ -84,6 +84,11 @@ SITE=larch
 5. **Goods-in tickets** are open in NTT's portal for every shipment, and
    every box is labelled with rack, U position and device name.
 6. **Print** `cables/larch.md` and the elevation.
+   Before leaving for the DC, `mise run rack:fleet --site <site> ready` lists
+   every gap in item 1 that larch's visits found one at a time: power, the
+   ToRs' and power cards' MACs, the first edge's TPM check code, the boot
+   server and the minis' tailnet SSH grants. Go once it says the site is
+   ready to rack.
 
 ## On the day (hands-on), network first
 

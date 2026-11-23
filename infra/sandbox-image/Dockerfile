@@ -37,15 +37,23 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # The first release that signs in with the sandbox's workload identity (#15541)
 # without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
 # release's SHASUMS256.txt.
-ARG TUIST_VERSION=4.219.0-canary.39
-ARG TUIST_SHA256=05ae8d377ab18ef8aee33279886124be395f48d0bbd8fd3e5807c8d450f0ea8c
+ARG TUIST_VERSION=4.220.0-canary.5
+ARG TUIST_SHA256=a653338982aa5d76c24efc109e1b161645821a47bc88580954107ecee7977995
 # Struo, which thread agents build and test with first; SHA-256 of
 # struo-<version>-x86_64-unknown-linux-gnu.tar.gz from the release's .sha256.
 ARG STRUO_VERSION=1.0.0
 ARG STRUO_SHA256=e6677aa4e086ea3d1c0b70fc06341f4c978c06fd0b2d0aee586aff46be048a33
 ARG VERSION=dev
+# Ubuntu archive for every apt stage. archive.ubuntu.com and
+# security.ubuntu.com served the runner pool at under 1 MB/s for hours, which
+# pushed the template build past its timeout; this mirror served it at about
+# 74 MB/s. Plain HTTP because the base image has no CA bundle yet; apt
+# verifies the archive signatures either way.
+ARG UBUNTU_MIRROR=http://mirrors.edge.kernel.org/ubuntu
 
 FROM ubuntu:24.04 AS elixir-toolchain
+ARG UBUNTU_MIRROR
+RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl unzip libssl3t64 libncurses6 libtinfo6 \
     && rm -rf /var/lib/apt/lists/*
@@ -118,6 +126,8 @@ RUN set -eu; \
 # Renovate bumps both together (see renovate.json).
 FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS guest
 ENV DEBIAN_FRONTEND=noninteractive
+ARG UBUNTU_MIRROR
+RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bash coreutils ca-certificates curl wget git git-lfs openssh-client gnupg sudo tzdata locales \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
@@ -270,6 +280,8 @@ RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home bu
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
 FROM --platform=$BUILDPLATFORM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS rootfs
+ARG UBUNTU_MIRROR
+RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends e2fsprogs ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 ARG KERNEL_URL

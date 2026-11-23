@@ -55,11 +55,12 @@ To use a different value, pass `--jobs` on the command line, or set it in `.baze
 
 ### Executor sizes {#executor-sizes}
 
-Actions use 4 GB of memory and 2 vCPUs by default. Set the `tuist-memory-gb` execution property to request a larger VM:
+Actions use 2 GB of memory and 1 vCPU by default, which suits single-threaded compile actions. Set the `tuist-memory-gb` execution property to request a larger VM for multi-threaded tests or memory-hungry links:
 
 | `tuist-memory-gb` | Memory | vCPUs | Workspace disk |
 | --- | --- | --- | --- |
-| `4` (default) | 4 GB | 2 | 30 GB |
+| `2` (default) | 2 GB | 1 | 30 GB |
+| `4` | 4 GB | 2 | 30 GB |
 | `8` | 8 GB | 4 | 30 GB |
 | `16` | 16 GB | 8 | 30 GB |
 

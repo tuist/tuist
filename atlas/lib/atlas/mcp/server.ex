@@ -125,6 +125,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.FinalizeDocumentUpload
   alias Atlas.MCP.Tools.FinalizeLetterDocumentUpload
   alias Atlas.MCP.Tools.FinanceAddTransactionAttachment
+  alias Atlas.MCP.Tools.FinanceCreateTransferRequest
   alias Atlas.MCP.Tools.FinanceDeleteTransactionAttachment
   alias Atlas.MCP.Tools.FinanceGetTransaction
   alias Atlas.MCP.Tools.FinanceListTransactionAttachments
@@ -403,6 +404,13 @@ defmodule Atlas.MCP.Server do
   and `finance_delete_transaction_attachment` to remove an incorrect or duplicate
   attachment. All finance attachment tools are executive-only.
 
+  To pay vendor invoices, use `finance_create_transfer_request` with the amount,
+  IBAN, beneficiary name, and invoice number from the invoice. It creates one
+  pending request in Qonto and pays nothing until someone with review rights
+  approves it there with strong customer authentication. It acts with the caller's
+  own Qonto connection; if it reports one is missing, send them to Connections in
+  Atlas settings.
+
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
   2. Call `get_account` to retrieve the customer identity, legal, billing, signatory, and commercial term fields. Prefer explicit values in the user's current request over pasted conversation context, and prefer both over older values stored on the account.
@@ -451,6 +459,7 @@ defmodule Atlas.MCP.Server do
     FinanceGetTransaction,
     FinanceListTransactionAttachments,
     CategorizeFinanceTransaction,
+    FinanceCreateTransferRequest,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment
   ]
@@ -728,6 +737,7 @@ defmodule Atlas.MCP.Server do
     ListEmailOutbox,
     GetSentEmail,
     CategorizeFinanceTransaction,
+    FinanceCreateTransferRequest,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment,
     FinanceGetTransaction,

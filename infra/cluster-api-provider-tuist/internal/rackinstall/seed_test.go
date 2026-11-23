@@ -811,3 +811,49 @@ func TestUserDataPutsTheFirstEdgesWANInItsNetplan(t *testing.T) {
 		t.Errorf("a console password hash that is not SHA-512 crypt rendered")
 	}
 }
+
+// The install keeps a forced 25G with FEC off on the ports the installer
+// needed it for, with the udev rule that kept edge-b's and store-a's uplinks
+// up by hand, and writes no rule for a host whose ports linked on their own.
+func TestUserDataKeepsTheInstallersForced25G(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	_, seed := renderEdge(t)
+	var command string
+	for _, c := range seed.Autoinstall.LateCommands {
+		if strings.Contains(c, ForcedLinksRulePath) {
+			command = c
+		}
+	}
+	if command == "" {
+		t.Fatal("no late-command keeps the forced links")
+	}
+	run := func(forced string) string {
+		t.Helper()
+		dir := t.TempDir()
+		if forced != "" {
+			if err := os.WriteFile(filepath.Join(dir, "forced"), []byte(forced), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		script := strings.ReplaceAll(strings.ReplaceAll(command, ForcedLinksPath, filepath.Join(dir, "forced")), "/target", filepath.Join(dir, "target"))
+		if out, err := exec.Command(sh, "-c", script).CombinedOutput(); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		rule, _ := os.ReadFile(filepath.Join(dir, "target", ForcedLinksRulePath))
+		return string(rule)
+	}
+
+	got := run("c0:b5:50:53:c7:09\nc0:b5:50:53:c7:08\nc0:b5:50:53:c7:09\n")
+	want := `ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="c0:b5:50:53:c7:08", RUN+="/usr/sbin/ethtool -s $name autoneg off speed 25000 duplex full", RUN+="/usr/sbin/ethtool --set-fec $name encoding off"
+ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="c0:b5:50:53:c7:09", RUN+="/usr/sbin/ethtool -s $name autoneg off speed 25000 duplex full", RUN+="/usr/sbin/ethtool --set-fec $name encoding off"
+`
+	if got != want {
+		t.Fatalf("rule:\n%s\nwant:\n%s", got, want)
+	}
+	if got := run(""); got != "" {
+		t.Fatalf("wrote a rule with nothing forced:\n%s", got)
+	}
+}

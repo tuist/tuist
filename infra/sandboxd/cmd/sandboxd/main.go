@@ -485,6 +485,7 @@ func main() {
 				metrics.MemoryUsedBytes.Set(float64(used))
 				metrics.DiskSandboxesBytes.Set(float64(report.SandboxesBytes))
 				metrics.DiskAvailableBytes.Set(float64(report.AvailableBytes))
+				metrics.ObserveVMs(sandboxes)
 				return protocol.Report{Capacity: hostinfo.Capacity(), Sandboxes: withDisk(sandboxes, report), DiskSnapshots: manager.DiskSnapshots(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
 			},
 			Handler: func(ctx context.Context, cmd protocol.Command, stream func(protocol.Stream)) protocol.Result {
