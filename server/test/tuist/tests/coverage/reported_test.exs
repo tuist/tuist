@@ -130,7 +130,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
             ]
           }
         },
-        Map.new(Keyword.take(opts, [:ran_at]))
+        Map.new(Keyword.take(opts, [:ran_at, :status]))
       )
     )
   end
@@ -2194,6 +2194,42 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:target_without_history]
+  end
+
+  describe "a target selective testing skipped that holds no tests" do
+    # The baseline run built EmptyKitTests, which records no tests, under
+    # `built_hash`; the head's run skipped it under `skipped_hash`.
+    defp empty_target(project, account, built_hash, skipped_hash, status \\ "success") do
+      base = base_run(project, account, status: status)
+      selective_testing(project, base, [{"AppTests", :miss}, {"EmptyKitTests", :miss, built_hash}])
+
+      head =
+        CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+          git_commit_sha: "head",
+          test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+        })
+
+      selective_testing(project, head, [{"AppTests", :miss}, {"EmptyKitTests", :local, skipped_hash}])
+      Reported.compute(project, "head")
+    end
+
+    test "leaves no gap when a passed baseline run built it under the same hash", %{
+      project: project,
+      account: account
+    } do
+      assert %{kind: "measured", gap_reasons: 0, skipped_tests_count: 0} =
+               empty_target(project, account, "empty-hash", "empty-hash")
+    end
+
+    test "is a gap when the baseline run built it under another hash", %{project: project, account: account} do
+      assert %{kind: "partial"} = reported = empty_target(project, account, "old-hash", "empty-hash")
+      assert reasons(reported) == [:target_without_history]
+    end
+
+    test "is a gap when the baseline run that built it failed", %{project: project, account: account} do
+      assert %{kind: "partial"} = reported = empty_target(project, account, "empty-hash", "empty-hash", "failure")
+      assert reasons(reported) == [:target_without_history]
+    end
   end
 
   test "ignores what selective testing skipped in a run not set up to collect coverage", %{

@@ -44,7 +44,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     measured code that is not the commit's and never count.
   - `target_without_history`: selective testing skipped a test target that
     no run was recorded under with its hash and the commit's baseline did
-    not execute, so which tests it holds is unknown.
+    not execute, so which tests it holds is unknown. A target a passed
+    baseline run built under the same hash without recording a test holds
+    none, and isn't one.
   - `caller_selected_tests`: every run of a scheme executed only the tests
     its caller selected (`-only-testing`), so what the rest would have
     covered is unknown.

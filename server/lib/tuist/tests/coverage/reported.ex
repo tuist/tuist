@@ -591,6 +591,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         hits
         |> Enum.reject(&Map.has_key?(inventory, &1.name))
         |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history))
+        |> Enum.reject(&is_nil/1)
         |> Enum.uniq(),
       baseline: baseline,
       indexed: indexed
@@ -672,7 +673,9 @@ defmodule Tuist.Tests.Coverage.Reported do
   # taken as they were. A target the baseline's checkpoint copied from an
   # earlier one (`carried_targets`) under the hash the commit skipped it
   # with is listed from the checkpoint's rows (`{:checkpoint, id}`): its
-  # runs never executed it, and the same hash means the same tests.
+  # runs never executed it, and the same hash means the same tests. A target
+  # without tests (`empty_targets/5`) has none to list and no reason either
+  # (`nil`).
   defp baseline_lists(_project_id, _commit, _baseline, {[], _skipped_in, _hashes}), do: {%{}, %{}}
 
   defp baseline_lists(_project_id, _commit, [], {modules, _skipped_in, _hashes}),
@@ -704,13 +707,20 @@ defmodule Tuist.Tests.Coverage.Reported do
       end)
 
     copied = copied_targets(baseline)
+    empty = empty_targets(project_id, by_id, Enum.reject(modules, &Map.has_key?(executed, &1)), skipped_in, hashes)
 
     Enum.reduce(modules, {%{}, %{}}, fn module, {listed, gaps} ->
       case executed[module] do
         nil ->
-          case copied[{module, hashes[module]}] do
-            nil -> {listed, Map.put(gaps, module, :target_without_history)}
-            checkpoint_id -> {Map.put(listed, module, {:checkpoint, checkpoint_id}), gaps}
+          cond do
+            checkpoint_id = copied[{module, hashes[module]}] ->
+              {Map.put(listed, module, {:checkpoint, checkpoint_id}), gaps}
+
+            MapSet.member?(empty, module) ->
+              {listed, Map.put(gaps, module, nil)}
+
+            true ->
+              {listed, Map.put(gaps, module, :target_without_history)}
           end
 
         run_id ->
@@ -719,6 +729,40 @@ defmodule Tuist.Tests.Coverage.Reported do
             else: {Map.put(listed, module, run_id), gaps}
       end
     end)
+  end
+
+  # The skipped targets that hold no tests: a baseline run of a scheme that
+  # skipped one built it under the hash it was skipped with, recorded no
+  # tests of it and passed. A run that failed may have crashed launching the
+  # target's bundle before any test ran, so only a passed run tells an empty
+  # target from one whose tests never reported.
+  defp empty_targets(_project_id, _by_id, [], _skipped_in, _hashes), do: MapSet.new()
+
+  defp empty_targets(project_id, by_id, modules, skipped_in, hashes) do
+    modules = MapSet.new(modules)
+
+    project_id
+    |> Xcode.selective_testing_hashes(project_id |> passed_runs(Map.keys(by_id)) |> MapSet.to_list())
+    |> Enum.filter(fn %{test_run_id: run_id, name: name, hash: hash, hit: hit} ->
+      MapSet.member?(modules, name) and hit not in ["local", "remote"] and hash == hashes[name] and
+        by_id[run_id].scheme in Map.get(skipped_in, name, [])
+    end)
+    |> MapSet.new(& &1.name)
+  end
+
+  defp passed_runs(project_id, run_ids) do
+    for ids <- Enum.chunk_every(run_ids, @run_id_chunk),
+        id <-
+          ClickHouseRepo.all(
+            from(t in Test.query(),
+              where: t.project_id == ^project_id and t.id in ^ids,
+              group_by: t.id,
+              having: fragment("argMax(?, ?)", t.status, t.inserted_at) == "success",
+              select: t.id
+            )
+          ),
+        into: MapSet.new(),
+        do: id
   end
 
   # The baseline's checkpoint that copied each target under each hash,
