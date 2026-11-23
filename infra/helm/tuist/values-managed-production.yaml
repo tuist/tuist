@@ -1113,9 +1113,14 @@ vultrFleets:
   # monzo's caches to 256Gi adds here. It joins as lvm-v1 like the others (its
   # VultrMachine is annotated tuist.dev/kura-storage-layout=lvm-v1 before the box
   # is tagged), then gets its thin pool and the kura-thin-ready label.
+  #
+  # The fourth box joins the same way. On 2026-11-23 the region had 292 GiB of
+  # admission headroom and at most 258 GiB free on any node, so it could not
+  # place a 256Gi replica (271 GiB of kura-disk) or admit another largest-plan
+  # instance (543 GiB).
   us-central-8c:
     enabled: true
-    replicas: 3
+    replicas: 4
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
