@@ -179,6 +179,7 @@ defmodule Atlas.Orbit.ToolPolicy do
     "search_my_slack",
     # External side effects.
     "send_my_gmail_draft",
+    "finance_create_transfer_request",
     "send_account_email",
     "send_email_broadcast",
     "send_nudge",
