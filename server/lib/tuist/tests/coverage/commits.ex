@@ -43,6 +43,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Test
+  alias Tuist.VCS
 
   @doc """
   Schedules the commit's totals to be republished after a run reported
@@ -139,6 +140,10 @@ defmodule Tuist.Tests.Coverage.Commits do
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
+
+      # The pull request comment reports a commit's coverage once complete.
+      VCS.enqueue_coverage_pull_request_comment(project, summary)
+
       summary
     end
   end

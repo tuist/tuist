@@ -1,8 +1,10 @@
 defmodule Tuist.Tests.Coverage.ComparisonTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  alias Tuist.Repo
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
+  alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -93,6 +95,7 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
     assert %{
              status: :complete,
              requested_base_sha: "m",
+             requested_base_measured: false,
              base: %{git_commit_sha: "a", distance: 2, coverage: 75.0},
              head: %{coverage: 66.7},
              change: -8.3
@@ -111,6 +114,9 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
     assert %{base: %{git_commit_sha: "b", distance: 1}, change: 66.7} = Comparison.compare(project, "p")
 
     measure(project, account, "m", [file("Sources/Core.swift", [1, 1], "Core"), file("Sources/UI.swift", [1, 0], "UI")])
+    # Measured but not signalled: still b, though m now has a figure of its own.
+    assert %{base: %{git_commit_sha: "b"}, requested_base_measured: true} = Comparison.compare(project, "p")
+
     Commits.signal_complete(project, "m")
     assert %{base: %{git_commit_sha: "m", distance: 0}, change: -8.3} = Comparison.compare(project, "p")
   end
@@ -160,5 +166,38 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
     measure(project, account, "p", [file("Sources/Other.swift", [1], "Other")], %{scheme: "Other", git_dirty: true})
     Commits.signal_complete(project, "p")
     assert %{status: :incomplete} = Comparison.compare(project, "p")
+  end
+
+  test "a pull request commit folded complete queues its comment, once per pending job", %{
+    project: project,
+    account: account
+  } do
+    measure(project, account, "a", [file("Sources/Core.swift", [1, 0], "Core")])
+    Commits.signal_complete(project, "a")
+    refute_enqueued(worker: CommentWorker, args: %{"git_commit_sha" => "a"})
+
+    # Without the comment the run's upload queued, so the job is the fold's.
+    measure(project, account, "p", [file("Sources/Core.swift", [1, 1], "Core")], %{
+      git_ref: "refs/pull/7/merge",
+      is_pull_request: true,
+      pull_request_number: 7,
+      base_branch: "main"
+    })
+
+    Repo.delete_all(Oban.Job)
+    Commits.recompute(project, "p")
+    refute_enqueued(worker: CommentWorker, args: %{"git_commit_sha" => "p"})
+
+    Commits.signal_complete(project, "p")
+    Commits.recompute(project, "p")
+
+    assert [%{args: args}] = all_enqueued(worker: CommentWorker, args: %{"git_commit_sha" => "p"})
+
+    assert args == %{
+             "git_commit_sha" => "p",
+             "git_ref" => "refs/pull/7/merge",
+             "git_remote_url_origin" => "https://github.com/tuist/app",
+             "project_id" => project.id
+           }
   end
 end
