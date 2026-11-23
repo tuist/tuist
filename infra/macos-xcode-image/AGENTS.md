@@ -1,6 +1,6 @@
 # macOS + Xcode Base Image
 
-Layer 1 shared by runner and xcresult-processor Tart images. Keep Xcode/dev-tool installation here, not duplicated in downstream runtime layers.
+Layer 1 shared by runner and xcresult-processor Tart images. Keep Xcode and anything else large or slow to install here, not duplicated in downstream runtime layers. A base only rebuilds for a new Xcode, so a language runtime or small tool that has to stay current or ship quickly belongs in the runner image instead (Go is there).
 
 Built by `.github/workflows/macos-xcode-image.yml` on
 workflow_dispatch (we trigger it whenever Apple ships a new Xcode

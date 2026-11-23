@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "f3d54dd7010674d21350638f0fb671783e6f1387afc26a58ed12dcaabaf98982",
+  "hash": "3d0e91765ebe40912c65fd7954f1c8b8ceb83ed62dfc45c6dc73a35f43690695",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,13 +35,13 @@
                   "content_hash": "c139217027c502b2ea8f4539e42a4468f87e9880f933237b675dfe8dadd74bc2"
                 },
                 "### Not included {#macos-not-included}": {
-                  "content_hash": "fffe989adb9dce2abeecfa0a61969e41837ffe011f8578cca4fd7fd00a1d4b8d"
+                  "content_hash": "87a47e9ff39a8f990a659c313c1e451e81c50b51a7e9cb7782aa5ed28da9479d"
                 },
                 "### Preinstalled software {#linux-software}": {
                   "content_hash": "24c1d7939b5c3c6d2a1c1bb8b1463d0dbf29cf45d2739561ceb130fa1f582985"
                 },
                 "### Preinstalled software {#macos-software}": {
-                  "content_hash": "2df4afe87193091fa46ad88c7e2b908f4ebae297fd6a22f0027dc8af65726edf"
+                  "content_hash": "67c52bbaa71eeb110a4971381f23b08a517cdfb95b0d60b393ce4b6f217733f9"
                 },
                 "### Xcode {#xcode}": {
                   "content_hash": "41112e398b7bbc39a32483bce4297dacbffbaa8dacc7a3029f89c8f1274c1ff4"
@@ -53,11 +53,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "91d6b1ca0085f5c41df0409285a05f0a1b6e3b6443798ba4953a291ebe80be05",
+          "hash": "db33c04cd078cd2868a9805c4b6c0a5b74d6c2be3f66d211b94d79550e36c2bd",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/images.md",
           "metadata": {
-            "content_hash": "3179239642e5eb528aacf6d0f62734778b715a47df8d2873ee183d0a13f4f7a5"
+            "content_hash": "70333b1af9bd9c2615d43f8a6eb8f04ef445e752a9d777685ea44d22d0b6169e"
           }
         },
         {
@@ -254,14 +254,14 @@
         }
       ],
       "details": {},
-      "hash": "f3d54dd7010674d21350638f0fb671783e6f1387afc26a58ed12dcaabaf98982",
+      "hash": "3d0e91765ebe40912c65fd7954f1c8b8ceb83ed62dfc45c6dc73a35f43690695",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/images.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "059f146e0b94e155c767e6bf8e5fa2dbd985542f982e9346504b9b0dab530a87",
+  "output_hash": "31562fd14b5a87aa6e1b0a696d5577a378cce2fc315bb68aadac45a1f9bbf2fb",
   "output_path": "server/priv/docs/zh_Hant/guides/features/runners/images.md",
   "protection_state": "recorded",
   "provider": "",
@@ -282,8 +282,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5f6b0c6761cf60e6ba412eb3de60cafd4a5b924e",
+  "source_commit_sha": "dbfae0101ffd2dd8769a350fa2b8667437dc4f3f",
   "source_path": "server/priv/docs/en/guides/features/runners/images.md",
-  "translated_at": "2026-11-19T14:38:20.929192Z",
-  "translation_session_id": "01a1f43c-cc79-7fa7-97c3-b1bca0dda8f1"
+  "translated_at": "2026-11-23T16:09:10.774466Z",
+  "translation_session_id": "01a20927-30a6-78cb-bad4-838410725413"
 }

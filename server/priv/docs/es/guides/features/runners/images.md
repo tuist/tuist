@@ -7,9 +7,9 @@
 ---
 # Imágenes {#images}
 
-Cada trabajo de Tuist Runners se inicia en una máquina virtual nueva arrancada desde una imagen de runner. Tu <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> elige la imagen: la plataforma, la versión de Xcode en macOS y la release de Ubuntu en Linux. La VM se descarta cuando termina el trabajo, por lo que cualquier cosa que instale un trabajo desaparece para el siguiente.
+Cada trabajo de Tuist Runners se inicia en una máquina virtual nueva arrancada desde una imagen de runner. Tu <.localized_link href="/guides/features/runners/profiles">perfil</.localized_link> elige la imagen: la plataforma, la versión de Xcode en macOS y la release de Ubuntu en Linux. La VM se descarta cuando termina el trabajo, por lo que cualquier cosa que el trabajo instale desaparece para el siguiente.
 
-Las imágenes siguen a los runners alojados en GitHub en lo que importa para los flujos de trabajo: el mismo usuario, las rutas de home y workspace, `ImageOS`, `sudo` sin contraseña y las herramientas que esperan la mayoría de flujos de iOS, macOS y Linux. Son intencionadamente más pequeñas que las de GitHub, así que las diferencias se enumeran para cada plataforma a continuación.
+Las imágenes siguen a los runners alojados en GitHub en lo que importa a los flujos de trabajo: el mismo usuario, las rutas de home y workspace, `ImageOS`, `sudo` sin contraseña y las herramientas que la mayoría de flujos de iOS, macOS y Linux esperan. Son intencionadamente más pequeñas que las de GitHub, por lo que las diferencias se enumeran para cada plataforma a continuación.
 
 ## Elegir una imagen {#choosing-an-image}
 
@@ -25,21 +25,21 @@ Los runners de macOS son máquinas virtuales Apple silicon (arm64) que ejecutan 
 
 ### Xcode {#xcode}
 
-Cada imagen contiene **exactamente un Xcode**, que se selecciona con `xcode-select`, de modo que `xcodebuild` y `xcrun` lo usan sin un paso de configuración. Esta es la principal diferencia respecto a las imágenes alojadas en GitHub, que incluyen varias versiones de Xcode para alternar entre ellas en tiempo de ejecución del trabajo. Versiones disponibles:
+Cada imagen contiene **exactamente un Xcode**, que se selecciona con `xcode-select`, de modo que `xcodebuild` y `xcrun` lo usan sin un paso de configuración. Esta es la principal diferencia con las imágenes alojadas en GitHub, que incluyen varias versiones de Xcode para alternar entre ellas durante el trabajo. Versiones disponibles:
 
 {{runner_macos_xcode_versions}}
 
-- **Ruta.** Xcode está en `/Applications/Xcode_<version>.app`. Para una versión con componente de parche, `/Applications/Xcode_<major>.<minor>.app` apunta al mismo bundle, así que `Xcode_26.4.app` resuelve a `Xcode_26.4.1.app`. Los flujos que codifican una ruta al estilo de GitHub o llaman a `xcode-select -s` con ella siguen funcionando.
+- **Ruta.** Xcode está en `/Applications/Xcode_<version>.app`. Para una versión con un componente de parche, `/Applications/Xcode_<major>.<minor>.app` apunta al mismo bundle, así que `Xcode_26.4.app` resuelve a `Xcode_26.4.1.app`. Los flujos que codifican una ruta estilo GitHub o llaman a `xcode-select -s` con ella siguen funcionando.
 - **Simuladores.** Los runtimes de simulador de iOS, tvOS, watchOS y visionOS que vienen con ese Xcode se descargan en la imagen, de modo que el primer `xcodebuild test` no tiene que obtenerlos.
-- **Toolchain de Metal.** Desde Xcode 26, el compilador de Metal no viene incluido con Xcode y hay que descargarlo por separado. Cada imagen incluye la toolchain de Metal que corresponde a su Xcode, instalada para el usuario con el que se ejecutan los trabajos, de modo que `xcrun metal` y los proyectos con fuentes `.metal` compilan sin ejecutar `xcodebuild -downloadComponent MetalToolchain`.
-- **Betas.** Los perfiles beta (por ejemplo `27.3-beta`) siguen la última beta de esa release. Cuando Apple publica una nueva beta, la imagen se reconstruye y el perfil pasa a ella sin cambios por tu parte.
+- **Cadena de herramientas de Metal.** Desde Xcode 26, el compilador de Metal no viene incluido con Xcode y debe descargarse por separado. Cada imagen incluye la cadena de herramientas de Metal que corresponde a su Xcode, instalada para el usuario con el que se ejecutan los trabajos, de modo que `xcrun metal` y los proyectos con fuentes `.metal` compilan sin ejecutar `xcodebuild -downloadComponent MetalToolchain`.
+- **Betas.** Los perfiles beta (por ejemplo `27.3-beta`) siguen la última beta de esa release. Cuando Apple publica una nueva beta, la imagen se reconstruye y el perfil pasa a ella sin ningún cambio por tu parte.
 
 ### Software preinstalado {#macos-software}
 
-- **Herramientas de Apple:** Xcode (uno por imagen), runtimes de simulador, toolchain de Metal, `xcodes`, `xcbeautify`
+- **Herramientas de Apple:** Xcode (uno por imagen), runtimes de simulador, cadena de herramientas de Metal, `xcodes`, `xcbeautify`
 - **Herramientas de Swift e iOS:** SwiftLint, SwiftFormat, SwiftGen, LicensePlist, Mint, Carthage, CocoaPods, fastlane
 - **Dispositivos:** `libimobiledevice`, `ideviceinstaller`, `ios-deploy`
-- **Lenguajes y runtimes:** Ruby mediante `rbenv` (2.7 y las dos últimas releases 3.x, la más reciente como predeterminada) con Bundler, Node.js 24 con npm, Yarn y pnpm
+- **Lenguajes y runtimes:** Ruby mediante `rbenv` (2.7 y las dos últimas releases 3.x, la más reciente como predeterminada) con Bundler, Node.js 24 con npm, Yarn y pnpm, Go, Java 21 (Temurin, establecido como `JAVA_HOME`)
 - **Gestores de paquetes y versiones:** Homebrew, mise
 - **Control de versiones:** Git, Git LFS, Git Credential Manager, GitHub CLI (`gh`)
 - **Utilidades:** `jq`, `yq`, `curl`, `wget`, `zip`/`unzip`, CMake, GCC, AWS CLI
@@ -50,12 +50,12 @@ Las versiones de las herramientas provienen de Homebrew cuando se construye la i
 
 ### Entorno {#macos-environment}
 
-- **Usuario y rutas.** Los trabajos se ejecutan como `runner`, con home `/Users/runner` y workspace `/Users/runner/work`, las mismas rutas que los runners alojados en GitHub, de modo que las acciones que las codifican funcionan.
-- **`sudo`.** Sin contraseña. La VM pertenece exclusivamente a tu trabajo.
-- **Homebrew.** El prefijo (`/opt/homebrew`) es propiedad de `runner`, así que `brew install <formula>` funciona sin `sudo`. `HOMEBREW_NO_AUTO_UPDATE` está establecido.
-- **Shell.** Los pasos se ejecutan en un shell de login, así que Homebrew, `rbenv` y Node.js están en `PATH`. `LANG` es `en_US.UTF-8`.
-- **`ImageOS`** es `macos26`, como en los runners alojados en GitHub, para las acciones de configuración que eligen binarios precompilados por él.
-- **Certificados.** Los certificados intermedios WWDR (G3) y Developer ID (G2) de Apple están en el almacén de confianza del sistema para firmar y notarizar.
+- **Usuario y rutas.** Los trabajos se ejecutan como `runner`, con home `/Users/runner` y workspace `/Users/runner/work`, las mismas rutas que los runners alojados en GitHub, por lo que las acciones que las codifican funcionan.
+- **`sudo`.** Sin contraseña. La VM pertenece únicamente a tu trabajo.
+- **Homebrew.** El prefijo (`/opt/homebrew`) es propiedad de `runner`, por lo que `brew install <formula>` funciona sin `sudo`. `HOMEBREW_NO_AUTO_UPDATE` está establecido.
+- **Shell.** Los pasos se ejecutan en un shell de login, por lo que Homebrew, `rbenv` y Node.js están en `PATH`. `LANG` es `en_US.UTF-8`.
+- **`ImageOS`** es `macos26`, como en los runners alojados en GitHub, para las acciones de configuración que seleccionan binarios precompilados por él.
+- **Certificados.** Los certificados intermedios WWDR (G3) y Developer ID (G2) de Apple están en el almacén de confianza del sistema para la firma y la notaría.
 - **Permisos de privacidad.** Se conceden de antemano dos aprobaciones de privacidad de macOS, como en las imágenes alojadas en GitHub: scripting de Finder a través de Apple Events, que necesitan `create-dmg` y `osascript`, y el acceso del simulador de iOS al micrófono, que necesitan las apps que graban audio en tests de UI. Los permisos dentro de un simulador, como `simctl privacy`, siguen siendo responsabilidad de tu trabajo.
 - **Disco.** Cada trabajo comienza con al menos 100 GB de espacio libre en disco.
 
@@ -63,8 +63,8 @@ Las versiones de las herramientas provienen de Homebrew cuando se construye la i
 
 - **La CLI de Tuist.** Instálala en el trabajo, por ejemplo con mise, para que tu proyecto controle la versión.
 - **Otras versiones de Xcode.** Usa un perfil por versión de Xcode en lugar de `xcode-select`.
-- **Docker.** Los runners de macOS no tienen demonio Docker. Usa un perfil de Linux; consulta <.localized_link href="/guides/features/runners/docker">Docker</.localized_link>.
-- **Cadenas de herramientas que GitHub incluye en macOS** y que las compilaciones de iOS rara vez necesitan, como Java, el SDK de Android, .NET, Rust, versiones de Python o navegadores. Instálalas en un paso con Homebrew, mise o una acción de configuración.
+- **Docker.** Los runners de macOS no tienen daemon de Docker. Usa un perfil de Linux; consulta <.localized_link href="/guides/features/runners/docker">Docker</.localized_link>.
+- **Cadenas de herramientas que GitHub incluye en macOS** y que las compilaciones para iOS rara vez necesitan, como otras versiones de Java, el SDK de Android, .NET, Rust, versiones de Python o navegadores. Instálalas en un paso con Homebrew, mise o una acción de configuración.
 
 ## Linux {#linux}
 
@@ -75,7 +75,7 @@ Los runners de Linux son máquinas virtuales x86_64 (amd64) con **Ubuntu 24.04**
 - **Cadena de herramientas de compilación:** `build-essential` (GCC, G++, make), autoconf, automake, libtool, `pkg-config`, CMake, Ninja, m4, bison, flex, gettext
 - **Cabeceras de desarrollo:** OpenSSL, libffi, zlib, bzip2, readline, SQLite, ncurses, libxml2, libxslt, libyaml, libcurl, uuid
 - **Python:** Python 3 con `pip` y `venv` (la versión de la release de Ubuntu)
-- **Contenedores:** Docker CLI con Buildx y Compose; el demonio se ejecuta junto al trabajo (consulta <.localized_link href="/guides/features/runners/docker">Docker</.localized_link>)
+- **Contenedores:** Docker CLI con Buildx y Compose; el daemon se ejecuta junto al trabajo (consulta <.localized_link href="/guides/features/runners/docker">Docker</.localized_link>)
 - **Kubernetes:** `kubectl`, Helm
 - **Android:** Android SDK en `/usr/local/lib/android/sdk` con herramientas de línea de comandos, platform-tools y todas las releases de platform y build-tools desde la API 34 en adelante, con licencias aceptadas
 - **Control de versiones:** Git, Git LFS, cliente OpenSSH, GitHub CLI (`gh`)
@@ -89,20 +89,20 @@ Los runners de Linux son máquinas virtuales x86_64 (amd64) con **Ubuntu 24.04**
 - **Usuario y rutas.** Los trabajos se ejecutan como `runner` (UID 1000) con home `/home/runner`, en el grupo `docker`, con `sudo` sin contraseña.
 - **`ImageOS`** es `ubuntu24` o `ubuntu22`, coincidiendo con los runners alojados en GitHub.
 - **Android.** `ANDROID_HOME` y `ANDROID_SDK_ROOT` apuntan al SDK. El emulador no está preinstalado; consulta <.localized_link href="/guides/features/runners#android-emulators">Emuladores de Android</.localized_link>.
-- **Localización.** `LANG` y `LC_ALL` son `C.UTF-8`, y `DEBIAN_FRONTEND` es `noninteractive`, así que `sudo apt-get install` no solicita interacción.
+- **Localización.** `LANG` y `LC_ALL` son `C.UTF-8`, y `DEBIAN_FRONTEND` es `noninteractive`, por lo que `sudo apt-get install` no solicita interacción.
 
 ### No incluido {#linux-not-included}
 
-La imagen de Linux cubre lo básico de la compilación en lugar de cada cadena de herramientas de lenguaje que GitHub preinstala. Instala lo que tu trabajo necesite con las acciones de configuración habituales (`actions/setup-java`, `actions/setup-node`, `actions/setup-go`, `ruby/setup-ruby`), con mise o con `apt-get`:
+La imagen de Linux cubre lo básico de la compilación en lugar de todas las cadenas de herramientas de lenguajes que GitHub preinstala. Instala lo que necesite tu trabajo con las acciones de configuración habituales (`actions/setup-java`, `actions/setup-node`, `actions/setup-go`, `ruby/setup-ruby`), con mise o con `apt-get`:
 
-- **Tiempos de ejecución de lenguajes** como Java, Node.js, Go, Ruby, .NET y Rust.
+- **Runtimes de lenguajes** como Java, Node.js, Go, Ruby, .NET y Rust.
 - **El NDK de Android.** Instala la versión que necesites con `"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;<version>"`. `ANDROID_NDK_HOME` se deja sin establecer para que la compilación falle claramente en lugar de apuntar a un NDK que no existe.
-- **Navegadores** y CLIs de cloud distintas de `kubectl`, Helm y `gh`.
+- **Navegadores** y CLIs de cloud distintos de `kubectl`, Helm y `gh`.
 
-Para mantener una cadena de herramientas entre trabajos en lugar de instalarla cada vez, ponla en un <.localized_link href="/guides/features/runners/cache-volumes">volumen de caché</.localized_link>.
+Para mantener una cadena de herramientas entre trabajos en lugar de instalarla cada vez, colócala en un <.localized_link href="/guides/features/runners/cache-volumes">volumen de caché</.localized_link>.
 
 ## Actualizaciones de imágenes {#image-updates}
 
-Las imágenes se reconstruyen cuando Apple publica una nueva versión de Xcode o una beta, cuando se actualizan los agentes de CI y cuando cambiamos las propias imágenes. Un trabajo siempre se ejecuta en una imagen completa y probada: las nuevas imágenes se despliegan gradualmente en la flota y nunca cambian mientras se ejecuta un trabajo.
+Las imágenes se reconstruyen cuando Apple lanza una nueva versión de Xcode o una beta, cuando se actualizan los agentes de CI y cuando modificamos las propias imágenes. Un trabajo siempre se ejecuta en una imagen completa y probada: las nuevas imágenes se despliegan gradualmente en la flota y nunca cambian mientras se ejecuta un trabajo.
 
-Si falta una herramienta de la que depende tu flujo de trabajo, [contáctanos](mailto:contact@tuist.dev) o pregunta en el [Slack de la comunidad](https://slack.tuist.dev).
+Si falta alguna herramienta de la que dependa tu flujo de trabajo, [contáctanos](mailto:contact@tuist.dev) o pregunta en el [Slack de la comunidad](https://slack.tuist.dev).

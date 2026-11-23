@@ -1,6 +1,6 @@
 # macOS Runner Image
 
-Tart Layer 2 over `macos-tahoe-xcode`: one VM per Pod, one ephemeral GitHub Actions job per VM. Keep Xcode/tool installation in [Layer 1](../macos-xcode-image/AGENTS.md).
+Tart Layer 2 over `macos-tahoe-xcode`: one VM per Pod, one ephemeral GitHub Actions job per VM. Keep Xcode and large or slow installs in [Layer 1](../macos-xcode-image/AGENTS.md); small runtimes that should stay current, such as Go, live here pinned (`go_version`), because every release rebuilds this layer while a base rebuilds only for a new Xcode.
 
 ## Runtime contracts
 
