@@ -658,6 +658,44 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
     end
 
+    test "a resume waits out a deferred growth while the grant offers the memory", %{template: template} do
+      node = connect_elastic(template)
+      resident(template, node)
+      paused = sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      {:ok, polls} = Agent.start_link(fn -> 0 end)
+
+      # Deferred past the first growth's wait, then applied once an idle
+      # runner on the node is gone.
+      stub(KubernetesClient, :get_pod, fn "tuist-sandboxes", _pod ->
+        if Agent.get_and_update(polls, &{&1, &1 + 1}) == 3,
+          do: :ok = Nodes.update(node, %{capacity: %{memory_bytes: 9 * @gib, cpus: 16}})
+
+        {:ok, %{"status" => deferred_status()}}
+      end)
+
+      assert {:ok, %Sandbox{state: :resuming}} = Capacity.admit(paused)
+    end
+
+    test "a resume stops waiting for a deferred growth once CI reclaims the node", %{template: template} do
+      node = connect_elastic(template)
+      resident(template, node)
+      paused = sandbox_fixture(template: template, state: :paused, node_name: node, memory_mb: 4096)
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, _pod, _bytes -> {:ok, %{}} end)
+      # CI reserves the host right after the kubelet defers the growth.
+      stub(KubernetesClient, :get_pod, fn _namespace, _pod ->
+        set_grant(node, allocation_reclaim: true)
+        {:ok, %{"status" => deferred_status()}}
+      end)
+
+      started = System.monotonic_time(:millisecond)
+
+      assert {:error, :no_capacity} = Capacity.admit(paused)
+      # The test config waits up to a second for a deferral the grant backs.
+      assert System.monotonic_time(:millisecond) - started < 500
+      assert %Sandbox{state: :paused} = Repo.reload!(paused)
+    end
+
     test "admits a work item once a growth for it is reported, and not before", %{template: template} do
       node = connect_elastic(template)
       resident(template, node)

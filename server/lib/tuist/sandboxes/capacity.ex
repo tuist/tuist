@@ -108,6 +108,9 @@ defmodule Tuist.Sandboxes.Capacity do
   # queued: it must still acknowledge within the queue's five seconds.
   @grow_wait_ms 15_000
   @admission_grow_wait_ms 2_500
+  # How long a resume waits out a growth the kubelet deferred while the
+  # grant still offers the memory, before its sandbox is moved off.
+  @resume_deferral_wait_ms 60_000
   # Below the new limit, so the kubelet's check that usage fits passes.
   @shrink_reclaim_margin_bytes 256 * @mib
   # How long a node's last confirmed CPU request saves a Kubernetes read.
@@ -1017,7 +1020,7 @@ defmodule Tuist.Sandboxes.Capacity do
              true <- resume_disk_room?(node, sandbox),
              :no_capacity <- reserve.(node),
              {:error, :no_capacity} <- reclaim_and_reserve(node, charge, reserve),
-             {:ok, grown} <- grow(node, charge, wait_ms(:grow_wait_ms)),
+             {:ok, grown} <- grow_for_resume(node, charge),
              :ok <- reserve.(grown) do
           {:ok, Repo.reload!(sandbox)}
         else
@@ -1029,6 +1032,36 @@ defmodule Tuist.Sandboxes.Capacity do
       {:error, :not_connected} ->
         Repo.transaction(fn -> mark_resuming(sandbox) end)
     end
+  end
+
+  # A paused sandbox resumes only on its own node, and a refusal archives it:
+  # a restore from the archive takes tens of seconds where a resume takes a
+  # fraction of one. So a growth the kubelet defers is waited out while the
+  # grant still offers its memory, which it does only while idle runners on
+  # the node can be retired for it (the runners controller retires them on
+  # the deferral, and a Kata teardown takes up to 40 s). A revoked, expired or
+  # shrunk grant ends the wait at once: nothing on the node is freeing room.
+  defp grow_for_resume(node, charge) do
+    case grow(node, charge, wait_ms(:grow_wait_ms)) do
+      {:deferred, limit} -> await_deferred_growth(node, limit, wait_ms(:resume_deferral_wait_ms))
+      result -> result
+    end
+  end
+
+  defp await_deferred_growth(node, limit, wait_ms) do
+    Nodes.await(
+      fn ->
+        if allocation_outcome(Repo.get(SandboxNode, node.name), node, limit) == :allowed do
+          case await_growth(node, limit, 0, :reported) do
+            {:ok, _grown} = grown -> grown
+            not_yet -> {:retry, not_yet}
+          end
+        else
+          {:deferred, limit}
+        end
+      end,
+      wait_ms
+    )
   end
 
   @doc """
@@ -1679,6 +1712,12 @@ defmodule Tuist.Sandboxes.Capacity do
 
   defp wait_ms(:grow_wait_ms),
     do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:grow_wait_ms, @grow_wait_ms)
+
+  defp wait_ms(:resume_deferral_wait_ms) do
+    :tuist
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:resume_deferral_wait_ms, @resume_deferral_wait_ms)
+  end
 
   defp wait_ms(:admission_grow_wait_ms) do
     :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:admission_grow_wait_ms, @admission_grow_wait_ms)
