@@ -6,6 +6,8 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
+  alias Tuist.TestImpactAnalysis.Baselines
+  alias Tuist.TestImpactAnalysis.Carry
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
@@ -15,8 +17,11 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRunFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -786,6 +791,252 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert [%Snapshot{kind: :checkpoint, test_run_ids: [run_id], tests_count: 1}] = snapshots(project)
       assert run_id == second.id
+    end
+  end
+
+  describe "a selective run whose every skip was carried" do
+    setup %{account: account} do
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("base", [], 0),
+        CoverageFixtures.commit("mid", ["base"], 1),
+        CoverageFixtures.commit("head", ["mid"], 2),
+        CoverageFixtures.commit("tip", ["head"], 3)
+      ])
+
+      stub(GitHistory, :settings, fn project ->
+        GitHistory |> call_original(:settings, [project]) |> Map.put(:tracked_file_globs, [])
+      end)
+
+      :ok
+    end
+
+    defp case_run(name, suite), do: %{name: name, test_suite_name: suite, status: "success", duration: 1}
+
+    defp text_kit_tests,
+      do: %{
+        name: "TextKitTests",
+        status: "success",
+        duration: 1,
+        test_cases: [case_run("testPad()", "TextTests"), case_run("testTrim()", "TextTests")]
+      }
+
+    defp hashed(project, run, hits) do
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+      for {target, hit, hash} <- hits do
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: target,
+          selective_testing_hash: hash,
+          selective_testing_hit: hit
+        )
+      end
+
+      CoverageFixtures.recompute_commit(run)
+      run
+    end
+
+    # AppTests and TextKitTests run whole at `base`, with each TextKitTests
+    # test's lines in Text.swift, its suite's setup's (3) and its target's
+    # outside any test (5).
+    defp full_run(project, account, ran_at) do
+      run =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [file("Sources/Math.swift", [1, 1, 0]), file("Sources/Text.swift", [1, 1, 1, 0, 1])],
+          %{
+            git_commit_sha: "base",
+            ran_at: ran_at,
+            recompute: false,
+            test_modules: [
+              %{name: "AppTests", status: "success", duration: 1, test_cases: [case_run("testAdd()", "MathTests")]},
+              text_kit_tests()
+            ],
+            coverage_evidence: %{
+              paths: ["Sources/Math.swift", "Sources/Text.swift"],
+              scopes: [
+                %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 2]]},
+                %{
+                  kind: "test",
+                  module: "TextKitTests",
+                  suite: "TextTests",
+                  name: "testPad()",
+                  files: [1],
+                  lines: [[2, 2]]
+                },
+                %{
+                  kind: "test",
+                  module: "TextKitTests",
+                  suite: "TextTests",
+                  name: "testTrim()",
+                  files: [1],
+                  lines: [[1, 1]]
+                },
+                %{kind: "suite", module: "TextKitTests", suite: "TextTests", name: "", files: [1], lines: [[3, 3]]},
+                %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [1], lines: [[5, 5]]}
+              ]
+            }
+          }
+        )
+
+      hashed(project, run, [{"AppTests", :miss, "app"}, {"TextKitTests", :miss, "text"}])
+    end
+
+    # AppTests runs at `sha` and selective testing skips TextKitTests under
+    # `text_hash`.
+    defp selective_run(project, account, sha, text_hash, attrs \\ %{}) do
+      run =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [file("Sources/Math.swift", [1, 1, 0])],
+          Map.merge(
+            %{
+              git_commit_sha: sha,
+              partial: true,
+              recompute: false,
+              test_modules: [
+                %{name: "AppTests", status: "success", duration: 1, test_cases: [case_run("testAdd()", "MathTests")]}
+              ],
+              coverage_evidence: %{
+                paths: ["Sources/Math.swift"],
+                scopes: [
+                  %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[1, 2]]}
+                ]
+              }
+            },
+            attrs
+          )
+        )
+
+      hashed(project, run, [{"AppTests", :miss, "app-" <> sha}, {"TextKitTests", :remote, text_hash}])
+    end
+
+    defp checkpoints(project, sha),
+      do:
+        Repo.all(
+          from(s in Snapshot, where: s.project_id == ^project.id and s.commit_sha == ^sha and s.kind == :checkpoint)
+        )
+
+    # The lines a snapshot holds for a TextKitTests test, its suite's setup
+    # and its target, as a carry plan reads them.
+    defp text_kit_lines(project, snapshot, test) do
+      [[idx]] =
+        Snapshots.query!(
+          """
+          SELECT t.test_idx FROM test_impact_snapshot_tests AS t FINAL
+          INNER JOIN (SELECT DISTINCT id, name FROM test_cases WHERE project_id = {project_id:Int64}) AS c
+            ON c.id = t.test_case_id
+          WHERE t.project_id = {project_id:Int64} AND t.snapshot_id = {id:UUID} AND c.name = {name:String}
+          """,
+          %{project_id: project.id, id: snapshot.id, name: test}
+        )
+
+      plan = [
+        %{
+          snapshot_id: snapshot.id,
+          checkpoint_id: snapshot.checkpoint_id || "00000000-0000-0000-0000-000000000000",
+          idx: Snapshots.idx_chunks([idx]),
+          targets: ["TextKitTests"],
+          source: %{run_id: ""}
+        }
+      ]
+
+      {sql, params} = Carry.lines_sql(project.id, plan)
+      sql |> Snapshots.query!(params) |> Enum.map(fn [path, lines, _rank, _run] -> {path, lines} end)
+    end
+
+    test "copies the targets skipped by hash into its checkpoint, which selection walks to and carry reads", %{
+      account: account,
+      project: project
+    } do
+      # Measured in an earlier week than the copy, whose rows live in its own.
+      full_run(project, account, NaiveDateTime.add(NaiveDateTime.utc_now(), -9 * 86_400))
+      [original] = checkpoints(project, "base")
+      head = selective_run(project, account, "head", "text")
+
+      assert [copy] = checkpoints(project, "head")
+      assert copy.test_run_ids == [head.id]
+      assert copy.tests_count == 3
+      assert copy.carried_targets == ["TextKitTests\u001Ftext"]
+      assert copy.evidence_measured_at == original.ran_at
+      assert DateTime.diff(copy.expires_at, copy.ran_at, :day) == 31
+
+      for test <- ["testPad()", "testTrim()"] do
+        assert text_kit_lines(project, copy, test) == text_kit_lines(project, original, test)
+      end
+
+      assert text_kit_lines(project, copy, "testPad()") == [{"Sources/Text.swift", [2, 3, 5]}]
+      assert {:ok, %{sha: "head", distance: 1}} = Baselines.resolve(project, %{commit_sha: "tip", scheme: "App"})
+
+      # Once the snapshot it was measured in expires, the copy carries it.
+      Repo.update_all(from(s in Snapshot, where: s.id == ^original.id), set: [expires_at: DateTime.utc_now()])
+      selective_run(project, account, "tip", "text")
+
+      assert %{kind: "reported", carried_tests_count: 2, carried_from: ["base"]} = Reported.compute(project, "tip")
+    end
+
+    test "on a pull request's merge checkout writes no checkpoint", %{account: account, project: project} do
+      full_run(project, account, NaiveDateTime.utc_now())
+      selective_run(project, account, "head", "text", %{git_ref: "refs/pull/7/merge"})
+
+      assert %{carried_tests_count: 2} = Reported.compute(project, "head")
+      assert checkpoints(project, "head") == []
+    end
+
+    test "copies a target from an overlay with the tests it doesn't override from its checkpoint", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now())
+      [original] = checkpoints(project, "base")
+
+      impact = TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "mid", baseline_sha: "base")
+      TestSelectionFixtures.diff_fixture(project_id: project.id, commit_sha: "mid", baseline_sha: "base")
+
+      # A run of TextKitTests alone, skipping AppTests by name: only testTrim()
+      # changed, so the overlay holds it and its target's new lines (4).
+      mid =
+        CoverageFixtures.run_with_coverage(project, account, [file("Sources/Text.swift", [1, 1, 1, 1, 1])], %{
+          git_commit_sha: "mid",
+          partial: true,
+          recompute: false,
+          test_impact_run_id: impact.id,
+          skip_test_identifiers: ["AppTests/MathTests/testAdd()"],
+          test_modules: [text_kit_tests()],
+          coverage_evidence: %{
+            paths: ["Sources/Text.swift"],
+            scopes: [
+              %{kind: "test", module: "TextKitTests", suite: "TextTests", name: "testPad()", files: [0], lines: [[2, 2]]},
+              %{
+                kind: "test",
+                module: "TextKitTests",
+                suite: "TextTests",
+                name: "testTrim()",
+                files: [0],
+                lines: [[1, 2]]
+              },
+              %{kind: "suite", module: "TextKitTests", suite: "TextTests", name: "", files: [0], lines: [[3, 3]]},
+              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0], lines: [[4, 4]]}
+            ]
+          }
+        })
+
+      hashed(project, mid, [{"TextKitTests", :miss, "text-mid"}])
+
+      assert [%Snapshot{kind: :overlay, checkpoint_id: checkpoint_id, overridden_count: 1}] =
+               project
+               |> snapshots()
+               |> Enum.filter(&(&1.commit_sha == "mid"))
+
+      assert checkpoint_id == original.id
+
+      selective_run(project, account, "head", "text-mid")
+
+      assert [copy] = checkpoints(project, "head")
+      assert text_kit_lines(project, copy, "testPad()") == [{"Sources/Text.swift", [2, 3, 4]}]
+      assert text_kit_lines(project, copy, "testTrim()") == [{"Sources/Text.swift", [1, 2, 3, 4]}]
     end
   end
 

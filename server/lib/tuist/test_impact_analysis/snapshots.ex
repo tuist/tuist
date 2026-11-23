@@ -37,7 +37,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Shards.ShardPlan
   alias Tuist.TestImpactAnalysis.Candidate
+  alias Tuist.TestImpactAnalysis.Carry
   alias Tuist.TestImpactAnalysis.Decision
   alias Tuist.TestImpactAnalysis.Snapshot
   alias Tuist.TestImpactAnalysis.Storage
@@ -45,6 +47,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.Instrumentation
+  alias Tuist.Tests.Coverage.TargetSources
+  alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.CoverageRunFile
@@ -60,6 +64,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # URL-encoded value.
   @param_bytes 120_000
   @zero_uuid "00000000-0000-0000-0000-000000000000"
+  @no_details %{platform: "", test_impact_run_id: nil, git_ref: "", shard_plan_id: nil}
   # How long before its evidence starts expiring a run stops being written.
   @evidence_margin_seconds 3_600
   # A checkpoint of a large suite takes tens of seconds to write, beyond the
@@ -76,8 +81,13 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
 
   @doc """
   Records the snapshots of a commit's runs (`Tuist.Tests.Coverage.Commits.runs/2`).
+  `carried_targets` are the targets the commit's reported coverage carried
+  by hash (`Tuist.Tests.Coverage.Reported`), each with its `module`,
+  `hash`, `source` and the snapshot it came from (`snapshot_id`, and
+  `checkpoint_id` for an overlay): a selective run whose every skip is
+  among them writes a checkpoint that copies them (`carried_runs/4`).
   """
-  def record(%Project{} = project, runs) do
+  def record(%Project{} = project, runs, carried_targets \\ []) do
     runs = Enum.filter(runs, &(Map.get(&1, :git_repository_id) not in [nil, 0] and fresh?(&1.ran_at)))
     processed = processed(project.id, Enum.map(runs, & &1.test_run_id))
     runs = Enum.filter(runs, &MapSet.member?(processed, &1.test_run_id))
@@ -86,7 +96,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       uninstrumented = Instrumentation.uninstrumented_runs(project.id, runs)
       runs = Enum.reject(runs, &MapSet.member?(uninstrumented, &1.test_run_id))
       details = details(project.id, Enum.map(runs, & &1.test_run_id))
-      runs = Enum.map(runs, &Map.merge(&1, Map.get(details, &1.test_run_id, %{platform: "", test_impact_run_id: nil})))
+      runs = Enum.map(runs, &Map.merge(&1, Map.get(details, &1.test_run_id, @no_details)))
       whole = whole_evidence(project.id, runs)
       {full, partial} = Enum.split_with(runs, &(Map.get(&1, :partial) == false))
 
@@ -96,16 +106,30 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       # has it stays the newest, and only a scope without one is written
       # from the runs whose evidence is whole.
       full
-      |> Enum.group_by(&{&1.git_repository_id, &1.git_commit_sha, &1.scheme || "", &1.platform})
+      |> Enum.group_by(&scope/1)
       |> Enum.each(fn {scope, runs} ->
         write_scope_checkpoint(project, scope, Enum.split_with(runs, &MapSet.member?(whole, &1.test_run_id)))
       end)
 
-      for run <- partial, run.test_impact_run_id, MapSet.member?(whole, run.test_run_id), do: write_overlay(project, run)
+      partial = Enum.filter(partial, &MapSet.member?(whole, &1.test_run_id))
+
+      # A run whose checkpoint holds every test it skipped needs no overlay.
+      carried =
+        project
+        |> carried_runs(partial, full, carried_targets)
+        |> Enum.filter(fn {run, targets} -> write_carried_checkpoint(project, run, targets) end)
+        |> MapSet.new(fn {run, _targets} -> run.test_run_id end)
+
+      for run <- partial,
+          run.test_impact_run_id,
+          not MapSet.member?(carried, run.test_run_id),
+          do: write_overlay(project, run)
     end
 
     :ok
   end
+
+  defp scope(run), do: {run.git_repository_id, run.git_commit_sha, run.scheme || "", run.platform}
 
   # A scope's runs as `{whole, expired}` by their evidence (`whole_evidence/2`).
   defp write_scope_checkpoint(_project, _scope, {[], _expired}), do: :ok
@@ -327,14 +351,23 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
 
   # Checkpoints
 
-  defp write_checkpoint(project, runs) do
+  @no_carried %{groups: nil, params: %{}, source_ids: [], keys: [], measured_at: nil}
+
+  # `carried` (`write_carried_checkpoint/3`) adds the targets a selective
+  # run's checkpoint copies after the tests the run executed.
+  defp write_checkpoint(project, runs, carried \\ @no_carried) do
     run = Enum.max_by(runs, & &1.ran_at, NaiveDateTime)
     run_ids = runs |> Enum.map(& &1.test_run_id) |> Enum.sort()
     id = snapshot_id(["checkpoint", project.id, run.git_commit_sha, run.scheme, run.platform | run_ids])
 
     if !Repo.get(Snapshot, id) do
       expires_at = expires_at(run.ran_at)
-      params = %{project_id: project.id, run_ids: run_ids, snapshot_id: id, expires_at: expires_at}
+
+      params =
+        Map.merge(
+          %{project_id: project.id, run_ids: run_ids, snapshot_id: id, expires_at: expires_at, carried_modules: []},
+          carried.params
+        )
 
       execute!(
         """
@@ -345,12 +378,15 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
           toUInt32(row_number() OVER (ORDER BY m, s, n, test_case_id) - 1),
           test_case_id, m, s, status, files_hash, lines_hash, {expires_at:DateTime}
         FROM run_tests
+        WHERE NOT has({carried_modules:Array(String)}, m)
         """,
         params
       )
 
-      execute!(files_sql("snapshot_tests"), params)
+      write_carried_tests(project.id, id, params, carried)
+      execute!(files_sql("snapshot_tests", carried.groups), params)
       write_lines(project.id, params, run.ran_at)
+      write_carried_lines(project.id, params, run.ran_at, carried)
 
       Repo.insert!(
         %Snapshot{
@@ -364,7 +400,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
           git_branch: run.git_branch || "",
           test_run_ids: run_ids,
           tests_count: count(project.id, id),
+          carried_targets: carried.keys,
           ran_at: utc(run.ran_at),
+          evidence_measured_at: carried.measured_at,
           expires_at: expires_at
         },
         # A commit's earlier checkpoints stay until they expire: the overlays
@@ -378,6 +416,495 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     end
 
     id
+  end
+
+  # Carried checkpoints
+
+  # The selective runs whose every skip was carried, each with the targets
+  # its checkpoint copies: no identifier narrowed or skipped it, every shard
+  # of its plan reported, its impact run skipped nothing, and selective
+  # testing skipped targets only under a hash the fold carried them by, from
+  # a live snapshot of the run's platform. The newest of a scope's, unless a
+  # full run of the scope writes the checkpoint. A pull request's merge
+  # checkout (`refs/pull/N/merge`) writes none: no later checkout walks to
+  # its merge commit, which exists only in CI.
+  defp carried_runs(_project, [], _full, _targets), do: []
+  defp carried_runs(_project, _runs, _full, []), do: []
+
+  defp carried_runs(project, runs, full, targets) do
+    full_scopes = MapSet.new(full, &scope/1)
+    by_module = Map.new(targets, &{&1.module, &1})
+    snapshots = live_snapshots(Enum.flat_map(targets, &[&1.snapshot_id, &1.checkpoint_id]))
+
+    runs =
+      Enum.filter(runs, fn run ->
+        Map.get(run, :only_test_identifiers, []) == [] and Map.get(run, :skip_test_identifiers, []) == [] and
+          not merge_checkout?(run.git_ref) and not MapSet.member?(full_scopes, scope(run))
+      end)
+
+    hits =
+      project.id
+      |> Xcode.selective_testing_hashes(Enum.map(runs, & &1.test_run_id))
+      |> Enum.filter(&(&1.hit in ["local", "remote"]))
+      |> Enum.group_by(& &1.test_run_id)
+
+    runs
+    |> Enum.flat_map(fn run ->
+      run_hits = Map.get(hits, run.test_run_id, [])
+      copied = Enum.map(run_hits, &by_module[&1.name])
+
+      if run_hits != [] and
+           Enum.all?(Enum.zip(run_hits, copied), fn {hit, target} -> copyable?(target, hit, run, snapshots) end),
+         do: [{run, copied}],
+         else: []
+    end)
+    |> Enum.filter(fn {run, _targets} -> skipped_nothing?(project, run) and shards_reported?(project.id, run) end)
+    |> Enum.group_by(fn {run, _targets} -> scope(run) end)
+    |> Enum.map(fn {_scope, runs} -> Enum.max_by(runs, fn {run, _targets} -> run.ran_at end, NaiveDateTime) end)
+  end
+
+  defp copyable?(nil, _hit, _run, _snapshots), do: false
+
+  defp copyable?(target, hit, run, snapshots) do
+    case snapshots[target.snapshot_id] do
+      %Snapshot{platform: platform} ->
+        target.hash == hit.hash and platform == run.platform and
+          (is_nil(target.checkpoint_id) or Map.has_key?(snapshots, target.checkpoint_id))
+
+      nil ->
+        false
+    end
+  end
+
+  defp merge_checkout?(ref), do: is_binary(ref) and Regex.match?(~r{^refs/pull/[^/]+/merge$}, ref)
+
+  defp live_snapshots(ids) do
+    ids = ids |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    from(s in Snapshot, where: s.id in ^ids and s.expires_at > ^DateTime.utc_now())
+    |> Repo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  # An impact run that fell back stored no decision; one that decided may
+  # have skipped nothing.
+  defp skipped_nothing?(_project, %{test_impact_run_id: nil}), do: true
+  defp skipped_nothing?(project, run), do: !Carry.skipped_any?(project.id, run.test_impact_run_id)
+
+  defp shards_reported?(project_id, run) do
+    expected =
+      if run.shard_plan_id do
+        ClickHouseRepo.one(
+          from(p in ShardPlan,
+            where: p.project_id == ^project_id and p.id == ^run.shard_plan_id,
+            select: max(p.shard_count)
+          )
+        )
+      end
+
+    reported =
+      ClickHouseRepo.one(
+        from(f in CoverageRunFile,
+          where: f.project_id == ^project_id and f.test_run_id == ^run.test_run_id,
+          select: fragment("uniqExact(?)", f.shard_index)
+        ),
+        settings: [select_sequential_consistency: 1]
+      )
+
+    reported >= max(expected || 1, 1)
+  end
+
+  # Writes the checkpoint of a selective run that copies the targets it
+  # skipped by hash from where the fold carried them, when each source still
+  # holds the target whole: an overlay's tests it doesn't hold are its
+  # checkpoint's, and one it marks stale changed since. Its sources' rows
+  # keep everything they had (status, files, lines), renumbered after the
+  # run's own tests: an equal hash means the same tests executed the same
+  # files. Copied into the checkpoint's own week, they expire with it like
+  # any of its rows, and the targets' sources are recorded again, so a
+  # later fold carries them from the copy (`carried_copies/3`).
+  defp write_carried_checkpoint(project, run, targets) do
+    groups =
+      targets
+      |> Enum.group_by(&{&1.snapshot_id, &1.checkpoint_id}, & &1.module)
+      |> Enum.with_index(fn {{snapshot_id, checkpoint_id}, modules}, i ->
+        %{i: i, snapshot_id: snapshot_id, base_id: checkpoint_id || @zero_uuid, modules: Enum.sort(modules)}
+      end)
+
+    params =
+      groups
+      |> Enum.flat_map(fn group ->
+        [
+          {"carried_snapshot_#{group.i}", group.snapshot_id},
+          {"carried_base_#{group.i}", group.base_id},
+          {"carried_modules_#{group.i}", group.modules}
+        ]
+      end)
+      |> Map.new()
+      |> Map.merge(%{project_id: project.id, carried_modules: Enum.flat_map(groups, & &1.modules)})
+
+    case carried_ranges(groups, params) do
+      {:ok, ranges} ->
+        sources = live_snapshots(Enum.flat_map(groups, &[&1.snapshot_id, &1.base_id]))
+
+        measured_at =
+          Enum.min([utc(run.ran_at) | Enum.map(Map.values(sources), &(&1.evidence_measured_at || &1.ran_at))], DateTime)
+
+        write_checkpoint(project, [run], %{
+          groups: groups,
+          params: Map.merge(params, ranges),
+          source_ids: Map.keys(sources),
+          keys: Enum.map(targets, &(&1.module <> "\u001F" <> &1.hash)),
+          measured_at: measured_at
+        })
+
+        TargetSources.renew(project.id, run.git_repository_id, targets)
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  # Each group's tests in its source's numbering, as ranges
+  # (`idx_chunks/1`) that narrow its files' bitmaps before they're read, or
+  # an error when a target isn't whole there.
+  defp carried_ranges(groups, params) do
+    rows = query!("WITH #{layered_sql(groups)} SELECT g, module_name, toString(status), src_idx FROM layered", params)
+    held = MapSet.new(rows, fn [g, module, _status, _idx] -> {g, module} end)
+    whole? = Enum.all?(groups, fn group -> Enum.all?(group.modules, &MapSet.member?(held, {group.i, &1})) end)
+
+    if whole? and not Enum.any?(rows, fn [_g, _module, status, _idx] -> status == "stale" end) do
+      ranges = rows |> Enum.group_by(&hd/1, &List.last/1) |> Map.new(fn {g, idx} -> {g, idx_chunks(idx)} end)
+
+      if Enum.all?(Map.values(ranges), &(length(&1) == 1)),
+        do: {:ok, Map.new(ranges, fn {g, [chunk]} -> {"carried_idx_#{g}", chunk} end)},
+        else: :too_many_ranges
+    else
+      :not_whole
+    end
+  end
+
+  # `layered`: the copied targets' tests in each group (`g`) as its source
+  # holds them: its own rows (`layer` 0) and, for an overlay, its
+  # checkpoint's (`layer` 1) the overlay doesn't override. `src_idx` is the
+  # test's number there; an overlay numbers in its checkpoint's numbering.
+  defp layered_sql(groups) do
+    branches =
+      Enum.flat_map(groups, fn %{i: i} ->
+        [
+          """
+          SELECT toUInt8(#{i}) AS g, toUInt8(0) AS layer, test_idx AS src_idx, test_case_id, module_name, suite_name,
+            status, files_hash, lines_hash
+          FROM test_impact_snapshot_tests FINAL
+          WHERE project_id = {project_id:Int64} AND snapshot_id = {carried_snapshot_#{i}:UUID}
+            AND has({carried_modules_#{i}:Array(String)}, module_name)
+          """,
+          """
+          SELECT toUInt8(#{i}), toUInt8(1), test_idx, test_case_id, module_name, suite_name, status, files_hash, lines_hash
+          FROM test_impact_snapshot_tests FINAL
+          WHERE project_id = {project_id:Int64} AND snapshot_id = {carried_base_#{i}:UUID}
+            AND has({carried_modules_#{i}:Array(String)}, module_name)
+            AND test_idx NOT IN (
+              SELECT test_idx FROM test_impact_snapshot_tests
+              WHERE project_id = {project_id:Int64} AND snapshot_id = {carried_snapshot_#{i}:UUID}
+            )
+          """
+        ]
+      end)
+
+    "layered AS (#{Enum.join(branches, "UNION ALL\n")})"
+  end
+
+  # `new_tests`: the copied tests in the checkpoint; `mapping`: each one's
+  # number in its source (`g`, `layer`, `src_idx`) and here (`new_idx`).
+  defp carried_mapping_sql(groups) do
+    """
+    #{layered_sql(groups)},
+    new_tests AS (
+      SELECT test_idx, test_case_id, module_name, suite_name FROM test_impact_snapshot_tests FINAL
+      WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+        AND has({carried_modules:Array(String)}, module_name)
+    ),
+    mapping AS (
+      SELECT l.g AS g, l.layer AS layer, l.src_idx AS src_idx, n.test_idx AS new_idx
+      FROM layered AS l INNER JOIN new_tests AS n ON n.test_case_id = l.test_case_id
+    )
+    """
+  end
+
+  # The copied tests, numbered densely after the run's (`offset`), each
+  # target's and suite's contiguous.
+  defp carried_tests_sql(groups) do
+    """
+    INSERT INTO test_impact_snapshot_tests
+      (project_id, snapshot_id, test_idx, test_case_id, module_name, suite_name, status, files_hash, lines_hash, expires_at)
+    WITH #{layered_sql(groups)}
+    SELECT {project_id:Int64}, {snapshot_id:UUID},
+      toUInt32({offset:UInt32} + row_number() OVER (ORDER BY module_name, suite_name, src_idx, test_case_id) - 1),
+      test_case_id, module_name, suite_name, status, files_hash, lines_hash, {expires_at:DateTime}
+    FROM layered
+    """
+  end
+
+  # `carried_pairs` (`path`, `is_test`, `idx`, `kind`): the sources' index of
+  # the copied tests, renumbered. An overlay's checkpoint gives the files of
+  # the tests the overlay doesn't override, and the suites' and modules' of
+  # all of them, as readers layer the two (`test_files/3`).
+  defp carried_pairs_sql(groups) do
+    files =
+      Enum.flat_map(groups, fn %{i: i} ->
+        idx = "bitmapBuild(#{ranges_array("carried_idx_#{i}")})"
+
+        for {snapshot, layer} <- [{"carried_snapshot_#{i}", 0}, {"carried_base_#{i}", 1}] do
+          """
+          SELECT toUInt8(#{i}) AS g, toUInt8(#{layer}) AS file_layer, path, is_test,
+            bitmapAnd(tests, #{idx}) AS tests, bitmapAnd(suite_tests, #{idx}) AS suite_tests,
+            bitmapAnd(target_tests, #{idx}) AS target_tests
+          FROM test_impact_snapshot_files FINAL
+          WHERE project_id = {project_id:Int64} AND snapshot_id = {#{snapshot}:UUID}
+          """
+        end
+      end)
+
+    """
+    #{carried_mapping_sql(groups)},
+    carried_files AS (#{Enum.join(files, "UNION ALL\n")}),
+    carried_bits AS (
+      SELECT g, file_layer, path, is_test, toUInt8(1) AS kind, arrayJoin(bitmapToArray(tests)) AS src_idx
+      FROM carried_files
+      UNION ALL
+      SELECT g, file_layer, path, is_test, toUInt8(2), arrayJoin(bitmapToArray(suite_tests)) FROM carried_files
+      UNION ALL
+      SELECT g, file_layer, path, is_test, toUInt8(3), arrayJoin(bitmapToArray(target_tests)) FROM carried_files
+    ),
+    carried_pairs AS (
+      SELECT b.path AS path, b.is_test AS is_test, m.new_idx AS idx, b.kind AS kind
+      FROM carried_bits AS b INNER JOIN mapping AS m ON m.g = b.g AND m.src_idx = b.src_idx
+      WHERE NOT (b.kind = 1 AND b.file_layer = 1 AND m.layer = 0)
+    )
+    """
+  end
+
+  # The array the ranges `[first, last, …]` of an `Array(UInt32)` parameter
+  # expand to.
+  defp ranges_array(param) do
+    r = "{#{param}:Array(UInt32)}"
+
+    "CAST(arrayFlatten(arrayMap(i -> range(#{r}[2 * i - 1], #{r}[2 * i] + 1), range(1, intDiv(length(#{r}), 2) + 1))) " <>
+      "AS Array(UInt32))"
+  end
+
+  # The copied targets' tests, numbered after the run's own.
+  defp write_carried_tests(_project_id, _id, _params, %{groups: nil}), do: :ok
+
+  defp write_carried_tests(project_id, id, params, carried) do
+    execute!(carried_tests_sql(carried.groups), Map.put(params, :offset, count(project_id, id)))
+  end
+
+  # The copied targets' lines: the checkpoint points to the sets its
+  # sources point to, renumbered, in its own week, and the sets that week
+  # doesn't hold yet are written there from the sources' weeks. A set's id
+  # is a hash of its files and lines, so it's the same in every week.
+  defp write_carried_lines(_project_id, _params, _ran_at, %{groups: nil}), do: :ok
+
+  defp write_carried_lines(project_id, params, ran_at, carried) do
+    [[epochs]] =
+      query!(
+        """
+        SELECT groupUniqArray(toString(epoch)) FROM test_impact_snapshot_lines
+        WHERE project_id = {project_id:Int64} AND snapshot_id IN {ids:Array(UUID)}
+        """,
+        %{project_id: project_id, ids: carried.source_ids}
+      )
+
+    write_lines(
+      project_id,
+      Map.put(params, :source_epochs, epochs),
+      ran_at,
+      {carried_line_refs_sql(carried.groups), carried_paths_sql(), carried_patterns_sql(), carried_line_sets_sql()}
+    )
+  end
+
+  # `labeled` (`scope`, `idx`, `line_set`): each copied test's set, and each
+  # copied suite's and target's, keyed by its lowest test here as
+  # `scope_keys_sql/0` numbers them. An overlay's own rows win over its
+  # checkpoint's; a test it overrides takes only its own.
+  defp carried_line_refs_sql(groups) do
+    lines =
+      Enum.flat_map(groups, fn %{i: i} ->
+        for {snapshot, layer} <- [{"carried_snapshot_#{i}", 0}, {"carried_base_#{i}", 1}] do
+          """
+          SELECT toUInt8(#{i}) AS g, toUInt8(#{layer}) AS layer, scope, test_idx, line_set FROM test_impact_snapshot_lines
+          WHERE project_id = {project_id:Int64} AND snapshot_id = {#{snapshot}:UUID}
+          """
+        end
+      end)
+
+    numbering =
+      Enum.map(groups, fn %{i: i} ->
+        """
+        SELECT toUInt8(#{i}) AS g, test_idx, module_name, suite_name FROM test_impact_snapshot_tests
+        WHERE project_id = {project_id:Int64} AND snapshot_id IN ({carried_snapshot_#{i}:UUID}, {carried_base_#{i}:UUID})
+          AND has({carried_modules_#{i}:Array(String)}, module_name)
+        """
+      end)
+
+    """
+    INSERT INTO test_impact_snapshot_lines (project_id, snapshot_id, scope, test_idx, epoch, line_set, expires_at)
+    WITH #{carried_mapping_sql(groups)},
+    src_lines AS (
+      SELECT g, scope, test_idx, argMin(line_set, layer) AS set, min(layer) AS kept_layer
+      FROM (#{Enum.join(lines, "UNION ALL\n")})
+      GROUP BY g, scope, test_idx
+    ),
+    src_numbering AS (#{Enum.join(numbering, "UNION ALL\n")}),
+    src_suite_keys AS (
+      SELECT g, module_name, suite_name, min(test_idx) AS test_idx FROM src_numbering WHERE suite_name != ''
+      GROUP BY g, module_name, suite_name
+    ),
+    src_module_keys AS (SELECT g, module_name, min(test_idx) AS test_idx FROM src_numbering GROUP BY g, module_name),
+    new_suite_keys AS (
+      SELECT module_name, suite_name, min(test_idx) AS test_idx FROM new_tests WHERE suite_name != ''
+      GROUP BY module_name, suite_name
+    ),
+    new_module_keys AS (SELECT module_name, min(test_idx) AS test_idx FROM new_tests GROUP BY module_name),
+    labeled AS (
+      SELECT 'test' AS scope, n.test_idx AS idx, l.set AS line_set
+      FROM src_lines AS l
+      INNER JOIN layered AS t ON t.g = l.g AND t.src_idx = l.test_idx AND t.layer = l.kept_layer
+      INNER JOIN new_tests AS n ON n.test_case_id = t.test_case_id
+      WHERE l.scope = 'test'
+      UNION ALL
+      SELECT 'suite', nk.test_idx, l.set
+      FROM src_lines AS l
+      INNER JOIN src_suite_keys AS k ON k.g = l.g AND k.test_idx = l.test_idx
+      INNER JOIN new_suite_keys AS nk ON nk.module_name = k.module_name AND nk.suite_name = k.suite_name
+      WHERE l.scope = 'suite'
+      UNION ALL
+      SELECT 'target', nk.test_idx, l.set
+      FROM src_lines AS l
+      INNER JOIN src_module_keys AS k ON k.g = l.g AND k.test_idx = l.test_idx
+      INNER JOIN new_module_keys AS nk ON nk.module_name = k.module_name
+      WHERE l.scope = 'target'
+    )
+    SELECT {project_id:Int64}, {snapshot_id:UUID}, scope, idx, {epoch:Date}, line_set, {expires_at:DateTime}
+    FROM labeled
+    """
+  end
+
+  # `decoded` (`line_set`, `path`, `ranges`): the files and lines of each set
+  # the checkpoint points to that its week doesn't hold yet, read from the
+  # sources' weeks (`source_epochs`), a file listed as often as the set
+  # lists it.
+  defp decoded_sets_sql do
+    """
+    missing AS (
+      SELECT DISTINCT line_set FROM test_impact_snapshot_lines
+      WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+        AND line_set NOT IN (
+          SELECT line_set FROM test_impact_line_sets WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+        )
+    ),
+    source_sets AS (
+      SELECT epoch, line_set, pattern FROM (
+        SELECT epoch, line_set, patterns FROM test_impact_line_sets
+        WHERE project_id = {project_id:Int64} AND epoch IN {source_epochs:Array(Date)}
+          AND line_set IN (SELECT line_set FROM missing)
+        LIMIT 1 BY line_set
+      )
+      ARRAY JOIN patterns AS pattern
+    ),
+    source_patterns AS (
+      SELECT epoch, pattern, any(path_id) AS path_id, any(line_ranges) AS line_ranges FROM test_impact_line_patterns
+      WHERE project_id = {project_id:Int64} AND epoch IN {source_epochs:Array(Date)}
+        AND (epoch, pattern) IN (SELECT epoch, pattern FROM source_sets)
+      GROUP BY epoch, pattern
+    ),
+    source_paths AS (
+      SELECT epoch, path_id, any(path) AS path FROM test_impact_line_paths
+      WHERE project_id = {project_id:Int64} AND epoch IN {source_epochs:Array(Date)}
+      GROUP BY epoch, path_id
+    ),
+    decoded AS (
+      SELECT s.line_set AS line_set, f.path AS path, p.line_ranges AS ranges
+      FROM source_sets AS s
+      INNER JOIN source_patterns AS p ON p.epoch = s.epoch AND p.pattern = s.pattern
+      INNER JOIN source_paths AS f ON f.epoch = p.epoch AND f.path_id = p.path_id
+    ),
+    numbers AS (
+      SELECT path, any(path_id) AS path_id FROM test_impact_line_paths
+      WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+      GROUP BY path
+    ),
+    known AS (
+      SELECT pattern, path_id, line_ranges FROM test_impact_line_patterns
+      WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+    )
+    """
+  end
+
+  defp carried_paths_sql do
+    """
+    INSERT INTO test_impact_line_paths (project_id, epoch, path, path_id, expires_at)
+    WITH #{decoded_sets_sql()}
+    SELECT {project_id:Int64}, {epoch:Date}, path,
+      toUInt32((SELECT max(path_id) FROM numbers) + row_number() OVER (ORDER BY path)), {sets_expire_at:DateTime}
+    FROM (SELECT DISTINCT path FROM decoded WHERE path NOT IN (SELECT path FROM numbers))
+    """
+  end
+
+  defp carried_patterns_sql do
+    """
+    INSERT INTO test_impact_line_patterns (project_id, epoch, pattern, path_id, line_ranges, expires_at)
+    WITH #{decoded_sets_sql()},
+    fresh AS (
+      SELECT DISTINCT n.path_id AS path_id, d.ranges AS ranges
+      FROM decoded AS d INNER JOIN numbers AS n ON n.path = d.path
+      WHERE (n.path_id, d.ranges) NOT IN (SELECT path_id, line_ranges FROM known)
+    )
+    SELECT {project_id:Int64}, {epoch:Date},
+      toUInt32((SELECT max(pattern) FROM known) + row_number() OVER (ORDER BY path_id, ranges)), path_id, ranges,
+      {sets_expire_at:DateTime}
+    FROM fresh
+    """
+  end
+
+  defp carried_line_sets_sql do
+    """
+    INSERT INTO test_impact_line_sets (project_id, epoch, line_set, patterns, expires_at)
+    WITH #{decoded_sets_sql()}
+    SELECT {project_id:Int64}, {epoch:Date}, d.line_set, arraySort(groupArray(p.pattern)), {sets_expire_at:DateTime}
+    FROM decoded AS d
+    INNER JOIN numbers AS n ON n.path = d.path
+    INNER JOIN known AS p ON p.path_id = n.path_id AND p.line_ranges = d.ranges
+    GROUP BY d.line_set
+    """
+  end
+
+  @doc """
+  The newest live checkpoint of the repository, at a commit other than
+  `sha`, that copied each of the targets, given as `{name, hash}`, by target
+  (`record/3`). A commit's own checkpoint copies from what its fold carried.
+  """
+  def carried_copies(_project_id, _repository_id, _sha, []), do: %{}
+
+  def carried_copies(project_id, repository_id, sha, targets) do
+    keys = Enum.map(targets, fn {name, hash} -> name <> "\u001F" <> hash end)
+
+    from(s in Snapshot,
+      where:
+        s.project_id == ^project_id and s.repository_id == ^repository_id and s.kind == :checkpoint and
+          s.commit_sha != ^sha and s.expires_at > ^DateTime.utc_now() and
+          fragment("? && ?", s.carried_targets, ^keys),
+      order_by: [asc: s.ran_at, asc: s.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn snapshot -> Enum.map(snapshot.carried_targets, &{&1, snapshot}) end)
+    |> Map.new()
+    |> then(fn by_key ->
+      for {name, hash} <- targets, snapshot = by_key[name <> "\u001F" <> hash], into: %{}, do: {{name, hash}, snapshot}
+    end)
   end
 
   # Overlays
@@ -601,12 +1128,16 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # suite. `module_tests` lists the tests a suite or a module reaches: an
   # overlay's include its checkpoint's, as a suite's test file and a module's
   # target-level evidence belong to all of them.
-  defp files_sql(module_tests) do
+  #
+  # A checkpoint's copied targets (`groups`, `write_carried_checkpoint/3`)
+  # add their sources' rows, renumbered, to the same rows: a file has one.
+  defp files_sql(module_tests, groups \\ nil) do
     """
     INSERT INTO test_impact_snapshot_files
       (project_id, snapshot_id, path, is_test, tests, suite_tests, target_tests, expires_at)
     WITH #{evidence_sql()},
     #{named_tests_sql()},
+    #{if groups, do: carried_pairs_sql(groups) <> ","}
     checkpoint_module_tests AS (
       SELECT t.test_idx AS test_idx, t.module_name AS m, t.suite_name AS s, r.n AS n
       FROM test_impact_snapshot_tests AS t FINAL
@@ -649,14 +1180,19 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       SELECT path, idx, 1 AS kind FROM pairs
       UNION ALL SELECT path, idx, 2 AS kind FROM suite_pairs
       UNION ALL SELECT path, idx, 3 AS kind FROM target_pairs
+    ),
+    indexed AS (
+      SELECT a.path AS path, r.is_test AS is_test, a.idx AS idx, a.kind AS kind
+      FROM all_pairs AS a INNER JOIN report AS r ON r.path = a.path
+      #{if groups, do: "UNION ALL SELECT path, is_test, idx, kind FROM carried_pairs"}
     )
-    SELECT {project_id:Int64}, {snapshot_id:UUID}, a.path, r.is_test,
-      groupBitmapStateIf(a.idx, a.kind = 1),
-      groupBitmapStateIf(a.idx, a.kind = 2),
-      groupBitmapStateIf(a.idx, a.kind = 3),
+    SELECT {project_id:Int64}, {snapshot_id:UUID}, path, max(is_test),
+      groupBitmapStateIf(idx, kind = 1),
+      groupBitmapStateIf(idx, kind = 2),
+      groupBitmapStateIf(idx, kind = 3),
       {expires_at:DateTime}
-    FROM all_pairs AS a INNER JOIN report AS r ON r.path = a.path
-    GROUP BY a.path, r.is_test
+    FROM indexed
+    GROUP BY path
     """
   end
 
@@ -670,11 +1206,12 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # (`test_impact_line_paths`). A suite's and a module's sets are numbered as
   # their lowest test (`scope_keys_sql/0`); one with no test in the snapshot
   # has nothing to carry and isn't written.
-  defp write_lines(project_id, params, ran_at) do
+  defp write_lines(project_id, params, ran_at, sql \\ {line_refs_sql(), paths_sql(), patterns_sql(), line_sets_sql()}) do
+    {refs, paths, patterns, sets} = sql
     epoch = epoch(ran_at)
     params = Map.merge(params, %{epoch: epoch, sets_expire_at: sets_expire_at(epoch)})
 
-    execute!(line_refs_sql(), params)
+    execute!(refs, params)
 
     # Path and pattern numbers are allocated one writer at a time per
     # project, so the sets written after read every pattern they name.
@@ -682,13 +1219,13 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       Repo.transaction(
         fn ->
           Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["test_impact_line_paths:#{project_id}"])
-          execute!(paths_sql(), params)
-          execute!(patterns_sql(), params)
+          execute!(paths, params)
+          execute!(patterns, params)
         end,
         timeout: 2 * @write_timeout
       )
 
-    execute!(line_sets_sql(), params)
+    execute!(sets, params)
   end
 
   # The run's repository files the week hasn't numbered yet, numbered after
@@ -1106,7 +1643,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       end)
       |> Map.new()
 
-    impact_runs =
+    tests =
       run_ids
       |> Coverage.id_chunks(1)
       |> Enum.flat_map(fn ids ->
@@ -1114,16 +1651,32 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
           from(t in Test,
             where: t.project_id == ^project_id and t.id in ^ids,
             group_by: t.id,
-            select: {t.id, fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at)}
+            select:
+              {t.id,
+               %{
+                 test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at),
+                 git_ref: fragment("argMax(?, ?)", t.git_ref, t.inserted_at),
+                 shard_plan_id: fragment("toString(argMax(?, ?))", t.shard_plan_id, t.inserted_at)
+               }}
           )
         )
       end)
-      |> Map.new(fn {id, impact_run_id} -> {id, if(impact_run_id in [nil, ""], do: nil, else: impact_run_id)} end)
+      |> Map.new(fn {id, test} ->
+        {id,
+         %{
+           test_impact_run_id: blank_nil(test.test_impact_run_id),
+           git_ref: test.git_ref || "",
+           shard_plan_id: blank_nil(test.shard_plan_id)
+         }}
+      end)
 
     Map.new(run_ids, fn id ->
-      {id, %{platform: Map.get(platforms, id, ""), test_impact_run_id: Map.get(impact_runs, id)}}
+      {id, Map.merge(@no_details, Map.put(Map.get(tests, id, %{}), :platform, Map.get(platforms, id, "")))}
     end)
   end
+
+  defp blank_nil(value) when value in [nil, ""], do: nil
+  defp blank_nil(value), do: value
 
   defp delete_expired(project_id) do
     Repo.delete_all(from(s in Snapshot, where: s.project_id == ^project_id and s.expires_at <= ^DateTime.utc_now()))

@@ -7,7 +7,10 @@ defmodule Tuist.TestImpactAnalysis.Snapshot do
   A `checkpoint` holds every test of a full run. An `overlay` holds what a
   later run changed against the checkpoint at its impact run's baseline
   (`checkpoint_id`, `base_sha`), keyed by the commit that impact run
-  checked out. This is a PostgreSQL entity.
+  checked out. A checkpoint of a selective run whose skips were all
+  carried also holds copies of the targets selective testing skipped by hash
+  (`carried_targets`, `name <> "\\u001F" <> hash`), measured as early as
+  `evidence_measured_at`. This is a PostgreSQL entity.
   """
   use Ecto.Schema
 
@@ -26,7 +29,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshot do
     field :test_impact_run_id, Ecto.UUID
     field :tests_count, :integer, default: 0
     field :overridden_count, :integer, default: 0
+    field :carried_targets, {:array, :string}, default: []
     field :ran_at, :utc_datetime_usec
+    field :evidence_measured_at, :utc_datetime_usec
     field :expires_at, :utc_datetime_usec
 
     timestamps(type: :utc_datetime, updated_at: false)

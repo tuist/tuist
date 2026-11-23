@@ -116,7 +116,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   state already published is kept.
   """
   def recompute(%Project{} = project, sha, opts \\ []) do
-    {row, runs} = fold_and_publish(project, sha, opts, @publish_attempts)
+    {row, runs, carried_targets} = fold_and_publish(project, sha, opts, @publish_attempts)
 
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
@@ -133,8 +133,9 @@ defmodule Tuist.Tests.Coverage.Commits do
       TargetSources.record(project.id, runs)
 
       # The test maps coverage-based test selection and coverage carry
-      # will read, for every project with coverage.
-      Snapshots.record(project, runs)
+      # will read, for every project with coverage, copying into a selective
+      # run's checkpoint the targets the fold carried by hash.
+      Snapshots.record(project, runs, carried_targets)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)
@@ -153,11 +154,11 @@ defmodule Tuist.Tests.Coverage.Commits do
   # so it always ends up reading what the previous write left.
   defp fold_and_publish(project, sha, opts, attempts) when attempts > 1 do
     previous = summary(project.id, sha)
-    {row, runs} = fold(project, sha, previous, opts)
+    {row, runs, carried_targets} = fold(project, sha, previous, opts)
 
     case publish_unless_changed(project, sha, previous && previous.version, row, opts) do
       :changed -> fold_and_publish(project, sha, opts, attempts - 1)
-      published -> {published, runs}
+      published -> {published, runs, carried_targets}
     end
   end
 
@@ -166,8 +167,8 @@ defmodule Tuist.Tests.Coverage.Commits do
       project,
       sha,
       fn ->
-        {row, runs} = fold(project, sha, summary(project.id, sha), opts)
-        {write(project, sha, row, opts), runs}
+        {row, runs, carried_targets} = fold(project, sha, summary(project.id, sha), opts)
+        {write(project, sha, row, opts), runs, carried_targets}
       end,
       timeout: to_timeout(minute: 5)
     )
@@ -258,12 +259,14 @@ defmodule Tuist.Tests.Coverage.Commits do
     carried_from: []
   }
 
-  # The row the commit's runs make, unwritten, or nil when there is none.
+  # The row the commit's runs make, unwritten, or nil when there is none,
+  # with the runs that count and the targets their reported coverage carried
+  # by hash.
   defp fold(project, sha, previous, opts) do
     runs = runs(project.id, sha)
     dirty = dirty_runs(project.id, sha)
     dirty_ci = Enum.filter(dirty, & &1.is_ci)
-    reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carry])))
+    {reported, carried_targets} = project |> Reported.compute(sha, runs: runs) |> split_carried_targets()
 
     cond do
       # Every scheme was skipped whole, so no run measured the commit, but
@@ -277,7 +280,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         source = clean_source(project.id, sha, previous)
 
         {project |> carried_row(sha, previous, reported, clean, source, opts) |> lower_bound(project.id, sha, dirty_ci),
-         clean}
+         clean, []}
 
       # Only runs from a dirty checkout, local or CI, gathered coverage. None
       # of them counts, so the commit is what a scheme only they measured
@@ -285,14 +288,23 @@ defmodule Tuist.Tests.Coverage.Commits do
       # nothing, labelled with where those runs ran. Their runs are not the commit's,
       # so they move no ref and are no carry source.
       runs == [] and dirty != [] ->
-        {dirty_only_row(project, sha, previous, dirty, opts), []}
+        {dirty_only_row(project, sha, previous, dirty, opts), [], []}
 
       runs == [] ->
-        {nil, []}
+        {nil, [], []}
 
       true ->
-        {project |> measured_row(sha, runs, previous, reported, opts) |> lower_bound(project.id, sha, dirty_ci), runs}
+        {project |> measured_row(sha, runs, previous, reported, opts) |> lower_bound(project.id, sha, dirty_ci), runs,
+         carried_targets}
     end
+  end
+
+  # The figure without its files and carry plan, and the targets it carried
+  # by hash.
+  defp split_carried_targets(nil), do: {nil, []}
+
+  defp split_carried_targets(reported) do
+    {Map.drop(reported, [:files, :carry]), (reported.carry && reported.carry.targets) || []}
   end
 
   # Where a carried commit's clean runs name its repository and build system.
@@ -682,22 +694,15 @@ defmodule Tuist.Tests.Coverage.Commits do
   Only when no first parent within the window qualifies does the walk cover
   the window.
   """
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts \\ [])
-  def nearest_measured_ancestor(_project_id, _repository_id, _sha, [], _opts), do: nil
+  def nearest_measured_ancestor(_project_id, _repository_id, _sha, []), do: nil
 
-  def nearest_measured_ancestor(project_id, repository_id, sha, schemes, opts) do
+  def nearest_measured_ancestor(project_id, repository_id, sha, schemes) do
     measured =
       from(c in CoverageCommit,
         where:
           c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^sha and
             fragment("? && ?", c.schemes, type(^schemes, {:array, :string}))
       )
-
-    measured =
-      case Keyword.get(opts, :kind) do
-        nil -> measured
-        kind -> where(measured, [c], c.reported_kind == ^kind)
-      end
 
     nearest =
       case nearest_first_parent_in(measured, repository_id, sha) do
