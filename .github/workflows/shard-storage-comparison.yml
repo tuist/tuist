@@ -4,7 +4,9 @@ name: Shard storage comparison
 # infrastructure, the way customers on their own CI reach shard storage. Runs
 # on a GitHub-hosted Mac on purpose, not the tuist-macos profile. Which store
 # serves the plans follows the tuist account's public_shard_storage flag, so
-# dispatch once per flag state and compare the uploaded results.
+# dispatch once per flag state and compare the uploaded results. A CLI older
+# than 4.219.0-canary.21 always gets the default store (Tigris), so two
+# concurrent runs with different cli_version compare stores without a flag change.
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +19,9 @@ on:
       cli_version:
         description: CLI release (4.219.0-canary.21 or later splits uploads)
         default: 4.219.0-canary.27
+      payload_mb:
+        description: Random MiB added to the test bundle, to match large customer products (0 for none)
+        default: "0"
 
 permissions:
   contents: read
@@ -45,6 +50,7 @@ jobs:
         env:
           LABEL: ${{ inputs.label }}
           ITERATIONS: ${{ inputs.iterations }}
+          PAYLOAD_MB: ${{ inputs.payload_mb }}
         run: |
           set +e -uo pipefail
           results="$RUNNER_TEMP/shard-storage-$LABEL.jsonl"
@@ -58,7 +64,16 @@ jobs:
             rm -rf "$work"; mkdir -p "$work"
             cp -R examples/xcode/generated_ios_app_with_tests "$work/planner"
             printf 'import ProjectDescription\nlet tuist = Tuist(fullHandle: "tuist/tuist", project: .tuist())\n' > "$work/planner/Tuist.swift"
+            if [ "$PAYLOAD_MB" -gt 0 ]; then
+              # Random bytes don't compress, so the archive grows by about the payload.
+              perl -pi -e 's#^(\s*)sources: "MacFramework/Tests/\*\*",\n#$&$1resources: ["MacFramework/Payload/**"],\n#' "$work/planner/Project.swift"
+              grep -q 'MacFramework/Payload' "$work/planner/Project.swift"
+            fi
             cp -R "$work/planner" "$work/worker"
+            if [ "$PAYLOAD_MB" -gt 0 ]; then
+              mkdir -p "$work/planner/MacFramework/Payload"
+              head -c $((PAYLOAD_MB * 1024 * 1024)) /dev/urandom > "$work/planner/MacFramework/Payload/payload.bin"
+            fi
             ref="shard-compare-$LABEL-$GITHUB_RUN_ID-$i"
             "$TUIST_CLI" test MacFrameworkTests --build-only --no-selective-testing --shard-total 1 --shard-reference "$ref" \
               --path "$work/planner" --verbose -- -testProductsPath "$work/products.xctestproducts" \
@@ -68,8 +83,8 @@ jobs:
             "$TUIST_CLI" test MacFrameworkTests --without-building --shard-index 0 --shard-reference "$ref" \
               --path "$work/worker" --verbose -- -destination platform=macOS 2>&1 | stamp > "$work/test.log"
             test_exit=${PIPESTATUS[0]}
-            printf '{"i":%d,"label":"%s","at":"%s","plan_exit":%d,"test_exit":%d,"upload_s":%s,"download_s":%s,"hosts":"%s"}\n' \
-              "$i" "$LABEL" "$(date -u +%H:%M:%S)" "$plan_exit" "$test_exit" \
+            printf '{"i":%d,"label":"%s","at":"%s","payload_mb":%d,"plan_exit":%d,"test_exit":%d,"upload_s":%s,"download_s":%s,"hosts":"%s"}\n' \
+              "$i" "$LABEL" "$(date -u +%H:%M:%S)" "$PAYLOAD_MB" "$plan_exit" "$test_exit" \
               "$(span "$work/plan.log" 'Uploading test products artifacts' 'Upload complete')" \
               "$(span "$work/test.log" 'Resolved shard plan' 'Downloaded ')" \
               "$(hosts "$work/plan.log" "$work/test.log")" | tee -a "$results"

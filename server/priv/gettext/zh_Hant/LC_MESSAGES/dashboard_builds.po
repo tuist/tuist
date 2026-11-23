@@ -94,8 +94,8 @@ msgid "Branch"
 msgstr "分支"
 
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
-#: lib/tuist_web/live/bazel_invocation_live.ex:68
-#: lib/tuist_web/live/bazel_invocation_live.ex:96
+#: lib/tuist_web/live/bazel_invocation_live.ex:74
+#: lib/tuist_web/live/bazel_invocation_live.ex:104
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/cargo_build_live.html.heex:47
 #: lib/tuist_web/live/mix_build_live.html.heex:383
@@ -120,7 +120,7 @@ msgstr "建置執行"
 msgid "Build Runs"
 msgstr "建置執行次數"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:622
+#: lib/tuist_web/live/bazel_invocation_live.ex:761
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
 #: lib/tuist_web/live/build_run_live.ex:1222
@@ -183,7 +183,7 @@ msgstr "可建置資料夾"
 msgid "Builds"
 msgstr "建置"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:631
+#: lib/tuist_web/live/bazel_invocation_live.ex:770
 #: lib/tuist_web/live/build_run_live.html.heex:293
 #: lib/tuist_web/live/cargo_build_live.html.heex:87
 #: lib/tuist_web/live/mix_build_live.html.heex:427
@@ -192,7 +192,7 @@ msgstr "建置"
 msgid "Built at"
 msgstr "建置時間"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:617
+#: lib/tuist_web/live/bazel_invocation_live.ex:756
 #: lib/tuist_web/live/build_run_live.html.heex:282
 #: lib/tuist_web/live/cargo_build_live.html.heex:74
 #: lib/tuist_web/live/mix_build_live.html.heex:416
@@ -362,9 +362,9 @@ msgstr "清理"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:252
-#: lib/tuist_web/live/bazel_invocation_live.ex:598
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:157
+#: lib/tuist_web/live/bazel_invocation_live.ex:379
+#: lib/tuist_web/live/bazel_invocation_live.ex:737
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:246
 #: lib/tuist_web/live/build_run_live.html.heex:234
 #: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
@@ -508,10 +508,10 @@ msgstr "下載吞吐量"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:281
 #: lib/tuist_web/helpers/build_entity_labels.ex:98
 #: lib/tuist_web/helpers/cargo_cache.ex:88
-#: lib/tuist_web/live/bazel_invocation_live.ex:1457
+#: lib/tuist_web/live/bazel_invocation_live.ex:1596
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:69
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:158
 #: lib/tuist_web/live/cargo_build_live.ex:131
 #: lib/tuist_web/live/cargo_build_live.html.heex:323
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
@@ -538,7 +538,7 @@ msgid "Entitlements"
 msgstr "權限"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:395
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:261
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:350
 #: lib/tuist_web/live/build_entity_live.ex:1158
 #: lib/tuist_web/live/build_entity_live.ex:1220
 #: lib/tuist_web/live/cargo_build_runs_live.ex:62
@@ -558,8 +558,8 @@ msgstr "環境"
 msgid "Environment:"
 msgstr "環境："
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:125
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:131
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:214
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:220
 #: lib/tuist_web/live/build_run_live.html.heex:196
 #: lib/tuist_web/live/build_run_live.html.heex:361
 #: lib/tuist_web/live/build_run_live.html.heex:788
@@ -592,7 +592,8 @@ msgstr "外部"
 #: lib/tuist_web/components/build_timeline.ex:358
 #: lib/tuist_web/helpers/build_entity_labels.ex:105
 #: lib/tuist_web/helpers/cargo_cache.ex:66
-#: lib/tuist_web/live/bazel_remote_action_live.ex:167
+#: lib/tuist_web/live/bazel_invocation_live.ex:269
+#: lib/tuist_web/live/bazel_remote_action_live.ex:235
 #: lib/tuist_web/live/build_entity_live.ex:517
 #: lib/tuist_web/live/build_entity_live.ex:1193
 #: lib/tuist_web/live/build_entity_live.html.heex:438
@@ -984,7 +985,7 @@ msgstr "未偵測到警告"
 msgid "None"
 msgstr "無"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:37
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:126
 #: lib/tuist_web/live/build_entity_live.html.heex:41
 #: lib/tuist_web/live/build_run_live.html.heex:168
 #: lib/tuist_web/live/cargo_build_live.html.heex:33
@@ -995,8 +996,9 @@ msgid "Overview"
 msgstr "概覽"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:1337
-#: lib/tuist_web/live/bazel_remote_action_live.ex:166
+#: lib/tuist_web/live/bazel_invocation_live.ex:268
+#: lib/tuist_web/live/bazel_invocation_live.ex:1476
+#: lib/tuist_web/live/bazel_remote_action_live.ex:234
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
@@ -1150,7 +1152,7 @@ msgstr "方案："
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:969
+#: lib/tuist_web/live/bazel_invocation_live.ex:1108
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
@@ -1189,7 +1191,7 @@ msgstr "大小（MB）"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:171
 #: lib/tuist_web/components/reapi_cache_outputs.ex:152
-#: lib/tuist_web/live/bazel_invocation_live.ex:469
+#: lib/tuist_web/live/bazel_invocation_live.ex:608
 #: lib/tuist_web/live/bazel_invocations_live.ex:524
 #: lib/tuist_web/live/build_entity_live.html.heex:370
 #: lib/tuist_web/live/build_entity_live.html.heex:521
@@ -1222,10 +1224,11 @@ msgstr "來源"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:260
-#: lib/tuist_web/live/bazel_invocation_live.ex:348
-#: lib/tuist_web/live/bazel_invocation_live.ex:607
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:57
+#: lib/tuist_web/live/bazel_invocation_live.ex:387
+#: lib/tuist_web/live/bazel_invocation_live.ex:487
+#: lib/tuist_web/live/bazel_invocation_live.ex:746
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:41
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:146
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
@@ -1443,7 +1446,7 @@ msgstr "類型："
 #: lib/tuist_web/components/build_timeline.ex:74
 #: lib/tuist_web/components/runs/module_cache_tab.ex:266
 #: lib/tuist_web/helpers/build_entity_labels.ex:115
-#: lib/tuist_web/live/bazel_remote_action_live.ex:171
+#: lib/tuist_web/live/bazel_remote_action_live.ex:250
 #: lib/tuist_web/live/build_entity_live.html.heex:607
 #: lib/tuist_web/live/build_run_live.html.heex:58
 #: lib/tuist_web/live/build_run_live.html.heex:245
@@ -1713,7 +1716,7 @@ msgstr "自上週以來"
 msgid "since last year"
 msgstr "自去年起"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:132
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:221
 #: lib/tuist_web/live/build_run_live.html.heex:364
 #: lib/tuist_web/live/build_run_live.html.heex:401
 #: lib/tuist_web/live/build_run_live.html.heex:747
@@ -1970,7 +1973,7 @@ msgstr "開始於之後"
 msgid "Succeeded"
 msgstr "成功"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:430
+#: lib/tuist_web/live/bazel_invocation_live.ex:569
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
 #: lib/tuist_web/live/mix_build_live.html.heex:60
@@ -2048,7 +2051,7 @@ msgid "In"
 msgstr "輸入"
 
 #: lib/tuist_web/components/build_timeline.ex:117
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:99
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Memory"
 msgstr "記憶體"
@@ -2497,8 +2500,8 @@ msgid "Declared action index"
 msgstr "宣告的動作索引"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:65
-#: lib/tuist_web/live/bazel_invocation_live.ex:328
-#: lib/tuist_web/live/bazel_invocation_live.ex:447
+#: lib/tuist_web/live/bazel_invocation_live.ex:455
+#: lib/tuist_web/live/bazel_invocation_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:625
 #: lib/tuist_web/live/remote_execution_live.ex:245
 #: lib/tuist_web/live/remote_execution_live.ex:846
@@ -2571,9 +2574,11 @@ msgstr "無記錄的查詢"
 msgid "Not found in this project."
 msgstr "在此專案中找不到。"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1500
-#: lib/tuist_web/live/bazel_remote_action_live.ex:179
-#: lib/tuist_web/live/bazel_remote_action_live.ex:182
+#: lib/tuist_web/live/bazel_invocation_live.ex:286
+#: lib/tuist_web/live/bazel_invocation_live.ex:506
+#: lib/tuist_web/live/bazel_invocation_live.ex:1639
+#: lib/tuist_web/live/bazel_remote_action_live.ex:258
+#: lib/tuist_web/live/bazel_remote_action_live.ex:261
 #: lib/tuist_web/live/build_entity_live.ex:518
 #: lib/tuist_web/live/build_entity_live.ex:586
 #: lib/tuist_web/live/build_entity_live.ex:675
@@ -3367,32 +3372,33 @@ msgstr "已使用"
 msgid "Compiled without consulting the cache because it could not be cached."
 msgstr "因無法快取，未查詢快取即進行編譯。"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1463
-#: lib/tuist_web/live/bazel_remote_action_live.ex:175
+#: lib/tuist_web/live/bazel_invocation_live.ex:1602
+#: lib/tuist_web/live/bazel_remote_action_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Execution"
 msgstr "執行"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1462
-#: lib/tuist_web/live/bazel_remote_action_live.ex:174
+#: lib/tuist_web/live/bazel_invocation_live.ex:1601
+#: lib/tuist_web/live/bazel_remote_action_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Input fetch"
 msgstr "輸入擷取"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1464
-#: lib/tuist_web/live/bazel_remote_action_live.ex:176
+#: lib/tuist_web/live/bazel_invocation_live.ex:1603
+#: lib/tuist_web/live/bazel_remote_action_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Output upload"
 msgstr "輸出上傳"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:1461
-#: lib/tuist_web/live/bazel_remote_action_live.ex:173
+#: lib/tuist_web/live/bazel_invocation_live.ex:1600
+#: lib/tuist_web/live/bazel_remote_action_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Queue"
 msgstr "佇列"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:440
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:7
+#: lib/tuist_web/live/bazel_invocation_live.ex:579
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:8
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Remote execution"
 msgstr "遠端執行"
@@ -3505,33 +3511,35 @@ msgstr "p50 執行時間"
 msgid "p90 execution"
 msgstr "p90 執行時間"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:562
+#: lib/tuist_web/live/bazel_invocation_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "A profile with unambiguous action and server phase intervals is required. Older or incomplete profiles may not contain these timings. Upload a new profile to see them."
 msgstr "需要包含明確動作與伺服器階段區間的設定檔。較舊或不完整的設定檔可能不包含這些時間數據。請上傳新的設定檔以查看。"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:560
+#: lib/tuist_web/live/bazel_invocation_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "No remote action timings"
 msgstr "無遠端動作時間"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:513
+#: lib/tuist_web/live/bazel_invocation_live.ex:652
 #, elixir-autogen, elixir-format
 msgid "Phases"
 msgstr "階段"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:507
-#: lib/tuist_web/live/bazel_invocation_live.ex:1456
+#: lib/tuist_web/live/bazel_invocation_live.ex:646
+#: lib/tuist_web/live/bazel_invocation_live.ex:1595
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr "開始時間"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:366
+#: lib/tuist_web/live/bazel_invocation_live.ex:289
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
 msgstr "%{vcpus} 個 vCPU · %{memory} GB"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:364
+#: lib/tuist_web/live/bazel_invocation_live.ex:495
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Machine"
 msgstr "機器"
@@ -3541,13 +3549,15 @@ msgstr "機器"
 msgid "No remote executions in this period"
 msgstr "本期間無遠端執行"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:353
+#: lib/tuist_web/live/bazel_invocation_live.ex:240
+#: lib/tuist_web/live/bazel_remote_action_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Queued"
 msgstr "佇列中"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:262
-#: lib/tuist_web/live/bazel_invocation_live.ex:352
+#: lib/tuist_web/live/bazel_invocation_live.ex:239
+#: lib/tuist_web/live/bazel_invocation_live.ex:389
+#: lib/tuist_web/live/bazel_remote_action_live.ex:241
 #: lib/tuist_web/live/remote_execution_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Running"
@@ -3569,17 +3579,19 @@ msgstr "%{running} 個執行中 · %{queued} 個佇列中"
 msgid "Invocation %{id}"
 msgstr "呼叫 %{id}"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:278
+#: lib/tuist_web/live/bazel_invocation_live.ex:405
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Running for"
 msgstr "執行時間"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:336
+#: lib/tuist_web/live/bazel_invocation_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "No executions are running or queued"
 msgstr "沒有正在執行或排入佇列的執行項目"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:335
+#: lib/tuist_web/live/bazel_invocation_live.ex:461
+#: lib/tuist_web/live/bazel_invocation_live.ex:479
 #, elixir-autogen, elixir-format
 msgid "Running executions are unavailable"
 msgstr "無法取得正在執行的項目"
@@ -3610,224 +3622,251 @@ msgstr "Struo 的執行遙測目前尚未區分遠端與本機動作，因此不
 msgid "Couldn't load"
 msgstr "無法載入"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:221
+#: lib/tuist_web/live/bazel_remote_action_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "%{message} at %{location}"
 msgstr "%{message}（於 %{location}）"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:100
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "%{size} GB"
 msgstr "%{size} GB"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:50
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:34
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Action Details"
 msgstr "動作詳情"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:115
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:66
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Action digest"
 msgstr "動作摘要"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:164
+#: lib/tuist_web/live/bazel_invocation_live.ex:267
+#: lib/tuist_web/live/bazel_remote_action_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "Cached"
 msgstr "已快取"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:105
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Client"
 msgstr "用戶端"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:161
+#: lib/tuist_web/live/bazel_invocation_live.ex:266
+#: lib/tuist_web/live/bazel_remote_action_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr "錯誤"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:87
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Execution path"
 msgstr "執行路徑"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:66
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Exit code"
 msgstr "結束代碼"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:139
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Failed compiling %{path}"
 msgstr "編譯 %{path} 失敗"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:169
+#: lib/tuist_web/live/bazel_remote_action_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Leased worker"
 msgstr "租用工作節點"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:307
+#: lib/tuist_web/live/bazel_remote_action_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "Load earlier lines"
 msgstr "載入更早的行數"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:42
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:287
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:131
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "日誌"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:232
+#: lib/tuist_web/live/bazel_remote_action_live.ex:311
 #, elixir-autogen, elixir-format
 msgid "No error output was recorded."
 msgstr "未記錄錯誤輸出。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:325
+#: lib/tuist_web/live/bazel_remote_action_live.ex:404
 #, elixir-autogen, elixir-format
 msgid "No output was recorded."
 msgstr "未記錄輸出。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:215
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:304
 #, elixir-autogen, elixir-format
 msgid "Outputs"
 msgstr "輸出"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:272
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr "平台"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:73
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:162
 #, elixir-autogen, elixir-format
 msgid "Queued at"
 msgstr "排隊時間"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:41
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:27
+#: lib/tuist_web/live/bazel_remote_action_live.ex:44
+#: lib/tuist_web/live/bazel_remote_action_live.ex:78
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:25
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Remote action"
 msgstr "遠端動作"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:57
+#: lib/tuist_web/live/bazel_remote_action_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "Remote action not found."
 msgstr "找不到遠端動作。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:95
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Sandbox"
 msgstr "沙箱"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:170
+#: lib/tuist_web/live/bazel_remote_action_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Scheduled"
 msgstr "已排程"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:125
+#: lib/tuist_web/live/bazel_remote_action_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Standard error"
 msgstr "標準錯誤"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:124
+#: lib/tuist_web/live/bazel_remote_action_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Standard output"
 msgstr "標準輸出"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:110
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Status message"
 msgstr "狀態訊息"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:279
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:368
 #, elixir-autogen, elixir-format
 msgid "The action requested no platform properties."
 msgstr "此動作未要求任何平台屬性。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:268
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "The action set no environment variables."
 msgstr "此動作未設定任何環境變數。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:163
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "The command exceeded the recorded size and is incomplete."
 msgstr "命令超出記錄大小，內容不完整。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:228
+#: lib/tuist_web/live/bazel_remote_action_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "The command exited with code %{code}"
 msgstr "命令以代碼 %{code} 結束"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:203
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "The command was not recorded."
 msgstr "未記錄此命令。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:225
+#: lib/tuist_web/live/bazel_remote_action_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "The execution failed"
 msgstr "執行失敗"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:102
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "Timeout"
 msgstr "逾時"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:90
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Worker"
 msgstr "工作程式"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:209
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Working directory"
 msgstr "工作目錄"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:132
+#: lib/tuist_web/live/bazel_remote_action_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "%{stream}: %{size} skipped. Output over 16 MiB keeps its first 16 KiB and its last 16 MiB."
 msgstr "%{stream}：已略過 %{size}。超過 16 MiB 的輸出會保留前 16 KiB 與最後 16 MiB。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.ex:140
+#: lib/tuist_web/live/bazel_remote_action_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "%{stream}: the remaining %{size} is not available. It has not been stored yet, could not be stored, or has expired."
 msgstr "%{stream}：剩餘的 %{size} 無法提供。可能尚未儲存、無法儲存，或已過期。"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:199
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Show full command"
 msgstr "顯示完整指令"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:200
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:289
 #, elixir-autogen, elixir-format
 msgid "Show less"
 msgstr "顯示較少"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:182
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Copy command"
 msgstr "複製指令"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:250
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Show all %{count} outputs"
 msgstr "顯示全部 %{count} 個輸出"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:254
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Show fewer"
 msgstr "顯示較少"
 
-#: lib/tuist_web/live/bazel_remote_action_live.html.heex:219
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Showing %{shown} of %{count} outputs; the rest were not recorded."
 msgstr "顯示 %{count} 個輸出中的 %{shown} 個；其餘未記錄。"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:372
-#, elixir-autogen, elixir-format
-msgid "Waiting / running for"
-msgstr "等待 / 執行中"
-
-#: lib/tuist_web/live/bazel_remote_action_live.ex:346
+#: lib/tuist_web/live/bazel_remote_action_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr "空白"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:284
+#, elixir-autogen, elixir-format
+msgid "%{memory} GB"
+msgstr "%{memory} GB"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:250
+#: lib/tuist_web/live/bazel_remote_action_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Finishing"
+msgstr "完成中"
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:516
+#, elixir-autogen, elixir-format
+msgid "Showing the latest %{shown} of %{count} finished executions. The invocation's Remote execution tab lists all of them once it finishes."
+msgstr "顯示最近 %{shown} 筆，共 %{count} 筆已完成的執行。叫用完成後，「遠端執行」分頁會列出所有執行。"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "The command, output and timings appear here when the action finishes."
+msgstr "動作完成後，此處將顯示指令、輸出與耗時。"
+
+#: lib/tuist_web/live/bazel_remote_action_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Waiting for"
+msgstr "等待中"

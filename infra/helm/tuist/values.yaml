@@ -2230,6 +2230,9 @@ rackLinuxFleet:
   #                              # 10250/tcp) from the cluster's nodes only. One
   #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
+  #     kuraStorageLayout: lvm-v1   # storage only: the next install puts /data on a
+  #                              # data LV and leaves the drive's rest to Kura's thin pool
+  #     kuraDataLVSize: 1536G    # with lvm-v1; default 128G
   #     amt:
   #       activate: false        # default: amt.products decides
   #       address: 192.168.50.21/24   # default: one from amt.addressRange

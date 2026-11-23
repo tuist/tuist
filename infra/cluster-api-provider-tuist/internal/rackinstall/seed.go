@@ -18,11 +18,23 @@ import (
 // KuraStorageLayoutAnnotation explicitly enrolls a replacement host in LVM.
 const KuraStorageLayoutAnnotation = "tuist.dev/kura-storage-layout"
 
+// KuraDataLVSizeAnnotation sizes an LVM storage host's data LV, which holds
+// /data (the kubelet, containerd and local-path volumes such as the VM image
+// cache); the rest of the VG is left to the Kura thin pool. Unset, it is
+// DefaultKuraDataLVSize.
+const KuraDataLVSizeAnnotation = "tuist.dev/kura-data-lv-size"
+
+// DefaultKuraDataLVSize is an LVM storage host's data LV when its host sets no size.
+const DefaultKuraDataLVSize = "128G"
+
 // Seed is everything one install is rendered from.
 type Seed struct {
 	// KuraLVM requires an explicitly enrolled replacement host; false preserves shared XFS.
 	KuraLVM bool
-	Host    string
+	// KuraDataLVSize is the data LV's size with KuraLVM, in whole G or T,
+	// such as "1536G". Empty is DefaultKuraDataLVSize.
+	KuraDataLVSize string
+	Host           string
 	// Role is the host's role. A storage node gets a quotaed /data for cache
 	// volumes; the others take Ubuntu's direct layout.
 	Role string
@@ -130,6 +142,7 @@ var (
 	tagPattern          = regexp.MustCompile(`^tag:[a-z0-9-]+$`)
 	authorizedKeyPrefix = regexp.MustCompile(`^(ssh-|ecdsa-|sk-ssh-|sk-ecdsa-)`)
 	interfacePattern    = regexp.MustCompile(`^[a-z][a-z0-9]{0,14}$`)
+	lvSizePattern       = regexp.MustCompile(`^[1-9][0-9]{0,5}[GT]$`)
 )
 
 func (e EdgeNetwork) validate() error {
@@ -178,6 +191,9 @@ func (s Seed) validate() error {
 	}
 	if !hostPattern.MatchString(s.Host) || !hostPattern.MatchString(s.User) {
 		return fmt.Errorf("host %q or user %q is not a valid name", s.Host, s.User)
+	}
+	if s.KuraDataLVSize != "" && !lvSizePattern.MatchString(s.KuraDataLVSize) {
+		return fmt.Errorf("%s: data LV size %q is not a whole number of G or T", s.Host, s.KuraDataLVSize)
 	}
 	if len(s.TailnetTags) == 0 {
 		return fmt.Errorf("%s has no tailnet tags", s.Host)
@@ -279,7 +295,7 @@ autoinstall:
     - jq
     - ethtool
     - lvm2
-  updates: security
+%[20]s  updates: security
   shutdown: reboot
   early-commands:
     - |
@@ -344,8 +360,8 @@ autoinstall:
 %[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, password, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayoutForSeed(s), dataMounts(s.Role),
-		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit(), passwordType), nil
+		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayoutForSeed(s), dataMounts(s.Role)+kuraThinPoolModule(s),
+		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit(), passwordType, kuraThinPackages(s)), nil
 }
 
 // UplinkDrivers are the drivers of the rack hosts' uplinks: the MS-01's X710
@@ -628,12 +644,36 @@ func storageLayout(role string, resident bool) string {
 
 func storageLayoutForSeed(s Seed) string {
 	layout := storageLayout(s.Role, s.ResidentInstaller)
-	if !s.KuraLVM || s.Role != "storage" {
+	if !kuraLVMStorage(s) {
 		return layout
+	}
+	size := s.KuraDataLVSize
+	if size == "" {
+		size = DefaultKuraDataLVSize
 	}
 	return strings.Replace(layout,
 		"      - {type: format, id: data-fs, volume: data, fstype: xfs}",
-		"      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}\n      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}\n      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}", 1)
+		"      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}\n      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: "+size+"}\n      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}", 1)
+}
+
+func kuraLVMStorage(s Seed) bool { return s.KuraLVM && s.Role == "storage" }
+
+// kuraThinPackages and kuraThinPoolModule ready an LVM storage host for the
+// Kura CSI driver's dm-thin pool, as kura_lvm_setup.sh does on rented hosts:
+// LVM runs thin_check to activate the pool, including after a reboot, and the
+// dm_thin_pool target has to load on every boot.
+func kuraThinPackages(s Seed) string {
+	if !kuraLVMStorage(s) {
+		return ""
+	}
+	return "    - thin-provisioning-tools\n"
+}
+
+func kuraThinPoolModule(s Seed) string {
+	if !kuraLVMStorage(s) {
+		return ""
+	}
+	return "    - |\n      mkdir -p /target/etc/modules-load.d\n      printf 'dm_thin_pool\\n' > /target/etc/modules-load.d/kura-thin-pool.conf\n"
 }
 
 // dataMounts puts a storage node's kubelet root, containerd root and the

@@ -49,12 +49,11 @@ resources:
   requests:
     cpu: "1"
     memory: 2Gi
-    # Scheduler reservation matching the XFS quota, as Garage does. The PVC
-    # stays 1000G (the provisioner never resizes); the host project limit was
-    # raised to 1850Gi so it can take Garage's workload. With Garage's
-    # 1200Gi this fits the node's 3.08 TiB allocatable and leaves ~460 GiB
-    # of /data to the host.
-    ephemeral-storage: 1850Gi
+    # Scheduler reservation matching the XFS quota. The PVC stays 1000G (the
+    # provisioner never resizes); the host project limit was raised to 3050Gi
+    # after Garage's volume was deleted, taking its 1200Gi. This fits the
+    # node's 3.08 TiB allocatable and leaves ~460 GiB of /data to the host.
+    ephemeral-storage: 3050Gi
   limits:
     memory: 8Gi
 metricsEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics

@@ -5,6 +5,7 @@ defmodule TuistWeb.BazelRemoteActionLive do
 
   alias Phoenix.LiveView.JS
   alias Tuist.Bazel
+  alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Actions
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
@@ -17,6 +18,7 @@ defmodule TuistWeb.BazelRemoteActionLive do
   @long_command_bytes 400
   # Outputs listed before "Show all".
   @shown_outputs 10
+  @pending_refresh_ms 5_000
 
   def mount(%{"invocation_id" => invocation_id, "operation_id" => operation_id}, _session, socket) do
     %{selected_account: account, selected_project: project} = socket.assigns
@@ -34,6 +36,7 @@ defmodule TuistWeb.BazelRemoteActionLive do
         socket =
           socket
           |> assign(:invocation_id, invocation_id)
+          |> assign(:pending, nil)
           |> assign(:action, action)
           |> assign(:status, status(action))
           |> assign(:command_line, Actions.command_line(action))
@@ -53,14 +56,72 @@ defmodule TuistWeb.BazelRemoteActionLive do
 
         {:ok, socket}
 
-      _ ->
+      {:error, :not_found} ->
+        mount_pending(socket, project, invocation_id, operation_id)
+    end
+  end
+
+  # An action the scheduler still runs or queues has no record until it
+  # finishes. Its page shows what the scheduler knows and loads the record
+  # once the gateway has sent it.
+  defp mount_pending(socket, project, invocation_id, operation_id) do
+    case live_action(project, invocation_id, operation_id) do
+      %{} = live ->
+        if connected?(socket), do: Process.send_after(self(), :refresh_pending, @pending_refresh_ms)
+
+        {:ok,
+         socket
+         |> assign(:invocation_id, invocation_id)
+         |> assign(:operation_id, operation_id)
+         |> assign(:pending, live)
+         |> assign(:observed_at, DateTime.utc_now())
+         |> assign(:head_title, "#{title(live)} · #{dgettext("dashboard_builds", "Remote action")} · Tuist")}
+
+      nil ->
         raise NotFoundError, dgettext("dashboard_builds", "Remote action not found.")
     end
+  end
+
+  defp live_action(project, invocation_id, operation_id) do
+    case RemoteExecution.activity(project) do
+      {:ok, %{actions: actions}} -> Enum.find(actions, &(&1.id == operation_id and &1.invocation_id == invocation_id))
+      {:error, :unavailable} -> nil
+    end
+  end
+
+  def handle_info(:refresh_pending, socket) do
+    %{selected_project: project, invocation_id: invocation_id, operation_id: operation_id} = socket.assigns
+
+    {:noreply,
+     start_async(socket, :refresh_pending, fn ->
+       case Actions.get(project.id, invocation_id, operation_id) do
+         {:ok, _action} -> :recorded
+         {:error, :not_found} -> {:live, live_action(project, invocation_id, operation_id)}
+       end
+     end)}
   end
 
   def handle_params(params, _uri, socket) do
     tab = if params["tab"] in @tabs, do: params["tab"], else: "overview"
     {:noreply, socket |> assign(:selected_tab, tab) |> show_log_end()}
+  end
+
+  def handle_async(:refresh_pending, {:ok, :recorded}, socket),
+    do: {:noreply, push_navigate(socket, to: action_path(socket.assigns))}
+
+  # Between leaving the scheduler and its record arriving, the action is finishing.
+  def handle_async(:refresh_pending, result, socket) do
+    Process.send_after(self(), :refresh_pending, @pending_refresh_ms)
+    now = DateTime.utc_now()
+
+    pending =
+      case result do
+        {:ok, {:live, %{} = live}} -> live
+        {:ok, {:live, nil}} -> socket.assigns.pending |> Map.put(:state, "finishing") |> Map.put_new(:left_at, now)
+        {:exit, _reason} -> socket.assigns.pending
+      end
+
+    {:noreply, socket |> assign(:pending, pending) |> assign(:observed_at, now)}
   end
 
   def handle_async(:stored_logs, {:ok, state}, socket), do: {:noreply, socket |> assign(state) |> show_log_end()}
@@ -152,19 +213,37 @@ defmodule TuistWeb.BazelRemoteActionLive do
     do:
       "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{assigns.invocation_id}?tab=remote-execution"
 
-  defp title(%{mnemonic: mnemonic, target: target}) when mnemonic != "" and target != "", do: "#{mnemonic} #{target}"
-  defp title(%{mnemonic: mnemonic}) when mnemonic != "", do: mnemonic
+  defp action_path(assigns),
+    do:
+      "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{assigns.invocation_id}/remote-actions/#{assigns.operation_id}"
+
+  # Records have empty strings for what Bazel did not describe; the
+  # scheduler's running actions have nil.
+  defp title(%{mnemonic: mnemonic, target: target}) when mnemonic not in [nil, ""] and target not in [nil, ""],
+    do: "#{mnemonic} #{target}"
+
+  defp title(%{mnemonic: mnemonic}) when mnemonic not in [nil, ""], do: mnemonic
   defp title(%{action_hash: hash}), do: String.slice(hash, 0, 12)
+  defp title(%{action_digest: digest}), do: String.slice(digest, 0, 12)
 
-  # {header tile, badge label, badge color}. A non-OK gRPC status means the
-  # execution itself failed, whatever the command's exit code.
-  defp status(%{status_code: code}) when code != 0, do: {"failure", dgettext("dashboard_builds", "Error"), "destructive"}
+  # {header tile, badge label, badge color}
+  defp status(action) do
+    case Actions.status(action) do
+      :error -> {"failure", dgettext("dashboard_builds", "Error"), "destructive"}
+      :cached -> {"success", dgettext("dashboard_builds", "Cached"), "information"}
+      :passed -> {"success", dgettext("dashboard_builds", "Passed"), "success"}
+      :failed -> {"failure", dgettext("dashboard_builds", "Failed"), "destructive"}
+    end
+  end
 
-  defp status(%{exit_code: 0, cached_result: true}),
-    do: {"success", dgettext("dashboard_builds", "Cached"), "information"}
+  defp pending_status(%{state: "queued"}), do: {dgettext("dashboard_builds", "Queued"), "warning"}
+  defp pending_status(%{state: "finishing"}), do: {dgettext("dashboard_builds", "Finishing"), "primary"}
+  defp pending_status(_running), do: {dgettext("dashboard_builds", "Running"), "primary"}
 
-  defp status(%{exit_code: 0}), do: {"success", dgettext("dashboard_builds", "Passed"), "success"}
-  defp status(_action), do: {"failure", dgettext("dashboard_builds", "Failed"), "destructive"}
+  defp pending_duration(pending, observed_at),
+    do:
+      DateFormatter.format_duration_from_milliseconds(
+        max(DateTime.diff(pending[:left_at] || observed_at, pending.since, :millisecond), 0), fractional_seconds: false)
 
   defp execution_path("lease"), do: dgettext("dashboard_builds", "Leased worker")
   defp execution_path("scheduled"), do: dgettext("dashboard_builds", "Scheduled")

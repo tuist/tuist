@@ -3526,6 +3526,13 @@ landing capacity; no managed pool opts in by
 default. Cache taints alone retain the full shared-XFS data disk. Annotating a
 joined host does not convert it.
 
+A rack storage host sets the annotation through `rackLinuxFleet.hosts[].kuraStorageLayout`,
+and its data LV size through `kuraDataLVSize` (`tuist.dev/kura-data-lv-size`,
+default 128G). Both apply at the next published install, so the host's
+`reinstallGeneration` must be raised for them to apply. The rack seed installs
+`thin-provisioning-tools` and persists `dm_thin_pool`, so the CSI driver's thin
+pool activates after a reboot.
+
 Explicitly enrolled rented Linux cache hosts (the `tuist.dev/kura-cache`
 taint) convert their installer's empty XFS `/data` md
 filesystem to the `kura-volumes` VG before quota setup and kubelet binds.

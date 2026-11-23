@@ -623,6 +623,65 @@ func TestStorageInstallReservesSystemLVAndLeavesKuraExtentsFree(t *testing.T) {
 	}
 }
 
+// An enrolled storage host's install sizes its data LV from its host, leaves
+// the rest of the VG to the thin pool, and installs what activates that pool
+// on every boot. A legacy storage host gets none of it.
+func TestKuraLVMStorageInstallSizesTheDataLVAndPreparesThinPools(t *testing.T) {
+	storage := func(lvm bool, size string) Seed {
+		s := edgeSeed()
+		s.Host, s.Role, s.TailnetTags = "larch-store-a", "storage", []string{"tag:tuist-rack-storage"}
+		s.KuraLVM, s.KuraDataLVSize = lvm, size
+		return s
+	}
+	render := func(s Seed) (string, map[string]map[string]any) {
+		t.Helper()
+		out, err := UserData(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var seed struct {
+			Autoinstall struct {
+				Packages []string
+				Storage  struct{ Config []map[string]any }
+			}
+		}
+		if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]map[string]any{}
+		for _, action := range seed.Autoinstall.Storage.Config {
+			byID[fmt.Sprint(action["id"])] = action
+		}
+		return strings.Join(seed.Autoinstall.Packages, " "), byID
+	}
+
+	for size, want := range map[string]string{"": "128G", "1536G": "1536G", "2T": "2T"} {
+		out, _ := UserData(storage(true, size))
+		packages, byID := render(storage(true, size))
+		if byID["data-lv"]["size"] != want {
+			t.Errorf("size %q: data LV %v, want %s", size, byID["data-lv"]["size"], want)
+		}
+		if !strings.Contains(" "+packages+" ", " thin-provisioning-tools ") {
+			t.Errorf("size %q: packages %q lack thin-provisioning-tools", size, packages)
+		}
+		if !strings.Contains(out, "printf 'dm_thin_pool\\n' > /target/etc/modules-load.d/kura-thin-pool.conf") {
+			t.Errorf("size %q: the install does not load dm_thin_pool on boot", size)
+		}
+	}
+
+	out, _ := UserData(storage(false, "1536G"))
+	packages, byID := render(storage(false, "1536G"))
+	if _, ok := byID["data-lv"]; ok || strings.Contains(packages, "thin-provisioning-tools") || strings.Contains(out, "dm_thin_pool") {
+		t.Errorf("a legacy storage host got the Kura LVM install")
+	}
+
+	for _, size := range []string{"128", "1.5T", "0G", "128GiB", "128G; rm -rf /", "1536g"} {
+		if _, err := UserData(storage(true, size)); err == nil {
+			t.Errorf("data LV size %q rendered", size)
+		}
+	}
+}
+
 func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
 	e := ber1EdgeB()
 	e.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}

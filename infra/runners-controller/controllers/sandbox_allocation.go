@@ -42,8 +42,13 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 	if r.APIReader != nil {
 		reader = r.APIReader
 	}
+	// The reporter speaks for the whole fleet, so its own site pin must not
+	// narrow the hosts: the alphabetically first rack pool is pinned to one
+	// site, and every other site's Macs were left without a grant.
+	selector := fleetNodeSelector(pool)
+	delete(selector, podtemplate.RackSiteNodeLabel)
 	var nodes corev1.NodeList
-	if err := reader.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
+	if err := reader.List(ctx, &nodes, selector); err != nil {
 		return err
 	}
 	// Include every Pod, not just runners: pending resizes and RuntimeClass

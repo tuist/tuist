@@ -53,7 +53,10 @@ under the same keys, and `target.aliases: [gra-production-v1]` publishes
 Garage's ID as a private alias of this store (in-cluster endpoint, never
 `private_network_ready`). Shard plans, Actions cache entries and sandbox archive
 rows recorded under that ID resolve here unchanged, so no database row moved.
-Production's server reads only this release's `rustfs-targets`.
+Production's server reads only this release's `rustfs-targets`. Garage's
+release was uninstalled and its PVC deleted (the provisioner's teardown clears
+its project quota), and RustFS's project hard limit was raised to 3050Gi, the
+two stores' former total, with the reservation following.
 
 The server deployment installs this release in production.
 Nobody handles credentials: with `generateCredentials`, External Secrets

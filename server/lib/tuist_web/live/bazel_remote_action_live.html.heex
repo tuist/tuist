@@ -1,4 +1,93 @@
 <div
+  :if={@pending}
+  id="bazel-remote-action"
+  phx-hook="PageFavicon"
+  data-favicon-status="in_progress"
+>
+  <.button
+    label={dgettext("dashboard_builds", "Remote execution")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={invocation_path(assigns)}
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="badge-processing">
+          <div data-part="icon"><.circle_dashed /></div>
+        </div>
+        <h1 data-part="label">
+          {if @pending.mnemonic in [nil, ""],
+            do: dgettext("dashboard_builds", "Remote action"),
+            else: @pending.mnemonic}
+        </h1>
+      </div>
+      <span :if={@pending.target not in [nil, ""]} data-part="target">{@pending.target}</span>
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_builds", "Action Details")}
+    icon="chart_arcs"
+    data-part="build-details"
+  >
+    <.card_section data-part="build-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <.detail label={dgettext("dashboard_builds", "Status")}>
+            <.badge
+              label={elem(pending_status(@pending), 0)}
+              color={elem(pending_status(@pending), 1)}
+              style="fill"
+              size="large"
+              data-part="status"
+            />
+          </.detail>
+          <.detail label={
+            if @pending.state == "queued",
+              do: dgettext("dashboard_builds", "Waiting for"),
+              else: dgettext("dashboard_builds", "Running for")
+          }>
+            <.history />
+            {pending_duration(@pending, @observed_at)}
+          </.detail>
+          <.detail label={dgettext("dashboard_builds", "Machine")}>
+            {dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB",
+              vcpus: @pending.vcpus,
+              memory: @pending.memory_gb
+            )}
+          </.detail>
+        </div>
+        <div data-part="metadata-row">
+          <.detail label={dgettext("dashboard_builds", "Action digest")} data-field="wide">
+            <code>{@pending.action_digest}</code>
+          </.detail>
+        </div>
+      </div>
+    </.card_section>
+    <.card_section>
+      <.alert
+        id="remote-action-pending"
+        type="secondary"
+        status="information"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_builds",
+            "The command, output and timings appear here when the action finishes."
+          )
+        }
+      />
+    </.card_section>
+  </.card>
+</div>
+
+<div
+  :if={!@pending}
   id="bazel-remote-action"
   phx-hook="PageFavicon"
   data-favicon-status={elem(@status, 0)}

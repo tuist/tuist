@@ -53,6 +53,11 @@
       display: flex;
     }
 
+    & > [data-part="finished-note"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
     & > [data-part="skeleton"] {
       display: flex;
       flex-direction: column;
