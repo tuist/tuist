@@ -2613,8 +2613,14 @@ sandboxes:
   daemonMaxCpu: "250m"
   # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
   # (about 38 GiB each) per node. The nodes have about 830 GiB.
-  diskGiB: 240
+  # Plus 30 GiB for copies of CI cache volumes below.
+  diskGiB: 270
   checkoutWorkspacesGiB: 20
+  # Session cache drives, granted only to accounts with the
+  # `sandbox_runner_cache` flag. No template placeholder yet, so only
+  # disk-snapshot creates (which cold boot) attach one.
+  cacheImagesGiB: 30
+  cacheDriveInTemplate: false
   # Paused Orbs otherwise pile up on their nodes over a working day; a resume
   # after four hours cold boots from the archive instead.
   archiveAfterHours: 4
