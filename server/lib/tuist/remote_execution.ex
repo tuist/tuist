@@ -42,7 +42,7 @@ defmodule Tuist.RemoteExecution do
     |> validate_required(@limit_fields)
     |> validate_number(:remote_execution_vcpus_limit,
       greater_than_or_equal_to: Settings.vm_vcpus(),
-      message: "must hold one VM: at least #{Settings.vm_vcpus()} vCPUs"
+      message: "must hold one VM: at least #{Settings.vm_vcpus()} vCPU"
     )
     |> validate_number(:remote_execution_memory_gb_limit,
       greater_than_or_equal_to: div(Settings.vm_memory_mb(), 1024),
