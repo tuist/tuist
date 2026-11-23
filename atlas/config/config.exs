@@ -11,11 +11,9 @@ alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
 alias Atlas.Accounts.Workers.ScheduleServiceLevelExtractions
 alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
 alias Atlas.Automations.Workers.ScheduleRuns
-alias Atlas.Briefs.Workers.ScheduleBriefs
 alias Atlas.Documents.Workers.EnsureDocumentClassifications
 alias Atlas.Documents.Workers.ExpirePendingUploads
 alias Atlas.Engineering.Alerts.Workers.EvaluateSpikes
-alias Atlas.Engineering.Errors.SummaryWorker, as: ErrorsSummaryWorker
 alias Atlas.FeatureUsage.Workers.ScheduleFeatureUsage
 alias Atlas.Finance.Workers.BackfillQontoInvoices
 alias Atlas.Finance.Workers.CategorizeTransactions
@@ -42,7 +40,6 @@ alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
 alias Atlas.Signals.Workers.SchedulePolls
-alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
@@ -124,8 +121,6 @@ config :atlas, Oban,
        {"40 4 * * *", BackfillQontoInvoices},
        {"0 6 * * *", DiscoverCandidates},
        {"*/30 * * * *", ScheduleRecommendations},
-       {"0 9 * * 1", ScheduleBriefs, args: %{"cadence" => "weekly"}},
-       {"0 17 * * *", ScheduleBriefs, args: %{"cadence" => "monthly"}},
        {"30 4 * * *", ScheduleServiceLevelExtractions},
        {"45 4 * * *", RefreshMemoryBulletin, args: %{"scope" => "global"}},
        {"30 5 * * *", ScheduleFeatureUsage},
@@ -139,15 +134,8 @@ config :atlas, Oban,
        {"*/5 * * * *", PruneRateLimits},
        # Retires push registrations not refreshed for 60 days and deletes old tombstones.
        {"50 3 * * *", PrunePushInstallations},
-       # Reconciles the engineering error summary. The worker no-ops when
-       # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
-       # schedule in every environment.
-       {"* * * * *", ErrorsSummaryWorker},
        {"* * * * *", ScheduleRuns},
-       {"* * * * *", SchedulePolls},
-       # Weekly digest of inbound emails the classifier silenced so
-       # the team stays aware of what was filtered.
-       {"0 9 * * 1", SupportInboxWeeklyDigest}
+       {"* * * * *", SchedulePolls}
      ]},
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}

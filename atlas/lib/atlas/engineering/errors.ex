@@ -1292,46 +1292,6 @@ defmodule Atlas.Engineering.Errors do
   end
 
   @doc """
-  Batched top-N impacted accounts per issue for a set of issue ids.
-  Returns `%{issue_id => [rows]}` with the same row shape as
-  `impacted_accounts_for_issue/2`. Used by the Slack summary to enrich
-  multiple attention items with one query.
-  """
-  def impacted_accounts_by_issue_ids(issue_ids, opts \\ []) when is_list(issue_ids) do
-    limit_per_issue = Keyword.get(opts, :limit_per_issue, 3)
-
-    if issue_ids == [] do
-      %{}
-    else
-      from(ia in IssueAccount,
-        join: a in Account,
-        on: a.id == ia.account_id,
-        where: ia.issue_id in ^issue_ids,
-        select: %{
-          issue_id: ia.issue_id,
-          account: a,
-          event_count: ia.event_count,
-          first_seen: ia.first_seen,
-          last_seen: ia.last_seen
-        }
-      )
-      |> Repo.all()
-      |> Enum.group_by(& &1.issue_id)
-      |> Map.new(fn {issue_id, rows} ->
-        top =
-          rows
-          |> Enum.sort_by(
-            &{if(&1.account.plan_tier == "enterprise", do: 0, else: 1), -&1.event_count},
-            :asc
-          )
-          |> Enum.take(limit_per_issue)
-
-        {issue_id, top}
-      end)
-    end
-  end
-
-  @doc """
   Whether an issue is impacting at least one account on the enterprise
   plan tier. Powers the small badge on the issues list.
   """

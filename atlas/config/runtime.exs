@@ -489,10 +489,6 @@ config :atlas, :finance,
   initial_lookback_days: positive_integer_env.("ATLAS_FINANCE_INITIAL_LOOKBACK_DAYS", 365),
   sync_overlap_minutes: positive_integer_env.("ATLAS_FINANCE_SYNC_OVERLAP_MINUTES", 5),
   sales_slack_channel_id: System.get_env("ATLAS_FINANCE_SALES_SLACK_CHANNEL_ID", "C072A0Z53B7"),
-  cost_digest_slack_channel_id:
-    System.get_env("ATLAS_FINANCE_COST_DIGEST_SLACK_CHANNEL_ID") ||
-      System.get_env("ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID"),
-  weekly_summary_slack_channel_id: System.get_env("ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID"),
   internal_entity_names: finance_internal_entity_names,
   sources: Enum.reject([qonto_source, mercury_source], &is_nil/1)
 

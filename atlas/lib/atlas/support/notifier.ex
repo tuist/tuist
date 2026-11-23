@@ -18,8 +18,7 @@ defmodule Atlas.Support.Notifier do
   @events ~w(inbound_received chat_received agent_feedback_received reply_delivered note_added status_changed assigned)
 
   # `#support` only hears about inbound mail and chats that need someone.
-  # The classifier already resolved no-action threads; the weekly digest
-  # summarises them.
+  # The classifier already resolved no-action threads; they stay in Atlas.
   def notify(thread, event, opts \\ [])
 
   def notify(%Thread{action_needed: false}, event, _opts) when event in ["inbound_received", "chat_received"],

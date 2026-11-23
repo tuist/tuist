@@ -49,8 +49,7 @@ defmodule Atlas.SupportInbox.Classifier do
   end
 
   @doc """
-  Classify without persisting. Useful in tests and in the digest
-  job. Prefer `classify_and_persist/3` for real inbound handling.
+  Classify without persisting. Useful in tests. Prefer `classify_and_persist/3` for real inbound handling.
   """
   def classify(%Thread{} = thread, %Message{} = message, opts \\ []) do
     cond do
