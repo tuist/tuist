@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	kurav1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -64,6 +65,83 @@ func TestThinTemplateReservesRetainedVolumes(t *testing.T) {
 			}
 			if want := resource.MustParse(tc.want); got.Cmp(want) != 0 {
 				t.Fatalf("reservation %s, want %s", got.String(), tc.want)
+			}
+		})
+	}
+}
+
+// A shrink hands kura-disk back only by rebuilding the volumes, and only when
+// the surplus is at least 8Gi and a quarter of the declared claim: the
+// boundaries sit on both sides of each half of that rule.
+func TestShrinkRebuildsOversizedKuraDiskClaims(t *testing.T) {
+	type setup struct {
+		class       string
+		replicas    int32
+		fenced      bool
+		declared    string
+		bound       string
+		wantRebuild bool
+	}
+	for name, tc := range map[string]setup{
+		"48Gi under a 30Gi claim":                   {declared: "30Gi", bound: "48Gi", wantRebuild: true},
+		"36Gi under a 27Gi claim":                   {declared: "27Gi", bound: "36Gi", wantRebuild: true},
+		"exactly 8Gi and a quarter":                 {declared: "32Gi", bound: "40Gi", wantRebuild: true},
+		"a quarter but under 8Gi":                   {declared: "28Gi", bound: "35Gi"},
+		"8Gi but under a quarter":                   {declared: "40Gi", bound: "48Gi"},
+		"10Gi but under a quarter":                  {declared: "48Gi", bound: "58Gi"},
+		"8Gi under a 6Gi claim":                     {declared: "6Gi", bound: "8Gi"},
+		"at the declared size":                      {declared: "30Gi", bound: "30Gi"},
+		"growth still rebuilds":                     {declared: "48Gi", bound: "30Gi", wantRebuild: true},
+		"a single live copy keeps its volume":       {replicas: 1, declared: "30Gi", bound: "48Gi"},
+		"a fenced instance keeps its volume":        {fenced: true, declared: "30Gi", bound: "48Gi"},
+		"legacy local-path volumes are not rebuilt": {class: localPathStorageClass, declared: "30Gi", bound: "48Gi"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if tc.class == "" {
+				tc.class = thinLocalStorageClass
+			}
+			if tc.replicas == 0 {
+				tc.replicas = 2
+			}
+			scheme := runtime.NewScheme()
+			if err := clientgoscheme.AddToScheme(scheme); err != nil {
+				t.Fatal(err)
+			}
+			instance := &kurav1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "kura"}, Spec: kurav1.KuraInstanceSpec{StorageClassName: tc.class, StorageSize: tc.declared, Replicas: ptr(tc.replicas)}}
+			if tc.fenced {
+				instance.Spec.ServingMode = servingMode
+			}
+			bound := resource.MustParse(tc.bound)
+			var objects []client.Object
+			for ordinal := int32(0); ordinal < tc.replicas; ordinal++ {
+				pv := fmt.Sprintf("pv-%d", ordinal)
+				objects = append(objects,
+					&corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("data-acme-%d", ordinal), Namespace: "kura"}, Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: &tc.class, VolumeName: pv,
+						Resources: corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: bound}},
+					}},
+					&corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: pv}, Spec: corev1.PersistentVolumeSpec{PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{
+						Driver:           "kura-volumes.tuist.dev",
+						VolumeAttributes: map[string]string{"backing": "thin", "layout": "thin-luks-xfs-v1", "capacity_mode": "ceiling-backed-v1", "cache_ceiling_bytes": fmt.Sprint(bound.Value())},
+					}}}},
+				)
+			}
+			r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()}
+			replacements, deleting, err := r.dataVolumesToReplace(context.Background(), instance, storageQuantity(instance))
+			if err != nil || deleting {
+				t.Fatalf("err=%v deleting=%v", err, deleting)
+			}
+			want := 0
+			if tc.wantRebuild {
+				want = int(tc.replicas)
+			}
+			if len(replacements) != want {
+				t.Fatalf("%d replacements, want %d: %+v", len(replacements), want, replacements)
+			}
+			// A verified volume past the threshold is the instance's own to
+			// rebuild, not an LVM migration waiting for its source node.
+			if held, err := r.lvmMigrationTemplateHeld(context.Background(), instance); err != nil || held {
+				t.Fatalf("template held=%v err=%v", held, err)
 			}
 		})
 	}
