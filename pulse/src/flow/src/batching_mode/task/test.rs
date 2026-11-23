@@ -634,6 +634,91 @@ async fn test_retained_recovery_excludes_preceding_fractional_dirty_window() {
     );
 }
 
+#[tokio::test]
+async fn test_unrepresentable_window_end_never_falls_back_to_unfiltered() {
+    let query = "SELECT number, date_bin(INTERVAL '100000 days', \
+                 arrow_cast(ts, 'Timestamp(Nanosecond, None)'), \
+                 TIMESTAMP '2025-01-01T00:00:00Z') AS time_window \
+                 FROM numbers_with_ts GROUP BY time_window, number";
+    let TestTaskParts {
+        mut task,
+        query_engine,
+        ..
+    } = new_time_window_test_task_with_query(query).await;
+    let ctx = task.query_context_snapshot();
+    let plan = sql_to_df_plan(ctx.clone(), query_engine.clone(), query, true)
+        .await
+        .unwrap();
+    let (column, expr, _, schema) = find_time_window_expr(
+        &plan,
+        query_engine.engine_state().catalog_manager().clone(),
+        ctx,
+    )
+    .await
+    .unwrap();
+    let config = Arc::get_mut(&mut task.config).unwrap();
+    config.expire_after = Some(86_400);
+    config.time_window_expr = Some(
+        TimeWindowExpr::from_expr(
+            &expr.unwrap(),
+            &column,
+            &schema,
+            &query_engine.engine_state().session_state(),
+        )
+        .unwrap(),
+    );
+    task.evaluation_time = Some(Timestamp::new_second(1_767_225_600)); // 2026-01-01
+    let lower = Timestamp::new_nanosecond(1_735_689_600_000_000_000);
+    assert_eq!(
+        task.config
+            .time_window_expr
+            .as_ref()
+            .unwrap()
+            .eval(
+                task.evaluation_time
+                    .unwrap()
+                    .sub_duration(Duration::from_secs(86_400))
+                    .unwrap()
+            )
+            .unwrap(),
+        (Some(lower), None),
+    );
+    task.state
+        .write()
+        .unwrap()
+        .dirty_time_windows
+        .add_window(lower, None);
+    let sink_schema = Arc::new(Schema::new(vec![
+        ColumnSchema::new("number", CDT::uint32_datatype(), false),
+        ColumnSchema::new("time_window", CDT::timestamp_nanosecond_datatype(), false)
+            .with_time_index(true),
+    ]));
+    // Ordinary, retained-budget and forced-snapshot planning must all fail
+    // without consuming dirty work rather than silently scanning old history.
+    for (budget, force_full_snapshot) in [(None, false), (Some(1), false), (Some(1), true)] {
+        let result = task
+            .gen_query_with_time_window_with_values(
+                query_engine.clone(),
+                &sink_schema,
+                &[],
+                false,
+                budget,
+                &BTreeMap::new(),
+                force_full_snapshot,
+            )
+            .await;
+        assert!(
+            result.is_err(),
+            "an unrepresentable upper bound must not become an unfiltered plan"
+        );
+        assert_eq!(
+            task.state.read().unwrap().dirty_time_windows.len(),
+            1,
+            "failed planning must preserve pending dirty work"
+        );
+    }
+}
+
 async fn new_test_task_and_plan_with_missing_sink() -> (BatchingTask, LogicalPlan) {
     new_test_task_engine_and_plan_with_query(
         "SELECT number, ts FROM numbers_with_ts",

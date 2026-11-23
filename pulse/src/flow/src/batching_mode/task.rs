@@ -2075,6 +2075,18 @@ impl BatchingTask {
             &self.config.query_type,
         ) {
             (Some((Some(l), Some(u))), QueryType::Sql) => (l, u),
+            (Some(_), QueryType::Sql) => {
+                // A time-window expression with an unrepresentable boundary
+                // must not silently become a full scan outside retention.
+                // Fail before consuming dirty work so it remains retryable.
+                return UnexpectedSnafu {
+                    reason: format!(
+                        "Flow id={} cannot safely scope SQL to unrepresentable time-window bounds",
+                        self.config.flow_id
+                    ),
+                }
+                .fail();
+            }
             (None, QueryType::Sql) if self.config.flow_eval_interval.is_none() => {
                 return UnexpectedSnafu {
                     reason: format!(

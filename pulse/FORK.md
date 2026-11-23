@@ -60,6 +60,8 @@ covered by this list.
   Retained recovery freezes its evaluation timestamp on a local task clone and
   uses that same subsecond cutoff for marking and selecting windows, so an
   expired preceding dirty window cannot consume the retained-window budget.
+  SQL window planning rejects unrepresentable bounds before consuming dirty
+  work instead of falling back to an unfiltered scan outside retention.
 - **Exact count-rollup prototype.** `tests/perf/count_aggregate_benchmark.py`
   compares raw dashboard-style counts with minute summaries plus uncovered raw
   rows in a disposable local database. Immutable ingestion batches and an
