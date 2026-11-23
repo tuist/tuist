@@ -219,14 +219,10 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
       }
     end
 
-    stub(Scheduler, :activity, fn _account_id, _project_id ->
-      {:ok,
-       [
-         action.("running", "running-ui", "CppCompile", 8),
-         action.("queued", "running-ui", nil, 16),
-         action.("running", "another-build", "Javac", 8)
-       ]}
-    end)
+    compile = action.("running", "running-ui", "CppCompile", 8)
+    queued = action.("queued", "running-ui", nil, 16)
+    other_build = action.("running", "another-build", "Javac", 8)
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:ok, [compile, queued, other_build]} end)
 
     {:ok, view, _} = live(conn, path <> "?tab=remote-execution")
     assert has_element?(view, "#bazel-invocation [data-part=badge-processing]")
@@ -238,11 +234,67 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "0123456789ab")
     assert has_element?(view, "#running-remote-actions", "8 vCPU · 16 GB")
     refute has_element?(view, "#running-remote-actions", "Javac")
+    # Live rows open the action's page, which loads its record once it finishes.
+    assert has_element?(view, ~s(#running-remote-actions a[href$="/running-ui/remote-actions/#{compile.id}"]))
 
     stub(Scheduler, :activity, fn _account_id, _project_id -> {:error, :unavailable} end)
     send(view.pid, :refresh_running)
     render_async(view)
     assert has_element?(view, "#running-remote-actions", "Running executions are unavailable")
+
+    # The gateway's records arrive after the client has its result, while the
+    # scheduler may still list the action: the record replaces the live row.
+    failed = Ecto.UUID.generate()
+    queued_at = DateTime.to_unix(now, :microsecond) - 10_000_000
+
+    {:ok, 2} =
+      Actions.ingest(project, [
+        %{
+          "operation_id" => compile.id,
+          "action_hash" => String.duplicate("a", 64),
+          "invocation_id" => "running-ui",
+          "mnemonic" => "CppCompile",
+          "target" => "//app:lib",
+          "memory_gb" => 8,
+          "exit_code" => 0,
+          "timestamps" => %{"queued" => queued_at, "worker_completed" => queued_at + 4_000_000}
+        },
+        %{
+          "operation_id" => failed,
+          "action_hash" => String.duplicate("b", 64),
+          "invocation_id" => "running-ui",
+          "mnemonic" => "GoCompile",
+          "target" => "//svc:server",
+          "memory_gb" => 4,
+          "exit_code" => 1,
+          "timestamps" => %{"queued" => queued_at, "worker_completed" => queued_at + 2_000_000}
+        }
+      ])
+
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:ok, [compile, queued]} end)
+    send(view.pid, :refresh_running)
+    render_async(view)
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "Queued")
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "Passed")
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(2)", "CppCompile")
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(3)", "Failed")
+    assert has_element?(view, "#running-remote-actions tbody tr:nth-child(3)", "//svc:server")
+    refute has_element?(view, "#running-remote-actions tbody tr:nth-child(4)")
+    assert has_element?(view, ~s(#running-remote-actions a[href$="/running-ui/remote-actions/#{failed}"]))
+
+    # An action that left the scheduler before its record arrived stays listed.
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:ok, []} end)
+    send(view.pid, :refresh_running)
+    render_async(view)
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "Finishing")
+    assert has_element?(view, "#running-remote-actions tbody tr:first-child", "0123456789ab")
+
+    # Without the scheduler, the finished rows still show, with a notice.
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:error, :unavailable} end)
+    send(view.pid, :refresh_running)
+    render_async(view)
+    assert has_element?(view, "#running-remote-actions-unavailable", "Running executions are unavailable")
+    assert has_element?(view, "#running-remote-actions", "Passed")
 
     Bazel.create_invocations([
       invocation_attributes(project, "running-ui", "test", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))

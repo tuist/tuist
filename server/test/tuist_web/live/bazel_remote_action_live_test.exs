@@ -7,10 +7,12 @@ defmodule TuistWeb.BazelRemoteActionLiveTest do
 
   alias Tuist.Bazel
   alias Tuist.RemoteExecution.Actions
+  alias Tuist.RemoteExecution.Scheduler
   alias Tuist.Storage
   alias Tuist.Utilities.ByteFormatter
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   @queued 1_793_157_000_000_000
 
@@ -265,7 +267,7 @@ defmodule TuistWeb.BazelRemoteActionLiveTest do
         %{"operation_id" => id, "action_hash" => String.duplicate("e", 64), "invocation_id" => "another"}
       ])
 
-    assert_raise TuistWeb.Errors.NotFoundError, fn -> live(conn, path <> "/remote-actions/" <> id) end
+    assert_raise NotFoundError, fn -> live(conn, path <> "/remote-actions/" <> id) end
   end
 
   test "a finished action of a still-running invocation is shown", %{conn: conn, project: project, path: path} do
@@ -287,5 +289,59 @@ defmodule TuistWeb.BazelRemoteActionLiveTest do
 
     assert has_element?(view, "h1", "GoLink")
     assert has_element?(view, "[data-part=back-button][href$=\"/invocations/#{running}?tab=remote-execution\"]")
+  end
+
+  test "an action the scheduler still runs shows what it knows until its record arrives", %{
+    conn: conn,
+    project: project,
+    path: path
+  } do
+    id = Ecto.UUID.generate()
+    running = Ecto.UUID.generate()
+
+    live_action = %{
+      id: id,
+      state: "running",
+      action_digest: String.duplicate("e", 64) <> "/187",
+      invocation_id: running,
+      mnemonic: "GoLink",
+      target: "//svc:server",
+      memory_gb: 8,
+      since: DateTime.add(DateTime.utc_now(), -5, :second)
+    }
+
+    # Another invocation's operation with the same ID is not this action.
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:ok, [%{live_action | invocation_id: "another"}]} end)
+    running_path = String.replace(path, ~r{invocations/[^/]+$}, "invocations/" <> running)
+    action_path = running_path <> "/remote-actions/" <> id
+    assert_raise NotFoundError, fn -> live(conn, action_path) end
+
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:ok, [live_action]} end)
+    {:ok, view, _html} = live(conn, action_path)
+
+    assert has_element?(view, "h1", "GoLink")
+    assert has_element?(view, "[data-part=badge-processing]")
+    assert has_element?(view, "[data-part=status]", "Running")
+    assert has_element?(view, "[data-part=metadata]", "4 vCPU · 8 GB")
+    assert has_element?(view, "#remote-action-pending")
+
+    # Gone from the scheduler, its record not here yet: finishing.
+    stub(Scheduler, :activity, fn _account_id, _project_id -> {:ok, []} end)
+    send(view.pid, :refresh_pending)
+    render_async(view)
+    assert has_element?(view, "[data-part=status]", "Finishing")
+
+    {:ok, 1} =
+      Actions.ingest(project, [
+        %{
+          "operation_id" => id,
+          "action_hash" => String.duplicate("e", 64),
+          "invocation_id" => running,
+          "mnemonic" => "GoLink"
+        }
+      ])
+
+    send(view.pid, :refresh_pending)
+    assert_redirect(view, action_path, 1_000)
   end
 end

@@ -29,6 +29,12 @@ defmodule TuistWeb.BazelInvocationLive do
 
   @cache_page_size 20
   @running_refresh_ms 5_000
+  # A running invocation lists its latest finished actions; the rest are on
+  # its Remote execution tab once it finishes.
+  @finished_rows 50
+  # Records are best effort, so an action that left the scheduler stays
+  # listed as finishing for at most this long while its record is missing.
+  @finishing_ms 60_000
 
   def mount(
         %{"invocation_id" => invocation_id},
@@ -88,6 +94,8 @@ defmodule TuistWeb.BazelInvocationLive do
        |> assign(:selected_project, project)
        |> assign(:invocation_id, invocation_id)
        |> assign(:running, running)
+       |> assign(:finishing, %{})
+       |> assign(:execution_rows, execution_rows(running, %{}))
        |> assign(:bazel_back_label, socket.assigns[:bazel_back_label] || dgettext("dashboard_projects", "Invocations"))
        |> assign(:bazel_back_path, socket.assigns[:bazel_back_path] || "invocations")
        |> assign(:bazel_detail_path, socket.assigns[:bazel_detail_path] || "invocations")
@@ -147,7 +155,18 @@ defmodule TuistWeb.BazelInvocationLive do
     {:noreply, start_async(socket, :refresh_running, fn -> running_snapshot(project, invocation_id) end)}
   end
 
-  defp running_snapshot(project, invocation_id), do: RemoteExecution.invocation_activity(project, invocation_id)
+  defp running_snapshot(project, invocation_id) do
+    case RemoteExecution.invocation_activity(project, invocation_id) do
+      %{invocation: nil} = activity ->
+        activity
+
+      activity ->
+        {finished, meta} =
+          Actions.list(project.id, invocation_id, %{sort_by: "completed_at", page_size: @finished_rows})
+
+        Map.merge(activity, %{finished: finished, finished_count: meta.total_count})
+    end
+  end
 
   # Once the invocation stops running, its finished row has usually arrived,
   # so the page loads again to show it.
@@ -160,10 +179,118 @@ defmodule TuistWeb.BazelInvocationLive do
     Process.send_after(self(), :refresh_running, @running_refresh_ms)
 
     case result do
-      {:ok, running} -> {:noreply, assign(socket, :running, running)}
-      {:exit, _reason} -> {:noreply, socket}
+      {:ok, running} ->
+        finishing = finishing(socket.assigns.running, running, socket.assigns.finishing)
+
+        {:noreply,
+         socket
+         |> assign(:running, running)
+         |> assign(:finishing, finishing)
+         |> assign(:execution_rows, execution_rows(running, finishing))}
+
+      {:exit, _reason} ->
+        {:noreply, socket}
     end
   end
+
+  # The scheduler drops an action when it returns the result to the client,
+  # and the gateway sends the action's record after that, so the action
+  # would briefly be in neither list. It stays listed as finishing until its
+  # record arrives, it shows up in the scheduler again, or @finishing_ms pass.
+  defp finishing(previous, current, finishing) do
+    now = current.observed_at
+    recorded = MapSet.new(current.finished, & &1.operation_id)
+    # While the scheduler is unavailable, nothing is known to have left it.
+    live = if is_list(current.actions), do: MapSet.new(current.actions, & &1.id)
+
+    left =
+      if is_list(previous.actions) and live != nil,
+        do:
+          for(
+            action <- previous.actions,
+            action.id not in live,
+            into: %{},
+            do: {action.id, Map.put(action, :left_at, now)}
+          ),
+        else: %{}
+
+    finishing
+    |> Map.merge(left)
+    |> Map.reject(fn {id, action} ->
+      MapSet.member?(recorded, id) or (live != nil and MapSet.member?(live, id)) or
+        DateTime.diff(now, action.left_at, :millisecond) > @finishing_ms
+    end)
+  end
+
+  # Live actions first, then finishing ones, then recorded ones, latest
+  # finished first. A record replaces its live row as soon as it arrives.
+  defp execution_rows(running, finishing) do
+    recorded = MapSet.new(running.finished, & &1.operation_id)
+    live = if is_list(running.actions), do: Enum.reject(running.actions, &MapSet.member?(recorded, &1.id)), else: []
+
+    Enum.map(live, &live_row(&1, running.observed_at)) ++
+      (finishing |> Map.values() |> Enum.sort_by(& &1.left_at, {:desc, DateTime}) |> Enum.map(&finishing_row/1)) ++
+      Enum.map(running.finished, &finished_row/1)
+  end
+
+  defp live_row(action, observed_at) do
+    {label, status} =
+      if action.state == "running",
+        do: {dgettext("dashboard_builds", "Running"), "in_progress"},
+        else: {dgettext("dashboard_builds", "Queued"), "warning"}
+
+    action
+    |> scheduled_row(DateTime.diff(observed_at, action.since, :millisecond))
+    |> Map.merge(%{label: label, status: status})
+  end
+
+  defp finishing_row(action) do
+    action
+    |> scheduled_row(DateTime.diff(action.left_at, action.since, :millisecond))
+    |> Map.merge(%{label: dgettext("dashboard_builds", "Finishing"), status: "in_progress"})
+  end
+
+  defp scheduled_row(action, duration_ms) do
+    %{
+      id: action.id,
+      title: action.mnemonic || String.slice(action.action_digest, 0, 12),
+      target: action.target,
+      machine: machine_label(action.vcpus, action.memory_gb),
+      duration_ms: max(duration_ms, 0)
+    }
+  end
+
+  defp finished_row(action) do
+    {label, status} =
+      case Actions.status(action) do
+        :error -> {dgettext("dashboard_builds", "Error"), "error"}
+        :cached -> {dgettext("dashboard_builds", "Cached"), "success"}
+        :passed -> {dgettext("dashboard_builds", "Passed"), "success"}
+        :failed -> {dgettext("dashboard_builds", "Failed"), "error"}
+      end
+
+    %{
+      id: action.operation_id,
+      label: label,
+      status: status,
+      title: if(action.mnemonic == "", do: String.slice(action.action_hash, 0, 12), else: action.mnemonic),
+      target: if(action.target == "", do: nil, else: action.target),
+      machine: machine_label(action.vcpus, action.memory_gb),
+      duration_ms: action.duration_ms
+    }
+  end
+
+  defp machine_label(nil, memory_gb) when memory_gb > 0,
+    do: dgettext("dashboard_builds", "%{memory} GB", memory: memory_gb)
+
+  defp machine_label(nil, _memory_gb), do: dgettext("dashboard_builds", "Not recorded")
+
+  defp machine_label(vcpus, memory_gb),
+    do: dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB", vcpus: vcpus, memory: memory_gb)
+
+  defp running_action_path(assigns, operation_id),
+    do:
+      "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{assigns.invocation_id}/remote-actions/#{operation_id}"
 
   def handle_event("load-timeline", params, socket), do: BuildTimelineLoader.handle_event("load-timeline", params, socket)
 
@@ -326,62 +453,74 @@ defmodule TuistWeb.BazelInvocationLive do
           </.card_section>
         </.card>
         <.card title={dgettext("dashboard_builds", "Executions")} icon="history">
-          <%= cond do %>
-            <% @running.actions == :unavailable or @running.actions == [] -> %>
-              <.empty_card_section
+          <%= if @execution_rows == [] do %>
+            <.empty_card_section
+              id="running-remote-actions"
+              title={
+                if @running.actions == :unavailable,
+                  do: dgettext("dashboard_builds", "Running executions are unavailable"),
+                  else: dgettext("dashboard_builds", "No executions are running or queued")
+              }
+              data-part="remote-execution-section"
+            >
+              <:image>
+                <img src={~p"/images/empty_table_light.png"} data-theme="light" loading="lazy" />
+                <img src={~p"/images/empty_table_dark.png"} data-theme="dark" loading="lazy" />
+              </:image>
+            </.empty_card_section>
+          <% else %>
+            <.card_section data-part="remote-execution-section">
+              <.alert
+                :if={@running.actions == :unavailable}
+                id="running-remote-actions-unavailable"
+                type="secondary"
+                status="warning"
+                size="small"
+                title={dgettext("dashboard_builds", "Running executions are unavailable")}
+              />
+              <.table
                 id="running-remote-actions"
-                title={
-                  if @running.actions == :unavailable,
-                    do: dgettext("dashboard_builds", "Running executions are unavailable"),
-                    else: dgettext("dashboard_builds", "No executions are running or queued")
-                }
-                data-part="remote-execution-section"
+                rows={@execution_rows}
+                row_key={& &1.id}
+                row_navigate={&running_action_path(assigns, &1.id)}
               >
-                <:image>
-                  <img src={~p"/images/empty_table_light.png"} data-theme="light" loading="lazy" />
-                  <img src={~p"/images/empty_table_dark.png"} data-theme="dark" loading="lazy" />
-                </:image>
-              </.empty_card_section>
-            <% true -> %>
-              <.card_section data-part="remote-execution-section">
-                <.table id="running-remote-actions" rows={@running.actions} row_key={& &1.id}>
-                  <:col :let={row} label={dgettext("dashboard_builds", "Status")}>
-                    <.status_badge_cell
-                      label={
-                        if row.state == "running",
-                          do: dgettext("dashboard_builds", "Running"),
-                          else: dgettext("dashboard_builds", "Queued")
-                      }
-                      status={if row.state == "running", do: "in_progress", else: "warning"}
-                    />
-                  </:col>
-                  <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
-                    <.text_and_description_cell
-                      label={row.mnemonic || String.slice(row.action_digest, 0, 12)}
-                      description={row.target}
-                    />
-                  </:col>
-                  <:col :let={row} label={dgettext("dashboard_builds", "Machine")}>
-                    <.text_cell label={
-                      dgettext("dashboard_builds", "%{vcpus} vCPU · %{memory} GB",
-                        vcpus: row.vcpus,
-                        memory: row.memory_gb
-                      )
-                    } />
-                  </:col>
-                  <:col :let={row} label={dgettext("dashboard_builds", "Waiting / running for")}>
-                    <.text_cell
-                      label={
-                        DateFormatter.format_duration_from_milliseconds(
-                          max(DateTime.diff(@running.observed_at, row.since, :millisecond), 0),
-                          fractional_seconds: false
-                        )
-                      }
-                      icon="history"
-                    />
-                  </:col>
-                </.table>
-              </.card_section>
+                <:col :let={row} label={dgettext("dashboard_builds", "Status")}>
+                  <.status_badge_cell label={row.label} status={row.status} />
+                </:col>
+                <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
+                  <div data-part="trace-action">
+                    <.text_and_description_cell label={row.title} description={row.target} />
+                  </div>
+                </:col>
+                <:col :let={row} label={dgettext("dashboard_builds", "Machine")}>
+                  <.text_cell label={row.machine} />
+                </:col>
+                <:col :let={row} label={dgettext("dashboard_projects", "Duration")}>
+                  <.text_cell
+                    label={
+                      if row.duration_ms,
+                        do:
+                          DateFormatter.format_duration_from_milliseconds(row.duration_ms,
+                            fractional_seconds: false
+                          ),
+                        else: dgettext("dashboard_builds", "Not recorded")
+                    }
+                    icon="history"
+                  />
+                </:col>
+              </.table>
+              <span
+                :if={@running.finished_count > length(@running.finished)}
+                data-part="finished-note"
+              >
+                {dgettext(
+                  "dashboard_builds",
+                  "Showing the latest %{shown} of %{count} finished executions. The invocation's Remote execution tab lists all of them once it finishes.",
+                  shown: length(@running.finished),
+                  count: @running.finished_count
+                )}
+              </span>
+            </.card_section>
           <% end %>
         </.card>
       </div>

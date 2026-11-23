@@ -29,6 +29,7 @@ defmodule Tuist.RemoteExecution.Actions do
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.RemoteExecution.Action
+  alias Tuist.RemoteExecution.Settings
   alias Tuist.Storage
 
   @max_records 100
@@ -264,9 +265,9 @@ defmodule Tuist.RemoteExecution.Actions do
 
   @doc """
   One page of an invocation's remote actions, without command, environment
-  or output. `sort_by` is `duration` (longest first, the default) or
-  `queued_at` (earliest first); `failed: true` keeps actions that exited
-  non-zero or did not complete.
+  or output. `sort_by` is `duration` (longest first, the default),
+  `queued_at` (earliest first) or `completed_at` (latest first);
+  `failed: true` keeps actions that exited non-zero or did not complete.
   """
   def list(project_id, invocation_id, attrs \\ %{}) do
     page = max(attrs[:page] || 1, 1)
@@ -282,7 +283,7 @@ defmodule Tuist.RemoteExecution.Actions do
       )
       |> order(attrs[:sort_by], attrs[:sort_order])
       |> ClickHouseRepo.all()
-      |> Enum.map(&with_phases/1)
+      |> Enum.map(&(&1 |> with_phases() |> Map.put(:vcpus, vcpus(&1.memory_gb))))
 
     total_pages = if(total == 0, do: 0, else: div(total + page_size - 1, page_size))
 
@@ -316,6 +317,13 @@ defmodule Tuist.RemoteExecution.Actions do
     do:
       order_by(query, [a], [
         {^direction(direction, :asc), fragment("coalesce(?, ?)", a.queued_at, a.worker_start_at)},
+        asc: a.operation_id
+      ])
+
+  defp order(query, "completed_at", direction),
+    do:
+      order_by(query, [a], [
+        {^direction(direction, :desc), fragment("coalesce(?, ?)", a.worker_completed_at, a.output_upload_completed_at)},
         asc: a.operation_id
       ])
 
@@ -582,6 +590,16 @@ defmodule Tuist.RemoteExecution.Actions do
     }
   end
 
+  @doc """
+  An action's outcome: `:error` when the execution itself failed (a non-OK
+  status, whatever the exit code), `:cached` for a cached result, `:passed`
+  or `:failed` by the command's exit code.
+  """
+  def status(%{status_code: code}) when code != 0, do: :error
+  def status(%{exit_code: 0, cached_result: true}), do: :cached
+  def status(%{exit_code: 0}), do: :passed
+  def status(_action), do: :failed
+
   @doc "One remote action of an invocation, with its command and output."
   def get(project_id, invocation_id, operation_id) do
     with true <- is_binary(operation_id) and Regex.match?(@uuid, operation_id),
@@ -699,6 +717,12 @@ defmodule Tuist.RemoteExecution.Actions do
   end
 
   defp milliseconds(_start, _finish), do: nil
+
+  # The VM size the scheduler gives an action of this memory; nil when the
+  # record has no size the scheduler offers.
+  defp vcpus(memory_gb) do
+    if memory_gb in Settings.memory_sizes_gb(), do: Settings.shape(memory_gb).vcpus
+  end
 
   @doc "The recorded arguments as one shell command line, to copy."
   def command_line(action), do: Enum.map_join(action.arguments, " ", &quote_shell/1)
