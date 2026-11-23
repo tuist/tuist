@@ -33,6 +33,12 @@ type SandboxAllocation struct {
 	// this grant is fresh: its share of the fleet-wide floor. 0 for other
 	// daemons, and from controllers that predate it.
 	WarmBytes int64 `json:"warm_bytes,omitempty"`
+	// SiblingMemoryBytes is the memory this grant counted the host's other
+	// carve-out at (the agent daemon or the remote execution worker). The
+	// server takes what that carve-out grew by since off this grant, so the
+	// two cannot grow into the same free memory between observations. Nil
+	// when the host runs only one carve-out.
+	SiblingMemoryBytes *int64 `json:"sibling_memory_bytes,omitempty"`
 }
 
 func (c *Client) PublishSandboxAllocation(ctx context.Context, allocation SandboxAllocation) error {

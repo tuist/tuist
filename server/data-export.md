@@ -675,7 +675,8 @@ Sandbox fleet allocation (`sandbox_nodes`) is operational infrastructure state,
 not account data, and is excluded from account exports. Each row is keyed by
 cluster node name and stores the current daemon Pod name, requested memory limit,
 last growth time, latest controller observation timestamp, admission memory/free
-byte limits and reclaim flag, plus timestamps. It has no account relationship or
+byte limits, the memory the grant counted the host's other carve-out at, and
+reclaim flag, plus timestamps. It has no account relationship or
 content. Observations overwrite the row; grants expire after 15 seconds but the
 last observation remains stored until the node row is removed operationally.
 Pod replacement resets the grant's binding; account deletion does not remove a

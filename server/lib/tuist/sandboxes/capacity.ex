@@ -144,12 +144,15 @@ defmodule Tuist.Sandboxes.Capacity do
     warm = Map.get(params, "warm_bytes", 0)
     cpu_free = params["cpu_free_milli"]
     cpu_reclaimable = Map.get(params, "cpu_reclaimable_milli", 0)
+    # Controllers before the per-node budget send no `sibling_memory_bytes`.
+    sibling = params["sibling_memory_bytes"]
 
-    with true <- is_integer(warm) and warm >= 0,
+    with true <- count?(warm),
+         true <- is_nil(sibling) or count?(sibling),
          true <- valid_name?(name),
          true <- valid_name?(pod),
-         true <- is_nil(cpu_free) or (is_integer(cpu_free) and cpu_free >= 0),
-         true <- is_integer(cpu_reclaimable) and cpu_reclaimable >= 0,
+         true <- is_nil(cpu_free) or count?(cpu_free),
+         true <- count?(cpu_reclaimable),
          {:ok, timestamp} <- allocation_timestamp(observed) do
       store_allocation(name, pod, timestamp, %{
         allocation_memory_bytes: memory,
@@ -157,7 +160,8 @@ defmodule Tuist.Sandboxes.Capacity do
         allocation_cpu_free_milli: cpu_free,
         allocation_cpu_reclaimable_milli: cpu_reclaimable,
         allocation_reclaim: reclaim,
-        allocation_warm_bytes: warm
+        allocation_warm_bytes: warm,
+        allocation_sibling_memory_bytes: sibling
       })
     else
       _ -> {:error, :invalid_allocation}
@@ -165,6 +169,8 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   def update_allocation(_params), do: {:error, :invalid_allocation}
+
+  defp count?(value), do: is_integer(value) and value >= 0
 
   defp valid_name?(name) when is_binary(name),
     do: byte_size(name) in 1..253 and Regex.match?(~r/^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/, name)
@@ -344,7 +350,7 @@ defmodule Tuist.Sandboxes.Capacity do
            allocation_reclaim: false,
            allocation_observed_at: %DateTime{} = at,
            allocation_memory_bytes: bytes
-         },
+         } = row,
          node,
          needed
        )
@@ -352,13 +358,36 @@ defmodule Tuist.Sandboxes.Capacity do
     cond do
       pod != node.elastic.pod_name -> :replaced_pod
       not fresh_allocation?(at) -> :expired
-      bytes < needed -> :allocation_limit
+      bytes - sibling_growth(node.name, row) < needed -> :allocation_limit
       true -> :allowed
     end
   end
 
   defp allocation_outcome(%SandboxNode{allocation_reclaim: true}, _node, _needed), do: :ci_reclaim
   defp allocation_outcome(_row, _node, _needed), do: :missing_grant
+
+  # The agent daemon and the remote execution worker on a host share its
+  # memory, but each grant counts the other carve-out at its size when the
+  # controller looked. What the other has been asked to grow by since then
+  # comes off this grant, so both cannot grow into the same free bytes
+  # before the next observation. Both run under the host's lock.
+  defp sibling_growth(name, %SandboxNode{allocation_sibling_memory_bytes: counted}) when is_integer(counted) do
+    case Repo.get(SandboxNode, sibling_name(name)) do
+      %SandboxNode{memory_limit_bytes: asked} when is_integer(asked) -> max(asked - counted, 0)
+      _ -> 0
+    end
+  end
+
+  defp sibling_growth(_name, _row), do: 0
+
+  defp sibling_name(name) do
+    suffix = Nodes.execution_daemon_suffix()
+    if String.ends_with?(name, suffix), do: String.replace_suffix(name, suffix, ""), else: name <> suffix
+  end
+
+  # A host's two daemons connect under their own names but share its memory,
+  # so they take one lock.
+  defp host_name(name), do: String.replace_suffix(name, Nodes.execution_daemon_suffix(), "")
 
   @doc "Checks a new turn on an already-running VM under the node admission lock."
   def admit_turn(%Sandbox{platform: :darwin} = sandbox, apply), do: MacosCapacity.admit_turn(sandbox, apply)
@@ -1854,7 +1883,10 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   defp lock(node_name) do
-    Repo.query!("SELECT pg_advisory_xact_lock($1::integer, hashtext($2))", [@advisory_lock_namespace, node_name])
+    Repo.query!("SELECT pg_advisory_xact_lock($1::integer, hashtext($2))", [
+      @advisory_lock_namespace,
+      host_name(node_name)
+    ])
   end
 
   defp reclaim(node, charge) do

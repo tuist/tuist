@@ -990,6 +990,28 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
     end
 
+    test "a growth the host's other carve-out was asked for since the grant comes off this one", %{template: template} do
+      node = connect_elastic(template)
+      worker = node <> Nodes.execution_daemon_suffix()
+      # The grant offers 9 GiB, enough for a second guest, counting the
+      # worker at its 9 GiB floor. The worker has since been asked for 13.
+      set_grant(node,
+        allocation_memory_bytes: 9 * @gib,
+        allocation_free_bytes: 0,
+        allocation_sibling_memory_bytes: 9 * @gib
+      )
+
+      insert_row(worker, "worker-#{node}", 13 * @gib, DateTime.utc_now(:second))
+      resident(template, node)
+      apply_resizes(node)
+
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+
+      # Once the worker is back at what the grant counted, the growth fits.
+      set_grant(worker, memory_limit_bytes: 9 * @gib)
+      assert {:ok, ^node} = Capacity.place(new_sandbox(template))
+    end
+
     test "explains why each node cannot take a sandbox", %{template: template} do
       reclaiming = connect_elastic(template)
       set_grant(reclaiming, allocation_reclaim: true)

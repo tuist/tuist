@@ -93,7 +93,11 @@ The lexicographically first enabled pool in each fleet publishes per-node grants
 through `POST /api/internal/sandboxes/allocation`, authenticated as the exact
 runners-controller ServiceAccount. A grant is an admission ceiling, not a request
 to grow a daemon. It carries the daemon Pod name, observation timestamp, maximum
-memory, currently free memory and a reclaim flag. Grants expire after 15 seconds.
+memory, currently free memory and a reclaim flag. On a host that also runs a
+remote execution worker, each daemon's grant also carries the memory it counted
+the other carve-out at; the server takes what that carve-out was asked to grow
+by since then off the grant, and both daemons share the host's advisory lock.
+Grants expire after 15 seconds.
 The database stores them on `sandbox_nodes`, under the node advisory lock, and
 rejects older/equal observations. Controller and server clocks must be synchronized;
 observations more than one second in the future are refused. Pod replacement

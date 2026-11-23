@@ -72,6 +72,7 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 			}
 			allocation := planSandboxAllocation(node, daemon, pods.Items, fleet)
 			allocation.ObservedAt = observed
+			allocation.SiblingMemoryBytes = siblingMemory(daemon, daemons)
 			if err := r.SignalsClient.PublishSandboxAllocation(ctx, allocation); err != nil {
 				return fmt.Errorf("publish sandbox allocation for %s: %w", node.Name, err)
 			}
@@ -141,6 +142,18 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 	allocation.CPUFreeMilli = max(node.Status.Allocatable.Cpu().MilliValue()-cpuUsed, 0)
 	allocation.CPUReclaimableMilli = cpuReclaimable
 	return allocation
+}
+
+// siblingMemory is what the grant counted the host's other carve-out at:
+// the agent daemon for a remote execution worker and the other way round;
+// nil when the host runs only one.
+func siblingMemory(daemon sandboxDaemon, daemons []sandboxDaemon) *int64 {
+	for _, other := range daemons {
+		if other.node == daemon.node && other.name != daemon.name && other.execution != daemon.execution && !other.native {
+			return &other.memory
+		}
+	}
+	return nil
 }
 
 // A shrink is not free memory until both allocated and applied resources

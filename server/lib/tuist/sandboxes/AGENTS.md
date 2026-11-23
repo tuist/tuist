@@ -13,7 +13,10 @@ resource reservations survive errors until acknowledged VM deletion. An executor
 on a shared runner host connects as `<node>.remote-execution` with its own
 carve-out: execution placement uses memory its Pod holds without a grant and may
 grow past the grant's bytes, but never past a revoked or expired grant. Agent
-admission keeps requiring the grant.
+admission keeps requiring the grant. Both daemons on a host take the host's
+lock, and each grant loses what the other carve-out was asked to grow by since
+the controller counted it (`allocation_sibling_memory_bytes`), so they cannot
+both grow into the same free memory.
 See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
 
 ## Pieces
