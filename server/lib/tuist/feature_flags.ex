@@ -85,6 +85,18 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Default-off account opt-in to letting the account's Kura instances borrow
+  memory headroom for remote-execution batch reads instead of shedding them.
+  """
+  def kura_reapi_batch_read_borrow_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :kura_reapi_batch_read_borrow,
+      account,
+      flag_enabled?(:kura_reapi_batch_read_borrow, account, flags)
+    )
+  end
+
+  @doc """
   Default-off account opt-in to placement reading what each region served, not
   only where runs report from. Off, placement decides exactly as it did before.
   """

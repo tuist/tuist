@@ -513,7 +513,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "extraEnv" => auth_env(region, claim, entitlements)
+          "extraEnv" => auth_env(region, claim, entitlements) ++ reapi_batch_read_borrow_env(account)
         }
         |> Map.merge(StableEndpoint.intent(%{server | account: account}, region))
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
@@ -541,7 +541,25 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp serving_revision(account) do
-    if FeatureFlags.kura_positive_fence_enabled?(account), do: "+positive-fence-v1", else: ""
+    positive_fence = if FeatureFlags.kura_positive_fence_enabled?(account), do: "+positive-fence-v1", else: ""
+    positive_fence <> reapi_batch_read_borrow_revision(account)
+  end
+
+  # Lets BatchReadBlobs borrow the elastic headroom above the memory floor for
+  # up to this long when the floor pool is saturated, instead of shedding.
+  # Opt-in per account while it is proven on the instances that shed reads.
+  @reapi_batch_read_borrow_deadline_ms "10000"
+
+  defp reapi_batch_read_borrow_env(account) do
+    if FeatureFlags.kura_reapi_batch_read_borrow_enabled?(account),
+      do: [env_var("KURA_REAPI_BATCH_READ_BORROW_DEADLINE_MS", @reapi_batch_read_borrow_deadline_ms)],
+      else: []
+  end
+
+  defp reapi_batch_read_borrow_revision(account) do
+    if FeatureFlags.kura_reapi_batch_read_borrow_enabled?(account),
+      do: "+read-borrow#{@reapi_batch_read_borrow_deadline_ms}",
+      else: ""
   end
 
   defp endpoint_identity_revision(account) do
