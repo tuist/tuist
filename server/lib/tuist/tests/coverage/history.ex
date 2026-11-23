@@ -18,8 +18,9 @@ defmodule Tuist.Tests.Coverage.History do
   commits labelled with it, in time order, and says so (`ordered_by: :time`).
   A pull request's job on a merge checkout (`refs/pull/N/merge`) measures a
   merge commit the graph keeps on `pull/<number>`, never on the branch; on
-  the branch's page each such merge commit stands at the commit it merged
-  (its second parent) when no run measured that commit.
+  the branch's page (its commits, head commit and trend) each such merge
+  commit stands at the commit it merged (its second parent) when no run
+  measured that commit.
 
   A commit **chains** into the trend when it is complete (the client
   signalled its pipeline finished) and so is its figure
@@ -88,10 +89,12 @@ defmodule Tuist.Tests.Coverage.History do
   grouped, the `period` it stands for: the start of its day, week or month
   in UTC. Returns `%{grouping: :commit | :day | :week | :month, points:}`.
 
-  The branch's commits are its ref's, by when they were made, or, when its
-  ref owns none, the ones its runs were labelled with, by when they ran. Two
-  reads over that range: one counting the commits and the days, weeks and
-  months they fall on, to pick the grouping, and one returning the points.
+  The branch's commits are its ref's, by when they were made, each with its
+  own figure or, when no run measured it, its newest merge checkout's (the
+  commits and figures its commit list shows), or, when its ref owns none,
+  the ones its runs were labelled with, by when they ran. Two reads over
+  that range: one counting the commits and the days, weeks and months they
+  fall on, to pick the grouping, and one returning the points.
   """
   def trend_points(%Project{} = project, branch, opts \\ []) do
     {query, at} = trend_query(project, branch, opts)
@@ -127,31 +130,155 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   The SHA of the branch's latest complete commit, the newest point its trend
-  over all time ends at (`trend_points/3`), or nil. One read over the same
-  range, newest first and limited to one row, which the indexes on
-  `(project_id, ref_id, committed_at)` and `(project_id, git_branch, ran_at)`
-  serve.
+  over all time ends at (`trend_points/3`), or nil. The newest of each of the
+  trend's reads (`trend_queries/3`), each newest first and limited to one
+  row, which the indexes on `(project_id, ref_id, committed_at)`,
+  `(project_id, git_branch, ran_at)` and its pull request rows' serve.
   """
   def latest_complete_commit(%Project{} = project, branch) do
-    {query, at} = trend_query(project, branch, [])
+    {queries, at} = trend_queries(project, branch, [])
 
-    query
-    |> order_by(^chronological(at, :desc))
-    |> limit(1)
-    |> select([c], c.git_commit_sha)
-    |> Repo.one()
+    queries
+    |> Enum.flat_map(fn query ->
+      query
+      |> order_by(^chronological(at, :desc))
+      |> limit(1)
+      |> select([c], %{git_commit_sha: c.git_commit_sha, at: field(c, ^at), position: c.position})
+      |> Repo.all()
+    end)
+    |> Enum.max_by(&{DateTime.to_unix(&1.at, :microsecond), &1.position, &1.git_commit_sha}, fn -> nil end)
+    |> then(&(&1 && &1.git_commit_sha))
   end
 
+  # The trend's commits as one query: the union of `trend_queries/3`.
   defp trend_query(project, branch, opts) do
+    case trend_queries(project, branch, opts) do
+      {[query], at} -> {query, at}
+      {[own, stand_ins], at} -> {from(c in subquery(union_all(trend_fields(own), ^trend_fields(stand_ins)))), at}
+    end
+  end
+
+  # The reads a branch's trend is drawn from. A branch whose ref owns
+  # commits: the ref's commits that chain, and the merge checkouts standing
+  # at the ref's commits no run measured (`stand_ins/3`). Otherwise the
+  # commits labelled with it.
+  defp trend_queries(project, branch, opts) do
     base = where(CoverageCommit, [c], c.project_id == ^project.id and c.complete)
 
-    {query, at} =
-      case branch_ref(project, branch) do
-        nil -> {base |> labelled(branch) |> ran_in(opts), :ran_at}
-        ref -> {base |> where([c], c.ref_id == ^ref.id) |> in_period(opts), :committed_at}
-      end
+    case branch_ref(project, branch) do
+      nil ->
+        {[base |> labelled(branch) |> ran_in(opts) |> chains()], :ran_at}
 
-    {query |> Commits.comparable() |> Commits.complete_figures(), at}
+      ref ->
+        own = base |> where([c], c.ref_id == ^ref.id) |> in_period(opts) |> chains()
+
+        # A branch no pull request run named, the default one among them,
+        # reads its ref's commits alone.
+        if Repo.exists?(labelled_merges(project, ref, opts)),
+          do: {[own, stand_ins(project, ref, opts)], :committed_at},
+          else: {[own], :committed_at}
+    end
+  end
+
+  defp chains(query), do: query |> Commits.comparable() |> Commits.complete_figures()
+
+  # The merge checkouts that chain, each at the ref's commit it stands at:
+  # the commit's newest listed merge checkout when no run measured the
+  # commit, as the branch's commit list shows it (`measured_on_ref/3`), with
+  # the commit's place. Read from the merge checkouts labelled with the
+  # branch (index-only, on its pull request rows), then, for each, one probe
+  # of its second parent, of that parent on the ref, of the parent's own
+  # figure and of the merge checkout's, each on a unique key: a read the
+  # size of the branch's merge checkouts, none on a branch that has none,
+  # whatever the planner estimates. A merge checkout runs after the commit
+  # it merged, so the period's start bounds them too.
+  defp stand_ins(project, ref, opts) do
+    second_parent =
+      from(p in CommitParent,
+        where:
+          p.repository_id == ^ref.repository_id and p.child_sha == parent_as(:merge_checkout).git_commit_sha and
+            p.position == 1,
+        limit: 1,
+        select: %{sha: p.parent_sha}
+      )
+
+    on_ref =
+      from(b in GitHistory.Commit,
+        where: b.repository_id == ^ref.repository_id and b.sha == parent_as(:second_parent).sha and b.ref_id == ^ref.id,
+        limit: 1,
+        select: %{sha: b.sha, committed_at: b.committed_at, position: b.position}
+      )
+
+    figures =
+      from(m in CoverageCommit,
+        where: m.project_id == ^project.id and m.git_commit_sha == parent_as(:merge_checkout).git_commit_sha,
+        limit: 1
+      )
+      |> Commits.listed()
+      |> trend_fields()
+
+    own =
+      Commits.listed(
+        from(o in CoverageCommit,
+          where: o.project_id == ^project.id and o.git_commit_sha == parent_as(:branch_commit).sha,
+          limit: 1,
+          select: %{git_commit_sha: o.git_commit_sha}
+        )
+      )
+
+    newest =
+      from(l in subquery(labelled_merges(project, ref, opts)),
+        as: :merge_checkout,
+        inner_lateral_join: p in subquery(second_parent),
+        as: :second_parent,
+        on: true,
+        inner_lateral_join: b in subquery(on_ref),
+        as: :branch_commit,
+        on: true,
+        left_lateral_join: o in subquery(own),
+        on: true,
+        inner_lateral_join: m in subquery(figures),
+        on: true,
+        where: is_nil(o.git_commit_sha),
+        distinct: [asc: b.sha],
+        order_by: [desc: l.ran_at, desc: l.git_commit_sha],
+        select: m,
+        select_merge: %{committed_at: b.committed_at, position: b.position}
+      )
+
+    from(s in subquery(newest), where: s.complete) |> in_period(opts) |> chains()
+  end
+
+  # The merge checkouts labelled with the branch: its pull request runs'
+  # commits, read index-only.
+  defp labelled_merges(project, ref, opts) do
+    query =
+      from(l in CoverageCommit,
+        where: l.project_id == ^project.id and l.git_branch == ^ref.name and l.pull_request_number > 0,
+        select: %{git_commit_sha: l.git_commit_sha, ran_at: l.ran_at}
+      )
+
+    case Keyword.get(opts, :since) do
+      nil -> query
+      since -> where(query, [l], l.ran_at >= ^utc(since))
+    end
+  end
+
+  # The fields a trend reads.
+  defp trend_fields(query) do
+    select(query, [c], %{
+      git_commit_sha: c.git_commit_sha,
+      committed_at: c.committed_at,
+      position: c.position,
+      complete: c.complete,
+      covered_lines: c.covered_lines,
+      executable_lines: c.executable_lines,
+      reported_covered_lines: c.reported_covered_lines,
+      reported_executable_lines: c.reported_executable_lines,
+      reported_kind: c.reported_kind,
+      schemes: c.schemes,
+      partial_schemes: c.partial_schemes
+    })
   end
 
   # The order a trend's commits follow. A ref's commits can share a commit
