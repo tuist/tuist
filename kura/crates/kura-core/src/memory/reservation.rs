@@ -165,6 +165,9 @@ pub struct TransientMemoryReservation {
     /// `OwnedSemaphorePermit::merge` panics across semaphores. Released before
     /// `permit` on the way down, so borrowed ceiling headroom goes back first.
     pub(super) elastic_permit: Option<OwnedSemaphorePermit>,
+    /// The read-borrow cap a borrowed batch-read response holds alongside its
+    /// `elastic_permit`. Only `try_borrow_response_materialization` sets it.
+    pub(super) _read_borrow_permit: Option<OwnedSemaphorePermit>,
     pub(super) elasticity: TransientElasticity,
     pub(super) bytes: u64,
 }
@@ -334,6 +337,7 @@ impl TransientMemoryReservation {
             controller: self.controller.clone(),
             permit,
             elastic_permit: None,
+            _read_borrow_permit: None,
             elasticity: TransientElasticity::Fixed,
             bytes,
         })

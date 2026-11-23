@@ -1531,6 +1531,7 @@ dependencies = [
  "bazel-remote-apis",
  "bytes",
  "futures-util",
+ "h2",
  "hex",
  "http-body",
  "http-body-util",
