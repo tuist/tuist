@@ -135,6 +135,22 @@
       "commitMessageTopic": "preinstalled Tuist CLI"
     },
     {
+      "description": "Go on PATH in the macOS runner image. Jobs expect it to stay put, so Renovate proposes only patch releases (security and bug fixes, weekly with everything else); a new minor changes the toolchain customers build with and is bumped by hand. Each bump also needs go_sha256_darwin_arm64 updated from https://go.dev/dl/?mode=json, or the image build fails its checksum.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["go"],
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "preinstalled Go"
+    },
+    {
+      "description": "Minor and major Go releases for the runner image are bumped by hand; see the rule above.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["go"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
+    },
+    {
       "description": "Refresh Linux runner base digests through the image release pipeline.",
       "matchManagers": ["dockerfile"],
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],

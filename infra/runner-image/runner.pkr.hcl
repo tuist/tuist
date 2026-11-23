@@ -187,6 +187,21 @@ variable "bitrise_cli_sha256_darwin_arm64" {
   default     = "33bf12c80ece4bda6168b90481eb3cd021e385851013ef7d922c00d638a44ed5"
 }
 
+variable "go_version" {
+  type        = string
+  description = "Go on PATH for jobs, as on GitHub-hosted images. https://go.dev/dl/."
+  # Pinned rather than taken from Homebrew, so the Go a job gets moves only
+  # when a reviewed bump lands, not on every runner-image release.
+  # renovate: datasource=golang-version depName=go
+  default = "1.27.4"
+}
+
+variable "go_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of go<version>.darwin-arm64.tar.gz, from https://go.dev/dl/?mode=json."
+  default     = "91a44a2b8a716600ad94a4f143e156116620db8828086a6e3602291be9bd0bb4"
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -552,6 +567,25 @@ build {
     ]
   }
 
+  # Go, as GitHub-hosted images ship it. Tools that build Go on the machine
+  # rely on it: the Bitrise CLI compiles steps that ship no prebuilt binary
+  # with the `go` on PATH, and without one downloads Go 1.22.12, whose
+  # binaries macOS 26 refuses to load ("missing LC_UUID load command"; Go
+  # emits LC_UUID by default from 1.24). Installed here rather than in the
+  # base image so a bump ships in one runner-image release instead of a
+  # rebuild of every base.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o go.tar.gz https://go.dev/dl/go${var.go_version}.darwin-arm64.tar.gz",
+      "echo '${var.go_sha256_darwin_arm64}  go.tar.gz' | shasum -a 256 -c -",
+      "echo 'admin' | sudo -S tar -C /usr/local -xzf go.tar.gz",
+      "echo 'admin' | sudo -S ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/",
+      "rm go.tar.gz"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
@@ -889,6 +923,7 @@ build {
     inline = [
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "[ \"$(sudo -u runner -H /bin/zsh -lc 'go env GOVERSION')\" = 'go${var.go_version}' ] || { echo 'sanity check: the go on runner PATH is not the pinned Go' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
       "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
     ]

@@ -39,7 +39,7 @@ Each image contains **exactly one Xcode**, which is selected with `xcode-select`
 - **Apple tooling:** Xcode (one per image), simulator runtimes, Metal toolchain, `xcodes`, `xcbeautify`
 - **Swift and iOS tooling:** SwiftLint, SwiftFormat, SwiftGen, LicensePlist, Mint, Carthage, CocoaPods, fastlane
 - **Devices:** `libimobiledevice`, `ideviceinstaller`, `ios-deploy`
-- **Languages and runtimes:** Ruby through `rbenv` (2.7 and the two latest 3.x releases, the newest as default) with Bundler, Node.js 24 with npm, Yarn and pnpm
+- **Languages and runtimes:** Ruby through `rbenv` (2.7 and the two latest 3.x releases, the newest as default) with Bundler, Node.js 24 with npm, Yarn and pnpm, Go
 - **Package and version managers:** Homebrew, mise
 - **Version control:** Git, Git LFS, Git Credential Manager, GitHub CLI (`gh`)
 - **Utilities:** `jq`, `yq`, `curl`, `wget`, `zip`/`unzip`, CMake, GCC, AWS CLI
