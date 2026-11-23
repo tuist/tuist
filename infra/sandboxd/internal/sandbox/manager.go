@@ -504,7 +504,9 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 		}
 		// Without its own cgroup the VM still runs, in the daemon's, as
 		// before guarantees: it then shares the daemon's weight.
-		if cgroup, err := m.cgroups.Open(meta.ID, guarantee); err != nil {
+		// The shape's guest memory is the VM's request: the container's
+		// limit reclaims from the daemon's page cache before it.
+		if cgroup, err := m.cgroups.Open(meta.ID, guarantee, uint64(meta.MemoryMB)<<20); err != nil { //nolint:gosec // Shapes are positive.
 			m.log.Warn("opening the sandbox's cgroup failed; it runs in the daemon's", "sandbox", meta.ID, "error", err)
 		} else {
 			defer cgroup.Close()
@@ -1282,10 +1284,10 @@ func (m *Manager) Status(ctx context.Context, id string) (protocol.SandboxInfo, 
 	if err != nil {
 		return protocol.SandboxInfo{}, err
 	}
-	return sb.info(), nil
+	return sb.info(m.cgroups), nil
 }
 
-func (sb *Sandbox) info() protocol.SandboxInfo {
+func (sb *Sandbox) info(cgroups *hostinfo.VMCgroups) protocol.SandboxInfo {
 	sb.mu.Lock()
 	info := sb.meta.Info(sb.worker != nil)
 	inst := sb.inst
@@ -1296,6 +1298,9 @@ func (sb *Sandbox) info() protocol.SandboxInfo {
 		}
 		if mem, ok := inst.ResidentMemory(); ok {
 			info.MemoryAnonBytes, info.MemoryFileBytes = mem.AnonBytes, mem.FileBytes
+		}
+		if current, ok := cgroups.MemoryCurrent(info.ID); ok {
+			info.MemoryCurrentBytes = current
 		}
 	}
 	return info
@@ -1310,7 +1315,7 @@ func (m *Manager) List() []protocol.SandboxInfo {
 	m.mu.Unlock()
 	infos := make([]protocol.SandboxInfo, 0, len(all))
 	for _, sb := range all {
-		infos = append(infos, sb.info())
+		infos = append(infos, sb.info(m.cgroups))
 	}
 	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
 	return infos

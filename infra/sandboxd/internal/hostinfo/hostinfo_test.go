@@ -174,7 +174,7 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 		data, _ := os.ReadFile(filepath.Join(dir, path))
 		return string(data)
 	}
-	if got := read("cgroup.subtree_control"); got != "+cpu" {
+	if got := read("cgroup.subtree_control"); got != "+cpu +memory" {
 		t.Fatalf("subtree_control = %q", got)
 	}
 	if got := read("sandboxd/cpu.weight"); got != "25" {
@@ -190,7 +190,7 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 	}
 
 	for id, milli := range map[string]uint64{"quarter": 250, "four": 4000, "tiny": 1} {
-		file, err := cgroups.Open(id, milli)
+		file, err := cgroups.Open(id, milli, milli<<20)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -198,20 +198,61 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 		if got, want := read("vm-"+id+"/cpu.weight"), strconv.FormatUint(CPUWeight(milli), 10); got != want {
 			t.Fatalf("%s weight = %q, want %q", id, got, want)
 		}
+		// Its guest memory is protected from the container's reclaim.
+		if got, want := read("vm-"+id+"/memory.min"), strconv.FormatUint(milli<<20, 10); got != want {
+			t.Fatalf("%s memory.min = %q, want %q", id, got, want)
+		}
 	}
 	// Weights keep the guarantees' proportions: four cores weigh sixteen
 	// quarter cores, and the kernel's minimum of 1 bounds the smallest.
 	if CPUWeight(4000) != 16*CPUWeight(250) || CPUWeight(1) != 1 || CPUWeight(10_000_000) != 10000 {
 		t.Fatalf("weights %d %d %d %d", CPUWeight(250), CPUWeight(4000), CPUWeight(1), CPUWeight(10_000_000))
 	}
+	// The VM's memory is read from its own cgroup.
+	if err := os.WriteFile(filepath.Join(dir, "vm-four", "memory.current"), []byte("123456\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := cgroups.MemoryCurrent("four"); !ok || got != 123456 {
+		t.Fatalf("memory.current = %d, %v", got, ok)
+	}
+	if _, ok := cgroups.MemoryCurrent("never-opened"); ok {
+		t.Fatal("read the memory of a VM without a cgroup")
+	}
 	// cgroupfs removes a cgroup's interface files with it; a plain
 	// directory needs them gone first.
-	_ = os.Remove(filepath.Join(dir, "vm-four", "cpu.weight"))
+	for _, name := range []string{"cpu.weight", "memory.min", "memory.current"} {
+		_ = os.Remove(filepath.Join(dir, "vm-four", name))
+	}
 	if err := cgroups.Remove("four"); err != nil {
 		t.Fatal(err)
 	}
 	if err := cgroups.Remove("never-opened"); err != nil {
 		t.Fatalf("removing a missing cgroup: %v", err)
+	}
+}
+
+// Without the memory controller VMs still get their CPU weights, and
+// memory is neither protected nor read per VM.
+func TestVMCgroupsWithoutTheMemoryController(t *testing.T) {
+	root := fakeCgroup(t, "cpu pids")
+	dir := filepath.Join(root, "pod", "container")
+	cgroups, err := setupVMCgroups(root, "/pod/container", 250)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "cgroup.subtree_control")); string(data) != "+cpu" {
+		t.Fatalf("subtree_control = %q", data)
+	}
+	file, err := cgroups.Open("vm", 1000, 1<<30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	if _, err := os.Stat(filepath.Join(dir, "vm-vm", "memory.min")); !os.IsNotExist(err) {
+		t.Fatalf("wrote memory.min without the memory controller: %v", err)
+	}
+	if _, ok := cgroups.MemoryCurrent("vm"); ok {
+		t.Fatal("read per-VM memory without the memory controller")
 	}
 }
 

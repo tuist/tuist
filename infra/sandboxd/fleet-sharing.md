@@ -171,7 +171,10 @@ Inside the daemon's Pod, each VM runs in its own cgroup (`vm-<id>`, beside the
 daemon's own `sandboxd` leaf) with `cpu.weight` a tenth of its guarantee in
 millicores, so under contention the guests split the Pod's share in proportion
 to their guarantees and one busy sandbox cannot take a neighbour's. Memory stays
-accounted and limited at the container's cgroup. A creator can pick a larger
+limited at the container's cgroup, but each VM's cgroup also accounts its own
+(`memory.current`, reported as `memory_current_bytes`) and protects its guest
+memory with `memory.min`, so the reclaim the container's limit drives takes the
+daemon's page cache before a guest's pages. A creator can pick a larger
 guarantee for a Linux sandbox (1, 2, 4 or 8 vCPUs: API and MCP
 `guaranteed_vcpus`, CLI `--guaranteed-vcpus`). A sandbox is only placed on a
 node whose hello offers `cpu_guarantees` if its guarantee fits under the

@@ -35,9 +35,13 @@ var containerCgroup atomic.Pointer[string]
 // sets how much of the node's shared CPU the guests get when it is
 // contended; the weights split that between the guests in proportion to
 // their guarantees, and between them and the daemon in proportion to its
-// floor. Memory stays accounted, and limited, at the container's cgroup.
+// floor. Memory stays limited at the container's cgroup; where the memory
+// controller is available each VM's cgroup also accounts its own memory
+// and protects its guest memory (memory.min) from the reclaim the
+// container's limit drives, so the daemon's page cache goes first.
 type VMCgroups struct {
-	dir string
+	dir    string
+	memory bool
 }
 
 // SetupVMCgroups moves the daemon's processes into a leaf of its
@@ -68,8 +72,16 @@ func setupVMCgroups(root, base string, floorMilli uint64) (*VMCgroups, error) {
 	if err := moveProcesses(dir, daemon); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "cgroup.subtree_control"), []byte("+cpu"), 0); err != nil {
-		return nil, fmt.Errorf("enabling the cpu controller: %w", err)
+	// Per-VM memory is best effort: without it VMs keep their CPU weights
+	// and the server meters memory from their processes alone. The kernel
+	// refuses the whole write when it cannot enable one controller.
+	subtree := filepath.Join(dir, "cgroup.subtree_control")
+	memory := slices.Contains(strings.Fields(string(controllers)), "memory") &&
+		os.WriteFile(subtree, []byte("+cpu +memory"), 0) == nil
+	if !memory {
+		if err := os.WriteFile(subtree, []byte("+cpu"), 0); err != nil {
+			return nil, fmt.Errorf("enabling the cpu controller: %w", err)
+		}
 	}
 	if err := writeWeight(daemon, floorMilli); err != nil {
 		return nil, err
@@ -83,7 +95,7 @@ func setupVMCgroups(root, base string, floorMilli uint64) (*VMCgroups, error) {
 		}
 	}
 	containerCgroup.Store(&base)
-	return &VMCgroups{dir: dir}, nil
+	return &VMCgroups{dir: dir, memory: memory}, nil
 }
 
 // moveProcesses moves every process of from into to. A process forked
@@ -106,10 +118,11 @@ func moveProcesses(from, to string) error {
 	return errors.New("processes kept appearing in the daemon's cgroup")
 }
 
-// Open creates (or reuses) the VM's cgroup, weighs it at guaranteeMilli
-// and returns the directory for the VM's process to be spawned into
-// (SysProcAttr.CgroupFD). The caller closes it once the process started.
-func (c *VMCgroups) Open(id string, guaranteeMilli uint64) (*os.File, error) {
+// Open creates (or reuses) the VM's cgroup, weighs it at guaranteeMilli,
+// protects minBytes of its memory and returns the directory for the VM's
+// process to be spawned into (SysProcAttr.CgroupFD). The caller closes it
+// once the process started.
+func (c *VMCgroups) Open(id string, guaranteeMilli, minBytes uint64) (*os.File, error) {
 	dir := filepath.Join(c.dir, vmCgroupPrefix+id)
 	if err := os.Mkdir(dir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
@@ -117,7 +130,27 @@ func (c *VMCgroups) Open(id string, guaranteeMilli uint64) (*os.File, error) {
 	if err := writeWeight(dir, guaranteeMilli); err != nil {
 		return nil, err
 	}
+	if c.memory {
+		if err := os.WriteFile(filepath.Join(dir, "memory.min"), []byte(strconv.FormatUint(minBytes, 10)), 0o644); err != nil {
+			return nil, fmt.Errorf("protecting the memory of %s: %w", filepath.Base(dir), err)
+		}
+	}
 	return os.Open(dir)
+}
+
+// MemoryCurrent is everything charged to the VM's cgroup (memory.current):
+// the guest memory its process touched plus the page cache its disk I/O
+// filled. False without per-VM memory accounting or a readable cgroup.
+func (c *VMCgroups) MemoryCurrent(id string) (uint64, bool) {
+	if c == nil || !c.memory {
+		return 0, false
+	}
+	data, err := os.ReadFile(filepath.Join(c.dir, vmCgroupPrefix+id, "memory.current"))
+	if err != nil {
+		return 0, false
+	}
+	bytes, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+	return bytes, err == nil
 }
 
 // Remove deletes the VM's cgroup once its process has exited; a cgroup

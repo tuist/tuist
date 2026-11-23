@@ -166,6 +166,11 @@ type SandboxInfo struct {
 	// actually uses.
 	MemoryAnonBytes uint64 `json:"memory_anon_bytes,omitempty"`
 	MemoryFileBytes uint64 `json:"memory_file_bytes,omitempty"`
+	// MemoryCurrentBytes is what the VM's own cgroup is charged
+	// (memory.current): its process's memory plus the host page cache its
+	// disks filled. It is what memory bursting meters against the VM's
+	// request. Omitted without per-VM memory accounting.
+	MemoryCurrentBytes uint64 `json:"memory_current_bytes,omitempty"`
 	// DiskBytes is what the sandbox's jail holds on the node that no
 	// template or other sandbox shares, measured with the disk report, so
 	// the server can reserve a paused sandbox's use instead of its ceiling.
