@@ -160,8 +160,8 @@
       border-inline-start: 1px solid var(--noora-surface-border-primary);
 
       @media (max-width: 768px) {
-        border-block-start: 1px solid var(--noora-surface-border-primary);
         border-inline-start: 0;
+        border-block-start: 1px solid var(--noora-surface-border-primary);
       }
     }
 
