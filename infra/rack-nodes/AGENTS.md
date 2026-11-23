@@ -760,7 +760,7 @@ image, with `tart pull` and `tart clone` (see "macOS runner runtime" in
 `infra/tart-kubelet/AGENTS.md`). Without a cache every mini pulls every image
 it runs from ghcr.io. When b04-b09 joined on 2026-10-14 each pulled 33 to 62
 GB in its first hour and a half, peaking at 0.3 to 0.5 Gbit/s per mini, so
-one 60 GB image took 16 to 27 minutes against the pull's 20 minute timeout,
+one 60 GB image took 16 to 27 minutes against the pull's then 20 minute timeout (an hour since 2026-11-22, see `pullTimeout` in `infra/tart-kubelet/internal/tart/tart.go`),
 while edge-a's WAN took 5.8 Gbit/s
 and half the rack's guest slots sat in `CreatingVM`. Every runner image release
 repeats that on every mini. The cache makes an image cross the WAN once per
