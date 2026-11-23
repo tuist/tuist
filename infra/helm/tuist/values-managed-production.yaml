@@ -1845,11 +1845,16 @@ rackFleet:
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
           maxReplicas: 52
+      # 27.2's learned floor reached the old cap of eight on one account's
+      # history (p95 burst 8, p99 11 in the 14 days to 2026-11-23), and
+      # Qonto's fan-outs (p90 8, p99 11, up to 14) move onto it. Sixteen
+      # leaves room for both without hand-tuning; the learned value, not the
+      # cap, decides what the pool holds idle.
       "27.2":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxLearnedWarmPoolFloor: 8
+          maxLearnedWarmPoolFloor: 16
           maxReplicas: 52
       # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
       # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
