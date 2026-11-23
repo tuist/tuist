@@ -62,6 +62,11 @@ covered by this list.
   expired preceding dirty window cannot consume the retained-window budget.
   SQL window planning rejects unrepresentable bounds before consuming dirty
   work instead of falling back to an unfiltered scan outside retention.
+  Retained recovery validates source TTL against the aligned lower bound on
+  its frozen clock before marking or writing work. Window budgets and splits
+  retain nanosecond precision so fractional strides cannot consume future bins.
+  Budget multiplication is checked without narrowing counts to 32 bits, and
+  finite TTL validation compares source age without overflowing timestamp cutoffs.
 - **Exact count-rollup prototype.** `tests/perf/count_aggregate_benchmark.py`
   compares raw dashboard-style counts with minute summaries plus uncovered raw
   rows in a disposable local database. Immutable ingestion batches and an

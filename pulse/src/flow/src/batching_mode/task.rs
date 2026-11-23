@@ -569,17 +569,9 @@ impl BatchingTask {
             }
             .build()
         })?;
-        let now = Timestamp::new_second(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|err| {
-                    UnexpectedSnafu {
-                        reason: format!("Failed to read recovery wall clock: {err}"),
-                    }
-                    .build()
-                })?
-                .as_secs() as i64,
-        );
+        let now = self.evaluation_time.unwrap_or_else(|| {
+            Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond)
+        });
         let lower = now
             .sub_duration(Duration::from_secs(expire_after))
             .map_err(BoxedError::new)
@@ -702,14 +694,18 @@ impl BatchingTask {
                     for (start, _) in windows {
                         oldest = oldest.min(*start);
                     }
-                    let cutoff = Timestamp::current_millis()
-                        .sub_duration(ttl)
-                        .map_err(BoxedError::new)
-                        .context(ExternalSnafu)?;
-                    if oldest <= cutoff {
+                    let now = self.evaluation_time.unwrap_or_else(|| {
+                        Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond)
+                    });
+                    // Compare the source age instead of constructing a cutoff
+                    // that can precede the nanosecond timestamp range.
+                    let age = now.sub(&oldest).context(UnexpectedSnafu {
+                        reason: "Cannot compute source age for recovery retention validation",
+                    })?;
+                    if age.to_std().is_ok_and(|age| age >= ttl) {
                         return UnexpectedSnafu {
                             reason: format!(
-                                "Flow {} recovery requires source table {} data from {oldest:?}, older than TTL {ttl:?} cutoff {cutoff:?}",
+                                "Flow {} recovery requires source table {} data from {oldest:?}, at or beyond TTL {ttl:?} at {now:?}",
                                 self.config.flow_id,
                                 name.join(".")
                             ),
@@ -1000,6 +996,8 @@ impl BatchingTask {
             })),
             ..self.clone()
         };
+        task.validate_recovery_retention(task.recovery_retention_lower_bound()?, &[])
+            .await?;
         let window_count = task.mark_all_windows_as_dirty()?;
         task.execute_once_with_guard(guard, engine, frontend_client, window_count)
             .await

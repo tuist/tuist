@@ -522,6 +522,7 @@ async fn test_retained_recovery_preserves_concurrent_arrivals() {
         ..
     } = new_time_window_test_task_with_query(query).await;
     Arc::get_mut(&mut task.config).unwrap().expire_after = Some(60);
+    configure_source_ttl(&query_engine, Some(TimeToLive::Forever)).await;
     register_twe_sink(&query_engine, "missing_sink", 9201);
     let handler = Arc::new(RetainedRecoveryHandler {
         source: std::sync::atomic::AtomicUsize::new(1),
@@ -1156,6 +1157,65 @@ async fn configure_source_capability(
 }
 
 #[tokio::test]
+async fn test_retained_recovery_validates_aligned_source_retention_before_writing() {
+    let mut outcomes = Vec::new();
+    for ttl in [
+        Some(TimeToLive::Duration(Duration::from_secs(30))),
+        Some(TimeToLive::Duration(Duration::from_secs(61))),
+        Some(TimeToLive::Duration(Duration::from_secs(64))),
+        Some(TimeToLive::Forever),
+        None,
+    ] {
+        let TestTaskParts {
+            mut task,
+            query_engine,
+            ..
+        } = new_time_window_test_task_with_query(
+            "SELECT number, date_bin(INTERVAL '5 second', ts) AS time_window \
+                 FROM numbers_with_ts GROUP BY time_window, number",
+        )
+        .await;
+        Arc::get_mut(&mut task.config).unwrap().expire_after = Some(60);
+        // The retained lower bound is 63.4s old after alignment, not 60s.
+        task.evaluation_time = Some(Timestamp::new_millisecond(123_400));
+        configure_source_ttl(&query_engine, ttl).await;
+        register_twe_sink(&query_engine, "missing_sink", 9203);
+        let handler = Arc::new(RetainedRecoveryHandler {
+            source: std::sync::atomic::AtomicUsize::new(1),
+            sink: std::sync::atomic::AtomicUsize::new(99),
+            captured: tokio::sync::Notify::new(),
+            release: tokio::sync::Notify::new(),
+            first: AtomicBool::new(false),
+        });
+        let grpc_handler: Arc<
+            dyn crate::batching_mode::frontend_client::GrpcQueryHandlerWithBoxedError,
+        > = handler.clone();
+        let frontend = Arc::new(FrontendClient::from_grpc_handler(
+            Arc::downgrade(&grpc_handler),
+            QueryOptions::default(),
+        ));
+        let result = task
+            .recompute_retained_serialized(&query_engine, &frontend)
+            .await;
+        outcomes.push((
+            result.is_ok(),
+            handler.sink.load(Ordering::SeqCst),
+            task.state.read().unwrap().dirty_time_windows.is_empty(),
+        ));
+    }
+    assert_eq!(
+        outcomes,
+        vec![
+            (false, 99, true), // Source expires before the nominal retention range.
+            (false, 99, true), // Nominal range fits, but the leading aligned bin does not.
+            (true, 1, true),
+            (true, 1, true),
+            (false, 99, true), // Unknown inherited TTL must fail closed.
+        ]
+    );
+}
+
+#[tokio::test]
 async fn test_validate_recovery_retention_explicit_source_ttls() {
     struct Case {
         name: &'static str,
@@ -1254,6 +1314,33 @@ async fn test_validate_recovery_retention_explicit_source_ttls() {
             case.should_pass,
             "{}",
             case.name
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_validate_recovery_retention_long_finite_ttl() {
+    let TestTaskParts {
+        mut task,
+        query_engine,
+        ..
+    } = new_test_task_engine_and_plan_with_query("SELECT number, ts FROM numbers_with_ts", "sink")
+        .await;
+    Arc::get_mut(&mut task.config).unwrap().expire_after = Some(60);
+    configure_source_ttl(
+        &query_engine,
+        Some(TimeToLive::Duration(Duration::from_secs(10_000_000_000))),
+    )
+    .await;
+    let now = Timestamp::current_time(common_time::timestamp::TimeUnit::Nanosecond);
+    let oldest = now.sub_duration(Duration::from_secs(65)).unwrap();
+    for clock in [None, Some(now)] {
+        task.evaluation_time = clock;
+        assert!(
+            task.validate_recovery_retention(Some(oldest), &[])
+                .await
+                .is_ok(),
+            "long finite TTL must cover a small retained range with clock {clock:?}"
         );
     }
 }
