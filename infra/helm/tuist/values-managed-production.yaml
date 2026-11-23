@@ -2030,6 +2030,13 @@ rackLinuxFleet:
       # pod to pod with the accounts' other regions. larch's edges forward the
       # cluster ports on it to this host.
       publicAddress: 149.6.170.1
+      # Its next install is lvm-v1, for the larch-runners thin cutover: the
+      # 1.5 TiB data LV holds the 1 TiB VM image cache, containerd's 64 GiB and
+      # the kubelet below the 85% eviction line, and the rest of the drive
+      # becomes the Kura thin pool. Nothing happens until reinstallGeneration
+      # is raised, which is the cutover's first step.
+      kuraStorageLayout: lvm-v1
+      kuraDataLVSize: 1536G
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
