@@ -655,6 +655,20 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 	return m.attach(ctx, sb, inst, meta, false, fail)
 }
 
+// releaseCgroup removes the cgroup of a VM whose process is gone. The page
+// cache it is still charged for (the memory image a pause wrote, its disk
+// I/O) moves to the container's cgroup, out of the VM's memory.min, so the
+// reclaim before a carve-out shrink can drop it. The next spawn opens a
+// fresh cgroup.
+func (m *Manager) releaseCgroup(id string) {
+	if m.cgroups == nil {
+		return
+	}
+	if err := m.cgroups.Remove(id); err != nil {
+		m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
+	}
+}
+
 // watch turns an unexpected Firecracker exit into the error state.
 func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 	<-inst.Done()
@@ -675,6 +689,7 @@ func (m *Manager) watch(sb *Sandbox, inst vm.Instance, epoch uint64) {
 	_ = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
 	m.log.Error("sandbox died", "sandbox", meta.ID, "reason", reason, "log", vm.LogTail(filepath.Join(sb.root, vm.LogFileName), 1024))
+	m.releaseCgroup(meta.ID)
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.refreshGauges()
 	m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventSandboxDied, SandboxID: meta.ID, Reason: reason})
@@ -703,6 +718,7 @@ func (m *Manager) discard(sb *Sandbox) {
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
+	m.releaseCgroup(meta.ID)
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
 	m.dropLazyDisks(sb)
 	_ = os.RemoveAll(vm.JailDir(m.cfg.JailBase, meta.ID))
@@ -909,6 +925,7 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.markDied(sb, fmt.Sprintf("pause: firecracker did not die: %v", err))
 		return res, err
 	}
+	m.releaseCgroup(id)
 	// A restore whose disks still arrive from its archive holds them
 	// whole only once the fill ends.
 	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
@@ -1030,11 +1047,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	sb.inst = nil
 	sb.mu.Unlock()
 	m.dropLazyDisks(sb)
-	if m.cgroups != nil {
-		if err := m.cgroups.Remove(id); err != nil {
-			m.log.Warn("removing the sandbox's cgroup failed", "sandbox", id, "error", err)
-		}
-	}
+	m.releaseCgroup(id)
 	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err

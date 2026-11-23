@@ -153,8 +153,10 @@ func (c *VMCgroups) MemoryCurrent(id string) (uint64, bool) {
 	return bytes, err == nil
 }
 
-// Remove deletes the VM's cgroup once its process has exited; a cgroup
-// left behind is reused by the VM's next start and removed at startup.
+// Remove deletes the VM's cgroup once its process has exited (a pause, a
+// death or a delete); the kernel moves the memory still charged to it to
+// the container's cgroup. A cgroup left behind is reused by the VM's next
+// start and removed at startup.
 func (c *VMCgroups) Remove(id string) error {
 	err := os.Remove(filepath.Join(c.dir, vmCgroupPrefix+id))
 	if errors.Is(err, os.ErrNotExist) {
