@@ -225,6 +225,83 @@ struct SwiftPackageHeadersExporterTests {
     }
 }
 
+struct SwiftPackageNestedHeadersExportTests {
+    /// The Adjust SDK keeps its public headers in `include/AdjustSdk/` and its umbrella header imports them as
+    /// `<AdjustSdk/Adjust.h>`. A consumer that finds the cached framework without Tuist's search paths, such as one
+    /// reaching it only through a framework search path, must still resolve those imports, without warnings for the
+    /// consumers that have them. A namespace header that includes a file outside its directory keeps the export as
+    /// it was, since that include only resolves from the tree.
+    @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
+    func nestedNamespaceResolvesThroughFramework(versioned: Bool, includesOutsideNamespace: Bool) async throws {
+        let temporary = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let root = temporary.appending(component: "source")
+        let namespace = root.appending(components: "include", "CLib")
+        try await fileSystem.makeDirectory(at: namespace.appending(component: "sub"))
+        try await fileSystem.writeText("#pragma once\nint impl_value(void);\n", at: root.appending(component: "Impl.h"))
+        try await fileSystem.createSymbolicLink(
+            from: namespace.appending(component: "Impl.h"), to: try RelativePath(validating: "../../Impl.h")
+        )
+        try await fileSystem.writeText(
+            "#pragma once\n\(includesOutsideNamespace ? "#include \"../../../Impl.h\"\n" : "")int deep_value(void);\n",
+            at: namespace.appending(components: "sub", "Deep.h")
+        )
+        let umbrella = namespace.appending(component: "CLib.h")
+        try await fileSystem.writeText("#import <CLib/Impl.h>\n#import <CLib/sub/Deep.h>\n", at: umbrella)
+        let moduleMap = temporary.appending(component: "CLib.modulemap")
+        try await fileSystem.writeText(
+            "framework module CLib {\n  umbrella header \"\(umbrella.pathString)\"\n  export *\n  module * { export * }\n}",
+            at: moduleMap
+        )
+        let headers = Headers(
+            public: [namespace.appending(component: "Impl.h"), namespace.appending(components: "sub", "Deep.h"), umbrella],
+            private: [], project: [root.appending(component: "Impl.h")],
+            sourceLayout: .init(
+                root: root, publicHeaders: root.appending(component: "include"), moduleMap: moduleMap,
+                moduleName: "CLib", usesDirectoryModuleMap: false
+            )
+        )
+        let frameworks = temporary.appending(component: "Frameworks")
+        let artifact = frameworks.appending(component: "CLib.framework")
+        try await fileSystem.makeDirectory(at: artifact)
+        if versioned {
+            try await fileSystem.makeDirectory(at: artifact.appending(components: "Versions", "A"))
+            try await fileSystem.createSymbolicLink(
+                from: artifact.appending(components: "Versions", "Current"), to: try RelativePath(validating: "A")
+            )
+        }
+        let target = Target.test(name: "CLib", product: .staticFramework, headers: headers)
+        _ = try await SwiftPackageHeadersExporter().export(target: target, artifact: artifact)
+        _ = try await SwiftPackageHeadersExporter().export(target: target, artifact: artifact)
+        try await fileSystem.remove(root)
+
+        let consumer = temporary.appending(component: "consumer.m")
+        try await fileSystem.writeText(
+            "@import CLib;\n#import <CLib/Impl.h>\n#import <CLib/sub/Deep.h>\nint use(void) { return impl_value() + deep_value(); }\n",
+            at: consumer
+        )
+        let publicDirectory = artifact.appending(components: "PrivateHeaders", "TuistHeaders", "include")
+        let moduleMapFlag = "-fmodule-map-file=\(artifact.appending(components: "Modules", "module.modulemap").pathString)"
+        // Xcode passes header search paths before framework search paths.
+        #expect(try compiles(consumer, ["-I\(publicDirectory.pathString)", "-F\(frameworks.pathString)", moduleMapFlag]))
+        #expect(try compiles(consumer, ["-F\(frameworks.pathString)", "-I\(publicDirectory.pathString)", moduleMapFlag]))
+        #expect(try compiles(consumer, ["-F\(frameworks.pathString)"]) == !includesOutsideNamespace)
+    }
+
+    private func compiles(_ source: AbsolutePath, _ arguments: [String]) throws -> Bool {
+        let cache = source.parentDirectory.appending(component: "module-cache-\(UUID().uuidString)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = [
+            "clang", "-fmodules", "-fsyntax-only", "-Werror", "-x", "objective-c",
+            "-fmodules-cache-path=\(cache.pathString)",
+        ] + arguments + [source.pathString]
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    }
+}
+
 struct SwiftPackageCachedHeadersMapperTests {
     @Test(.inTemporaryDirectory) func ordinaryBinaryDependenciesDoNotChangeTargets() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
