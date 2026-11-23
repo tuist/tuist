@@ -12,8 +12,8 @@ defmodule Tuist.RemoteExecution.Settings do
   `vm_workspace_gb/0`, which the workers' template snapshots are built with
   (`TEMPLATE_WORKSPACE_GB` in the same chart).
   """
-  @vm_vcpus 2
-  @vm_memory_mb 4096
+  @vm_vcpus 1
+  @vm_memory_mb 2048
   @vm_workspace_gb 30
   @memory_sizes_gb [2, 4, 8, 16]
 
