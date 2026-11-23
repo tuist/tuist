@@ -107,6 +107,10 @@ covered by this list.
   configuration reference, the Docker builds other than `docker/buildx/ubuntu`,
   and the Makefile targets that used them are gone. The `AGENTS.md` guides are
   kept for agents working in those crates.
+- **Clippy on the pinned toolchain.** `ScanInput::uses_scan_memory_limit` and
+  `ScanInput::total_rows` in `src/mito2/src/read/scan_region.rs` return their
+  expressions directly instead of through a `let` binding, which
+  `clippy::let_and_return` rejects. Behavior is unchanged.
 
 - **Query nesting limits** ([`src/sql/src/nesting.rs`](src/sql/src/nesting.rs)).
   Upstream v1.3.0 aborts the whole process with a stack overflow on short,
@@ -137,8 +141,58 @@ covered by this list.
   `sentry_errors` pipeline and `errors` table that
   [`infra/helm/pulse`](../infra/helm/pulse) installs; other items
   are dropped. Responses carry the envelope's event ID, as Sentry's do.
+  Envelopes are held to 1 MiB once decompressed (`sentry::ENVELOPE_LIMIT`,
+  a route-level body limit in `http.rs`), which the server-wide 64 MiB
+  `body_limit` would otherwise allow.
   `tests-integration`'s `test_sentry_envelope` sends envelopes captured from
-  sentry-elixir and sentry-rust.
+  sentry-elixir, sentry-rust, sentry-python 2.75.0 and @sentry/node 11.16.0.
+
+  Beyond errors (`SentryState`, wired by `HttpServerBuilder::with_sentry_handler`):
+
+  - **Rate limiting.** Each frontend counts every service's error events in
+    one-minute windows, up to `http.sentry_events_per_minute` (default 600, 0
+    disables it; documented in the example configs). Events past the quota are
+    dropped and answered as Relay does: an envelope with nothing else gets
+    `429` with `Retry-After` and
+    `X-Sentry-Rate-Limits: <seconds>:error;default:project:event_limit`, which
+    SDKs obey by holding back error events for that long; an envelope whose
+    other items were stored gets `200` with the same `X-Sentry-Rate-Limits`.
+    Logs, spans and sessions are not limited. The count is per frontend, so a
+    cluster admits up to the quota times its frontends.
+  - **Logs.** `log` items become OpenTelemetry log records written through the
+    OTLP logs handler into `opentelemetry_logs`, with `service.name` set to the
+    service. Levels become upper-case severity texts, as the collectors store
+    them; typed attributes keep their types; the span comes from `span_id` or,
+    from older SDKs, `sentry.trace.parent_span_id`. `otel_log` items are dropped.
+  - **Spans.** Spans v2 `span` items and the root and child spans of
+    `transaction` events become OpenTelemetry spans written through the
+    `pulse_trace_v1` pipeline into `opentelemetry_traces`. Lossy: Sentry has no
+    span kind, so `sentry.op` implies one (`http.server`, `http.client`, `db.*`,
+    `queue.*`) and is otherwise unspecified; transaction statuses other than
+    `ok` become `STATUS_CODE_ERROR` with the Sentry status as the message;
+    `is_segment` becomes the `sentry.is_segment` attribute; a transaction's
+    measurements, breakdowns, contexts other than `trace`, and the rest of the
+    event are dropped, and its `data` and `tags` become span attributes.
+  - **Personal data.** Attributes SDKs add only with `sendDefaultPii`
+    (`user.*`, `client.address`, `http.request.header.*`) are dropped from logs
+    and spans.
+  - **Release health.** `session` and `sessions` items become rows of the
+    `sessions` table ([`infra/helm/pulse/sessions.sql`](../infra/helm/pulse/sessions.sql)):
+    one per session, keyed by its `sid` so later updates replace earlier ones,
+    or one per pre-aggregated group. Each row counts `sessions` and splits them
+    into `errored`, `crashed`, `abnormal` and `unhandled`; the distinct ID is
+    stored as a truncated SHA-256. Pulse writes sessions only into that table,
+    never one it creates on write (which would be append-only), and drops
+    sessions without a release, as Sentry does. `servers` depends on `sha2`
+    (already in the tree through `auth`) for that hash.
+  - **Error grouping and issues.** No fork code: the `sentry_errors` pipeline
+    groups on the normalized message and every exception in the chain, the
+    same rules as Atlas (`sentry-errors-cases.json`). The `errors` table is
+    append-only, because its primary key `(service, fingerprint)` would
+    otherwise merge two events of one issue at one timestamp, so readers count
+    `DISTINCT event_id`. The stock `error_issues` flow on the chart's flownode
+    keeps lifetime first seen, last seen and counts in `error_issue_hours`
+    ([`infra/helm/pulse/error-issues.sql`](../infra/helm/pulse/error-issues.sql)).
 - **rust-protobuf 3** ([`src/log-store`](src/log-store), [`third-party/raft-engine`](third-party/raft-engine)).
   `log-store` generates its raft-engine messages with `protobuf-codegen` 3.7.2
   instead of `protoc-rust` 2.28. Published `raft-engine` 0.4.2 requires

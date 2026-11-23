@@ -755,6 +755,14 @@ spec:
                     - pinnedAt
                     - source
                   type: object
+                wanInInstall:
+                  description: |-
+                    WANInInstall is whether the host's latest install put its site's WAN in
+                    its netplan, as the first edge of the site with no other edge to go out
+                    through. It outlives Install. Only such an edge keeps the WAN on its first
+                    uplink: an edge installed through another never had it there, and taking
+                    it while the other is briefly off the tailnet cuts this one off.
+                  type: boolean
               type: object
           type: object
           x-kubernetes-validations:

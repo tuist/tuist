@@ -106,6 +106,7 @@ defmodule Tuist.Runners do
 
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
+  alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.AirShare
   alias Tuist.Runners.APIJobs
@@ -161,6 +162,7 @@ defmodule Tuist.Runners do
   @operator_drain_label "tuist.dev/runner-operator-drain"
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
+  @mint_hold_ttl to_timeout(minute: 1)
 
   # Dispatch-time volume affinity. `pick_queued` fetches the K
   # oldest queued jobs; the server hands the polling runner the oldest one
@@ -979,14 +981,40 @@ defmodule Tuist.Runners do
   end
 
   defp claim_candidate(%{candidate: candidate, fleet_name: fleet_name} = context) do
-    case candidate_resources(candidate, fleet_name) do
-      {:ok, resources} ->
-        attempt_candidate(context, resources)
-
-      {:error, reason} ->
-        {:error, reason}
+    with nil <- mint_hold(candidate),
+         {:ok, resources} <- candidate_resources(candidate, fleet_name) do
+      attempt_candidate(context, resources)
+    else
+      scope when scope in [:account, :repository] -> retry_claim_and_serve(context, scope)
+      {:error, reason} -> {:error, reason}
     end
   end
+
+  # A mint that failed for the account or repository (the GitHub App lacks a
+  # permission, is uninstalled, the repository runner endpoint is missing)
+  # fails the same way on the next poll. Without a hold, each idle runner's
+  # poll claims the job, mints, fails and re-queues it, about once a second
+  # for as long as the job stays queued. The hold skips that account or
+  # repository before the claim for `@mint_hold_ttl`, so the job stays queued
+  # and is retried about once a minute per server node, and dispatches on its
+  # own once the customer fixes the installation. It is node-local Cachex on
+  # purpose: losing it in a deploy costs one failed mint per node.
+  defp mint_hold(candidate) do
+    cond do
+      KeyValueStore.get(mint_hold_key(candidate, :account)) -> :account
+      KeyValueStore.get(mint_hold_key(candidate, :repository)) -> :repository
+      true -> nil
+    end
+  end
+
+  defp hold_mint(candidate, scope) do
+    KeyValueStore.put(mint_hold_key(candidate, scope), true, ttl: @mint_hold_ttl)
+  end
+
+  defp mint_hold_key(candidate, :account), do: [__MODULE__, :mint_hold, candidate.account_id]
+
+  defp mint_hold_key(candidate, :repository),
+    do: [__MODULE__, :mint_hold, candidate.account_id, Map.get(candidate, :repository)]
 
   defp attempt_candidate(%{candidate: candidate, fleet_name: fleet_name, sa_name: sa_name} = context, resources) do
     # The machine shape the claim was admitted under rides along to
@@ -1090,6 +1118,7 @@ defmodule Tuist.Runners do
               :bitrise_mint_failed,
               :api_job_mint_failed
             ] and exclusion_scope in [:account, :repository, :workflow_job] do
+    if exclusion_scope in [:account, :repository], do: hold_mint(context.candidate, exclusion_scope)
     retry_claim_and_serve(context, exclusion_scope)
   end
 

@@ -10,11 +10,15 @@ defmodule Tuist.Pulse.Errors do
   counts the distinct environments it occurred in. Timestamps are Unix nanoseconds as strings,
   like logs and traces. Occurrence series divide the window into 60 equal
   buckets labelled by their start in Unix seconds.
+
+  The table is append-only, so an SDK's resend of an event is a second row
+  with the same `event_id`: counts are of distinct event IDs, and event lists
+  show each resent row once.
   """
 
   import Tuist.Pulse.SQL, only: [bounds: 2, literal: 1, sql: 2]
 
-  @issue_columns "service, fingerprint, count(*) AS events, " <>
+  @issue_columns "service, fingerprint, count(DISTINCT event_id) AS events, " <>
                    "count(DISTINCT nullif(account_handle, '')) AS accounts, " <>
                    "arrow_cast(min(timestamp), 'Int64') AS first_seen, " <>
                    "arrow_cast(max(timestamp), 'Int64') AS last_seen, " <>
@@ -78,7 +82,7 @@ defmodule Tuist.Pulse.Errors do
     fingerprints = rows |> Enum.map(& &1["fingerprint"]) |> Enum.uniq() |> Enum.map_join(", ", &literal/1)
 
     query =
-      "SELECT service, fingerprint, #{bucket(opts)} AS bucket, count(*) AS events FROM errors " <>
+      "SELECT service, fingerprint, #{bucket(opts)} AS bucket, count(DISTINCT event_id) AS events FROM errors " <>
         "WHERE #{window} AND fingerprint IN (#{fingerprints}) GROUP BY service, fingerprint, bucket"
 
     with {:ok, buckets} <- sql(request, query),
@@ -103,11 +107,14 @@ defmodule Tuist.Pulse.Errors do
            sql(request, "SELECT #{@issue_columns} FROM errors WHERE #{scope} GROUP BY service, fingerprint"),
          {:ok, [summary]} <- one(summaries),
          {:ok, buckets} <-
-           sql(request, "SELECT #{bucket(opts)} AS bucket, count(*) AS events FROM errors WHERE #{scope} GROUP BY bucket"),
+           sql(
+             request,
+             "SELECT #{bucket(opts)} AS bucket, count(DISTINCT event_id) AS events FROM errors WHERE #{scope} GROUP BY bucket"
+           ),
          {:ok, events} <-
            sql(
              request,
-             "SELECT #{@event_columns} FROM errors WHERE #{scope} ORDER BY timestamp DESC, event_id ASC " <>
+             "SELECT DISTINCT #{@event_columns} FROM errors WHERE #{scope} ORDER BY timestamp DESC, event_id ASC " <>
                "LIMIT #{opts.page_size} OFFSET #{(opts.page - 1) * opts.page_size}"
            ),
          {:ok, latest} <-
@@ -137,7 +144,7 @@ defmodule Tuist.Pulse.Errors do
     scope = "#{scope(service, fingerprint, opts)} AND event_id = #{literal(event_id)}"
 
     with {:ok, rows} <-
-           sql(request, "SELECT #{@event_columns}, event FROM errors WHERE #{scope} ORDER BY timestamp DESC LIMIT 2"),
+           sql(request, "SELECT #{@event_columns}, event FROM errors WHERE #{scope} ORDER BY timestamp DESC LIMIT 1"),
          {:ok, [row]} <- one(rows),
          true <- valid_event?(row) do
       {:ok, %{event: detail(row), warnings: []}}

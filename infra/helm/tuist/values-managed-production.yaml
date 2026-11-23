@@ -284,12 +284,13 @@ server:
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
     # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
-    # rack's minis; only the accounts the runner_site_cache flag enables get a
-    # node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
+    # rack's minis, and larch-runners larch's on larch-store-a; only the
+    # accounts the runner_site_cache flag enables, and whose jobs run at the
+    # site, get a node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
     # fleet, is retired (Tuist.Kura.Regions) and never offered, listed here
     # or not.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners,larch-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT
@@ -1463,30 +1464,50 @@ rackFleet:
   sshIngressAllowCIDRs:
     - 10.10.0.2/32
     - 10.10.0.3/32
-  # ber1-store-a's Kura gateway on the machines segment.
+  # The storage nodes' Kura gateways on the machines segments: ber1-store-a's
+  # and larch-store-a's. One list for every rack host; a host has no route to
+  # the other site's.
   vmCacheGatewayCIDRs:
     - 10.10.0.11/32
-  # The rack's VM image cache on ber1-store-a. Turn `enabled` on first and let
-  # the prewarm set sync, then route hosts through it one at a time in
-  # `routeHosts`, starting with ber1-runner-b01, which runs staging's jobs; each
-  # one re-pushes that mini's launchd config and needs an operator image
-  # carrying --rackhost-image-mirror-hosts. `["*"]` routes every mini.
+    - 10.20.0.11/32
+  # The racks' VM image cache, on larch-store-a for both racks: its /data is
+  # 12.7 TB, where ber1-store-a's 928 GB belongs to Kura (#14320 turned the
+  # 64 GiB cache there off: zot stages a whole image before writing it, so a
+  # fetch needs about twice its size, plus the previous tag while it ages out).
   #
-  # Off until the site's storage nodes have more disk (a drive in store-a's
-  # spare M.2 slots, or store-b): Kura takes precedence on store-a. zot stages
-  # a whole image before writing it into storage, so fetching one needs about
-  # twice its size (a 58.8 GiB image needs ~118 GiB), plus the previous tag
-  # while it ages out (`keepPulledWithin`). At 64 GiB every fetch of 27.1 ran
-  # out of space and was retried, 2026-10-16 17:40 to 10-18, ~200 GB/h over
-  # the WAN.
+  # Served at larch-store-a's tailnet address until the inter-site link routes
+  # the machines segments to each other: alder's minis have no route to
+  # 10.20.0.11 and accept no subnet routes, but reach a tailnet peer, which
+  # the tailnet policy grants them on tcp:5000 (infra/tailscale/acls.json).
+  # Their VMs are refused the tailnet range by the hosts' pf. Once the link
+  # carries 10.10.0.0/24 <-> 10.20.0.0/24, move it to 10.20.0.11.
+  #
+  # Route hosts one deploy at a time in `routeHosts`, after the prewarm set has
+  # synced; each one re-pushes that mini's launchd config. Taking a host out is
+  # its rollback. ber1-runner-b03 goes first: on 22 Nov its tailscale ping to
+  # larch-store-a went direct (via 149.6.170.1, 1 ms) and zot answered 200.
+  # A timed full pull of macos-27-2 (~60 GB) from the cache then took 370 s on
+  # b03, against a 569 s median for larch's full pulls from ghcr.io, so every
+  # host of both racks is routed. A pull the cache fails falls back to ghcr.io.
+  #
+  # 1 TiB holds the prewarmed set through a release (each image is 55-62 GB,
+  # a release beside its predecessor ~578 GB) plus a fetch's staging. Memory
+  # is larch-store-a's tight resource (12.2 GiB allocatable, ~10.5 GiB already
+  # requested by Kura), so the limit is half the chart's default.
   imageCache:
-    enabled: false
-    routeHosts: []
+    enabled: true
+    routeHosts: ["*"]
     nodes:
-      - name: ber1-store-a
-        address: 10.10.0.11
-    sizeGi: 64
-    prewarm: ["27.1"]
+      - name: larch-store-a
+        address: 100.66.71.20
+    sizeGi: 1024
+    prewarm: ["27.2", "27.1", "27.0", "26.6", "26.3", "26.0.1"]
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
   # which both edges advertise to the tailnet as a /32. Each outlet is on a
@@ -1692,7 +1713,7 @@ rackFleet:
         outlet: "1"
     - name: larch-runner-b02
       site: larch
-      serial: HV6M92P673
+      serial: HV6M92PG73
       address: 10.20.0.152
       rack: r1
       shelf: mount-9
@@ -1767,10 +1788,12 @@ rackFleet:
   # Production rents no macOS hosts, so a job waits for a rack slot rather
   # than spilling over.
   #
-  # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the compute allocator. A 16 vCPU
-  # profile's guest takes a whole host, so that shape's ceiling is the host
-  # count.
+  # The budget is the racks' 52 guest slots (26 hosts x 2: ber1's 16 and
+  # larch's 10), which these pools and the `ber1` and `larch` smoke pools
+  # share through the compute allocator. A 16 vCPU profile's guest takes a
+  # whole host, so that shape's ceiling is the host count. The ceilings only
+  # cap: the allocator sizes the pools to the guest slots Ready minis
+  # advertise.
   #
   # Warm floors are learned from each pool's own jobs. Only a warm runner
   # claims a job in under 10 s: a cold one is the scale-up and the boot, a
@@ -1807,20 +1830,20 @@ rackFleet:
       enabled: true
       minWarmPoolFloor: 0
       maxLearnedWarmPoolFloor: 8
-      maxReplicas: 32
+      maxReplicas: 52
     xcodeOverrides:
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
-          maxReplicas: 32
+          maxReplicas: 52
       "27.2":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
-          maxReplicas: 32
+          maxReplicas: 52
       # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
       # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
       # first while it is the most recently used pool, so on a full rack the
@@ -1830,7 +1853,7 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 11
-          maxReplicas: 32
+          maxReplicas: 52
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
       # starting from no history, and a cold 16 vCPU job has to wait for a
@@ -1844,14 +1867,14 @@ rackFleet:
               enabled: true
               minWarmPoolFloor: 1
               maxLearnedWarmPoolFloor: 3
-              maxReplicas: 16
+              maxReplicas: 26
     shapes:
       16vcpu-48gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 1
-          maxReplicas: 16
+          maxReplicas: 26
   # The fleet's sites other than ber1 (`site`). While a site's runners are off,
   # its minis register with their own fleet, tuist-tuist-rack-fleet-<site>, and
   # run nothing. Turning them on moves the minis onto the rack fleet, so the
@@ -1859,10 +1882,12 @@ rackFleet:
   # at whichever site claims it first (infra/rack-nodes/AGENTS.md, "Several
   # sites"). The site then runs `runners` above as is.
   sites:
-    # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its runners stay off
-    # until its minis are declared and its internet port is up. When turning
-    # them on, raise the rack pools' maxReplicas to the guest slots of both
-    # sites, and decide whether to rename the pools in the same change.
+    # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its runners are on
+    # since its acceptance (infra/rack-nodes/site-bring-up.md, step 17): its
+    # minis carry the rack fleet, so the rack's pools span ber1 and larch. The
+    # pools keep their ber1 names (infra/rack-nodes/AGENTS.md, "Several
+    # sites"). To take larch out of service, cordon its minis, let their jobs
+    # finish, and turn this off.
     larch:
       # larch-edge-a and larch-edge-b on the machines segment
       # (management.edge.machines in larch.json).
@@ -1870,7 +1895,7 @@ rackFleet:
         - 10.20.0.2/32
         - 10.20.0.3/32
       runners:
-        enabled: false
+        enabled: true
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -1990,9 +2015,7 @@ rackLinuxFleet:
       site: larch
     # larch-store-a (S/N TAS0CG00016P), the design's store-b, read from its
     # BMC on 20 Nov. Single-homed to larch-tor-a port 31; its address is on
-    # the machines segment, reserved against its n225p-1 MAC. No public
-    # address yet: one would have the edges forward cluster traffic on
-    # larch's WAN address to it, a separate step once it is up. No TPM check
+    # the machines segment, reserved against its n225p-1 MAC. No TPM check
     # code was recorded for it, so it installs from larch's own boot server.
     - uuid: 05fd922b-27d6-16c8-f0b5-a0ad9f25c51f
       hostname: larch-store-a
@@ -2000,6 +2023,11 @@ rackLinuxFleet:
       site: larch
       bootMAC: "34:d8:68:5a:10:5a"
       address: 10.20.0.11
+      # On the cluster's Cilium network at larch's WAN address, like
+      # ber1-store-a at alder's, so the larch-runners Kura region replicates
+      # pod to pod with the accounts' other regions. larch's edges forward the
+      # cluster ports on it to this host.
+      publicAddress: 149.6.170.1
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
@@ -2466,6 +2494,29 @@ runnersFleet:
         holdRecentPeak: false
       # The catalog's default shape, so every guest on the fleet has the same
       # memory per vCPU.
+      pod:
+        cpuMilli: 8000
+        memoryMB: 24576
+    # The larch rack's smoke pool (`runs-on: tuist-larch-smoke`, the Larch
+    # Smoke workflow), pinned to larch like the `ber1` pool to ber1. Before
+    # larch's acceptance it selected larch's own fleet, so the smoke jobs were
+    # the only work there; since larch's runners are on, its minis carry the
+    # rack fleet and this pool selects that, its `site` keeping it on larch.
+    #
+    # No warm floor: smoke runs are dispatched by hand, and failover tests
+    # run with no runner on the site. Twenty is larch's guest slots (ten hosts
+    # x 2).
+    - name: larch
+      site: larch
+      platform: macos
+      xcodeVersion: "26.6"
+      dispatchLabel: tuist-larch-smoke
+      fleetSelector: tuist-tuist-rack-fleet
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 20
+        holdRecentPeak: false
       pod:
         cpuMilli: 8000
         memoryMB: 24576

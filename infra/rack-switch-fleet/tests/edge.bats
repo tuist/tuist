@@ -484,7 +484,9 @@ STUB
     # the path never sets the WAN address or a route through it; it names
     # them only to give up what the edge's install took on its own
     ! grep -E '^ *ip (addr|route) (add|replace) .*149\.6\.170\.' <<<"$output"
-    [[ "$output" != *"2001:978:"* ]]
+    # (the WAN filter names the upstream's IPv6 address, to reset its BGP)
+    re='ip (-6 )?(addr|route)[^'$'\n'']*2001:978:'
+    [[ ! "$output" =~ $re ]]
     [[ "$output" == *"edge_vlan_bond wan0 4001
 if [ -s /run/rack-edge/first-wan ]; then
   read -r first_wan </run/rack-edge/first-wan
@@ -547,13 +549,20 @@ fi"* ]]
     [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
     # and the WAN lets in replies, ping, neighbour discovery and the tailnet's
     # direct path, what the edge forwards itself (the cluster-network hosts' ports,
-    # tuist_cluster_forwards), and nothing else
+    # tuist_cluster_forwards), and nothing else. A BGP segment from the
+    # upstream with no connection behind it, the session the other edge had
+    # before a failover, is reset rather than dropped, so the upstream lets go
+    # of it at its next keepalive instead of its hold timer.
     [[ "$output" == *'table inet tuist_rack_wan {
   chain input {
     type filter hook input priority filter;
     iifname "wan0" ct state established,related accept
     iifname "wan0" meta l4proto { icmp, ipv6-icmp } accept
     iifname "wan0" udp dport 41641 accept
+    iifname "wan0" ip saddr 149.6.170.30 tcp sport 179 reject with tcp reset
+    iifname "wan0" ip saddr 149.6.170.30 tcp dport 179 reject with tcp reset
+    iifname "wan0" ip6 saddr 2001:978:2:b::4:10 tcp sport 179 reject with tcp reset
+    iifname "wan0" ip6 saddr 2001:978:2:b::4:10 tcp dport 179 reject with tcp reset
     iifname "wan0" drop
   }
   chain forward {
@@ -563,6 +572,9 @@ fi"* ]]
     iifname "wan0" drop
   }
 }'* ]]
+    # a site that announces nothing has no session to reset
+    jq 'del(.management.edge.wan.bgp)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nobgp.json"
+    [[ "$(fleet_edge_wan_filter "$BATS_TEST_TMPDIR/nobgp.json")" != *"reject"* ]]
     fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
@@ -1332,7 +1344,7 @@ STUB
     [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.11,ber1-store-a,infinite"* ]]
     values="$BATS_TEST_TMPDIR/values.yaml"
     # its caches move with it
-    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12" | .rackFleet.vmCacheGatewayCIDRs = ["10.10.0.12/32"] | .rackFleet.imageCache.nodes[0].address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12" | .rackFleet.vmCacheGatewayCIDRs = ["10.10.0.12/32"]' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
     [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.12,ber1-store-a,infinite"* ]]
     # a Linux node on the segment needs a declared host with an address
@@ -1351,23 +1363,40 @@ STUB
     run fleet_edge_check_rack_caches "$SITE_FILE"
     [ "$status" -eq 0 ]
     values="$BATS_TEST_TMPDIR/values.yaml"
-    # an image cache at an address its node does not hold
-    yq '.rackFleet.imageCache.nodes[0].address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    # an image cache on this site's or another rack site's storage node, at
+    # its machines address or a tailnet address
+    yq '.rackFleet.imageCache.nodes = [{"name": "ber1-store-a", "address": "10.10.0.11"}, {"name": "larch-store-a", "address": "10.20.0.11"}, {"name": "larch-store-a", "address": "100.127.255.1"}]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    # an image cache at an address its node does not hold, inside or just
+    # outside the tailnet's range
+    yq '.rackFleet.imageCache.nodes = [{"name": "ber1-store-a", "address": "10.10.0.12"}, {"name": "larch-store-a", "address": "10.10.0.11"}, {"name": "larch-store-a", "address": "100.128.0.1"}]' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
     [ "$status" -ne 0 ]
     [[ "$output" == *"the image cache on ber1-store-a is at 10.10.0.12, but its RackLinuxHost is at 10.10.0.11"* ]]
+    [[ "$output" == *"the image cache on larch-store-a is at 10.10.0.11, but its RackLinuxHost is at 10.20.0.11"* ]]
+    [[ "$output" == *"the image cache on larch-store-a is at 100.128.0.1, but its RackLinuxHost is at 10.20.0.11"* ]]
     # an image cache on something that is not a storage node in the rack
-    yq '.rackFleet.imageCache.nodes = [{"name": "ber1-store-b", "address": "10.10.0.12"}, {"name": "ber1-edge-a", "address": "10.10.0.2"}]' "$FLEET_RACK_VALUES" > "$values"
+    yq '.rackFleet.imageCache.nodes = [{"name": "ber1-store-b", "address": "10.10.0.12"}, {"name": "ber1-edge-a", "address": "10.10.0.2"}, {"name": "larch-edge-a", "address": "100.64.0.1"}]' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"the image cache on ber1-store-b is not on a storage node of this site that is in the rack"* ]]
-    [[ "$output" == *"the image cache on ber1-edge-a is not on a storage node of this site that is in the rack"* ]]
+    [[ "$output" == *"the image cache on ber1-store-b is not on a storage node of a rack site that is in the rack"* ]]
+    [[ "$output" == *"the image cache on ber1-edge-a is not on a storage node of a rack site that is in the rack"* ]]
+    [[ "$output" == *"the image cache on larch-edge-a is not on a storage node of a rack site that is in the rack"* ]]
     # a cache gateway that is not a storage node's address
     yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.2/32", "10.10.0.0/24"]' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
     [ "$status" -ne 0 ]
     [[ "$output" == *"cache gateway 10.10.0.2/32 is not the address of a storage node"* ]]
     [[ "$output" == *"cache gateway 10.10.0.0/24 is not the address of a storage node"* ]]
+    # another rackFleet site's storage node is a gateway too, but not its edge
+    yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.11/32", "10.20.0.11/32"]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.11/32", "10.20.0.2/32"]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cache gateway 10.20.0.2/32 is not the address of a storage node"* ]]
 }
 
 # Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:

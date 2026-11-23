@@ -571,7 +571,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   is paused.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
   `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused, or errored,
-  for longer than 14 days (both still hold their disk), falling back to
+  for longer than 14 days (both may still hold their disk; a failed macOS
+  create no longer does, see Invariants), falling back to
   the row's last update when the node paused the sandbox without the
   server recording `paused_at`.
 - Idle pauses: a create, a resume or an exec that leaves a sandbox
@@ -675,6 +676,26 @@ socket, the poller and the caller share a replica:
   `failed` for a row that had started running and drops its
   `loading_since`. An error report from a node the row is not on is a
   stale copy: only that node's jail is deleted, never the row changed.
+- A failed macOS create holds nothing. It never ran (`last_active_at` is
+  nil), so `boot/5` deletes it from its host at once and the row keeps
+  `error` and its `error_message` with no node, `node_uid` or `resident`:
+  the form a create refused for room has, which Amp Orbs, Claude Code
+  sessions, Managed Agents sessions (`Router.find_or_create_sandbox/3`,
+  `MacosCapacity.admission/2`) replace with a fresh create, while a placed
+  errored Mac still answers `:sandbox_recovery_required`. A host that
+  cannot delete it then does when it next reports it in `error`. A report
+  that no longer lists an errored macOS row clears its `resident` (only an
+  error report did, and a host lists none for a VM it deleted, so the row
+  held CPU, memory and a slot for the 14-day retention) and releases a
+  failed create's node. In production (2026-11-21) such rows, resident
+  ones and ones on the disk budget of hosts that still listed them,
+  refused every macOS create on a whole rack. We kept
+  the row rather than deleting it: it is the failure's record, the API,
+  the dashboard and `Tuist.Runners.MacosSandboxWarmPools` (refused and
+  failed creates are demand) read it, and the retention removes it like
+  any errored row, counting from the failure. Every `failed` event keeps
+  the error, node and template (`Events.record/3`), so the failure
+  outlives the row when a retry, a delete or the retention removes it.
 - A node that left the cluster never reports again. Every minute
   `ReleaseRemovedNodesWorker` (`Sandboxes.release_removed_nodes/0`) errors
   the Linux agent rows of a node that is not connected and whose Kubernetes

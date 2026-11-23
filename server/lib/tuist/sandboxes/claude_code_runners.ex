@@ -56,7 +56,8 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
           %Sandbox{residency_work_id: work_id} when is_binary(work_id) ->
             {:ok, :running}
 
-          %Sandbox{platform: :darwin, state: :error} ->
+          # As in `Router.find_or_create_sandbox/3`: only a placed one.
+          %Sandbox{platform: :darwin, state: :error, node_name: node_name} when is_binary(node_name) ->
             {:error, :sandbox_recovery_required}
 
           _sandbox ->

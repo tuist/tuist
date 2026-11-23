@@ -13,14 +13,16 @@ defmodule Tuist.Kura.RunnerCache do
       that region, and
     * any other account should have none there.
 
-  Every private region sits at a rack site (`Regions.site/1`). A site's region
-  takes the accounts dispatch routes to the rack or the site cache flag
-  enables, once their cache traffic comes from the site: their node there
+  Every private region sits at a rack site (`Regions.site/1`). The sites'
+  regions take the accounts dispatch routes to the racks or the site cache flag
+  enables, once their cache traffic comes from any site: their node there
   served hits in the last seven days, or a build in one of the CI runs of their
   jobs claimed at the site (`runner_workflow_jobs.site`) hit the remote cache in
-  that window. A rack pool spans every site whose runners are on, so the site a
-  job was claimed at, not its pool, says where it ran. Jobs at no site get the
-  public cache.
+  that window. Traffic from one site admits the account at every site, so its
+  node at each rack is already filled by replication when its jobs move there.
+  A rack pool spans every site whose runners are on, so the site a job was
+  claimed at, not its pool, says where it ran. Jobs at no site get the public
+  cache.
 
   Runner Profiles are auto-created for every account, so profiles identify the
   platform whose cache is needed rather than providing a second entitlement.
@@ -119,24 +121,20 @@ defmodule Tuist.Kura.RunnerCache do
 
       regions ->
         account_ids = runner_enabled_account_ids(regions)
-        Enum.each(regions, &reconcile_region(&1, account_ids))
+
+        case admitted_account_ids(regions, account_ids) do
+          {:ok, admitted} ->
+            Enum.each(regions, &converge_region(&1, admitted))
+
+          # Without the evidence the sites' regions admit on, an empty set
+          # would read as "no account uses the racks" and tear every node
+          # down, so the regions keep their nodes until it can be read again.
+          {:error, reason} ->
+            Logger.warning("[Kura.RunnerCache] skipped site regions: site traffic unknown: #{inspect(reason)}")
+        end
     end
 
     :ok
-  end
-
-  defp reconcile_region(%Regions{id: region_id} = region, account_ids) do
-    case admitted_account_ids(region, account_ids) do
-      {:ok, account_ids} ->
-        converge_region(region, account_ids)
-
-      # Without the evidence a site's region admits on, an empty set would
-      # read as "no account uses the site" and tear every node down, so the
-      # region keeps its nodes until the evidence can be read again.
-      {:error, reason} ->
-        Logger.warning("[Kura.RunnerCache] skipped #{region_id}: site traffic unknown: #{inspect(reason)}")
-        :ok
-    end
   end
 
   defp converge_region(%Regions{id: region_id} = region, account_ids) do
@@ -185,16 +183,18 @@ defmodule Tuist.Kura.RunnerCache do
     Enum.filter(Regions.available(), &Regions.private?/1)
   end
 
-  # A site's region serves only the pools racked there, so it holds nodes for
-  # the accounts whose jobs run there (`runner_site`) or that the site cache
-  # flag enables, and of those only the ones whose cache traffic comes from the
-  # site: a node reserves its full claim on the site's few storage nodes
-  # whether or not anything reads it. An account both flags drop, or whose
-  # traffic from the site stops, has its node torn down. Operators override
-  # the traffic rule per account: `:runner_site_cache_pinned` admits a site
-  # account without traffic, and `:runner_site_cache_excluded` admits the
-  # account to no site's region.
-  defp admitted_account_ids(%Regions{site: site} = region, account_ids) do
+  # The sites' regions hold nodes for the accounts whose jobs run on the racks
+  # (`runner_site`) or that the site cache flag enables, and of those only the
+  # ones whose cache traffic comes from a rack: a node reserves its full claim
+  # on the site's few storage nodes whether or not anything reads it. Traffic
+  # from any site admits the account at every site, so each rack already
+  # holds a node the account's other nodes replicate into when its jobs run
+  # there; capacity admission still decides whether it fits. An account both
+  # flags drop, or whose traffic from every site stops, has its nodes torn
+  # down. Operators override the traffic rule per account:
+  # `:runner_site_cache_pinned` admits a site account without traffic, and
+  # `:runner_site_cache_excluded` admits the account to no site's region.
+  defp admitted_account_ids(regions, account_ids) do
     site_account_ids =
       MapSet.filter(account_ids, fn account_id ->
         account = %Account{id: account_id}
@@ -202,14 +202,14 @@ defmodule Tuist.Kura.RunnerCache do
       end)
 
     pinned = MapSet.filter(site_account_ids, &FeatureFlags.runner_site_cache_pinned?(%Account{id: &1}))
+    candidates = MapSet.difference(site_account_ids, pinned)
 
-    site_account_ids
-    |> MapSet.difference(pinned)
-    |> site_traffic_account_ids(region, site)
-    |> case do
-      {:ok, trafficked} -> {:ok, MapSet.union(pinned, trafficked)}
-      {:error, reason} -> {:error, reason}
-    end
+    Enum.reduce_while(regions, {:ok, pinned}, fn %Regions{site: site} = region, {:ok, admitted} ->
+      case site_traffic_account_ids(candidates, region, site) do
+        {:ok, trafficked} -> {:cont, {:ok, MapSet.union(admitted, trafficked)}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   # The accounts with cache traffic from the site in the window. An account

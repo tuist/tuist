@@ -74,6 +74,10 @@ Some tests are left out on purpose and don't make a commit incomplete:
 - **The other shards' targets**, when you shard your tests.
 - **Ignored tests** (`#[ignore]`), which don't run by default.
 
+### Uncommitted changes {#uncommitted-changes}
+
+A run from a checkout whose tracked files have uncommitted changes measured code that isn't the commit's, so its coverage doesn't count toward the commit. The run warns and lists the changed files. Files your CI job writes next to the sources, such as build outputs or coverage reports, don't count as changes as long as Git doesn't track them. When only such runs measured a commit, its coverage is **Incomplete**, and `tuist cargo coverage-complete` says why.
+
 ### Complete and incomplete commits {#commit-status}
 
 Each commit on the dashboard has a status:

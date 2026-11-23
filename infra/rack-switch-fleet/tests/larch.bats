@@ -138,7 +138,7 @@ larch_ready() {
 }
 
 @test "the power devices on the ToRs are reached through mgmt0 once installed" {
-    site="$(larch_with '(.nodes[] | select(.name == "larch-pdu-a")) |= (.status = "installed" | .mac = "00:20:85:00:00:01")')"
+    site="$(larch_with '(.nodes[] | select(.name == "larch-pdu-a")) |= (.status = "installed" | .mac = "00:20:85:00:00:01") | (.nodes[] | select(.name == "larch-pdu-b")) |= (.status = "planned" | del(.mac))')"
     run edge_sh "fleet_edge_power_devices '$site'"
     [[ "$output" == *"larch-pdu-a|00:20:85:00:00:01|192.168.60.16"* ]]
     [[ "$output" != *"larch-pdu-b"* ]]

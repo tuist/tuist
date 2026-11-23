@@ -13767,6 +13767,7 @@ dependencies = [
  "serde_json",
  "servers",
  "session",
+ "sha2 0.10.9",
  "simd-json",
  "simdutf8",
  "smallvec",

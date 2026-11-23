@@ -21,3 +21,6 @@ CREATE TABLE IF NOT EXISTS "errors" (
   TIME INDEX ("timestamp"),
   PRIMARY KEY ("service", "fingerprint")
 )
+WITH (
+  append_mode = 'true'
+)

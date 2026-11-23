@@ -1511,6 +1511,65 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     end
   end
 
+  # A target's selective-testing hash is trusted for every build input, so a
+  # tracked-file change never stops carrying a target skipped by its hash.
+  test "carries a target skipped by hash across a commit that changes any tracked file", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+    target_only_runs(project, account)
+    sources = Map.new(["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"], &{&1, "blob-" <> &1})
+
+    for input <- ["Package.resolved", "App.xcodeproj/project.pbxproj", "App.xctestplan", "Podfile.lock"] do
+      record_build_inputs(account, Map.put(sources, input, "one"), Map.put(sources, input, "two"))
+
+      assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} =
+               reported = Reported.compute(project, "head")
+
+      assert reasons(reported) == []
+    end
+  end
+
+  test "carries a target skipped by hash from a source that predates a build-input change its hash covers", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+    target_only_runs(project, account, head: :none)
+
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("bump", ["base"], 2),
+      CoverageFixtures.commit("tip", ["bump"], 3)
+    ])
+
+    tip =
+      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+        git_commit_sha: "tip",
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")])
+      })
+
+    selective_testing(project, tip, [{"AppTests", :miss, "app-changed"}, {"TextKitTests", :local, "text"}])
+
+    repository_id = CoverageFixtures.repository_id(account)
+    sources = Enum.map(["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"], &{&1, "blob-" <> &1})
+
+    for {sha, resolved} <- [{"base", "one"}, {"bump", "two"}, {"tip", "two"}] do
+      listing =
+        Enum.map([{"Package.resolved", resolved} | sources], fn {path, blob} ->
+          %{path: path, git_blob_id: blob, mode: 0o100644}
+        end)
+
+      GitHistory.record_listing(repository_id, sha, listing, files_count: length(listing))
+    end
+
+    assert %{kind: "reported", carried_tests_count: 1, carried_from: ["base"]} =
+             reported = Reported.compute(project, "tip")
+
+    assert reasons(reported) == []
+  end
+
   defp record_build_inputs(account, base, head) do
     repository_id = CoverageFixtures.repository_id(account)
 

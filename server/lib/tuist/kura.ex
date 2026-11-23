@@ -1220,8 +1220,8 @@ defmodule Tuist.Kura do
     with {:ok, region} <- Regions.fetch(region_id),
          true <- Regions.observed_private_endpoint?(region) do
       case Provisioner.external_endpoint(server) do
-        {:ok, %{url: url, observed_at: observed_at}} ->
-          mark_private_endpoint_ready(server, url, observed_at)
+        {:ok, %{url: url, observed_at: observed_at} = endpoint} ->
+          mark_private_endpoint_ready(server, url, observed_at, Map.get(endpoint, :entrances, %{}))
 
         {:error, :private_endpoint_not_ready} ->
           :ok
@@ -1240,15 +1240,21 @@ defmodule Tuist.Kura do
   # Endpoint observable: heartbeat the readiness clock. Rewrite the url +
   # broadcast only when it actually moved, so a steady-state node isn't
   # re-pushed to every open settings LiveView every tick.
-  defp mark_private_endpoint_ready(%Server{url: url} = server, url, observed_at) do
-    case server |> Server.observation_changeset(%{last_ready_at: observed_at}) |> Repo.update() do
+  # Entrances heartbeat in the same write: an entrance missing from the
+  # observation is dropped, and dispatch also ignores any that went stale.
+  defp mark_private_endpoint_ready(%Server{url: url} = server, url, observed_at, entrances) do
+    case server
+         |> Server.observation_changeset(%{last_ready_at: observed_at, gateway_entrances: entrances})
+         |> Repo.update() do
       {:ok, _server} -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp mark_private_endpoint_ready(%Server{} = server, url, observed_at) do
-    case server |> Server.observation_changeset(%{url: url, last_ready_at: observed_at}) |> Repo.update() do
+  defp mark_private_endpoint_ready(%Server{} = server, url, observed_at, entrances) do
+    case server
+         |> Server.observation_changeset(%{url: url, last_ready_at: observed_at, gateway_entrances: entrances})
+         |> Repo.update() do
       {:ok, server} ->
         broadcast_server(server, :updated)
         :ok
@@ -1334,7 +1340,8 @@ defmodule Tuist.Kura do
     # a separate identity rule (`Tuist.Kura.RunnerCache`).
     Demand.record(account.id)
 
-    private_runner_cache_url(account, platform, site) || public_in_cluster_runner_cache_url(account, platform)
+    private_runner_cache_url(account, platform, site) || gateway_entrance_url(account, platform, site) ||
+      public_in_cluster_runner_cache_url(account, platform)
   end
 
   def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
@@ -1420,6 +1427,46 @@ defmodule Tuist.Kura do
       |> Enum.filter(&private_cache_serving?(&1, observed_endpoint_region_ids, ready_cutoff))
       |> Enum.map(& &1.url)
       |> route_private_cache_url(account_id)
+    end
+  end
+
+  # A rack site with no serving node of the account's falls back to the
+  # account's node at another site, through the entrance that site's node has
+  # on this site's gateway (`gatewayEntrances` in the KuraInstance). The runner
+  # still reaches only its own site's gateway, which proxies to the other site
+  # over the cluster network. Both the node's own heartbeat and the entrance's
+  # must be fresh: a dark site stops being handed out within the same window a
+  # `/ready`-503 node does. The job keeps the URL it is given for its whole run.
+  defp gateway_entrance_url(_account, _platform, site) when not is_binary(site), do: nil
+
+  defp gateway_entrance_url(%Account{id: account_id}, platform, site) do
+    region_ids =
+      for region <- Regions.available(),
+          Regions.private?(region) and Regions.observed_private_endpoint?(region) and
+            Regions.serves_runner_platform?(region, platform) and Regions.site(region) not in [nil, site],
+          do: region.id
+
+    if region_ids == [] do
+      nil
+    else
+      ready_cutoff = DateTime.add(now_truncated(), -@runner_cache_ready_staleness_seconds, :second)
+
+      Server
+      |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^region_ids)
+      |> where([s], not is_nil(s.gateway_entrances) and s.last_ready_at >= ^ready_cutoff)
+      |> order_by([s], asc: s.region)
+      |> select([s], {s.region, s.gateway_entrances})
+      |> Repo.all()
+      |> Enum.find_value(fn {region, entrances} ->
+        with %{"url" => url, "observed_at" => observed_at} when is_binary(url) <- entrances[site],
+             {:ok, observed_at, _} <- DateTime.from_iso8601(observed_at),
+             true <- DateTime.compare(observed_at, ready_cutoff) != :lt do
+          Logger.info("kura: runner cache for site #{site} served from #{region}", account_id: account_id)
+          url
+        else
+          _ -> nil
+        end
+      end)
     end
   end
 

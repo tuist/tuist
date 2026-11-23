@@ -984,7 +984,7 @@ class MainActivity : Activity() {
             if (thread.optBoolean("can_reauthorize")) {
                 button(getString(R.string.reauthorize_thread)) {
                     call("reauthorize_thread", JSONObject().put("id", thread.optString("id")).put("consent", true)) { data ->
-                        conversation = data
+                        conversation = data as? JSONObject
                         render()
                     }
                 }

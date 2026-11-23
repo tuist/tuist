@@ -18,6 +18,9 @@ defmodule Tuist.Sandboxes.SandboxEvent do
     field :boot_source, Ch, type: "LowCardinality(String)"
     field :duration_ms, Ch, type: "UInt32"
     field :guaranteed_cpu_milli, Ch, type: "UInt32"
+    field :error_message, Ch, type: "String"
+    field :node_name, Ch, type: "LowCardinality(String)"
+    field :template, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 end

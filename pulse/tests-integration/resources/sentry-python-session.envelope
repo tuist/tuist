@@ -1,0 +1,3 @@
+{}
+{"type":"session","content_type":"application/json","length":243}
+{"sid":"9b1a58b9-1770-4ea1-a5ce-ff5ae39d32a5","init":true,"started":"2026-11-21T08:03:29.247923Z","timestamp":"2026-11-21T08:03:29.250067Z","status":"crashed","errors":1,"did":"user-42","attrs":{"release":"shop@2.4.1","environment":"staging"}}

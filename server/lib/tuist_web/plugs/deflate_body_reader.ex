@@ -76,7 +76,7 @@ defmodule TuistWeb.Plugs.DeflateBodyReader do
     z = :zlib.open()
 
     try do
-      :ok = :zlib.inflateInit(z, window_bits)
+      :ok = init_inflate(z, window_bits)
       inflate_chunks(z, :zlib.safeInflate(z, compressed), [], 0, limit)
     rescue
       ErlangError -> :invalid
@@ -85,13 +85,27 @@ defmodule TuistWeb.Plugs.DeflateBodyReader do
     end
   end
 
+  # A gzip body may hold several members, which decode to their concatenation
+  # (RFC 1952); `:reset` starts the next member instead of ignoring it, as
+  # `:zlib.gunzip/1` does, so bytes after a member must be another member.
+  defp init_inflate(z, 31), do: :zlib.inflateInit(z, 31, :reset)
+  defp init_inflate(z, window_bits), do: :zlib.inflateInit(z, window_bits)
+
   defp inflate_chunks(z, {status, output}, acc, size, limit) do
     size = size + IO.iodata_length(output)
 
     cond do
-      size > limit -> :too_large
-      status == :finished -> {:ok, IO.iodata_to_binary([acc, output])}
-      true -> inflate_chunks(z, :zlib.safeInflate(z, []), [acc, output], size, limit)
+      size > limit ->
+        :too_large
+
+      # `safeInflate` also reports `:finished` when the input ends mid-stream;
+      # `inflateEnd` raises unless the stream (and a gzip trailer) is complete.
+      status == :finished ->
+        :ok = :zlib.inflateEnd(z)
+        {:ok, IO.iodata_to_binary([acc, output])}
+
+      true ->
+        inflate_chunks(z, :zlib.safeInflate(z, []), [acc, output], size, limit)
     end
   end
 end

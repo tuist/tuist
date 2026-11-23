@@ -295,6 +295,11 @@ pub struct HttpOptions {
     /// The address to bind the dedicated HTTP API server, in the same form as
     /// `addr` (e.g. `127.0.0.1:4006`).
     pub api_server_addr: String,
+
+    /// Tuist: error events each service may send per minute to this server's
+    /// Sentry envelope endpoint; more are refused with Sentry's rate-limit
+    /// headers. 0 disables the limit. See http/sentry.rs.
+    pub sentry_events_per_minute: u32,
 }
 
 impl Default for HttpOptions {
@@ -308,6 +313,7 @@ impl Default for HttpOptions {
             enable_cors: true,
             enable_api_server: false,
             api_server_addr: format!("127.0.0.1:{}", DEFAULT_HTTP_API_ADDR_PORT),
+            sentry_events_per_minute: sentry::DEFAULT_EVENTS_PER_MINUTE,
         }
     }
 }
@@ -831,16 +837,37 @@ impl HttpServerBuilder {
 
         let router = router.nest(
             &format!("/{HTTP_API_VERSION}/splunk"),
-            HttpServer::route_splunk(log_state.clone(), self.memory_limiter.clone()),
-        );
-
-        // Tuist: Sentry SDKs report errors here; see http/sentry.rs.
-        let router = router.nest(
-            &format!("/{HTTP_API_VERSION}/sentry"),
-            HttpServer::route_sentry(log_state, self.memory_limiter.clone()),
+            HttpServer::route_splunk(log_state, self.memory_limiter.clone()),
         );
 
         Self { router, ..self }
+    }
+
+    /// Tuist: Sentry SDKs report errors, logs, spans and sessions here; see
+    /// http/sentry.rs.
+    pub fn with_sentry_handler(
+        self,
+        handler: OpenTelemetryProtocolHandlerRef,
+        ingest_interceptor: Option<LogIngestInterceptorRef<Error>>,
+    ) -> Self {
+        let state = sentry::SentryState {
+            log_state: LogState {
+                log_handler: handler.clone(),
+                log_validator: None,
+                ingest_interceptor,
+            },
+            otlp_handler: handler,
+            limiter: Arc::new(sentry::EventLimiter::new(
+                self.options.sentry_events_per_minute,
+            )),
+        };
+        Self {
+            router: self.router.nest(
+                &format!("/{HTTP_API_VERSION}/sentry"),
+                HttpServer::route_sentry(state, self.memory_limiter.clone()),
+            ),
+            ..self
+        }
     }
 
     pub fn with_pulse_config_options(self, opts: String) -> Self {
@@ -1377,7 +1404,10 @@ impl HttpServer {
             .with_state(log_state)
     }
 
-    fn route_sentry<S>(log_state: LogState, memory_limiter: ServerMemoryLimiter) -> Router<S> {
+    fn route_sentry<S>(
+        state: sentry::SentryState,
+        memory_limiter: ServerMemoryLimiter,
+    ) -> Router<S> {
         Router::new()
             .route(
                 "/{service}/api/{project}/envelope/",
@@ -1392,11 +1422,14 @@ impl HttpServer {
                 memory_limit::decoded_body_accounting_middleware,
             ))
             .layer(ServiceBuilder::new().layer(RequestDecompressionLayer::new()))
+            // Tuist: replaces the server-wide body limit for these routes. The
+            // extractor applies it to the decompressed body.
+            .layer(DefaultBodyLimit::max(sentry::ENVELOPE_LIMIT))
             .layer(middleware::from_fn_with_state(
                 BatchingProtocol::Logs,
                 set_http_write_batching,
             ))
-            .with_state(log_state)
+            .with_state(state)
     }
 
     fn route_pipelines<S>(log_state: LogState, memory_limiter: ServerMemoryLimiter) -> Router<S> {

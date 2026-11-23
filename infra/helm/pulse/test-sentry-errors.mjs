@@ -1,6 +1,7 @@
 // Runs sentry-errors.yaml in a disposable Pulse and checks the stored rows:
 // Atlas-compatible fingerprints for every case in sentry-errors-cases.json,
-// scrubbing, and that resent events merge instead of double-counting.
+// scrubbing, that distinct events at one timestamp are all kept, that resent
+// events count once, and the issue lifecycle rollup (error-issues.sql).
 //
 //   PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:secret node test-sentry-errors.mjs
 //
@@ -13,6 +14,8 @@ const directory = new URL('.', import.meta.url);
 const base = process.env.PULSE_URL ?? 'http://127.0.0.1:4000';
 const authorization = `Basic ${Buffer.from(process.env.PULSE_AUTH ?? 'pilot:secret').toString('base64')}`;
 const table = `errors_test_${process.pid}`;
+const issuesTable = `error_issue_hours_test_${process.pid}`;
+const flow = `error_issues_test_${process.pid}`;
 const pipelineName = `sentry_errors_test_${process.pid}`;
 const cases = JSON.parse(readFileSync(new URL('sentry-errors-cases.json', directory), 'utf8'));
 
@@ -45,7 +48,16 @@ const scrubEvent = {
   extra: { remote_ip: 'edge-7', client_ip: 'edge-8', users: [{ name: 'Jane', password: 'p' }], counts: [1, 2] },
   tags: { 'x-forwarded-for': 'edge-9', ip: 'edge-10', zip_code: '08001' },
 };
-const events = [...cases.map(({ event }) => event), scrubEvent];
+// Two events of one issue at the same timestamp are two events.
+const sameTime = ['c', 'd'].map(id => ({ event_id: id.repeat(32), timestamp: 1794651340.25, message: 'Same instant' }));
+// Recent events for the issue rollup, which covers the last day: a new issue,
+// and one that occurred nine days ago (written straight into the rollup below,
+// since the flow does not read that far back) and has now regressed.
+const now = Date.now() / 1000;
+const fresh = { event_id: 'e'.repeat(32), timestamp: now - 60, message: 'Fresh failure' };
+const freshAgain = { event_id: 'f'.repeat(32), timestamp: now - 30, message: 'Fresh failure' };
+const returning = { event_id: 'ab'.repeat(16), timestamp: now - 10, message: 'Returning failure' };
+const events = [...cases.map(({ event }) => event), scrubEvent, ...sameTime, fresh, freshAgain, returning];
 
 const ingest = () => call(`/v1/ingest?${new URLSearchParams({ db: 'public', table, pipeline_name: pipelineName })}`, {
   body: JSON.stringify(events.map(event => ({ service: 'server', event }))),
@@ -54,6 +66,10 @@ const ingest = () => call(`/v1/ingest?${new URLSearchParams({ db: 'public', tabl
 
 try {
   await sql(readFileSync(new URL('errors.sql', directory), 'utf8').replace('"errors"', `"${table}"`));
+  // The deployment's statements, one at a time, on this run's tables.
+  const issues = readFileSync(new URL('error-issues.sql', directory), 'utf8')
+    .replaceAll('"error_issue_hours"', `"${issuesTable}"`).replace('"error_issues"', `"${flow}"`).replace('"errors"', `"${table}"`);
+  for (const statement of issues.split(/;\s*$/m).filter(text => text.replace(/--.*$/gm, '').trim())) await sql(statement);
   await call(`/v1/pipelines/${pipelineName}`, {
     body: readFileSync(new URL('sentry-errors.yaml', directory), 'utf8'),
     contentType: 'application/x-yaml',
@@ -105,14 +121,43 @@ try {
   assert.equal(scrubbedEvent.tags.ip, '[Filtered]');
   assert.equal(scrubbedEvent.tags.zip_code, '08001');
 
-  // SDK retries resend identical events; rows with the same issue and
-  // timestamp merge on read.
-  const timestamped = events.filter(event => event.timestamp !== undefined).length;
+  assert.equal(rows.filter(row => row.title === 'Same instant').length, 2, 'same-timestamp events both stored');
+
+  // SDK retries resend identical events. The table keeps every row, and
+  // readers count distinct event IDs.
   await ingest();
-  const [{ total }] = await sql(`SELECT count(*) AS total FROM ${table}`);
-  assert.equal(total, 2 * events.length - timestamped);
-  console.log(`PASS: ${cases.length} Sentry events grouped like Atlas, ${events.length} scrubbed, and resends merged`);
+  const [{ total, distinct }] = await sql(`SELECT count(*) AS total, count(DISTINCT event_id) AS "distinct" FROM ${table}`);
+  assert.equal(total, 2 * events.length);
+  assert.equal(distinct, events.length);
+
+  // Issue lifecycle: the regressed issue's earlier occurrence, then a flush,
+  // which the deployment also runs, recomputes the last day.
+  const fingerprintOf = title => rows.find(row => row.title === title).fingerprint;
+  const day = 86400;
+  await sql(`INSERT INTO ${issuesTable} ("service", fingerprint, first_seen, last_seen, events, time_window) VALUES ` +
+    `('server', '${fingerprintOf('Returning failure')}', to_timestamp_seconds(${Math.floor(now - 9 * day)}), ` +
+    `to_timestamp_seconds(${Math.floor(now - 9 * day)}), 4, date_bin('1 hour'::INTERVAL, to_timestamp_seconds(${Math.floor(now - 9 * day)})))`);
+  await sql(`ADMIN flush_flow('${flow}')`);
+  const lifetime = await sql(`SELECT "service", fingerprint, sum(events) AS events FROM ${issuesTable} GROUP BY "service", fingerprint`);
+  const eventsOf = title => Number(lifetime.find(row => row.fingerprint === fingerprintOf(title))?.events);
+  assert.equal(eventsOf('Fresh failure'), 2, 'resends count once in the rollup');
+  assert.equal(eventsOf('Returning failure'), 5, 'the rollup keeps earlier occurrences');
+  // Older than the flow's day: not in the rollup.
+  assert.ok(!lifetime.some(row => row.fingerprint === fingerprintOf('Same instant')));
+  const newIssues = await sql(`SELECT fingerprint FROM ${issuesTable} GROUP BY "service", fingerprint ` +
+    `HAVING min(first_seen) > now() - INTERVAL '1 day'`);
+  // Cases without a timestamp occurred at ingestion, so they are new too.
+  const firstSeen = newIssues.map(row => row.fingerprint);
+  assert.ok(firstSeen.includes(fingerprintOf('Fresh failure')), 'a first sighting is new');
+  assert.ok(!firstSeen.includes(fingerprintOf('Returning failure')), 'an earlier sighting is not new');
+  const regressed = await sql(`SELECT fingerprint FROM ${issuesTable} GROUP BY "service", fingerprint ` +
+    `HAVING max(last_seen) > now() - INTERVAL '1 day' ` +
+    `AND max(CASE WHEN last_seen <= now() - INTERVAL '1 day' THEN last_seen END) < now() - INTERVAL '8 days'`);
+  assert.deepEqual(regressed.map(row => row.fingerprint), [fingerprintOf('Returning failure')]);
+  console.log(`PASS: ${cases.length} Sentry events grouped like Atlas, ${events.length} scrubbed, resends counted once, and issues rolled up`);
 } finally {
+  await sql(`DROP FLOW IF EXISTS ${flow}`).catch(() => {});
+  await sql(`DROP TABLE IF EXISTS ${issuesTable}`).catch(() => {});
   await sql(`DROP TABLE IF EXISTS ${table}`).catch(() => {});
   await fetch(`${base}/v1/pipelines/${pipelineName}?version=`, { method: 'DELETE', headers: { Authorization: authorization } }).catch(() => {});
 }

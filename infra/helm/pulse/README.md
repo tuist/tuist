@@ -68,6 +68,14 @@ general node with a `maxUnavailable: 1` disruption budget:
 | `pulse-metasrv` | 3 | Leader-elected through etcd; region failover enabled |
 | `pulse-datanode` | 3 | Regions; local disk is a rebuildable cache |
 | `pulse-frontend` | 2 | Authenticated HTTP API behind Service `pulse:4000` |
+| `pulse-flownode` | 1 | Runs flows (the `error_issues` rollup, see [Errors](#errors)) |
+
+The flownode queries the frontends on their internal gRPC port 4010, which
+skips the static users; `pulse-internal` admits only Pulse's own pods to it,
+and no policy opens it to clients. Writes and reads never pass through the
+flownode, so it has no disruption budget and `pulse-readiness.sh` does not
+gate collectors on it; a down flownode only delays the rollup, which the next
+deploy's flush recomputes.
 
 The metasrv leader creates the WAL topics once, when it starts leading, and
 does not retry, so each metasrv pod first waits until the topics exist or all
@@ -85,9 +93,9 @@ backend's objects in the same bucket. The target is surviving one general-node
 failure without losing acknowledged writes; every general node is in
 `fsn1-dc14`, so this is not datacenter resilience.
 
-Production's requests (`values-production.yaml`) total 8.6 CPUs and 23 GiB.
+Production's requests (`values-production.yaml`) total 8.65 CPUs and 23.1 GiB.
 The chart's defaults size staging and canary, whose whole standalone backend
-used about 600 MiB and 0.05 CPU, at 2 CPUs and 5.75 GiB. The install's capacity
+used about 600 MiB and 0.05 CPU, at 2.05 CPUs and 5.9 GiB. The install's capacity
 gate places every replica on a distinct host, keeps the server's 1-CPU surge
 slot, and must still fit after losing any one general node
 (`CAPACITY_TOLERATE_NODE_LOSS=1`).
@@ -193,8 +201,11 @@ Each environment moves in this order:
    the probe. CI then applies `ALTER DATABASE public SET 'ttl' = '7d'` in
    staging/canary and **`'forever'` in production**, bootstraps native OTLP
    metrics/logs/traces, the `loki_otlp` pipeline (`loki-otlp.yaml`), the `errors`
-   table (`errors.sql`, 90-day TTL in production, 7 days elsewhere) and the
-   `sentry_errors` pipeline (`sentry-errors.yaml`; see [Errors](#errors)), and smoke
+   table (`errors.sql`, append-only, 90-day TTL in production, 7 days
+   elsewhere), the `error_issue_hours` table and `error_issues` flow
+   (`error-issues.sql`), the `sentry_errors` pipeline (`sentry-errors.yaml`;
+   see [Errors](#errors)) and the `sessions` table (`sessions.sql`, same TTL as
+   `errors`; see [Release health](#release-health)), flushes the flow, and smoke
    tests dashboard reads, rejected dashboard mutation, rejected writer reads and
    unauthenticated rejection, then rereads the data after restarting every
    stateful component.
@@ -305,17 +316,114 @@ stores only a scrubbed projection (no user, request headers, cookies, bodies or
 query strings, frame variables or module lists; credential, contact and
 IP-address keys filtered; credentials in URLs, query strings, emails, bearer and
 Basic credentials, Tuist tokens, JWTs and IPv4 and IPv6 addresses redacted in
-stored text). The table is not append-only: retried events with the same issue
-and timestamp merge on read.
+stored text).
 
-`sentry-errors-cases.json` holds grouping cases with Atlas's fingerprints. Atlas's
-`fingerprint_test.exs` and `test-sentry-errors.mjs`, which the validate job runs
-against the pinned Pulse image, both check them; change the pipeline and Atlas's
-`Fingerprint` together. To run it locally against a disposable Pulse:
+`errors` is append-only (`append_mode`): with `(service, fingerprint)` as the
+primary key and no append mode, two different events of one issue at the same
+timestamp collapsed into one row (checked against the pinned image). Tables
+created before were switched by the deploy's `ALTER TABLE errors SET
+'append_mode' = 'true'`, which Pulse allows only in that direction. An SDK's
+resend of an event is now a second row with the same `event_id`, so readers
+count `DISTINCT event_id` and list events with `SELECT DISTINCT`, as the
+server's `Tuist.Pulse.Errors` does.
+
+### Grouping
+
+The fingerprint hashes the first exception's type, its top in-app frame (or
+last frame) and the normalized message (or exception value), then `Type: value`
+for every further exception in the chain, joined with `|`. Sentry sends a chain
+oldest first, so the first exception is the root cause and the rest wrapped it:
+the same root cause raised through different callers is a different issue, as
+in Sentry. Titles and culprits still come from the first exception and keep the
+real text. Events with no exception, frame or message group by logger,
+normalized transaction, level and tracing event name, and an SDK `fingerprint`
+replaces all of this (`{{ default }}` expands to it).
+
+Normalization replaces values with typed placeholders, in this order, so a URL
+or UUID is replaced whole before its digits, and dates, addresses and hex
+before ints: `<url>`, `<email>`, `<uuid>`, `<date>` (ISO dates with an
+optional time and zone), `<ip>` (IPv4), `<git_sha>` (40 lowercase hex digits),
+`<hex>` (`0x…`, or 16 or more hex digits), `<float>`, `<int>`. Whitespace then
+collapses and the text is cut at 200 characters. It applies to grouping only.
+
+Changing these rules regroups events. In Pulse an issue only exists within the
+query window, so new fingerprints simply start new issues; rows already stored
+keep the fingerprint they were written with. Atlas derives issue IDs from the
+fingerprint and keeps state on them, so its `IssueCoalescer` starts each new
+issue from the issue the previous rules
+(`Atlas.Engineering.Errors.Fingerprint.compute_legacy/1`) grouped the event
+into: status, assignee, resolution and first sighting carry over and a resolved
+one regresses on a newer event, while counts and impacted accounts start over.
+
+### Issue lifecycle
+
+`errors` covers at most its TTL, and the dashboard reads at most a day of it.
+The `error_issues` flow (`error-issues.sql`) keeps `error_issue_hours` with no
+TTL: one row per issue and hour it occurred in, with the first and last
+occurrence in that hour and its count of distinct events. The flow recomputes
+the last day's hours as events arrive; the deploy runs `ADMIN
+flush_flow('error_issues')`, which recomputes that day again, so hours missed
+while no flownode ran heal at the next deploy within a day. Events that arrive
+more than a day late, and history from before the flow existed, are not in it.
+
+```sql
+-- Lifetime state of every issue.
+SELECT "service", fingerprint, min(first_seen) AS first_seen,
+  max(last_seen) AS last_seen, sum(events) AS events
+FROM error_issue_hours GROUP BY "service", fingerprint;
+
+-- New: first seen in the last day.
+SELECT "service", fingerprint FROM error_issue_hours GROUP BY "service", fingerprint
+HAVING min(first_seen) > now() - INTERVAL '1 day';
+
+-- Regressed: seen in the last day after at least a week of silence.
+SELECT "service", fingerprint FROM error_issue_hours GROUP BY "service", fingerprint
+HAVING max(last_seen) > now() - INTERVAL '1 day'
+  AND max(CASE WHEN last_seen <= now() - INTERVAL '1 day' THEN last_seen END)
+    < now() - INTERVAL '8 days';
+```
+
+Pulse has no resolve action, so a regression here is a return after silence,
+not after a resolution; Atlas keeps resolution state.
+
+`sentry-errors-cases.json` holds grouping cases with Atlas's fingerprints,
+derived by hand from the rules above. Atlas's `fingerprint_test.exs` and
+`test-sentry-errors.mjs`, which the validate job runs against the pinned Pulse
+image, both check them; change the pipeline and Atlas's `Fingerprint` together.
+`test-sentry-errors.mjs` also checks that same-timestamp events are all kept,
+that resends count once, and the issue rollup and its queries. To run it locally against a disposable Pulse:
 
 ```bash
 PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/pulse/test-sentry-errors.mjs
 ```
+
+## Release health
+
+The same endpoint accepts Sentry's `session` and `sessions` items and writes
+them to `sessions` (`sessions.sql`): one row per session, whose later updates
+replace it (primary key `service, release, environment, session_id`), or one per
+pre-aggregated group from server-mode SDKs. `sessions` counts the sessions a row
+stands for, and `errored`, `crashed`, `abnormal` and `unhandled` split them by
+outcome; `distinct_id` is the SDK's user or device ID, hashed. Pulse never
+creates this table itself, so sessions sent before the deploy installs it are
+dropped. Crash-free rates per release:
+
+```sql
+SELECT "release",
+  1 - CAST(sum(crashed + abnormal + unhandled) AS DOUBLE) / sum(sessions) AS crash_free_sessions,
+  1 - CAST(count(DISTINCT CASE WHEN crashed + abnormal + unhandled > 0 THEN distinct_id END) AS DOUBLE)
+    / count(DISTINCT distinct_id) AS crash_free_users
+FROM sessions
+WHERE service = 'server' AND started > now() - INTERVAL '1 day'
+GROUP BY "release"
+```
+
+User rates count only rows with a distinct ID; Sentry treats `abnormal` as
+crashed for its crash-free figures, and so does this query. The endpoint also
+writes Sentry `log` items to `opentelemetry_logs` and spans to
+`opentelemetry_traces` (see `pulse/FORK.md`), and limits each service to
+`http.sentry_events_per_minute` error events per frontend (600 by default),
+answering more with Sentry's `429` rate-limit headers.
 
 ## Rollback boundaries
 
@@ -327,6 +435,12 @@ Rolling back a backend change is a `helm rollback pulse` to an earlier revision.
 Do not uninstall the backend or shrink its PVC as a rollback shortcut. Pulse
 data is not copied between releases, and historical objects are neither
 imported nor deleted.
+
+Two errors changes outlive a rollback. `errors` stays append-only (Pulse
+refuses to turn it off), so a server from before distinct counting counts an
+SDK's resends twice. The `error_issues` flow and its table stay in metadata; on
+a chart without the flownode the flow does not run, and the next deploy that
+runs one recomputes the last day.
 
 ## Storage probe
 

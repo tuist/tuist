@@ -198,6 +198,12 @@ its reservation. No capacity is released merely because a save was requested.
 A VM the runtime proves lost (its process gone with no checkpoint, or its VM
 missing) holds no CPU or memory and never cold-boots, so it releases its
 reservation once and stays in `error`, with its disk, until the server deletes it.
+A create that failed never ran, so the server deletes it from the host as soon
+as the create fails, or when the host next reports it in `error`, and keeps its
+row in `error` without a node. The host also deletes a create or claim still
+journaled as failed by itself; a report that no longer lists an errored VM
+clears the row's `resident`, so it stops holding CPU, memory and a slot
+(`server/lib/tuist/sandboxes/AGENTS.md`, Invariants).
 Node hello/report frames always include the resident boolean, including false
 after eviction, so the server releases its reservation after the host's fence.
 

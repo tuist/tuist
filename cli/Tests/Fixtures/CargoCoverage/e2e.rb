@@ -108,6 +108,11 @@ $stdout.sync = true
 requests = []
 uploads = {}
 inline_threshold = 5_000_000
+# The most bytes a test run's body may inflate to, as the server's `Plug.Parsers` length after `DeflateBodyReader`.
+body_limit = nil
+completion_pending = false
+# The commit's `reported.gap_reasons` the completion answers with, or nil for a whole figure.
+completion_gap_reasons = nil
 quarantine = { "muted" => [], "skipped" => [] }
 plan_id = SecureRandom.uuid
 assignments = []
@@ -170,10 +175,24 @@ server.mount_proc("/") do |request, response|
       when %r{\A#{prefix}/tests/coverage/commits/([0-9a-f]+)/complete\z}
         sha = Regexp.last_match(1)
         requests << { "kind" => "complete", "payload" => { "sha" => sha } }
-        response.body = JSON.generate(git_commit_sha: sha, covered_lines: 9, executable_lines: 10, coverage: 90.0,
-                                      measured_files_count: 3, unmeasured_files_count: 0, schemes: ["cargo test"],
-                                      partial_schemes: [], partial: false, complete: true, completeness: "complete",
-                                      test_run_ids: [], targets: [])
+        if completion_pending
+          response.status = 202
+          response.body = JSON.generate(message: "No run of the commit has reported coverage yet")
+        elsif completion_gap_reasons
+          # A commit only dirty runs measured: partial, with nothing measured.
+          response.body = JSON.generate(git_commit_sha: sha, covered_lines: 0, executable_lines: 0, coverage: 0.0,
+                                        measured_files_count: 0, unmeasured_files_count: 0, schemes: ["cargo test"],
+                                        partial_schemes: ["cargo test"], partial: true, complete: true,
+                                        completeness: "signal", test_run_ids: [], targets: [],
+                                        reported: { kind: "partial", coverage: 0.0, covered_lines: 0, executable_lines: 0,
+                                                    skipped_tests_count: 0, carried_tests_count: 0, gap_files_count: 0,
+                                                    carried_from: [], gap_reasons: completion_gap_reasons })
+        else
+          response.body = JSON.generate(git_commit_sha: sha, covered_lines: 9, executable_lines: 10, coverage: 90.0,
+                                        measured_files_count: 3, unmeasured_files_count: 0, schemes: ["cargo test"],
+                                        partial_schemes: [], partial: false, complete: true, completeness: "complete",
+                                        test_run_ids: [], targets: [])
+        end
       when "#{prefix}/tests/coverage/uploads"
         key = SecureRandom.hex(8)
         requests << { "kind" => "coverage-upload", "payload" => payload }
@@ -182,8 +201,14 @@ server.mount_proc("/") do |request, response|
         response.status = 201
         response.body = JSON.generate(id: payload.fetch("id"))
       when "#{prefix}/tests"
+        if body_limit && data.bytesize > body_limit
+          requests << { "kind" => "rejected", "bytes" => data.bytesize }
+          response.status = 413
+          response.body = JSON.generate(message: "The request body is too large")
+          next
+        end
         validate(payload, test_schema, spec)
-        requests << { "kind" => "tests", "payload" => payload }
+        requests << { "kind" => "tests", "payload" => payload, "bytes" => data.bytesize }
         cases = payload.fetch("test_modules").flat_map do |mod|
           mod.fetch("test_cases").map do |test|
             { id: SecureRandom.uuid, module_name: mod.fetch("name"),
@@ -241,19 +266,22 @@ begin
   environment["PATH"] = wrappers + File::PATH_SEPARATOR + environment.fetch("PATH")
   summaries = []
 
-  run = lambda do |name, arguments, code, env: {}, reports: 1, directory: checkout|
+  run = lambda do |name, arguments, code, env: {}, reports: 1, directory: checkout, leaves: ""|
     start = requests.length
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = command(["cargo", *arguments], directory, environment.merge(env), root, name)
+    seconds = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(3)
     received = requests.drop(start)
     File.write(File.join(root, "#{name}.requests.json"), JSON.pretty_generate(received))
     check(result[0] == code, "#{name}: exit #{result[0]} != #{code}\n#{result[2]}")
     check(received.none? { |item| item.key?("error") }, "#{name}: #{received.select { |item| item.key?('error') }.inspect}")
     # Profiles of build scripts, listings and doctests stay out of the checkout, so its runs stay clean.
     left = Open3.capture2e(environment, "git", "status", "--porcelain", chdir: directory, unsetenv_others: true)[0].strip
-    check(left.empty?, "#{name}: the run left files in the checkout: #{left}")
+    check(left == leaves, "#{name}: the checkout holds #{left.inspect}, not #{leaves.inspect}")
     tests = received.select { |item| item["kind"] == "tests" }.map { |item| item.fetch("payload") }
     check(tests.length == reports, "#{name}: #{tests.length} test reports != #{reports}\n#{result[2]}")
-    summaries << { scenario: name, exit_code: code }
+    summaries << { scenario: name, exit_code: code, seconds: seconds,
+                   request_bytes: received.select { |item| item.key?("bytes") }.sum { |item| item["bytes"] } }
     puts "PASS: #{name}"
     [tests.first, received, result]
   end
@@ -329,6 +357,7 @@ begin
   # A full `cargo test`: each binary's tests share its process, so each binary gets target evidence and its tests
   # are reported as overlapping.
   full, received, = run.call("cargo-test-full", ["test", "--offline"], 0)
+  full_bytes = received.find { |item| item["kind"] == "tests" }.fetch("bytes")
   full_files = check_measured.call("cargo-test-full", full)
   evidence = full.fetch("coverage_evidence")
   check(evidence["status"] == "collected", "cargo-test-full: evidence #{evidence['status']}")
@@ -353,6 +382,19 @@ begin
         "cargo-test-uploaded: the upload names another run")
   check(files_of.call(uploaded).map { |path, file| [path, covered.call(file)] }.to_h == full_covered,
         "cargo-test-uploaded: the uploaded coverage differs from the inline one")
+
+  # The server holds a run's body to its limit after inflating it, and the threshold keeps coverage under that limit:
+  # here the limit is the rest of the run plus the threshold. Coverage that compresses under the threshold but is
+  # larger uncompressed is uploaded, rather than sent inline and rejected with a 413 that drops the run.
+  ndjson = full.fetch("coverage").fetch("files").map { |file| JSON.generate(file) }.join("\n")
+  between = (Zlib::Deflate.deflate(ndjson).bytesize + ndjson.bytesize) / 2
+  inline_threshold = between
+  body_limit = full_bytes - ndjson.bytesize + between
+  inflating, = run.call("cargo-test-inflates-past-threshold", ["test", "--offline"], 0)
+  inline_threshold = 5_000_000
+  body_limit = nil
+  check(inflating&.dig("coverage")&.key?("storage_key"),
+        "cargo-test-inflates-past-threshold: about #{ndjson.bytesize} bytes of coverage were sent inline under a #{between}-byte threshold")
 
   # The caller's selection narrows the run: it names the tests it ran and is partial.
   narrowed, = run.call("cargo-test-narrowed", ["test", "--offline", "--test", "api"], 0)
@@ -410,8 +452,85 @@ begin
   check(received.map { |item| item["kind"] } == ["complete"] && received[0]["payload"]["sha"] == head,
         "coverage-complete: #{received.inspect}")
   check(completed[1].include?("Coverage of commit #{head[0, 7]} is complete: 90.0%."), "coverage-complete: #{completed[1]}")
+  check(completed[1].include?("See the commit's coverage at http://127.0.0.1:#{port}/e2e/cargo/tests/coverage/commits/#{head}"),
+        "coverage-complete: no link to the commit's page: #{completed[1]}")
   _, received, = run.call("coverage-complete-commit", ["coverage-complete", "--commit", "0123abc"], 0, reports: 0)
   check(received[0]["payload"]["sha"] == "0123abc", "coverage-complete-commit: #{received.inspect}")
+  # No run of the commit has been processed yet: the signal is kept, and the output says which commit it named and
+  # links the commits list, since the commit's own page is a 404 until then.
+  completion_pending = true
+  _, received, pending = run.call("coverage-complete-pending", ["coverage-complete"], 0, reports: 0)
+  _, _, pending_commit = run.call("coverage-complete-pending-commit", ["coverage-complete", "--commit", "0123abc"], 0, reports: 0)
+  completion_pending = false
+  check(received[0]["payload"]["sha"] == head, "coverage-complete-pending: #{received.inspect}")
+  check(pending[1].include?("No run of commit #{head[0, 7]}, the checkout's HEAD, has reported coverage yet"),
+        "coverage-complete-pending: #{pending[1]}")
+  check(pending[1].include?("tuist cargo coverage-complete --commit <sha>"), "coverage-complete-pending: #{pending[1]}")
+  check(pending[1].include?("See the commits your runs reported coverage for at http://127.0.0.1:#{port}/e2e/cargo/tests/coverage/commits\n"),
+        "coverage-complete-pending: no link to the commits list: #{pending[1]}")
+  check(pending_commit[1].include?("No run of commit 0123abc has reported coverage yet"),
+        "coverage-complete-pending-commit: #{pending_commit[1]}")
+  # Only dirty runs measured the commit: the output says why they don't count and links the commit's page once.
+  completion_gap_reasons = ["dirty_run_excluded"]
+  _, _, dirty_complete = run.call("coverage-complete-dirty-runs", ["coverage-complete"], 0, reports: 0)
+  completion_gap_reasons = nil
+  page = "http://127.0.0.1:#{port}/e2e/cargo/tests/coverage/commits/#{head}"
+  check(dirty_complete[1].include?("Coverage of commit #{head[0, 7]} is complete: 0.0%. Some runs came from a checkout " \
+                                   "with uncommitted changes and don't count"),
+        "coverage-complete-dirty-runs: #{dirty_complete[1]}")
+  check(!dirty_complete[1].include?("The figure is incomplete"), "coverage-complete-dirty-runs: #{dirty_complete[1]}")
+  check(dirty_complete[1].scan(page).length == 1,
+        "coverage-complete-dirty-runs: the commit's page isn't linked once: #{dirty_complete[1]}")
+  check(RUBY_PLATFORM.include?("darwin") == dirty_complete[1].include?("`tuist coverage runs --commit #{head}`"),
+        "coverage-complete-dirty-runs: #{dirty_complete[1]}")
+
+  # Files a CI job writes next to the sources leave the run on its commit; a changed tracked file doesn't, and the
+  # run warns with the changed paths, which stay on the machine.
+  dirty_checkout = File.join(root, "dirty-checkout")
+  Open3.capture2e(environment, "git", "clone", "-q", remote, dirty_checkout, unsetenv_others: true)
+  File.write(File.join(dirty_checkout, "coverage.lcov"), "TN:\n")
+  untracked, _, untracked_result = run.call("cargo-test-untracked-files", ["test", "--offline"], 0,
+                                            directory: dirty_checkout, leaves: "?? coverage.lcov")
+  check(untracked["git_dirty"] == false && untracked["git_commit_sha"] == head,
+        "cargo-test-untracked-files: dirty #{untracked['git_dirty']}, commit #{untracked['git_commit_sha']}")
+  check(!untracked_result[2].include?("won't count toward commit"),
+        "cargo-test-untracked-files: warned\n#{untracked_result[2]}")
+  File.write(File.join(dirty_checkout, ".gitignore"), "\n# Local\n", mode: "a")
+  dirty, dirty_received, dirty_result = run.call("cargo-test-dirty-checkout", ["test", "--offline"], 0,
+                                                 directory: dirty_checkout, leaves: "M .gitignore\n?? coverage.lcov")
+  check(dirty["git_dirty"] == true && dirty["git_commit_sha"] == head,
+        "cargo-test-dirty-checkout: dirty #{dirty['git_dirty']}, commit #{dirty['git_commit_sha']}")
+  warning = dirty_result[2][/^warning: Tuist: This run's coverage won't count toward commit #{head[0, 7]} because the checkout has uncommitted changes.*?out of the checkout\./m]
+  check(warning, "cargo-test-dirty-checkout: no dirty-checkout warning\n#{dirty_result[2]}")
+  check(warning.to_s.include?("- .gitignore") && !warning.to_s.include?("coverage.lcov"), "cargo-test-dirty-checkout: #{warning}")
+  check(!JSON.generate(dirty_received).include?(".gitignore"), "cargo-test-dirty-checkout: sent the changed paths")
+
+  # On a pull request's merge checkout, the run and the completion signal name the commit the run measured, the
+  # checkout's HEAD (the merge commit), not the pull request's head (HEAD^2).
+  merge_checkout = File.join(root, "merge-checkout")
+  Open3.capture2e(environment, "git", "clone", "-q", remote, merge_checkout, unsetenv_others: true)
+  in_merge = lambda do |*arguments|
+    output, status = Open3.capture2e(environment, "git", "-c", "user.name=E2E", "-c", "user.email=e2e@tuist.dev",
+                                     *arguments, chdir: merge_checkout, unsetenv_others: true)
+    check(status.success?, "git #{arguments.join(' ')}: #{output}")
+    output.strip
+  end
+  in_merge.call("checkout", "-q", "-b", "feature")
+  File.write(File.join(merge_checkout, "NOTES.md"), "A pull request's change.\n")
+  in_merge.call("add", "NOTES.md")
+  in_merge.call("commit", "-q", "-m", "Feature")
+  pull_request_head = in_merge.call("rev-parse", "HEAD")
+  in_merge.call("checkout", "-q", "--detach", "main")
+  in_merge.call("merge", "-q", "--no-ff", "-m", "Merge feature into main", "feature")
+  merge_commit = in_merge.call("rev-parse", "HEAD")
+  pull_request = { "GITHUB_REF" => "refs/pull/1/merge", "GITHUB_HEAD_REF" => "feature", "GITHUB_BASE_REF" => "main" }
+  merged, = run.call("cargo-test-merge-checkout", ["test", "--offline"], 0, directory: merge_checkout, env: pull_request)
+  check(merged&.dig("git_commit_sha") == merge_commit && merged&.dig("pull_request_number") == 1,
+        "cargo-test-merge-checkout: #{merged&.dig('git_commit_sha')} != merge #{merge_commit} (head #{pull_request_head})")
+  _, received, = run.call("coverage-complete-merge-checkout", ["coverage-complete"], 0,
+                          reports: 0, directory: merge_checkout, env: pull_request)
+  check(received[0]["payload"]["sha"] == merge_commit,
+        "coverage-complete-merge-checkout: signalled #{received[0]['payload']['sha']}, not merge #{merge_commit}")
 
   nextest, nextest_status = Open3.capture2e(environment, cargo, "nextest", "--version", unsetenv_others: true)
   if nextest_status.success?

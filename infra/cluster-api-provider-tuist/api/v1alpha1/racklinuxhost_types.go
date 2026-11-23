@@ -256,6 +256,14 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Install *RackLinuxHostInstallStatus `json:"install,omitempty"`
 
+	// WANInInstall is whether the host's latest install put its site's WAN in
+	// its netplan, as the first edge of the site with no other edge to go out
+	// through. It outlives Install. Only such an edge keeps the WAN on its first
+	// uplink: an edge installed through another never had it there, and taking
+	// it while the other is briefly off the tailnet cuts this one off.
+	// +optional
+	WANInInstall bool `json:"wanInInstall,omitempty"`
+
 	// Boot is what the site's boot server reports about the published install.
 	// The boot server writes it, and nothing else.
 	// +optional

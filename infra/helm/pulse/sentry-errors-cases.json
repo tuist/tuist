@@ -1,7 +1,7 @@
 [
   {
     "name": "elixir exception with in-app frames",
-    "fingerprint": "3e8d45a883f070e5470424743760c1bc3cd6eba44c1e06df03e1033a3b8a82a5",
+    "fingerprint": "afa2a8aa44e9c3c5ec76a93235f34e7c55976a8246d65cba04902a4c0d2945bc",
     "level": "error",
     "event": {
       "event_id": "2D9F1C3E-4B5A-4C6D-8E7F-0A1B2C3D4E5F",
@@ -113,7 +113,7 @@
   },
   {
     "name": "no in-app frame uses the last frame and normalizes hex, digits and whitespace",
-    "fingerprint": "d1db1de9293736a8bcb538fd485c3cbc24381991fc3dc5cf6b0417464e5595f8",
+    "fingerprint": "67832b19cf956dedd3b42f5ef81411a0d5f63bcea5b4291cb8f654c9bfc1679a",
     "level": "fatal",
     "event": {
       "event_id": "a1b2",
@@ -170,7 +170,7 @@
   },
   {
     "name": "logentry message without exception",
-    "fingerprint": "7e5a75198d4baf4f72612926968f63b3deb6475122335a188678b923e035d77a",
+    "fingerprint": "21f2a1ee82fe47bd79312ae959c9e49c312d3a715dbf7923cab72701c323fa74",
     "level": "warning",
     "event": {
       "event_id": "11111111111111111111111111111111",
@@ -184,7 +184,7 @@
   },
   {
     "name": "string message takes precedence over logentry",
-    "fingerprint": "553a070b7df7fff2dbadcb57431e1003763e546f569d2136b264c17d44379d62",
+    "fingerprint": "6d6373dba36d02d1b7f961ca767d95b78aaf756d7a2e850587b1b5663b122b76",
     "level": "error",
     "event": {
       "event_id": "22222222222222222222222222222222",
@@ -208,7 +208,7 @@
   },
   {
     "name": "log-shaped event groups by logger, transaction, level and tracing name",
-    "fingerprint": "badd64ca7e9f04748dadf82fc3025d5a54fda7f23d306830845e51cc86c0ebd5",
+    "fingerprint": "11ca95db67c61bb9d00660ab36d63613afbf2eb8bcdcd7644309c65a8da4e224",
     "level": "info",
     "event": {
       "event_id": "44444444444444444444444444444444",
@@ -234,7 +234,7 @@
   },
   {
     "name": "fingerprint override expands default",
-    "fingerprint": "8d864ab07b64e151a7423849b9a7af28286f15b2f932867a8e71eb8a0f876935",
+    "fingerprint": "fb3cf984b0db9e89e127462280262c00a46e26c5ca523b7070fbf0e47f651e76",
     "level": "error",
     "event": {
       "event_id": "66666666666666666666666666666666",
@@ -283,7 +283,7 @@
   },
   {
     "name": "empty fingerprint override uses default grouping",
-    "fingerprint": "3476d6714d2e4d0c8ed772245d72188028d4b2c10710de8ddb5535f8b5741578",
+    "fingerprint": "7089fe3a145fbf882d43667fac6c06feeb1fc1e9f5371509e0bfeeceac23d4af",
     "level": "error",
     "event": {
       "event_id": "88888888888888888888888888888888",
@@ -328,6 +328,96 @@
           {
             "type": "Oban.PerformError",
             "value": ""
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "UUIDs, emails, URLs and dates become typed placeholders",
+    "fingerprint": "957853857f69db83bf98401cc9fbbd7c52023b57f52e4f9132b0115753b55055",
+    "level": "error",
+    "event": {
+      "event_id": "b0000000000000000000000000000001",
+      "timestamp": 1794651332,
+      "message": "Sync of project 0190a0b1-c2d3-7e4f-8a9b-0c1d2e3f4a5b for ops@example.com failed at 2026-11-20T08:15:00Z calling https://api.example.com/v1/runs/42?page=3"
+    }
+  },
+  {
+    "name": "other values of the same types group into the same issue",
+    "fingerprint": "957853857f69db83bf98401cc9fbbd7c52023b57f52e4f9132b0115753b55055",
+    "level": "error",
+    "event": {
+      "event_id": "b0000000000000000000000000000002",
+      "timestamp": 1794651333,
+      "message": "Sync of project 7F1E2D3C-4B5A-4968-8776-655443322110 for dev@tuist.dev failed at 2026-11-21 09:00:01 calling http://localhost:8080/v1/runs/7"
+    }
+  },
+  {
+    "name": "git SHAs, addresses, hex, floats and ints, matched before ints",
+    "fingerprint": "e34bf9344b29d4e8b4a4f24d0a7240f9e656a72f63f55c78d7512021c833befa",
+    "level": "error",
+    "event": {
+      "event_id": "b0000000000000000000000000000003",
+      "timestamp": 1794651334,
+      "exception": {
+        "values": [
+          {
+            "type": "Kura.BuildError",
+            "value": "Build 3f2a9c1e5d7b8a6c4e2f0a1b3c5d7e9f1a2b3c4d on 10.0.12.7 took 12.5s; trace 4bf92f3577b34da6a3ce929d0e0e4736, buffer 0x7ffd at attempt 3",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "lib/tuist/sync.ex",
+                  "module": "Tuist.Sync",
+                  "function": "run/1",
+                  "lineno": 30,
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "chained exceptions group on every exception in the chain",
+    "fingerprint": "3355cfdedb789e95acdb9f35d9f02530df6f3483096eb3f3ef36862c54073864",
+    "level": "error",
+    "event": {
+      "event_id": "b0000000000000000000000000000004",
+      "timestamp": 1794651335,
+      "exception": {
+        "values": [
+          {
+            "type": "std::io::Error",
+            "value": "connection refused (os error 111)"
+          },
+          {
+            "type": "kura::replication::PullError",
+            "value": "pull from peer 10.0.3.4 failed"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "the same root cause under a different wrapper is a different issue",
+    "fingerprint": "16521d040181f6e174575601e82ae41c6193dc19c342dfa525342560f0beafd8",
+    "level": "error",
+    "event": {
+      "event_id": "b0000000000000000000000000000005",
+      "timestamp": 1794651336,
+      "exception": {
+        "values": [
+          {
+            "type": "std::io::Error",
+            "value": "connection refused (os error 111)"
+          },
+          {
+            "type": "kura::handover::PrepareError",
+            "value": "handover preparation failed"
           }
         ]
       }

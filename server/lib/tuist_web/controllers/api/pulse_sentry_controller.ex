@@ -18,8 +18,10 @@ defmodule TuistWeb.API.PulseSentryController do
   alias Tuist.Pulse
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.DeflateBodyReader
 
-  # Sentry's own limit for an envelope's event item.
+  # Sentry's own limit for an envelope's event item, held to the whole
+  # envelope once decompressed (attachments and other items included).
   @max_body_bytes 1_048_576
   @service ~r/\A[A-Za-z0-9._-]{1,64}\z/
   @project_id ~r/\A[0-9]{1,20}\z/
@@ -73,8 +75,8 @@ defmodule TuistWeb.API.PulseSentryController do
          account when not is_nil(account) <- Accounts.get_account_by_handle(handle),
          :ok <- Authorization.authorize(:pulse_write, Authentication.authenticated_subject(conn), account),
          true <- Pulse.available?(account) || :not_enrolled,
-         {:ok, body, conn} <- read_envelope(conn),
-         {:ok, status, response} <- Pulse.forward_sentry_envelope(service, project_id, body, conn.req_headers) do
+         {:ok, body, headers, conn} <- read_envelope(conn),
+         {:ok, status, response} <- Pulse.forward_sentry_envelope(service, project_id, body, headers) do
       respond(conn, status, response)
     else
       false ->
@@ -85,6 +87,12 @@ defmodule TuistWeb.API.PulseSentryController do
 
       {:error, :too_large, conn} ->
         error(conn, :request_entity_too_large, "The envelope is larger than 1 MiB.")
+
+      {:error, :unsupported_encoding} ->
+        error(conn, :bad_request, "The envelope must be uncompressed, or gzip-, br- or zstd-encoded.")
+
+      {:error, :undecodable} ->
+        error(conn, :bad_request, "The envelope could not be decompressed.")
 
       {:error, :not_configured} ->
         error(conn, :service_unavailable, "Pulse is not configured.")
@@ -97,18 +105,48 @@ defmodule TuistWeb.API.PulseSentryController do
     end
   end
 
-  # The endpoint's parsers pass this content type through unread.
+  # The endpoint's parsers pass this content type through unread. Returns the
+  # body and the headers to forward it with. Gzip bodies are inflated here,
+  # holding the inflated size to the limit. The server has no brotli or zstd
+  # decoder, so those bodies (brotli is sentry-python's default when the
+  # `brotli` module is installed) are forwarded encoded, and Pulse's Sentry
+  # route holds their decoded size to the same limit.
   defp read_envelope(conn) do
-    case read_body(conn, length: @max_body_bytes) do
-      {:ok, body, conn} -> {:ok, body, conn}
-      {:more, _partial, conn} -> {:error, :too_large, conn}
-      {:error, _reason} -> {:error, :unavailable}
+    content_type = Enum.filter(conn.req_headers, fn {name, _} -> name == "content-type" end)
+
+    case get_req_header(conn, "content-encoding") do
+      encoding when encoding in [[], ["identity"], ["gzip"]] ->
+        conn |> DeflateBodyReader.read_body(length: @max_body_bytes) |> read_result(content_type)
+
+      [encoding] when encoding in ["br", "zstd"] ->
+        conn
+        |> read_body(length: @max_body_bytes)
+        |> read_result([{"content-encoding", encoding} | content_type])
+
+      _ ->
+        {:error, :unsupported_encoding}
     end
   end
 
+  defp read_result({:ok, body, conn}, headers), do: {:ok, body, headers, conn}
+  defp read_result({:more, _partial, conn}, _headers), do: {:error, :too_large, conn}
+  defp read_result({:error, :invalid_deflate_body}, _headers), do: {:error, :undecodable}
+  defp read_result({:error, _reason}, _headers), do: {:error, :unavailable}
+
   # Pulse's answer passes through when it describes the envelope; anything
   # else is the server's own writer failing, not the caller's request.
-  defp respond(conn, status, body) when status in 200..299 or status in [400, 413, 429] do
+  defp respond(conn, 413, _body), do: error(conn, :request_entity_too_large, "The envelope is larger than 1 MiB.")
+
+  # Pulse describes envelopes it rejects in JSON; a plain-text 400 is its HTTP
+  # layer failing to read the body, such as a corrupt br or zstd stream.
+  defp respond(conn, 400, body) do
+    case JSON.decode(body) do
+      {:ok, _} -> conn |> put_resp_content_type("application/json") |> send_resp(400, body)
+      {:error, _} -> error(conn, :bad_request, "The envelope could not be read.")
+    end
+  end
+
+  defp respond(conn, status, body) when status in 200..299 or status == 429 do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(status, body)

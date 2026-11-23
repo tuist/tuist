@@ -1908,8 +1908,9 @@ rackFleet:
     # The repositories the caches serve, as zot sync prefixes.
     repositories:
       - tuist/tuist-runner
-    # Each storage node that runs a cache, by Node name, and its address on
-    # the machines segment, which the cache binds and the minis pull from.
+    # Each storage node that runs a cache, by Node name, and the address the
+    # cache binds and the minis pull from: its address on the machines
+    # segment, or its tailnet address when another site's minis pull from it.
     #   - name: ber1-store-a
     #     address: 10.10.0.11
     nodes: []

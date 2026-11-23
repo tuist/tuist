@@ -582,6 +582,18 @@
 			"ip":  ["tcp:3100", "tcp:9009", "tcp:4318"],
 		},
 
+		// Production rack minis -> the racks' VM image cache, a zot registry on
+		// a rack storage node (rackFleet.imageCache), which their tart-kubelet
+		// pulls golden bases from. Over the tailnet because one site's minis
+		// have no route to the other site's machines segment until the
+		// inter-site link carries it. The hosts only: their pf refuses the
+		// VMs the tailnet range, and zot takes pushes from whoever reaches it.
+		{
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["tag:tuist-rack-node"],
+			"ip":  ["tcp:5000"],
+		},
+
 		// ---------------------------------------------------------------
 		// Humans.
 		// ---------------------------------------------------------------
@@ -1046,6 +1058,7 @@
 				"tag:tuist-k8s-production:8123",
 				"tag:tuist-k8s-production:4317",
 				"tag:tuist-k8s-production:3100",
+				"tag:tuist-rack-node:5000",
 			],
 			"deny": [
 				"tag:tuist-k8s-production:443",

@@ -28,8 +28,9 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   that overlay when its files are unchanged since that run.
 
   Both keep `Reported`'s guards: the test passed there, the tracked files
-  are the same (`context.validity`), and the evidence holds lines for every
-  file that counts.
+  are the same (`context.validity`; a module carried by hash isn't checked,
+  since the hash covers its build inputs), and the evidence holds lines for
+  every file that counts.
   """
   import Ecto.Query
 
@@ -57,8 +58,9 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   `Tuist.Tests.Coverage.ExcludedPaths` pattern), `blobs` (the blob of every
   file the commit's runs reported), `run_blobs` and `blobs_now`, functions
   from run ids to the blobs those runs reported and from paths to their
-  blobs at the commit, and `validity`, a function from a commit to `:ok` or
-  why its evidence doesn't hold here.
+  blobs at the commit, `validity`, a function from a commit to `:ok` or
+  why its evidence doesn't hold here, and `only_hashed`, true when the commit's own tracked-file change leaves only
+  modules carried by their hash to carry.
   """
   def units(%{repository_id: repository_id}, _skipped) when repository_id in [nil, 0], do: {[], %{}}
 
@@ -68,7 +70,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     {target_units, target_reasons} = in_hits |> Enum.group_by(& &1.module_name) |> target_units(context, hashes)
     carried_modules = MapSet.new(target_units, & &1.module)
     rest = others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name))
-    {test_units, test_reasons} = test_units(rest, context)
+    {test_units, test_reasons} = test_units(rest, context, target_reasons)
     {target_units ++ test_units, Map.merge(target_reasons, test_reasons)}
   end
 
@@ -275,7 +277,8 @@ defmodule Tuist.TestImpactAnalysis.Carry do
 
     failed = failed_modules(context.project.id, units)
     {failing, units} = Enum.split_with(units, &MapSet.member?(failed, {&1.snapshot_id, &1.module}))
-    {kept, reasons} = guard(units, context)
+    # The hash is trusted for every build input, so no tracked file is compared.
+    {kept, reasons} = guard(units, context, fn _sha -> :ok end)
     {kept, Map.merge(Map.new(failing, &{&1.key, :test_failed}), reasons)}
   end
 
@@ -357,9 +360,22 @@ defmodule Tuist.TestImpactAnalysis.Carry do
 
   # Tests
 
-  defp test_units([], _context), do: {[], %{}}
+  defp test_units([], _context, _target_reasons), do: {[], %{}}
 
-  defp test_units(tests, context) do
+  # The commit changed a tracked file and only targets skipped by their hash
+  # carry: every test's evidence predates the change, so none is read, and a test is a gap
+  # for its target's reason, or for the change.
+  defp test_units(tests, %{only_hashed: true}, target_reasons) do
+    {[],
+     for(
+       test <- tests,
+       !Map.has_key?(target_reasons, {:module, test.module_name}),
+       into: %{},
+       do: {test.test_case_id, :tracked_file_changed}
+     )}
+  end
+
+  defp test_units(tests, context, _target_reasons) do
     baseline = baseline_results(tests, context)
     from_overlays = baseline |> Enum.reject(&match?({_test, {{:ok, _unit}, _ran_at}}, &1)) |> overlay_results(context)
 
@@ -372,7 +388,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
         end
       end)
 
-    {kept, guard_reasons} = guard(units, context)
+    {kept, guard_reasons} = guard(units, context, context.validity)
     {kept, Map.merge(reasons, guard_reasons)}
   end
 
@@ -572,11 +588,12 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   end
 
   # The units whose source still applies: its tracked files are the same as
-  # the commit's, and its evidence holds lines for every file that counts.
-  defp guard([], _context), do: {[], %{}}
+  # the commit's as far as `validity` compares them, and its evidence holds
+  # lines for every file that counts.
+  defp guard([], _context, _validity), do: {[], %{}}
 
-  defp guard(units, context) do
-    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, context.validity.(&1)})
+  defp guard(units, context, validity) do
+    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, validity.(&1)})
     unlined = unlined(context, units)
 
     Enum.reduce(units, {[], %{}}, fn unit, {kept, reasons} ->

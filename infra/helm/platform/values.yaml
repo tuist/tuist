@@ -776,6 +776,47 @@ kura-ber1-runners-ingress-nginx:
     metrics:
       enabled: true
 
+# Larch's runner-cache gateway, on larch's storage node: the same shape as
+# alder's above, deployed by the same rack-cache-gateways release.
+kura-larch-runners-ingress-nginx:
+  enabled: false
+  fullnameOverride: kura-larch-runners-ingress-nginx
+  controller:
+    image: *ingressNginxControllerImage
+    enableAnnotationValidations: false
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: Default
+    electionID: kura-larch-runners-ingress-nginx-leader
+    ingressClass: kura-larch-runners
+    ingressClassResource:
+      name: kura-larch-runners
+      controllerValue: k8s.io/kura-larch-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-larch-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: rack-storage-larch
+    tolerations:
+      - key: tuist.dev/rack-storage
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true
+
 # Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
 cacheDNS:
   enabled: false

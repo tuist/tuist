@@ -20,14 +20,14 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | feed-b |  | larch-store-a | psu-2 | power | feed | installed |
 | feed-b |  | larch-tor-a | psu-2 | power | feed | installed |
 | feed-b |  | larch-tor-b | psu-2 | power | feed | installed |
-| larch-ats-a |  | larch-pdu-a | inlet | power | power | planned |
-| larch-ats-b |  | larch-pdu-b | inlet | power | power | planned |
+| larch-ats-a |  | larch-pdu-a | inlet | power | power | installed |
+| larch-ats-b |  | larch-pdu-b | inlet | power | power | installed |
 | larch-tor-a | 1 | larch-runner-a01 | en0 | copper | data | installed |
 | larch-tor-a | 2 | larch-runner-a02 | en0 | copper | data | installed |
 | larch-tor-a | 3 | larch-runner-a03 | en0 | copper | data | installed |
 | larch-tor-a | 4 | larch-runner-a04 | en0 | copper | data | installed |
 | larch-tor-a | 5 | larch-runner-a05 | en0 | copper | data | installed |
-| larch-tor-a | 23 | larch-pdu-b | netpack | copper | management | planned |
+| larch-tor-a | 23 | larch-pdu-b | netpack | copper | management | installed |
 | larch-tor-a | 24 | larch-ats-b | netpack | copper | management | installed |
 | larch-tor-a | 25 | larch-tor-b |  | dac | isl | installed |
 | larch-tor-a | 26 | larch-tor-b |  | dac | isl | installed |
@@ -43,7 +43,7 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | larch-tor-b | 5 | larch-runner-b05 | en0 | copper | data | installed |
 | larch-tor-b | 21 | larch-edge-a | bmc | copper | management | planned |
 | larch-tor-b | 22 | larch-store-a | bmc | copper | management | installed |
-| larch-tor-b | 23 | larch-pdu-a | netpack | copper | management | planned |
+| larch-tor-b | 23 | larch-pdu-a | netpack | copper | management | installed |
 | larch-tor-b | 24 | larch-ats-a | netpack | copper | management | installed |
 | larch-tor-b | 25 | larch-tor-a |  | dac | isl | installed |
 | larch-tor-b | 26 | larch-tor-a |  | dac | isl | installed |
