@@ -523,6 +523,17 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
       "stale" => put_in(node.admission["observed_at"], stale),
       "denied" => put_in(node.admission["allow"], false),
       "replaced" => put_in(node.admission["node_uid"], "old-node-uid"),
+      # What tart-kubelet forwards for a Node without a grant annotation.
+      "ungranted" => %{
+        node
+        | admission: %{
+            "node_uid" => "",
+            "control_uid" => "",
+            "observed_at" => "0001-01-01T00:00:00Z",
+            "allow" => false,
+            "slots" => 0
+          }
+      },
       "full" => put_in(node.admission["slots"], 0)
     }
 
@@ -536,6 +547,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
                "stale" => :grant_stale,
                "denied" => :grant_denied,
                "replaced" => :grant_mismatch,
+               "ungranted" => :no_grant,
                "full" => :no_room
              }}} = Capacity.admission(environment, "new-session")
 
