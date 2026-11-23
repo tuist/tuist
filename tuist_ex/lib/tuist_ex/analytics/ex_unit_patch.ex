@@ -53,13 +53,21 @@ defmodule TuistEx.Analytics.ExUnitPatch do
   end
 
   defp replace(module, original, marker, overrides, definitions, exports) do
+    # A deprecated function is called through `apply/3`: a direct call would
+    # print ExUnit's deprecation warning whenever the module is replaced.
+    deprecated = MapSet.new(module.__info__(:deprecated), &elem(&1, 0))
+
     delegates =
       for {name, arity} <- exports, {name, arity} not in overrides do
         args = Macro.generate_arguments(arity, __MODULE__)
 
+        call =
+          if MapSet.member?(deprecated, {name, arity}),
+            do: quote(do: apply(unquote(original), unquote(name), unquote(args))),
+            else: quote(do: unquote(original).unquote(name)(unquote_splicing(args)))
+
         quote do
-          def unquote(name)(unquote_splicing(args)),
-            do: unquote(original).unquote(name)(unquote_splicing(args))
+          def unquote(name)(unquote_splicing(args)), do: unquote(call)
         end
       end
 
