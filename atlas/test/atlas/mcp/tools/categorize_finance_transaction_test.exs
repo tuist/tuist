@@ -4,6 +4,7 @@ defmodule Atlas.MCP.Tools.CategorizeFinanceTransactionTest do
   import Atlas.FinanceFixtures
 
   alias Atlas.Audit.Activity
+  alias Atlas.Finance.Category
   alias Atlas.Finance.Transaction
   alias Atlas.MCP.Tools.CategorizeFinanceTransaction
 
@@ -82,6 +83,39 @@ defmodule Atlas.MCP.Tools.CategorizeFinanceTransactionTest do
 
     assert message =~ "not found"
     assert message =~ financing.slug
+  end
+
+  test "creates a broad category by name when none fits, then reuses it", %{wire: wire} do
+    name =
+      "Investor Funding #{System.unique_integer([:positive]) |> Integer.to_string(36) |> String.replace(~r/\d/, "x")}"
+
+    assert {:ok, first} =
+             execute_tool(CategorizeFinanceTransaction, executive_mcp_conn(), %{
+               "transaction_id" => wire.id,
+               "new_category_name" => name,
+               "affects_runway" => false
+             })
+
+    assert first.category.name == name
+    assert Repo.get!(Category, first.category.id).direction == "credit"
+
+    assert {:ok, second} =
+             execute_tool(CategorizeFinanceTransaction, executive_mcp_conn(), %{
+               "transaction_id" => wire.id,
+               "new_category_name" => name
+             })
+
+    assert second.category.id == first.category.id
+  end
+
+  test "rejects a category name too narrow to reuse", %{wire: wire} do
+    assert {:error, message} =
+             execute_tool(CategorizeFinanceTransaction, executive_mcp_conn(), %{
+               "transaction_id" => wire.id,
+               "new_category_name" => "Indie Fund Wire 2026"
+             })
+
+    assert message =~ "must not include numbers"
   end
 
   test "rejects users without the finance:write scope", %{wire: wire, financing: financing} do

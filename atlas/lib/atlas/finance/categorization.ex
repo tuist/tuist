@@ -153,7 +153,7 @@ defmodule Atlas.Finance.Categorization do
   def recategorize_transaction(transaction_id, attrs) do
     with {:ok, transaction_id} <- Ecto.UUID.cast(transaction_id),
          %Transaction{} = transaction <- Repo.get(Transaction, transaction_id),
-         {:ok, category} <- fetch_category(attrs),
+         {:ok, category} <- fetch_category(attrs, transaction.direction),
          :ok <- validate_category_direction(transaction, category) do
       changes =
         %{
@@ -210,7 +210,7 @@ defmodule Atlas.Finance.Categorization do
 
   def apply_runway_override(%Transaction{} = transaction), do: {:ok, transaction}
 
-  defp fetch_category(%{category_id: id}) when is_binary(id) do
+  defp fetch_category(%{category_id: id}, _direction) when is_binary(id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          %Category{} = category <- Repo.get(Category, uuid) do
       {:ok, category}
@@ -219,14 +219,41 @@ defmodule Atlas.Finance.Categorization do
     end
   end
 
-  defp fetch_category(%{category_slug: slug}) when is_binary(slug) do
+  defp fetch_category(%{category_slug: slug}, _direction) when is_binary(slug) do
     case Repo.get_by(Category, slug: Category.slugify(slug)) do
       %Category{} = category -> {:ok, category}
       nil -> {:error, {:category_not_found, slug}}
     end
   end
 
-  defp fetch_category(_attrs), do: {:error, :category_required}
+  defp fetch_category(%{new_category_name: name} = attrs, direction) when is_binary(name) do
+    case Repo.get_by(Category, slug: Category.slugify(name)) do
+      %Category{} = category -> {:ok, category}
+      nil -> insert_category(name, attrs[:new_category_description], direction)
+    end
+  end
+
+  defp fetch_category(_attrs, _direction), do: {:error, :category_required}
+
+  defp insert_category(name, description, direction) do
+    %Category{}
+    |> Category.changeset(%{name: name, description: description, direction: direction})
+    |> Repo.insert()
+    |> case do
+      {:ok, category} = success ->
+        Audit.record("finance_category.created", %{
+          target_type: "finance_category",
+          target_id: category.id,
+          target_label: category.name,
+          metadata: %{"path" => "/finance", "slug" => category.slug, "direction" => category.direction}
+        })
+
+        success
+
+      error ->
+        error
+    end
+  end
 
   defp put_runway_override(changes, transaction, attrs) do
     case Map.fetch(attrs, :affects_runway) do

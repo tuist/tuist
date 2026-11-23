@@ -21,6 +21,15 @@ defmodule Atlas.MCP.Tools.CategorizeFinanceTransaction do
           "type" => "string",
           "description" => "ID of the category to assign. Use instead of category_slug."
         },
+        "new_category_name" => %{
+          "type" => "string",
+          "description" =>
+            "Name of a broad reusable category to use when no existing category fits, for example Financing. Reuses the category when one with that name already exists; otherwise creates it with the transaction's direction."
+        },
+        "new_category_description" => %{
+          "type" => "string",
+          "description" => "Short description for a category created from new_category_name."
+        },
         "affects_runway" => %{
           "type" => ["boolean", "null"],
           "description" =>
@@ -90,6 +99,8 @@ defmodule Atlas.MCP.Tools.CategorizeFinanceTransaction do
         %{
           category_id: args["category_id"],
           category_slug: args["category_slug"],
+          new_category_name: args["new_category_name"],
+          new_category_description: args["new_category_description"],
           reason: args["reason"]
         }
         |> maybe_put_runway(args)
@@ -102,7 +113,7 @@ defmodule Atlas.MCP.Tools.CategorizeFinanceTransaction do
           {:error, "Finance transaction #{transaction_id} not found. Find its ID with list_finance_transactions."}
 
         {:error, :category_required} ->
-          {:error, "Pass category_slug or category_id. Valid slugs: #{category_slugs()}."}
+          {:error, "Pass category_slug, category_id, or new_category_name. Valid slugs: #{category_slugs()}."}
 
         {:error, {:category_not_found, value}} ->
           {:error, "Finance category #{value} not found. Valid slugs: #{category_slugs()}."}
