@@ -45,6 +45,10 @@ import TuistSupport
                 throw stubbedDownloadErrors.removeFirst()
             }
         }
+
+        public func downloadInParallel(url: URL, to destination: AbsolutePath) async throws {
+            try await download(url: url, to: destination)
+        }
     }
 
     /// A failure carrying the status code of the response that caused it.
