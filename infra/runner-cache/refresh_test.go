@@ -354,3 +354,63 @@ func TestRefreshKeepsADownloadThatProgressesPastFiveMinutes(t *testing.T) {
 		}
 	})
 }
+
+// A lineage published every few minutes would otherwise be downloaded at every
+// generation by every host that used it once that day.
+func TestRefreshedMasterIsNotRefreshedAgainUntilAJobClonesIt(t *testing.T) {
+	for _, kind := range []string{"refreshed", "spare", KindDocker} {
+		t.Run(kind, func(t *testing.T) {
+			b, remote := newRefreshing(t)
+			scope := strings.Repeat("a", 64)
+			usedAt := time.Now().Add(-10 * time.Minute)
+			stale := installMaster(t, b, first, scope, 1, usedAt)
+			if kind == KindDocker {
+				stale.Kind = KindDocker
+				if err := b.recordMaster(stale, b.master(stale)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			at := func(generation int64) Slot {
+				slot := stale
+				slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = generation, head(generation).ImageDigest, head(generation).ContentDigest
+				return slot
+			}
+			if kind == "spare" {
+				if err := os.WriteFile(b.master(stale)+".spare", nil, 0600); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				remote.heads[scope] = head(2)
+				if err := b.Maintain(); err != nil {
+					t.Fatal(err)
+				}
+				eventually(t, func() bool { return exists(b.master(at(2))) && !exists(b.master(stale)) })
+				stale = at(2)
+			}
+			before := len(remote.downloads())
+			remote.heads[scope] = head(3)
+			if err := b.Maintain(); err != nil {
+				t.Fatal(err)
+			}
+			if kind == KindDocker {
+				eventually(t, func() bool { return exists(b.master(at(3))) && !exists(b.master(stale)) })
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+			if len(remote.downloads()) != before || !exists(b.master(stale)) {
+				t.Fatal("refreshed a master no job cloned, or removed it", remote.downloads())
+			}
+			if !b.HoldsLineage(at(3).Identity) {
+				t.Fatal("listing would download the HEAD beside the kept older copy")
+			}
+			markUsed(b.master(stale))
+			if err := b.Maintain(); err != nil {
+				t.Fatal(err)
+			}
+			eventually(t, func() bool { return exists(b.master(at(3))) && !exists(b.master(stale)) })
+			if len(remote.downloads()) != before+1 {
+				t.Fatal("downloads", remote.downloads())
+			}
+		})
+	}
+}

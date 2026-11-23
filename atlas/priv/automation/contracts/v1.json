@@ -104,6 +104,7 @@
     "edit_stripe_draft_invoice": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "list_error_alert_rules": "Alert control-plane inspection requires an explicitly versioned Engineering-scoped workflow adapter before enrollment.",
     "delete_moodboard_comment": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "categorize_finance_transaction": "Manual bookkeeping correction that overrides agent categorization and runway treatment; it needs a person's judgment per transaction and is not a generic workflow capability.",
     "finance_add_transaction_attachment": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "assign_time_off_location": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "search_moodboard_resources": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",

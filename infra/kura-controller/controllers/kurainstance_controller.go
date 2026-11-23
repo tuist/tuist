@@ -3862,12 +3862,38 @@ type dataVolumeReplacement struct {
 	reason  string
 }
 
+// A shrunk claim's volume is rebuilt only when the surplus is worth emptying a
+// replica for: at least 8 GiB and a quarter of the declared claim, so a 48Gi
+// volume under a 30Gi claim is rebuilt and an 8Gi one under a 6Gi claim is not.
+const (
+	shrinkRebuildMinSurplusBytes   = int64(8 << 30)
+	shrinkRebuildMinSurplusPercent = int64(25)
+)
+
+// oversizedClaim reports whether a bound claim exceeds the declared one by
+// enough to rebuild it at the declared size.
+func oversizedClaim(bound, desired resource.Quantity) bool {
+	surplus := bound.Value() - desired.Value()
+	return surplus >= shrinkRebuildMinSurplusBytes && surplus*100 >= desired.Value()*shrinkRebuildMinSurplusPercent
+}
+
 // dataVolumesToReplace returns, in ordinal order, the instance's data claims
-// the declared storage no longer fits: below the declared size, or on a
-// storage class other than the declared one. It also reports whether any claim
-// is already being deleted, which is a rebuild still in flight.
+// the declared storage no longer fits: below the declared size, on a storage
+// class other than the declared one, or on `tuist.dev/kura-disk` far enough
+// above the declared size to be worth handing back. It also reports whether
+// any claim is already being deleted, which is a rebuild still in flight.
+//
+// A shrink reaches the volumes only on kura-disk, where a bound volume holds
+// real disk past the shrink: a thin volume keeps the shared template reserving
+// its old ceiling (templateDiskReservation), and an LVM volume keeps its full
+// size in the node's volume group. Legacy local-path volumes hold only their
+// quota, and their pods already reserve the spec. A rebuild empties one
+// replica, so a single live replica keeps its volume. A positively fenced
+// instance keeps it too: it rebuilds only standbys, and the holder's larger
+// volume would keep the shared template reserving the old size anyway.
 func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, instance *kurav1alpha1.KuraInstance, desired resource.Quantity) ([]dataVolumeReplacement, bool, error) {
 	desiredClass := instance.Spec.StorageClassName
+	shrinkRebuilds := diskResource(instance) == kuraDiskResource && replicas(instance) >= 2 && !fencedServing(instance)
 	var replacements []dataVolumeReplacement
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
 		pvc := &corev1.PersistentVolumeClaim{}
@@ -3900,7 +3926,8 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 				continue
 			}
 		}
-		if bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok && bound.Cmp(desired) < 0 {
+		bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		if ok && (bound.Cmp(desired) < 0 || (shrinkRebuilds && oversizedClaim(bound, desired))) {
 			replacements = append(replacements, dataVolumeReplacement{
 				ordinal: ordinal, claim: pvc,
 				reason: fmt.Sprintf("size %s, declared %s", bound.String(), desired.String()),

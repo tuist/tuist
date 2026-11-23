@@ -33,6 +33,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CancelChatGPTProviderLogin
   alias Atlas.MCP.Tools.CancelHoliday
   alias Atlas.MCP.Tools.CancelInsurancePolicy
+  alias Atlas.MCP.Tools.CategorizeFinanceTransaction
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
   alias Atlas.MCP.Tools.ClaimNudge
@@ -449,6 +450,7 @@ defmodule Atlas.MCP.Server do
     EditStripeDraftInvoice,
     FinanceGetTransaction,
     FinanceListTransactionAttachments,
+    CategorizeFinanceTransaction,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment
   ]
@@ -725,6 +727,7 @@ defmodule Atlas.MCP.Server do
     ListEmailInbox,
     ListEmailOutbox,
     GetSentEmail,
+    CategorizeFinanceTransaction,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment,
     FinanceGetTransaction,

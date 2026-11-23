@@ -53,6 +53,19 @@ defmodule Tuist.Sandboxes.Schemas do
           description: "When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`."
         },
         archive_bytes: %Schema{type: :integer, nullable: true, description: "Size of the stored archive in bytes."},
+        lifetime_seconds: %Schema{
+          type: :integer,
+          nullable: true,
+          description:
+            "How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire."
+        },
+        expires_at: %Schema{
+          type: :string,
+          format: "date-time",
+          nullable: true,
+          description:
+            "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+        },
         error_message: %Schema{type: :string, nullable: true},
         inserted_at: %Schema{type: :string, format: "date-time"},
         updated_at: %Schema{type: :string, format: "date-time"}
@@ -87,17 +100,30 @@ defmodule Tuist.Sandboxes.Schemas do
     }
   end
 
-  @doc "What a sandbox is created with: its shape and, on Linux, the CPU it is guaranteed."
+  @doc "What a sandbox is created with: its shape, its lifetime and, on Linux, the CPU it is guaranteed."
   def create do
     choices = Enum.map(Sandbox.guaranteed_cpu_choices(), &Sandbox.vcpus/1)
 
-    Map.put(shape(), :guaranteed_vcpus, %Schema{
+    shape()
+    |> Map.put(:lifetime_seconds, lifetime())
+    |> Map.put(:guaranteed_vcpus, %Schema{
       type: :number,
       minimum: List.first(choices),
       maximum: List.last(choices),
       description:
         "Linux only: the vCPUs the sandbox is guaranteed while it runs, whatever the rest of its node does: #{Enum.join(choices, ", ")}. It is guaranteed a quarter vCPU per GiB of memory without one, and the larger of the two with one. It bursts into idle cores past its guarantee up to its 16 vCPUs, and is billed for at least its guarantee. A sandbox keeps its guarantee for life."
     })
+  end
+
+  @doc "A sandbox lifetime in seconds, for create and extend."
+  def lifetime do
+    %Schema{
+      type: :integer,
+      minimum: 300,
+      maximum: Sandbox.max_lifetime_seconds(),
+      description:
+        "How long the sandbox may run, in seconds, from now and again after each resume: #{div(Sandbox.default_lifetime_seconds(), 3600)} hours by default, at most #{div(Sandbox.max_lifetime_seconds(), 3600)}. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac."
+    }
   end
 
   def pagination do
@@ -190,6 +216,16 @@ defmodule Tuist.Sandboxes.Schemas do
             description:
               "macOS only: the github.com repository (`owner/name`) the sandbox is for, connected to one of the account's projects. When a Linux Claude Code environment of the account has a macOS setup script, the sandbox boots from that repository's snapshot for its Xcode, with the default branch cloned to `$HOME/work/<name>`, the script run and the project built there, so the first `tuist sandbox sync` sends only what changed. Without a snapshot it boots bare and one is built for the next sandbox."
           })
+
+        :extend ->
+          %{
+            sandbox_id: %Schema{type: :string, format: "uuid"},
+            lifetime_seconds: %{
+              lifetime()
+              | description:
+                  "The new lifetime, in seconds from now, at most #{div(Sandbox.max_lifetime_seconds(), 3600)} hours. Omitted, the sandbox's current lifetime starts again."
+            }
+          }
 
         _ ->
           %{sandbox_id: %Schema{type: :string, format: "uuid"}}

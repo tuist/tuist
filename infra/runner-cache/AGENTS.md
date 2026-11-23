@@ -272,7 +272,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   attaching that lineage meanwhile clones the stale master. Maintenance and
   admission skip the scope a refresh is downloading. Only a
   master the refresh installed under the scope lock inherits the stale master's
-  last use. macOS leaves `RefreshWithin` zero: refreshes use LocalImages admission,
+  last use. A refreshed master (`<master>.refreshed`) or a speculative one is not
+  refreshed again until a job clones it (`markUsed` clears both): it stays as the
+  lineage's older copy, the next job mounts it and prefetches the HEAD, and the
+  listing counts it as held (`HoldsLineage`). Otherwise a lineage saved every
+  20-30 minutes was downloaded at every generation by every host that used it
+  once that day (tuist-gradle heads of 10-22 GB on 9 of 10 hosts, 2026-11-20).
+  Docker masters keep following the HEAD, since an older Docker copy cannot
+  publish without a merge. macOS leaves `RefreshWithin` zero: refreshes use LocalImages admission,
   not APFS reservations.
   Maintenance validates every master even when one lineage cannot be reached.
 

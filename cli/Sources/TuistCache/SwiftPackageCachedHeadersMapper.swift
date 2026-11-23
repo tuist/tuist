@@ -99,10 +99,14 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
             if let moduleMap = metadata.moduleMap, let mapPath = try searchPath(moduleMap) {
                 // Explicit loading supports multiple top-level modules and names different from
                 // the artifact, and does not discover a sibling target's processed copy.
-                let flag = "-fmodule-map-file=\"\(mapPath)\""
+                var flags = ["-fmodule-map-file=\"\(mapPath)\""]
+                // Clang reports a quoted include, such as SDWebImage's `#import "SDWebImageCompat.h"`, in any header
+                // under a framework. Built from source, package headers are not in one, so consumers keep the
+                // diagnostics they had instead of failing when they treat warnings as errors.
+                if slice.directory.extension == "framework" { flags.append("-Wno-quoted-include-in-framework-header") }
                 result = result.combine(with: [
-                    "OTHER_CFLAGS[\(slice.sdk)]": .array([flag]),
-                    "OTHER_SWIFT_FLAGS[\(slice.sdk)]": .array(["-Xcc", flag]),
+                    "OTHER_CFLAGS[\(slice.sdk)]": .array(flags),
+                    "OTHER_SWIFT_FLAGS[\(slice.sdk)]": .array(flags.flatMap { ["-Xcc", $0] }),
                 ])
             }
         }

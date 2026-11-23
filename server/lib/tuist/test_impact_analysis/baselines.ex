@@ -14,8 +14,8 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   window (`window_commits`) and the diff's 5,000-file limit bound it.
 
   A checkpoint is of the scope when it's on the requested platform (empty
-  matches runs that recorded none) and of the requested scheme (any scheme
-  when absent). A checkpoint holds every full run of its scope at the
+  matches runs that recorded none, `:any` every platform) and of the
+  requested scheme (any scheme when absent). A checkpoint holds every full run of its scope at the
   commit, so tests without evidence are in it and selected as
   `no_evidence`, as Swift Testing tests and targets that don't link
   TestCoverageAttribution always are.
@@ -50,13 +50,20 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   the list, which is exact for linear history and approximate across
   merges), `platform` and `scheme`. With `baseline_sha:` only that commit
   can be the baseline: what the runs request uses to find the checkpoint of
-  the baseline the client diffed against.
+  the baseline the client diffed against. With `ancestors_only: true` the
+  checked-out commit itself can't be: what coverage carry uses, whose fold
+  may already have written the commit's own checkpoint.
   """
   def resolve(%Project{} = project, scope, opts \\ []) do
     commit_sha = Map.fetch!(scope, :commit_sha)
     parent_shas = Map.get(scope, :parent_shas) || []
     ancestor_shas = scope |> Map.get(:ancestor_shas) |> List.wrap() |> Enum.take(@max_ancestor_shas)
-    scope = %{platform: Map.get(scope, :platform) || "", scheme: Map.get(scope, :scheme)}
+
+    scope = %{
+      platform: Map.get(scope, :platform) || "",
+      scheme: Map.get(scope, :scheme),
+      ancestors_only: Keyword.get(opts, :ancestors_only, false)
+    }
 
     case starts(project, commit_sha, parent_shas, ancestor_shas) do
       {:error, reason} ->
@@ -124,6 +131,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     ancestors = ancestors(repository_id, starts, depth)
     exhausted = deeper == [] or Enum.all?(ancestors, fn {_sha, d} -> d < depth end)
     candidates = if fixed, do: Enum.filter(ancestors, &(elem(&1, 0) == fixed)), else: ancestors
+    candidates = if scope.ancestors_only, do: Enum.reject(candidates, &(elem(&1, 1) == 0)), else: candidates
     checkpoints = checkpoints(project.id, repository_id, Enum.map(candidates, &elem(&1, 0)), scope)
 
     case Enum.find(candidates, &Map.has_key?(checkpoints, elem(&1, 0))) do
@@ -168,11 +176,12 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
       from(s in Snapshot,
         where:
           s.project_id == ^project_id and s.repository_id == ^repository_id and s.kind == :checkpoint and
-            s.commit_sha in ^shas and s.platform == ^scope.platform and s.expires_at > ^DateTime.utc_now(),
+            s.commit_sha in ^shas and s.expires_at > ^DateTime.utc_now(),
         order_by: [asc: s.ran_at, asc: s.inserted_at]
       )
 
     query = if scope.scheme in [nil, ""], do: query, else: where(query, [s], s.scheme == ^scope.scheme)
+    query = if scope.platform == :any, do: query, else: where(query, [s], s.platform == ^scope.platform)
     query |> Repo.all() |> Map.new(&{&1.commit_sha, &1})
   end
 end

@@ -6,6 +6,7 @@ defmodule Atlas.Finance.Sync do
   alias Atlas.Accounts.Account, as: AtlasAccount
   alias Atlas.Audit
   alias Atlas.Finance.Account
+  alias Atlas.Finance.Categorization
   alias Atlas.Finance.Config
   alias Atlas.Finance.PaymentDetection
   alias Atlas.Finance.Providers.Helpers
@@ -288,8 +289,11 @@ defmodule Atlas.Finance.Sync do
       returning: true
     )
     |> case do
-      {:ok, transaction} -> {:ok, transaction, new?}
-      {:error, reason} -> {:error, reason}
+      {:ok, transaction} ->
+        with {:ok, transaction} <- Categorization.apply_runway_override(transaction), do: {:ok, transaction, new?}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

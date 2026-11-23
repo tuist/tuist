@@ -16,8 +16,10 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.UsageEvent
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
 
@@ -1344,6 +1346,162 @@ defmodule Tuist.SandboxesTest do
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:error, "jailer exited with status 1"} end)
 
       assert {:error, "jailer exited with status 1"} = Sandboxes.create_sandbox(account, %{}, cache: cache)
+    end
+  end
+
+  describe "lifetimes" do
+    defp ago(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
+
+    test "extend/2 starts the lifetime again, with a new length when given, up to a day" do
+      sandbox = sandbox_fixture(state: :running, lifetime_seconds: 7200, expires_at: ago(60))
+
+      assert {:ok, %Sandbox{lifetime_seconds: 7200, expires_at: expires_at}} = Sandboxes.extend(sandbox, nil)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 7200, 5
+
+      assert {:ok, %Sandbox{lifetime_seconds: 86_400, expires_at: expires_at}} = Sandboxes.extend(sandbox, 86_400)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 86_400, 5
+
+      assert {:error, %Ecto.Changeset{}} = Sandboxes.extend(sandbox, 86_401)
+      assert %Sandbox{lifetime_seconds: 86_400} = Repo.reload!(sandbox)
+    end
+
+    test "extend/2 refuses a sandbox an integration owns" do
+      orb = sandbox_fixture(state: :running, amp_orb_id: "orb-1")
+      assert {:error, :no_lifetime} = Sandboxes.extend(orb, 3600)
+    end
+
+    test "expire_sandboxes/0 pauses expired running sandboxes and leaves the rest alone" do
+      account = account_fixture()
+      expired = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(10))
+      live = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(-600))
+      unbounded = sandbox_fixture(account: account, node_name: "node-a")
+      # Integrations own these, even with a stray expiry.
+      orb = sandbox_fixture(account: account, node_name: "node-a", amp_orb_id: "orb-1", expires_at: ago(10))
+
+      expired_id = expired.id
+
+      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^expired_id}, _opts -> {:ok, %{}} end)
+
+      Sandboxes.expire_sandboxes()
+
+      assert %Sandbox{state: :paused} = Repo.reload!(expired)
+      for sandbox <- [live, unbounded, orb], do: assert(%Sandbox{state: :running} = Repo.reload!(sandbox))
+    end
+
+    test "expire_sandboxes/0 cancels a running command with a note, pauses, and a read does not resume it" do
+      account = account_fixture()
+      busy = sandbox_fixture(account: account, node_name: "node-a", lifetime_seconds: 300, expires_at: ago(10))
+
+      command =
+        Repo.insert!(%SandboxCommand{
+          id: Ecto.UUID.generate(),
+          sandbox_id: busy.id,
+          account_id: account.id,
+          command: "xcodebuild",
+          status: :running,
+          deadline_at: DateTime.truncate(ago(-3600), :second)
+        })
+
+      busy_id = busy.id
+      command_id = command.id
+
+      expect(Nodes, :call, 2, fn
+        "node-a", "exec", %{sandbox_id: ^busy_id, env: %{"TUIST_COMMAND_ID" => ^command_id} = env}, _opts ->
+          assert env["TUIST_REASON"] == "cancelled"
+          assert env["TUIST_NOTE"] =~ "lifetime ended"
+          {:ok, %{"exit_code" => 0}}
+
+        "node-a", "pause", %{sandbox_id: ^busy_id}, _opts ->
+          {:ok, %{}}
+      end)
+
+      Sandboxes.expire_sandboxes()
+
+      assert %Sandbox{state: :paused} = paused = Repo.reload!(busy)
+      assert %SandboxCommand{status: :cancelled} = Repo.reload!(command)
+
+      # The client's next read answers from the row instead of resuming the sandbox.
+      reject(&Nodes.call/4)
+      assert {:ok, %{status: "cancelled", complete: true}} = Tuist.Sandboxes.Commands.read(paused, command_id)
+    end
+
+    test "expire_sandboxes/0 archives an expired paused Mac once its host evicted it" do
+      paused_at = ago(120)
+
+      evicted =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :paused,
+          paused_at: paused_at,
+          resident: false,
+          expires_at: ago(60),
+          lifetime_seconds: 300
+        )
+
+      resident =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :paused,
+          paused_at: paused_at,
+          resident: true,
+          expires_at: ago(60),
+          lifetime_seconds: 300
+        )
+
+      reject(&Nodes.call/4)
+      Sandboxes.expire_sandboxes()
+
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: evicted.id})
+      refute_enqueued(worker: ArchiveSandboxesWorker, args: %{sandbox_id: resident.id})
+    end
+
+    test "a resume starts a new lifetime" do
+      sandbox =
+        sandbox_fixture(
+          state: :paused,
+          node_name: "node-a",
+          paused_at: ago(600),
+          lifetime_seconds: 3600,
+          expires_at: ago(300)
+        )
+
+      stub(Capacity, :admit, fn sandbox -> {:ok, sandbox} end)
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+
+      assert {:ok, %Sandbox{state: :running, expires_at: expires_at}} = Sandboxes.resume(sandbox)
+      assert_in_delta DateTime.diff(expires_at, DateTime.utc_now()), 3600, 5
+    end
+
+    test "a Mac's guest CPU does not extend its session, but an Orb's does" do
+      quiet_since = DateTime.truncate(ago(100), :second)
+
+      mac =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :running,
+          node_name: "mac-a",
+          guest_cpu_ms: 1000,
+          last_active_at: quiet_since
+        )
+
+      orb =
+        sandbox_fixture(
+          platform: :darwin,
+          state: :running,
+          node_name: "mac-a",
+          amp_orb_id: "orb-1",
+          guest_cpu_ms: 1000,
+          last_active_at: quiet_since
+        )
+
+      report =
+        for sandbox <- [mac, orb], do: %{"id" => sandbox.id, "state" => "running", "cpu_ms" => 90_000, "resident" => true}
+
+      assert :ok = Sandboxes.reconcile_node_report("mac-a", %{"sandboxes" => report})
+
+      assert %Sandbox{last_active_at: ^quiet_since} = Repo.reload!(mac)
+      assert %Sandbox{last_active_at: active_at} = Repo.reload!(orb)
+      assert DateTime.after?(active_at, quiet_since)
     end
   end
 end

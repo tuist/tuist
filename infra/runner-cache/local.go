@@ -588,6 +588,7 @@ func speculative(master string) bool {
 func markUsed(master string) {
 	_ = os.Chtimes(master, time.Now(), time.Now())
 	_ = os.Remove(master + ".spare")
+	_ = os.Remove(master + refreshedSuffix)
 }
 
 func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err error) {
@@ -1314,6 +1315,16 @@ func (b *LocalImages) HasMaster(identity Identity) bool {
 	}
 	_, err := os.Stat(b.master(Slot{Identity: identity}))
 	return err == nil
+}
+
+// HoldsLineage reports whether this host holds the identity's master or an
+// older master of its lineage, which a job clones instead of starting empty.
+func (b *LocalImages) HoldsLineage(identity Identity) bool {
+	if b.HasMaster(identity) {
+		return true
+	}
+	older, _ := b.olderMaster(Slot{Identity: identity})
+	return older != ""
 }
 
 // Prefetch restores only a validated immutable master. It cannot mount a job's

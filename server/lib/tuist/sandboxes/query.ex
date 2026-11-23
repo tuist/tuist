@@ -16,7 +16,7 @@ defmodule Tuist.Sandboxes.Query do
 
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
-  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb)
+  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb lifetime_seconds)
   @capacity_wait_ms 25_000
   @creates_per_minute 10
 
@@ -50,6 +50,9 @@ defmodule Tuist.Sandboxes.Query do
   def run(:create, account, params) do
     attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
     attrs = put_guarantee(attrs, params["guaranteed_vcpus"])
+    # Sandboxes created here are the caller's to end; a lifetime ends the
+    # ones they forget (`Sandboxes.expire_sandboxes/0`).
+    attrs = Map.put_new(attrs, :lifetime_seconds, Sandbox.default_lifetime_seconds())
 
     with :ok <- limit_creates(account),
          {:ok, source} <- ClaudeCodeSnapshots.mac_source(account, params["repository"], attrs),
@@ -69,6 +72,13 @@ defmodule Tuist.Sandboxes.Query do
 
   def run(:pause, account, params), do: transition(account, params, &Sandboxes.pause/1)
   def run(:resume, account, params), do: transition(account, params, &resume_and_keep/1)
+
+  def run(:extend, account, params) do
+    with {:ok, found} <- find(account, params),
+         {:ok, extended} <- Sandboxes.extend(found, params["lifetime_seconds"]) do
+      {:ok, sandbox(extended)}
+    end
+  end
 
   def run(:archive, account, params) do
     with {:ok, found} <- find(account, params),
@@ -192,6 +202,11 @@ defmodule Tuist.Sandboxes.Query do
 
   defp describe(:stdin_closed), do: {:conflict, "stdin_closed", "The command's stdin is closed."}
 
+  defp describe(:no_lifetime),
+    do:
+      {:conflict, "no_lifetime",
+       "The sandbox has no lifetime to extend: it belongs to an integration, such as an Amp Orb or a Claude session, which ends it, or it was created before sandboxes had lifetimes."}
+
   defp describe(:stdin_offset_mismatch),
     do:
       {:conflict, "stdin_offset_mismatch",
@@ -260,7 +275,7 @@ defmodule Tuist.Sandboxes.Query do
   @doc "Every code `error/1` answers, for the API and MCP schemas."
   def error_codes,
     do:
-      ~w(invalid_state not_found invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved invalid_request node_rejected internal_error)
+      ~w(invalid_state not_found invalid_cwd invalid_parameters no_node account_limit rate_limited account_busy sandbox_busy invalid_command stdin_not_attached stdin_closed stdin_offset_mismatch locked no_lifetime command_id_taken fleet_busy host_busy_ci host_busy_full host_busy_no_grant host_not_connected host_replaced archive_unavailable node_not_connected node_disconnected node_timeout snapshot_not_saved invalid_request node_rejected internal_error)
 
   defp capacity_wait_ms,
     do: :tuist |> Application.get_env(__MODULE__, []) |> Keyword.get(:capacity_wait_ms, @capacity_wait_ms)
@@ -307,6 +322,8 @@ defmodule Tuist.Sandboxes.Query do
       :paused_at,
       :archived_at,
       :archive_bytes,
+      :lifetime_seconds,
+      :expires_at,
       :error_message,
       :inserted_at,
       :updated_at

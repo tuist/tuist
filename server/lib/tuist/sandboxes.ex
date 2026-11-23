@@ -1328,7 +1328,7 @@ defmodule Tuist.Sandboxes do
   defp running_or_resume(%Sandbox{state: :running} = sandbox), do: {:ok, sandbox}
 
   defp running_or_resume(%Sandbox{state: :paused} = sandbox) do
-    case do_resume(sandbox) do
+    case sandbox |> do_resume() |> start_lifetime() do
       # Its own node has no room for it (CI filling it or reserving it), and
       # a paused sandbox can only resume there until it is archived: queue
       # that, so a later resume restores it on any node with room. A resume
@@ -1343,8 +1343,16 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp running_or_resume(%Sandbox{state: :archived} = sandbox), do: restore(sandbox)
+  defp running_or_resume(%Sandbox{state: :archived} = sandbox), do: sandbox |> restore() |> start_lifetime()
   defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
+
+  # A sandbox with a lifetime runs at most that long after each resume, so
+  # one that expired and is used again gets a whole lifetime.
+  defp start_lifetime({:ok, %Sandbox{state: :running, lifetime_seconds: seconds} = sandbox}) when is_integer(seconds) do
+    sandbox |> Sandbox.lifetime_changeset(seconds) |> Repo.update()
+  end
+
+  defp start_lifetime(result), do: result
 
   defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
     started = System.monotonic_time(:millisecond)
@@ -1440,6 +1448,88 @@ defmodule Tuist.Sandboxes do
       end,
       wait: Keyword.get(opts, :wait, true)
     )
+  end
+
+  @doc """
+  Gives a sandbox with a lifetime (one created through the account API) a
+  new one, `seconds` from now, or its current length again when `seconds`
+  is nil. Answers `{:error, :no_lifetime}` for one without a lifetime, such
+  as an Amp Orb's or a Claude session's, whose integration ends it.
+  """
+  def extend(%Sandbox{id: id}, seconds) do
+    with_sandbox_lock(id, fn ->
+      with_fresh(id, fn
+        %Sandbox{lifetime_seconds: nil} ->
+          {:error, :no_lifetime}
+
+        %Sandbox{state: state} when state in [:deleted, :error] ->
+          {:error, {:invalid_state, state}}
+
+        %Sandbox{} = sandbox ->
+          sandbox |> Sandbox.lifetime_changeset(seconds || sandbox.lifetime_seconds) |> Repo.update()
+      end)
+    end)
+  end
+
+  @doc """
+  Ends the sandboxes whose lifetime ran out: a running one has its commands
+  cancelled, each with a note on its stderr, and is paused; a paused one has
+  its archive queued, which frees its disk and, on macOS, follows the host's
+  eviction of the paused VM. The limit is hard, as an agent extends a
+  sandbox it still needs (`extend/2`). The files survive: a resume restores
+  the sandbox and starts a new lifetime, and the 14-day retention deletes it
+  otherwise. Run every minute by `Workers.ExpireSandboxesWorker`.
+  """
+  @expired_note "tuist: the sandbox's lifetime ended, so this command was cancelled and the sandbox paused and archived with its files. Resuming it (any command does) starts a new lifetime; extend a sandbox before long work with `extend_sandbox` or `POST .../extend`."
+
+  def expire_sandboxes do
+    now = now()
+    # A failed upload is retried after the archive tier's own backoff.
+    retry_before = DateTime.add(now, -5, :minute)
+
+    from(s in Sandbox,
+      where:
+        s.expires_at <= ^now and is_nil(s.amp_orb_id) and is_nil(s.agent_environment_id) and
+          (s.state == :running or
+             (s.state == :paused and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+                (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before))),
+      order_by: [asc: s.expires_at],
+      limit: 100
+    )
+    |> Repo.all()
+    |> Enum.each(&expire/1)
+  end
+
+  defp expire(%Sandbox{state: :running, id: id}) do
+    result =
+      with_sandbox_lock(
+        id,
+        fn ->
+          with_fresh(id, fn
+            %Sandbox{state: :running, expires_at: %DateTime{} = at} = sandbox ->
+              if DateTime.after?(at, now()) do
+                {:ok, :skipped}
+              else
+                Commands.cancel_expired(sandbox, @expired_note)
+                do_pause(sandbox)
+              end
+
+            _sandbox ->
+              {:ok, :skipped}
+          end)
+        end,
+        wait: false
+      )
+
+    with {:ok, %Sandbox{state: :paused} = paused} <- result do
+      Logger.info("sandboxes: paused a sandbox whose lifetime ended at #{paused.expires_at}", sandbox_id: id)
+    end
+  end
+
+  # A macOS VM is archivable once its host evicted it, about 30 s after the
+  # pause; until then the next run tries again.
+  defp expire(%Sandbox{state: :paused} = sandbox) do
+    if Archives.archivable?(sandbox), do: Archives.request(sandbox)
   end
 
   defp commands_running?(%Sandbox{id: id}) do
@@ -2468,6 +2558,12 @@ defmodule Tuist.Sandboxes do
 
   defp put_reported_pause(%{state: :running} = attrs, _sandbox), do: Map.put(attrs, :paused_at, nil)
   defp put_reported_pause(attrs, _sandbox), do: attrs
+
+  # Guest CPU is the idle backstop for Amp Orbs only. On another Mac,
+  # `last_active_at` measures the session lease (`Commands.end_lease/1`), and
+  # a guest that keeps its CPU busy on its own (indexing, a booted simulator)
+  # would hold the VM and its CI slot for as long as nobody uses it.
+  defp put_guest_activity(attrs, %Sandbox{platform: :darwin, amp_orb_id: nil}, _reported), do: attrs
 
   # A running guest is active when it used more than @active_cpu_ms_per_second
   # of CPU since the last report that found it active. A smaller reading

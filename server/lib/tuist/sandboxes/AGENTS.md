@@ -561,7 +561,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   transaction `Concurrency.admit/3` tries again for 3 s first. Legacy Tuist threads' sandboxes are hidden from the account and use
   none of it (`Sandboxes.not_thread/0`). Disk is not an account limit: each node's disk budget bounds
   it, and archiving frees it, so concurrency analytics chart no disk.
-- Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
+- Idle Orbs: node reports carry each running VM's `cpu_ms` (on macOS the server reads
+  it only for Orbs). A reading more
   than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or
   below it (a new VM process), records activity. A running Orb quiet for
   ten minutes enqueues `Tuist.Sandboxes.Workers.PauseIdleOrbWorker`, which
@@ -569,6 +570,26 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   only if `last_active_at` is unchanged, the same way Amp's pause does.
   Without `cpu_ms` (an older daemon), `guest_cpu_ms` stays nil and nothing
   is paused.
+- Lifetimes: a sandbox `Query.run(:create)` creates (the account API, MCP
+  `create_sandbox`, `tuist sandbox create`) has `lifetime_seconds` (two hours
+  by default, five minutes to a day) and `expires_at`, set at create and
+  started again by every resume or restore (`running_or_resume/1`) and by
+  `extend/2` (`POST .../extend`, MCP `extend_sandbox`). Every minute
+  `ExpireSandboxesWorker` (`expire_sandboxes/0`) ends an expired running one
+  hard: `Commands.cancel_expired/2` kills its commands without resuming it,
+  appends a note to each one's stderr (written before the kill marker, so a
+  reader sees it with the end) and records them `cancelled`, then it pauses;
+  agents extend first (the `create_sandbox` description says so). It queues
+  the archive of an expired paused one once archivable (a Mac after its host's
+  eviction, about 30 s later). `Commands.read/3` answers an ended command of
+  an expired, paused sandbox from its row: resuming to read output would
+  start a new lifetime. Archive, not delete: the files survive, a
+  resume restores them, and the 14-day retention deletes the rest. Sandboxes
+  of Amp Orbs and agent environments (Claude) have no lifetime and are never
+  expired: their integrations own them.
+  Guest CPU never records activity on a non-Orb Mac: there `last_active_at`
+  is the session lease, and a guest busy on its own (indexing, a simulator)
+  kept a forgotten Mac and its CI slot running for as long as nobody used it.
 - `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
   `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused, or errored,
   for longer than 14 days (both may still hold their disk; a failed macOS

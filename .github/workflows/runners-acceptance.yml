@@ -324,7 +324,16 @@ jobs:
         working-directory: infra/runners-controller
         env:
           GOWORK: "off"
-        run: go test -count=1 ./internal/podtemplate
+        # The module download goes through proxy.golang.org, not the runners;
+        # retry its transient stream resets so they cannot fail the deploy gate.
+        run: |
+          for attempt in 1 2 3; do
+            go mod download && break
+            [ "${attempt}" -lt 3 ] || exit 1
+            echo "::warning::go mod download failed (attempt ${attempt}/3), retrying"
+            sleep $((attempt * 5))
+          done
+          go test -count=1 ./internal/podtemplate
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: "28"

@@ -394,6 +394,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if tail := readRunnerLog(entry.StatusDir); tail != "" {
 				logger.Info("runner log", "vm", entry.VMName, "runnerLog", tail)
 			}
+			logJobStart(ctx, entry)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
@@ -1551,6 +1552,7 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		if tail := readRunnerLog(entry.StatusDir); tail != "" {
 			log.FromContext(ctx).Info("runner log", "vm", entry.VMName, "runnerLog", tail)
 		}
+		logJobStart(ctx, entry)
 		// Tear down the Tart clone + Store entry so the host state mirrors what
 		// the API server will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.

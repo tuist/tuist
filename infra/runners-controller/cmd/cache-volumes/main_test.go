@@ -151,3 +151,30 @@ func TestReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *testing.T) {
 		})
 	}
 }
+
+// containerd on runner hosts sometimes answers CRI lists after the fence's
+// budget. That slot waits for the next round; the node's labels still update.
+func TestUnsettledSlotDoesNotHoldBackNodeMaintenance(t *testing.T) {
+	root := t.TempDir()
+	s, err := cachevolumes.Open(root, testBackend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	slot, _ := json.Marshal(cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "00000000-0000-0000-0000-000000000001", Account: 1, Scope: strings.Repeat("a", 64)}, PodName: "gone", PodUID: "u", State: "allocated"})
+	if err := os.WriteFile(filepath.Join(root, "state", "00000000-0000-0000-0000-000000000001.json"), slot, 0600); err != nil {
+		t.Fatal(err)
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node"}}
+	a := &agent{store: s, root: root, kube: fake.NewSimpleClientset(node), namespace: "runners", node: "node", kubelet: t.TempDir(), runtime: testRuntime{err: context.DeadlineExceeded}}
+	if err := a.reconcile(); err == nil {
+		t.Fatal("an unsettled slot passed maintenance")
+	}
+	got, err := a.kube.CoreV1().Nodes().Get(context.Background(), "node", metav1.GetOptions{})
+	if err != nil || got.Labels[readinessLabel] != readinessValue {
+		t.Fatal("node maintenance skipped", got.Labels, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "state", "00000000-0000-0000-0000-000000000001.json")); err != nil {
+		t.Fatal("settled a slot whose writer fence did not answer", err)
+	}
+}

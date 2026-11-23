@@ -65,9 +65,10 @@ func thinVirtualQuantity(cacheBytes int64) resource.Quantity {
 }
 
 // templateDiskReservation is the disk reservation the StatefulSet template
-// carries. A thin volume keeps the ceiling it was created with, and claims are
-// rebuilt only to grow, so a smaller storageSize leaves bound volumes larger
-// than diskReservation. Reserving from the spec then makes the scheduler count
+// carries. A thin volume keeps the ceiling it was created with, and a shrink
+// rebuilds a claim only past oversizedClaim's threshold (and then one replica
+// at a time), so a smaller storageSize leaves bound volumes larger than
+// diskReservation. Reserving from the spec then makes the scheduler count
 // less than the node's thin pool has committed, and it keeps choosing a host
 // whose CSI plugin refuses the next volume (kura-bird-eu-west-1, 2026-11-19).
 // The template is shared, so it reserves the largest verified thin volume

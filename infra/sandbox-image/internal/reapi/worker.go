@@ -317,7 +317,7 @@ func (w *Worker) validate(a *re.Action, c *re.Command) error {
 }
 
 // MemoryProperty sizes the VM an action runs in: the guest memory in GB, with
-// two vCPUs per 4 GB. Actions without it run with DefaultMemoryGB.
+// one vCPU per 2 GB. Actions without it run with DefaultMemoryGB.
 const MemoryProperty = "tuist-memory-gb"
 
 const DefaultMemoryGB = 4
@@ -327,7 +327,7 @@ const DefaultMemoryGB = 4
 const MaxTimeout = 10 * time.Minute
 
 // MemorySizesGB are the VM sizes workers offer, smallest first.
-var MemorySizesGB = []int{4, 8, 16}
+var MemorySizesGB = []int{2, 4, 8, 16}
 
 // MemoryGB returns the VM memory a platform asks for.
 func MemoryGB(p *re.Platform) (int, error) {
@@ -346,7 +346,7 @@ func MemoryGB(p *re.Platform) (int, error) {
 	}
 	gb, err := strconv.Atoi(value)
 	if err != nil || strconv.Itoa(gb) != value || !slices.Contains(MemorySizesGB, gb) {
-		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 4, 8 or 16")
+		return 0, status.Error(codes.InvalidArgument, MemoryProperty+" must be 2, 4, 8 or 16")
 	}
 	return gb, nil
 }

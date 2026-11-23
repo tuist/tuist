@@ -1207,6 +1207,7 @@ while true; do
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+[ -d "${STATUS_SHARE}" ] && { : >"${STATUS_SHARE}/boot-job-started"; } 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
 # Hand the host the job's GitHub OIDC token before the checkout, so the server
@@ -1395,8 +1396,24 @@ AGENT_CONFIG
       if "${JQ}" -e '.setup_info | type == "array"' /tmp/dispatch.json >/dev/null 2>&1; then
         "${JQ}" '.setup_info' /tmp/dispatch.json >.setup_info 2>/dev/null || rm -f .setup_info
       fi
+      # Boot markers for the time between the claim and GitHub starting the
+      # job: `listener` as the runner starts, `job-message` once the Listener
+      # holds the job request (the job-started hook writes `job-started`).
+      # tart-kubelet logs the stages at teardown, so a slow start says whether
+      # GitHub was late to send the job or this VM was slow to run it.
+      report_boot_stage listener
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
+      (
+        while kill -0 "${runner_pid}" 2>/dev/null; do
+          if job_message_received; then
+            report_boot_stage job-message
+            exit 0
+          fi
+          sleep 1
+        done
+      ) &
+      job_message_watch_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
         (
           waited=0
@@ -1464,6 +1481,7 @@ AGENT_CONFIG
       [ -e "${IDLE_STOP_MARKER}" ] && rc=143
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+      kill "${job_message_watch_pid}" 2>/dev/null || true
       JOB_RESULT=$(read_job_result github)
       fi
       # Only a job that succeeded may save its cache volumes (see read_job_result

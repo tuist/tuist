@@ -71,6 +71,16 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var guaranteedVCPUs: Double?
 
+    @Option(
+        name: .customLong("lifetime-minutes"),
+        help: """
+        How long the sandbox may run, from creation and again after each resume: 5 to 1440 minutes, 120 by default. \
+        Then its running commands are cancelled and it is paused and archived, keeping its files. \
+        Extend it with `tuist sandbox extend`.
+        """
+    )
+    var lifetimeMinutes: Int?
+
     public var jsonThroughNoora: Bool { true }
 
     /// The platform the sandbox boots: --platform, else macOS when an Xcode is named, else Linux.
@@ -95,6 +105,7 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
         if let workspaceGb, !(1 ... 100).contains(workspaceGb) {
             throw ValidationError("Workspace size must be 1–100 GB.")
         }
+        try SandboxExtendCommand.validate(lifetimeMinutes: lifetimeMinutes)
         if let guaranteedVCPUs {
             if platform != .linux {
                 throw ValidationError("--guaranteed-vcpus is for Linux sandboxes; a macOS sandbox holds every vCPU.")
@@ -114,7 +125,8 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
             vcpus: vcpus,
             memoryGB: memoryGB,
             workspaceGB: workspaceGb,
-            guaranteedVCPUs: guaranteedVCPUs
+            guaranteedVCPUs: guaranteedVCPUs,
+            lifetimeMinutes: lifetimeMinutes
         )
     }
 }

@@ -565,6 +565,56 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
                [{"a", 25.0}, {"c", 75.0}]
     end
 
+    test "draws a branch's commits measured through merge checkouts with their newest one, as the list shows them", %{
+      project: project,
+      account: account
+    } do
+      # feature: p1 → p2 → p3 off main's d. p1 was merged twice (main
+      # unchanged, a re-run), p2 once, and p3 ran on its own commit. q is a
+      # force-pushed head the branch no longer holds, and mq its merge.
+      repository =
+        CoverageFixtures.seed_history(account, [
+          CoverageFixtures.commit("a", [], 0),
+          CoverageFixtures.commit("d", ["a"], 1),
+          CoverageFixtures.commit("q", ["d"], 2),
+          CoverageFixtures.commit("p1", ["d"], 3),
+          CoverageFixtures.commit("p2", ["p1"], 4),
+          CoverageFixtures.commit("p3", ["p2"], 5),
+          CoverageFixtures.commit("mq", ["d", "q"], 6),
+          CoverageFixtures.commit("m1a", ["d", "p1"], 7),
+          CoverageFixtures.commit("m1b", ["d", "p1"], 8),
+          CoverageFixtures.commit("m2", ["d", "p2"], 9)
+        ])
+
+      pull_request = %{git_branch: "feature", is_pull_request: true, pull_request_number: 1}
+
+      for {sha, ran_at, counts} <- [
+            {"mq", ~N[2026-09-01 09:00:00], [0, 0, 0, 0]},
+            {"m1a", ~N[2026-09-01 10:00:00], [1, 0, 0, 0]},
+            {"m1b", ~N[2026-09-01 10:30:00], [1, 1, 0, 0]},
+            {"m2", ~N[2026-09-01 11:00:00], [1, 1, 1, 0]},
+            {"p3", ~N[2026-09-01 12:00:00], [1, 1, 1, 1]}
+          ] do
+        GitHistory.record_branch_heads(repository, [%{branch: "feature", sha: sha}, %{branch: "main", sha: "d"}], "main")
+        run(project, account, Map.merge(pull_request, %{git_commit_sha: sha, ran_at: ran_at}), counts)
+        Commits.signal_complete(project, sha)
+      end
+
+      assert CoverageFixtures.branch_head(repository, "feature") == "p3"
+      listed = Enum.map(branch_commits(project, "feature"), &{&1.git_commit_sha, &1.coverage})
+      assert listed == [{"p3", 100.0}, {"m2", 75.0}, {"m1b", 50.0}]
+
+      trend = History.trend_points(project, "feature")
+      assert Enum.map(trend.points, &{&1.git_commit_sha, &1.coverage}) == Enum.reverse(listed)
+      # Each merge checkout stands at the commit it merged.
+      assert hd(trend.points).committed_at == ~U[2026-09-01 00:03:00.000000Z]
+      assert History.latest_complete_commit(project, "feature") == "p3"
+
+      # The period bounds the branch's commits, not when their merge checkouts ran.
+      since = ~U[2026-09-01 00:04:00Z]
+      assert shas(History.trend_points(project, "feature", since: since)) == ["m2", "p3"]
+    end
+
     test "draws every complete commit when they fit", %{project: project} do
       publish(project, Enum.map(0..40, &DateTime.add(@epoch, &1, :hour)), ["c40"])
 

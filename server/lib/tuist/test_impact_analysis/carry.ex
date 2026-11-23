@@ -14,23 +14,31 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   A test module selective testing skipped carries whole from the snapshot of
   the run recorded under the hash it was skipped with
   (`Tuist.Tests.Coverage.TargetSources`), or of a baseline run that hashed
-  it the same way: the module's processes' lines there. The
-  hash covers the module's sources and dependencies, so its files aren't
-  compared blob by blob.
+  it the same way: the module's processes' lines there. Once that snapshot
+  has expired, a checkpoint that copied the module under the same hash
+  stands in for it. The hash covers the module's sources and dependencies,
+  so its files aren't compared blob by blob.
+
+  A test coverage-based test selection skipped carries from the snapshot
+  whose evidence decided it (`Tuist.TestImpactAnalysis.Decision`): the
+  checkpoint, or the branch's previous overlay. The decision already proved
+  that it passed there and that none of its files, nor a tracked file,
+  changed between that snapshot and the checkout the run measured, so
+  that's not evaluated again. Once that snapshot has expired, the test is
+  evaluated as any other.
 
   Any other skipped test carries from the checkpoint at its scheme's
-  baseline (the nearest measured ancestor `Reported` reads) when none of the
-  files it or its suite's setup executed changed between that commit and
-  this one: the same bitmap check selection makes (`Candidate`). Its lines
-  are its own and its suite's setup's. A test the baseline can't carry
-  that the commit's impact run skipped through another snapshot, the
-  branch's previous run (`Tuist.TestImpactAnalysis.Decision`), carries from
-  that overlay when its files are unchanged since that run.
+  baseline (the checkpoint selection would decide from at the commit, which
+  `Reported` resolves) when none of the files it or its suite's setup
+  executed changed between that commit and this one: the same bitmap check
+  selection makes (`Candidate`). Its lines are its own and its suite's
+  setup's. A test the baseline can't carry that the commit's impact run
+  skipped through another snapshot carries from that overlay when its files
+  are unchanged since that run.
 
-  Both keep `Reported`'s guards: the test passed there, the tracked files
-  are the same (`context.validity`; a module carried by hash isn't checked,
-  since the hash covers its build inputs), and the evidence holds lines for
-  every file that counts.
+  All keep `Reported`'s guards: the evidence holds lines for every file that
+  counts, and, but for a decided test or a module carried by hash, the test
+  passed there and the tracked files are the same (`context.validity`).
   """
   import Ecto.Query
 
@@ -53,12 +61,13 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   skipped by hash, `%{name, hash}`), `indexed` (the run each hit module was
   recorded under with its hash, `Tuist.Tests.Coverage.TargetSources`),
   `baseline` (the baseline's runs, with
-  `git_commit_sha`, `scheme` and `depth`), `impact_run_ids` (the commit's
+  `git_commit_sha`, `scheme`, `depth` and their `checkpoint`), `impact_run_ids` (the commit's
   runs' impact runs), `excluded` (a compiled
   `Tuist.Tests.Coverage.ExcludedPaths` pattern), `blobs` (the blob of every
   file the commit's runs reported), `run_blobs` and `blobs_now`, functions
   from run ids to the blobs those runs reported and from paths to their
-  blobs at the commit, `validity`, a function from a commit to `:ok` or
+  blobs at the commit, `blobs_then`, from a commit and paths to their blobs
+  at that commit, `validity`, a function from a commit to `:ok` or
   why its evidence doesn't hold here, and `only_hashed`, true when the commit's own tracked-file change leaves only
   modules carried by their hash to carry.
   """
@@ -78,14 +87,14 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   The tests the impact run `run_id`'s stored decision skipped
   (`Tuist.TestImpactAnalysis.Decision`), with `test_case_id`, `module_name`
   and `suite_name`, read from its bitmaps and the snapshots that numbered
-  them; nil when the run has no stored decision.
+  them; nil when the run has no stored decision. Each also has the
+  `decision` that skipped it, `{snapshot_id, evidence_snapshot_id, idx}`:
+  the primary checkpoint, the snapshot whose evidence decided it, and its
+  number in the primary's numbering, which `units/2` carries it by.
   """
   def skipped_tests(project_id, run_id) do
     params = %{project_id: project_id, run_id: run_id}
-
-    decisions = """
-    test_impact_run_decisions FINAL WHERE project_id = {project_id:Int64} AND test_impact_run_id = {run_id:UUID}
-    """
+    decisions = decisions_sql()
 
     # A decision written only in part, its storing having failed midway,
     # counts as none.
@@ -97,18 +106,56 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     if complete do
       # Every number is in the numbering of the primary checkpoint
       # (`snapshot_id`), whichever snapshot's evidence decided it.
-      """
-      SELECT toString(test_case_id), module_name, suite_name
-      FROM test_impact_snapshot_tests FINAL
-      WHERE project_id = {project_id:Int64}
-        AND snapshot_id IN (SELECT snapshot_id FROM #{decisions})
-        AND test_idx IN (SELECT arrayJoin(bitmapToArray(tests)) FROM #{decisions} AND decision = 'skipped')
-      """
-      |> Snapshots.query!(params)
-      |> Enum.map(fn [test_case_id, module_name, suite_name] ->
-        %{test_case_id: test_case_id, module_name: module_name, suite_name: suite_name}
+      rows =
+        Snapshots.query!(
+          """
+          SELECT toString(t.test_case_id), t.module_name, t.suite_name, t.test_idx, toString(d.snapshot_id),
+            toString(d.evidence_snapshot_id)
+          FROM test_impact_snapshot_tests AS t FINAL
+          INNER JOIN (
+            SELECT snapshot_id, evidence_snapshot_id, arrayJoin(bitmapToArray(tests)) AS test_idx
+            FROM #{decisions} AND decision = 'skipped'
+          ) AS d ON d.snapshot_id = t.snapshot_id AND d.test_idx = t.test_idx
+          WHERE t.project_id = {project_id:Int64} AND t.snapshot_id IN (SELECT snapshot_id FROM #{decisions})
+          """,
+          params
+        )
+
+      # A decision names a few snapshots: each id is kept once, not per test.
+      ids =
+        rows
+        |> Enum.flat_map(fn [_id, _module, _suite, _idx, snapshot, evidence] -> [snapshot, evidence] end)
+        |> Map.new(&{&1, &1})
+
+      Enum.map(rows, fn [test_case_id, module_name, suite_name, idx, snapshot, evidence] ->
+        %{
+          test_case_id: test_case_id,
+          module_name: module_name,
+          suite_name: suite_name,
+          decision: {ids[snapshot], ids[evidence], idx}
+        }
       end)
     end
+  end
+
+  @doc """
+  Whether the impact run `run_id`'s whole stored decision skipped any test,
+  without listing them (`skipped_tests/2`).
+  """
+  def skipped_any?(project_id, run_id) do
+    """
+    SELECT count() > 0 AND sum(bitmapCardinality(tests)) = any(decided)
+      AND sumIf(bitmapCardinality(tests), decision = 'skipped') > 0
+    FROM #{decisions_sql()}
+    """
+    |> Snapshots.query!(%{project_id: project_id, run_id: run_id})
+    |> then(fn [[skipped]] -> skipped in [true, 1] end)
+  end
+
+  defp decisions_sql do
+    """
+    test_impact_run_decisions FINAL WHERE project_id = {project_id:Int64} AND test_impact_run_id = {run_id:UUID}
+    """
   end
 
   @doc """
@@ -256,16 +303,29 @@ defmodule Tuist.TestImpactAnalysis.Carry do
       |> Map.merge(baseline_target_sources(Map.new(rest), context, hashes))
 
     snapshots = Snapshots.for_runs(context.project.id, sources |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
+    now = DateTime.utc_now()
+    live = fn snapshot -> snapshot && DateTime.after?(snapshot.expires_at, now) && snapshot end
+
+    # Once the snapshot a target was measured in has expired, a checkpoint
+    # that copied it under the same hash still holds its rows.
+    copies =
+      Snapshots.carried_copies(
+        context.project.id,
+        context.repository_id,
+        context.sha,
+        for({module, source} <- sources, !live.(snapshots[source.run_id]), do: {module, hashes[module]})
+      )
 
     units =
       for {module, tests} <- by_module,
           source = sources[module],
-          snapshot = snapshots[source.run_id],
+          snapshot = live.(snapshots[source.run_id]) || copies[{module, hashes[module]}] || snapshots[source.run_id],
           snapshot != nil do
         %{
           kind: :target,
           key: {:module, module},
           module: module,
+          hash: hashes[module],
           tests: tests,
           snapshot_id: snapshot.id,
           checkpoint_id: snapshot.checkpoint_id,
@@ -375,7 +435,20 @@ defmodule Tuist.TestImpactAnalysis.Carry do
      )}
   end
 
+  # A test coverage-based test selection skipped carries from the snapshot
+  # whose evidence decided it (`decided_units/2`): the decision already
+  # proved its files unchanged against the checkout. Only the other tests
+  # are evaluated against the baseline and the overlays.
   defp test_units(tests, context, _target_reasons) do
+    {decided, tests} = decided_units(tests, context)
+    {decided, decided_reasons} = guard(decided, context, fn _sha -> :ok end)
+    {kept, reasons} = evaluated_units(tests, context)
+    {decided ++ kept, Map.merge(reasons, decided_reasons)}
+  end
+
+  defp evaluated_units([], _context), do: {[], %{}}
+
+  defp evaluated_units(tests, context) do
     baseline = baseline_results(tests, context)
     from_overlays = baseline |> Enum.reject(&match?({_test, {{:ok, _unit}, _ran_at}}, &1)) |> overlay_results(context)
 
@@ -418,19 +491,15 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     end
   end
 
-  # The baseline's checkpoints, nearest first: one per scheme the baseline
-  # measured.
+  # The baseline's checkpoints, nearest first: one per scheme and platform
+  # the commit's runs ran.
   defp candidates(context) do
     context.baseline
-    |> Enum.uniq_by(&{&1.git_commit_sha, &1.scheme})
+    |> Enum.uniq_by(& &1.checkpoint.id)
     |> Enum.sort_by(& &1.depth)
-    |> Enum.flat_map(fn run ->
-      case Snapshots.checkpoint(context.project.id, run.git_commit_sha, run.scheme, nil) do
-        nil -> []
-        checkpoint -> [{%{checkpoint: checkpoint}, %{checkpoint: checkpoint_source(checkpoint, run.depth)}}]
-      end
+    |> Enum.map(fn run ->
+      {%{checkpoint: run.checkpoint}, %{checkpoint: checkpoint_source(run.checkpoint, run.depth)}}
     end)
-    |> Enum.uniq_by(fn {%{checkpoint: checkpoint}, _sources} -> checkpoint.id end)
   end
 
   defp checkpoint_source(checkpoint, depth) do
@@ -508,9 +577,133 @@ defmodule Tuist.TestImpactAnalysis.Carry do
       end
 
     then = Map.merge(context.run_blobs.(layers.checkpoint.test_run_ids), overlay_blobs)
+    then = Map.merge(copied_blobs(context, layers.checkpoint, then), then)
     missing = then |> Map.keys() |> Enum.reject(&Map.has_key?(context.blobs, &1))
     now = Map.merge(context.blobs_now.(missing), context.blobs)
     for {path, blob} <- then, now[path] != blob, do: path
+  end
+
+  # The blobs of a checkpoint's files its runs didn't report: those of the
+  # targets it copied from an earlier snapshot (`carried_targets`), which
+  # its runs never executed. Their hash was the same at its commit, so their
+  # files are read at that commit.
+  defp copied_blobs(_context, %Snapshot{carried_targets: []}, _reported), do: %{}
+
+  defp copied_blobs(context, checkpoint, reported) do
+    missing =
+      """
+      SELECT DISTINCT path FROM test_impact_snapshot_files
+      WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+      """
+      |> Snapshots.query!(%{project_id: context.project.id, snapshot_id: checkpoint.id})
+      |> Enum.map(&hd/1)
+      |> Enum.reject(&Map.has_key?(reported, &1))
+
+    context.blobs_then.(checkpoint.commit_sha, missing)
+  end
+
+  # Decided tests
+
+  # The units of the tests the commit's impact runs skipped
+  # (`skipped_tests/2`), taken from the snapshot whose evidence decided each,
+  # and the tests left to evaluate: those without a decision, and those
+  # whose deciding snapshot has expired, which a fold long after the run
+  # reads as before. A test decided by the primary checkpoint has its number
+  # there. One decided by an overlay has its row in the overlay when the
+  # overlay replaces it, numbered as the overlay's checkpoint numbers its
+  # tests, which needn't be the primary, or else in that checkpoint, so it's
+  # found there by its test case id.
+  defp decided_units(tests, context) do
+    {decided, rest} = Enum.split_with(tests, &Map.has_key?(&1, :decision))
+
+    snapshots =
+      live_snapshots(Enum.flat_map(decided, fn %{decision: {primary, evidence, _idx}} -> [primary, evidence] end))
+
+    units =
+      decided
+      |> Enum.group_by(fn %{decision: {primary, evidence, _idx}} -> {primary, evidence} end)
+      |> Enum.flat_map(fn {{primary, evidence}, group} ->
+        if snapshots[primary] && snapshots[evidence], do: decided_group(context, snapshots[evidence], group), else: []
+      end)
+
+    carried = MapSet.new(units, & &1.key)
+    {units, rest ++ for(test <- decided, !MapSet.member?(carried, test.test_case_id), do: Map.delete(test, :decision))}
+  end
+
+  defp decided_group(context, %Snapshot{kind: :checkpoint} = checkpoint, group) do
+    source = checkpoint_source(checkpoint, depth(context, checkpoint))
+
+    Enum.map(group, fn %{decision: {_primary, _evidence, idx}} = test ->
+      decided_unit(test, checkpoint, nil, idx, source)
+    end)
+  end
+
+  defp decided_group(context, %Snapshot{kind: :overlay} = overlay, group) do
+    run_id = List.first(overlay.test_run_ids)
+
+    with %Snapshot{} = checkpoint <- live_snapshots([overlay.checkpoint_id])[overlay.checkpoint_id],
+         {:ok, run} <- Tests.get_test(run_id) do
+      overlay_source = %{sha: run.git_commit_sha, depth: nil, ran_at: overlay.ran_at, run_id: run_id}
+      checkpoint_source = checkpoint_source(checkpoint, depth(context, checkpoint))
+      rows = layered_rows(context.project.id, overlay, checkpoint, Enum.map(group, & &1.test_case_id))
+
+      for test <- group, row = rows[test.test_case_id], row != nil do
+        case row do
+          {:overlay, idx} -> decided_unit(test, overlay, checkpoint.id, idx, overlay_source)
+          {:checkpoint, idx} -> decided_unit(test, checkpoint, nil, idx, checkpoint_source)
+        end
+      end
+    else
+      _ -> []
+    end
+  end
+
+  defp decided_unit(test, snapshot, checkpoint_id, idx, source) do
+    %{
+      kind: :test,
+      key: test.test_case_id,
+      module: test.module_name,
+      tests: [Map.delete(test, :decision)],
+      snapshot_id: snapshot.id,
+      checkpoint_id: checkpoint_id,
+      lines: %{
+        targets: [],
+        suites: if(test.suite_name == "", do: [], else: [{test.module_name, test.suite_name}]),
+        idx: [idx]
+      },
+      run_id: source.run_id,
+      source: source
+    }
+  end
+
+  # Where each test has its row in an overlay's layers, by test case id: the
+  # overlay's own when it holds evidence, else its checkpoint's.
+  defp layered_rows(project_id, overlay, checkpoint, test_case_ids) do
+    test_case_ids
+    |> Enum.chunk_every(5_000)
+    |> Enum.flat_map(fn ids ->
+      Snapshots.query!(
+        """
+        SELECT toString(test_case_id), snapshot_id = {overlay_id:UUID}, test_idx
+        FROM test_impact_snapshot_tests FINAL
+        WHERE project_id = {project_id:Int64} AND snapshot_id IN ({overlay_id:UUID}, {checkpoint_id:UUID})
+          AND test_case_id IN {ids:Array(UUID)} AND status NOT IN ('no_evidence', 'stale')
+        """,
+        %{project_id: project_id, overlay_id: overlay.id, checkpoint_id: checkpoint.id, ids: ids}
+      )
+    end)
+    |> Enum.map(fn [id, in_overlay, idx] -> {id, in_overlay in [true, 1], idx} end)
+    # The overlay's row wins: it's read last.
+    |> Enum.sort_by(&elem(&1, 1))
+    |> Map.new(fn {id, in_overlay, idx} -> {id, if(in_overlay, do: {:overlay, idx}, else: {:checkpoint, idx})} end)
+  end
+
+  defp live_snapshots(ids) do
+    ids = ids |> Enum.uniq() |> Enum.reject(&is_nil/1)
+
+    from(s in Snapshot, where: s.id in ^ids and s.expires_at > ^DateTime.utc_now())
+    |> Repo.all()
+    |> Map.new(&{&1.id, &1})
   end
 
   # What the baseline can't carry an overlay may: only a test it carries is

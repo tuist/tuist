@@ -421,6 +421,14 @@ defmodule Tuist.RemoteExecutionTest do
       end)
     end
 
+    test "an action that asks for 2 GB runs in a 1 vCPU VM", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{done: true, code: 0}} = submit(project, %{"memory_gb" => 2})
+      assert_received {:node, "create", %{vcpus: 1, memory_mb: 2048, sandbox_id: small}}
+      assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^small}}
+    end
+
     test "a larger action takes the room idle warm VMs hold", %{project: project} do
       # 4 vCPUs and 8 GB: two warm default VMs fill the account.
       stub_node()

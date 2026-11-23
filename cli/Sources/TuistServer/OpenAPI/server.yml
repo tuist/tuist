@@ -15043,6 +15043,19 @@ components:
       type: object
       x-struct:
       x-validate:
+    ExtendSandbox:
+      properties:
+        lifetime_seconds:
+          description: 'How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.'
+          maximum: 86400
+          minimum: 300
+          type: integer
+          x-struct:
+          x-validate:
+      title: ExtendSandbox
+      type: object
+      x-struct:
+      x-validate:
     CacheTaskStatus:
       enum:
         - hit_local
@@ -15547,6 +15560,13 @@ components:
           maximum: 8
           minimum: 1
           type: number
+          x-struct:
+          x-validate:
+        lifetime_seconds:
+          description: 'How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.'
+          maximum: 86400
+          minimum: 300
+          type: integer
           x-struct:
           x-validate:
         memory_mb:
@@ -17562,6 +17582,13 @@ components:
           type: string
           x-struct:
           x-validate:
+        expires_at:
+          description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         guaranteed_vcpus:
           description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
           type: number
@@ -17586,6 +17613,12 @@ components:
           format: date-time
           nullable: true
           type: string
+          x-struct:
+          x-validate:
+        lifetime_seconds:
+          description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+          nullable: true
+          type: integer
           x-struct:
           x-validate:
         memory_mb:
@@ -19369,6 +19402,13 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              expires_at:
+                description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
               guaranteed_vcpus:
                 description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                 type: number
@@ -19393,6 +19433,12 @@ components:
                 format: date-time
                 nullable: true
                 type: string
+                x-struct:
+                x-validate:
+              lifetime_seconds:
+                description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                nullable: true
+                type: integer
                 x-struct:
                 x-validate:
               memory_mb:
@@ -23892,6 +23938,13 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        expires_at:
+                          description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         guaranteed_vcpus:
                           description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                           type: number
@@ -23916,6 +23969,12 @@ paths:
                           format: date-time
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        lifetime_seconds:
+                          description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                          nullable: true
+                          type: integer
                           x-struct:
                           x-validate:
                         memory_mb:
@@ -24076,6 +24135,13 @@ paths:
                   type: number
                   x-struct:
                   x-validate:
+                lifetime_seconds:
+                  description: 'How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.'
+                  maximum: 86400
+                  minimum: 300
+                  type: integer
+                  x-struct:
+                  x-validate:
                 memory_mb:
                   enum:
                     - 4096
@@ -24166,6 +24232,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  expires_at:
+                    description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   guaranteed_vcpus:
                     description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                     type: number
@@ -24190,6 +24263,12 @@ paths:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  lifetime_seconds:
+                    description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   memory_mb:
@@ -29905,6 +29984,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  expires_at:
+                    description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   guaranteed_vcpus:
                     description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                     type: number
@@ -29929,6 +30015,12 @@ paths:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  lifetime_seconds:
+                    description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   memory_mb:
@@ -36532,6 +36624,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  expires_at:
+                    description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   guaranteed_vcpus:
                     description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                     type: number
@@ -36556,6 +36655,12 @@ paths:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  lifetime_seconds:
+                    description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   memory_mb:
@@ -42818,6 +42923,260 @@ paths:
       summary: List test case runs.
       tags:
         - Test Case Runs
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}/extend:
+    post:
+      callbacks: {}
+      description: Starts the sandbox's lifetime again from now, with `lifetime_seconds` when given (at most 24 hours). A sandbox created through this API has its running commands cancelled and is paused and archived once its lifetime ends; sandboxes an integration owns have no lifetime and answer 409.
+      operationId: extendSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                lifetime_seconds:
+                  description: 'How long the sandbox may run, in seconds, from now and again after each resume: 2 hours by default, at most 24. When it ends, running commands are cancelled and the sandbox is paused and archived, keeping its files, so a forgotten sandbox stops billing and frees its Mac.'
+                  maximum: 86400
+                  minimum: 300
+                  type: integer
+                  x-struct:
+                  x-validate:
+              title: ExtendSandbox
+              type: object
+              x-struct:
+              x-validate:
+        description: Lifetime params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: A persistent Linux or macOS sandbox VM.
+                properties:
+                  agent_environment_id:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  amp_orb_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_session_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  error_message:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_at:
+                    description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  guaranteed_vcpus:
+                    description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
+                    type: number
+                    x-struct:
+                    x-validate:
+                  hostname:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_active_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  lifetime_seconds:
+                    description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  node_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  paused_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
+                  residency_work_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  state:
+                    enum:
+                      - creating
+                      - running
+                      - resuming
+                      - paused
+                      - archived
+                      - error
+                      - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template_tag:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    description: The vCPUs the VM has. A Linux sandbox has 16 and bursts into them when its node has idle cores; it is guaranteed `guaranteed_vcpus` and billed for the largest of that, the CPU it uses and a quarter vCPU per GiB of its memory. A macOS sandbox holds every vCPU.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - state
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - inserted_at
+                  - updated_at
+                title: Sandbox
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxError'
+          description: Invalid params
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxError'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxError'
+          description: The sandbox was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxError'
+          description: The sandbox has no lifetime
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxError'
+          description: The account's sandbox CPU or memory limit (`account_limit`), its create rate (`rate_limited`, with `retry-after`), or too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Extend a sandbox's lifetime.
+      tags:
+        - Sandboxes
   /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
     get:
       callbacks: {}
@@ -46697,6 +47056,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  expires_at:
+                    description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   guaranteed_vcpus:
                     description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                     type: number
@@ -46721,6 +47087,12 @@ paths:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  lifetime_seconds:
+                    description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   memory_mb:
@@ -54271,6 +54643,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  expires_at:
+                    description: "When the sandbox's lifetime ends: its running commands are then cancelled and it is paused and archived, keeping its files; resuming it starts a new lifetime. Extend it before a command that may outlast it."
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   guaranteed_vcpus:
                     description: 'The vCPUs the sandbox is guaranteed while it runs: a quarter vCPU per GiB of memory, or what its creator picked if more, for a Linux sandbox; every vCPU for a macOS one.'
                     type: number
@@ -54295,6 +54674,12 @@ paths:
                     format: date-time
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  lifetime_seconds:
+                    description: How long the sandbox may run after each create, resume or extension. Null for sandboxes an integration (an Amp Orb, a Claude session) owns, which never expire.
+                    nullable: true
+                    type: integer
                     x-struct:
                     x-validate:
                   memory_mb:

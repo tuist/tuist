@@ -21,6 +21,11 @@
   message, and keep working with servers that send none. `create` does not
   retry `fleet_busy`: the server already waited 25 seconds for a host and says
   when to try again.
+- `create --lifetime-minutes` and `extend` take whole minutes (5–1440) and send
+  `lifetime_seconds`; the server ends an expired sandbox hard (cancels its
+  commands, pauses and archives it). Sandboxes without a lifetime (Amp Orbs,
+  Claude sessions, servers before lifetimes) send no `expires_at`, so show
+  and list treat it as optional.
 - Show the dashboard `status` and fall back to `state` for servers that do not
   send it. `status` and `bucket` are open strings: never switch on them exhaustively.
 - Test through the generated Xcode workspace and Swift Testing, not SwiftPM.
