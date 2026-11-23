@@ -309,6 +309,44 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func expired_account_token_fails_at_once_when_the_server_refuses_the_workload_identity() async throws {
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["TUIST_OIDC_TOKEN": "ended-command-token"]
+        let date = Date()
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let expiredToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+            given(serverCredentialsStore).read(serverURL: .value(serverURL))
+                .willReturn(.test(accessToken: expiredToken.token, refreshToken: nil))
+            let reason = "The sandbox command this token was minted for is no longer running."
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .any, serverURL: .any)
+                .willThrow(ExchangeOIDCTokenServiceError.unauthorized(reason))
+
+            // When / Then: the CLI refreshes in the background, which polled a helper process until timing out.
+            try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+                await #expect(
+                    throws: ServerAuthenticationControllerError.workloadSessionRenewalRefused(
+                        serverURL: serverURL, reason: reason
+                    )
+                ) {
+                    try await subject.authenticationToken(serverURL: serverURL)
+                }
+            }
+            verify(exchangeOIDCTokenService).exchangeOIDCToken(oidcToken: .any, serverURL: .any).called(1)
+        }
+    }
+
     @Test(
         .withMockedEnvironment(),
         .withMockedDependencies()
