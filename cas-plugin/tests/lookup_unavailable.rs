@@ -29,6 +29,7 @@ const SKIP_WINDOW: Duration = Duration::from_secs(5);
 #[derive(Clone)]
 struct Unanswering {
     delay: Duration,
+    read_delay: Duration,
     activation_pending: bool,
     answering: Arc<AtomicBool>,
     lookups: Arc<AtomicUsize>,
@@ -39,6 +40,7 @@ impl Unanswering {
     fn new(delay: Duration, activation_pending: bool) -> Self {
         Self {
             delay,
+            read_delay: delay,
             activation_pending,
             answering: Arc::default(),
             lookups: Arc::default(),
@@ -46,8 +48,8 @@ impl Unanswering {
         }
     }
 
-    async fn refuse(&self) -> Status {
-        tokio::time::sleep(self.delay).await;
+    async fn refuse(&self, delay: Duration) -> Status {
+        tokio::time::sleep(delay).await;
         let mut status = Status::unavailable("Service Unavailable");
         if self.activation_pending {
             status
@@ -71,7 +73,7 @@ impl ActionCache for Unanswering {
         if self.answering.load(Ordering::SeqCst) {
             return Err(Status::not_found("no such action"));
         }
-        Err(self.refuse().await)
+        Err(self.refuse(self.delay).await)
     }
 
     async fn update_action_result(
@@ -89,7 +91,7 @@ impl ContentAddressableStorage for Unanswering {
         _: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
         self.reads.fetch_add(1, Ordering::SeqCst);
-        Err(self.refuse().await)
+        Err(self.refuse(self.read_delay).await)
     }
 
     async fn find_missing_blobs(
@@ -265,4 +267,69 @@ fn lookups_resume_once_the_background_probe_is_answered() {
 
     assert!(matches!(remote.get_action(b"key"), Ok(None)));
     assert_eq!(server.lookups.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn a_lookup_already_waiting_gives_up_when_another_opens_the_breaker() {
+    // A path that goes dark mid-build leaves the lookups already sent waiting on
+    // it, until h2 keepalive gives up on the connection. Once any lookup has
+    // learned the remote is down, the others must stop waiting too.
+    let mut server = Unanswering::new(Duration::from_secs(60), true);
+    server.read_delay = Duration::from_millis(100);
+    let remote = remote_for(&server);
+
+    let waiting = {
+        let remote = remote.clone();
+        std::thread::spawn(move || {
+            let started = Instant::now();
+            let result = remote.get_action(b"key");
+            (result, started.elapsed())
+        })
+    };
+    eventually("the lookup reached the server", || {
+        server.lookups.load(Ordering::SeqCst) == 1
+    });
+
+    assert!(remote.batch_read(&[digest()]).is_err());
+    assert!(remote.skip_lookup());
+
+    let (result, elapsed) = waiting.join().expect("lookup thread");
+    let Err(error) = result else {
+        panic!("the waiting lookup must give up");
+    };
+    assert!(
+        error.contains("not answering lookups"),
+        "unexpected error: {error}"
+    );
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "the waiting lookup took {elapsed:?}; it must give up when the breaker opens"
+    );
+    assert_eq!(server.lookups.load(Ordering::SeqCst), 1, "it was not retried");
+}
+
+#[test]
+fn a_lookup_that_cannot_connect_is_not_retried() {
+    // Nothing listens: every retry would only reconnect into the same refusal,
+    // and on a blackholed path each one costs a connect timeout.
+    let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    drop(listener);
+    let remote = Remote::new(
+        RemoteConfig {
+            grpc_url: format!("http://{addr}"),
+            instance: "test".into(),
+        },
+        TokenProvider::from_env(),
+    );
+
+    // The retry ladder's backoff before a third attempt is 200 ms.
+    let started = Instant::now();
+    assert!(remote.get_action(b"key").is_err());
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed < Duration::from_millis(150),
+        "the lookup took {elapsed:?}; a refused connect must not be retried"
+    );
+    assert!(remote.skip_lookup());
 }
