@@ -2,8 +2,11 @@ defmodule Atlas.Finance.SyncTest do
   use Atlas.DataCase, async: true
   use Mimic
 
+  import Atlas.FinanceFixtures
+
   alias Atlas.Audit.Activity
   alias Atlas.Finance.Account
+  alias Atlas.Finance.Categorization
   alias Atlas.Finance.PaymentDetection
   alias Atlas.Finance.Providers.Qonto
   alias Atlas.Finance.Source
@@ -343,5 +346,76 @@ defmodule Atlas.Finance.SyncTest do
 
     assert {:ok, %{transactions_seen: 1}} =
              Sync.run_source("payment-qonto", now: now, finance_config: finance_config)
+  end
+
+  test "keeps a person's runway override when the provider resyncs the transaction" do
+    reject(&PaymentDetection.review_and_notify/1)
+
+    now = ~U[2026-11-20 09:00:00Z]
+    finance_config = [sources: [%{key: "override-qonto", provider: :qonto, name: "Override Qonto"}]]
+    financing = insert_finance_category!(%{name: "Financing", direction: "credit"})
+
+    stub(Qonto, :describe_source, fn source_config ->
+      {:ok, %{external_id: "source:#{source_config.key}", name: source_config.name, metadata: %{}}}
+    end)
+
+    stub(Qonto, :list_accounts, fn _source_config ->
+      {:ok,
+       [
+         %{
+           external_id: "acct_override",
+           name: "Operating",
+           account_type: "checking",
+           currency: "EUR",
+           main: true,
+           status: "active",
+           balance_value: Decimal.new("1000.00"),
+           balance_currency: "EUR",
+           available_balance_value: Decimal.new("1000.00"),
+           available_balance_currency: "EUR",
+           metadata: %{}
+         }
+       ]}
+    end)
+
+    stub(Qonto, :list_transactions, fn _source_config, _account, _opts ->
+      {:ok,
+       %{
+         transactions: [
+           %{
+             external_id: "txn_investor_wire",
+             status: "completed",
+             direction: "credit",
+             kind: "income",
+             counterparty_name: "Indie Fund I, L.P.",
+             amount_value: Decimal.new("300000.00"),
+             amount_currency: "EUR",
+             booked_at: now,
+             settled_at: now,
+             provider_updated_at: now,
+             affects_cash_balance: true,
+             affects_runway: true,
+             metadata: %{},
+             raw: %{}
+           }
+         ],
+         next_cursor: now
+       }}
+    end)
+
+    assert {:ok, _summary} = Sync.run_source("override-qonto", now: now, finance_config: finance_config)
+    wire = Repo.get_by!(Transaction, external_id: "txn_investor_wire")
+    assert wire.affects_runway
+
+    assert {:ok, _wire} =
+             Categorization.recategorize_transaction(wire.id, %{category_id: financing.id, affects_runway: false})
+
+    assert {:ok, _summary} = Sync.run_source("override-qonto", now: now, finance_config: finance_config)
+
+    wire = Repo.get_by!(Transaction, external_id: "txn_investor_wire")
+    refute wire.affects_runway
+    assert wire.runway_override == false
+    assert wire.finance_category_id == financing.id
+    assert wire.affects_cash_balance
   end
 end
