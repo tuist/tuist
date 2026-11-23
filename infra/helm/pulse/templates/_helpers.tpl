@@ -97,6 +97,20 @@ affinity:
           matchLabels:
             app.kubernetes.io/instance: pulse
             app.kubernetes.io/component: {{ . }}
+  {{- if eq . "datanode" }}
+    # Server pods burst to their 3-CPU limit. A datanode beside one gets only
+    # its request's share when the node saturates, and every log read runs on
+    # the datanode leading opentelemetry_logs' one region.
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          namespaces: [tuist]
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: tuist
+              app.kubernetes.io/component: server
+  {{- end }}
 {{- end }}
 
 {{/* Combines the pilot and scoped dashboard identities into one passwd file. */}}

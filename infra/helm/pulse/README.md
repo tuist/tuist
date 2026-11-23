@@ -93,7 +93,7 @@ backend's objects in the same bucket. The target is surviving one general-node
 failure without losing acknowledged writes; every general node is in
 `fsn1-dc14`, so this is not datacenter resilience.
 
-Production's requests (`values-production.yaml`) total 8.65 CPUs and 23.1 GiB.
+Production's requests (`values-production.yaml`) total 11.65 CPUs and 23.1 GiB.
 The chart's defaults size staging and canary, whose whole standalone backend
 used about 600 MiB and 0.05 CPU, at 2.05 CPUs and 5.9 GiB. The install's capacity
 gate places every replica on a distinct host, keeps the server's 1-CPU surge
