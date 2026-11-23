@@ -407,7 +407,9 @@ defmodule Atlas.MCP.Server do
   To pay vendor invoices, use `finance_create_transfer_request` with the amount,
   IBAN, beneficiary name, and invoice number from the invoice. It creates one
   pending request in Qonto and pays nothing until someone with review rights
-  approves it there with strong customer authentication.
+  approves it there with strong customer authentication. It acts with the caller's
+  own Qonto connection; if it reports one is missing, send them to Connections in
+  Atlas settings.
 
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.

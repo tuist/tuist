@@ -70,13 +70,16 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
     }
 
   alias Atlas.Audit
+  alias Atlas.Connections
   alias Atlas.Finance.Config
   alias Atlas.Finance.Providers.Qonto
   alias Atlas.MCP.Tool
 
+  @scopes ["request_transfers.write"]
+
   @impl EMCP.Tool
   def description do
-    "Prepare outgoing EUR SEPA payments as one pending transfer request in Qonto, for example to pay vendor invoices. Nothing is paid until someone with review rights approves the request in Qonto with strong customer authentication. Retrying the same request does not create a duplicate. Requires the finance:write scope."
+    "Prepare outgoing EUR SEPA payments as one pending transfer request in Qonto, for example to pay vendor invoices. Nothing is paid until someone with review rights approves the request in Qonto with strong customer authentication. Retrying the same request does not create a duplicate. Requires the finance:write scope and the caller's own Qonto connection in Atlas settings (Connections)."
   end
 
   def execute(conn, %{"source_key" => source_key, "note" => note, "transfers" => transfers} = args) do
@@ -91,7 +94,7 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
         debit_iban: args["debit_iban"] && normalize_iban(args["debit_iban"])
       }
 
-      case Qonto.create_multi_transfer_request(source, request) do
+      case create_request(Tool.current_user(conn), source, request) do
         {:ok, created} ->
           Audit.record("finance_transfer_request.created", %{
             target_type: "finance_transfer_request",
@@ -115,6 +118,10 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
              message: "Transfer request created. Approve it in Qonto under Requests to send the payments."
            }}
 
+        {:error, reason} when reason in [:not_connected, :needs_authorization, :insufficient_scope] ->
+          {:error,
+           "Qonto transfer requests need your own Qonto connection. Connect or reconnect Qonto at #{AtlasWeb.Endpoint.url()}/settings/connections, then retry."}
+
         {:error, {:http, status, body}} ->
           {:error, "Qonto rejected the transfer request (HTTP #{status}): #{inspect(body)}"}
 
@@ -125,6 +132,26 @@ defmodule Atlas.MCP.Tools.FinanceCreateTransferRequest do
   end
 
   def execute(_conn, _args), do: {:error, "source_key, note, and transfers are required."}
+
+  # Qonto accepts transfer requests only with OAuth, so the request is made with
+  # the caller's own grant and Qonto records them as its initiator. A 401 before
+  # the recorded expiry gets one refreshed token and one retry; the idempotency
+  # key makes that retry safe.
+  defp create_request(user, source, request) do
+    with {:ok, token} <- Connections.access_token(user, "qonto", @scopes) do
+      case Qonto.create_multi_transfer_request(oauth_source(source, token), request) do
+        {:error, {:http, 401, _body}} ->
+          with {:ok, refreshed} <- Connections.refresh_access_token(user, "qonto", @scopes, token) do
+            Qonto.create_multi_transfer_request(oauth_source(source, refreshed), request)
+          end
+
+        result ->
+          result
+      end
+    end
+  end
+
+  defp oauth_source(source, token), do: source |> Map.drop([:sign_in, :secret_key]) |> Map.put(:access_token, token)
 
   defp fetch_qonto_source(source_key) do
     case Config.fetch_source(source_key) do

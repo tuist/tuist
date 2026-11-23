@@ -100,6 +100,20 @@ finance transaction with `finance_add_transaction_attachment`. The saved
 document is visible to everyone with document access, so this tool also needs
 the `documents:write` scope, and it is processed like any other upload.
 
+## Prepare vendor payments in Qonto
+
+Connect Qonto in Settings → Connections, then `finance_create_transfer_request`
+prepares outgoing EUR SEPA payments, such as vendor invoices, as one pending
+transfer request in Qonto. Each transfer takes an amount, the beneficiary's IBAN
+and name, and a reference, usually the invoice number. Atlas checks the IBAN
+checksum and amount format first, so a typo fails before anything reaches Qonto.
+
+Nothing is paid until someone with review rights approves the request in Qonto
+with strong customer authentication. The request is made with your own Qonto
+connection, so Qonto shows you as its initiator. Calling the tool again with the
+same transfers does not create a second request. It needs the `finance:write`
+scope and is never mounted in Pip threads or workflows.
+
 ## Prepare and send Gmail drafts
 
 Choose **Allow Gmail drafts** in Settings → Connections to grant the separate
