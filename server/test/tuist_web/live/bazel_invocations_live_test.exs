@@ -146,11 +146,11 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     # Only the unambiguous record is linked.
     assert has_element?(
              view,
-             "#remote-actions-table a[data-part=action-link][href$=\"/remote-actions/#{compile["operation_id"]}\"]",
+             "#remote-actions-table a[data-part=row-link][href$=\"/remote-actions/#{compile["operation_id"]}\"]",
              "Compile App"
            )
 
-    refute has_element?(view, "#remote-actions-table a[data-part=action-link]", "Link App")
+    refute has_element?(view, "#remote-actions-table a[data-part=row-link]", "Link App")
     # The tooltip lists only the phases the profile recorded.
     assert has_element?(view, "#remote-actions-table [data-part=series-item][data-phase=execution]", "37ms")
     refute has_element?(view, "#remote-actions-table [data-part=series-item][data-phase=queue]")

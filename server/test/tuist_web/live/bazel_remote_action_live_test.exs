@@ -68,7 +68,11 @@ defmodule TuistWeb.BazelRemoteActionLiveTest do
           "memory_gb" => 8,
           "exit_code" => 2,
           "arguments" => ["go", "tool", "compile", "-o", "bazel-out/svc.a"],
-          "environment" => [%{"name" => "GOOS", "value" => "linux"}, %{"name" => "GH_TOKEN", "value" => "ghp_x"}],
+          "environment" => [
+            %{"name" => "GOOS", "value" => "linux"},
+            %{"name" => "GH_TOKEN", "value" => "ghp_x"},
+            %{"name" => "CARGO_PKG_AUTHORS", "value" => ""}
+          ],
           "platform" => [%{"name" => "container-image", "value" => "docker://golang:1.25"}],
           "output_paths" => ["bazel-out/svc.a"],
           "stdout" => "compiling svc",
@@ -111,6 +115,8 @@ defmodule TuistWeb.BazelRemoteActionLiveTest do
     assert has_element?(view, "#remote-action-command [data-field=outputs]", "bazel-out/svc.a")
     assert has_element?(view, "#remote-action-command [data-part=metadata]", "/workspace/action")
     assert has_element?(view, "#remote-action-environment [data-part=metadata]", "GOOS")
+    # An empty value reads as empty, not as a missing one.
+    assert has_element?(view, "#remote-action-environment dd[data-empty]", "Empty")
     refute render(view) =~ "ghp_x"
     assert has_element?(view, "#remote-action-platform [data-part=metadata]", "docker://golang:1.25")
     refute has_element?(view, "#remote-action-command-expand")

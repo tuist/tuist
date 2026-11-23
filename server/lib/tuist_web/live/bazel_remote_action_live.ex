@@ -339,7 +339,12 @@ defmodule TuistWeb.BazelRemoteActionLive do
       <div data-part="metadata-row">
         <div :for={{name, value} <- @pairs} data-part="metadata">
           <dt data-part="title">{name}</dt>
-          <dd data-part="label"><code>{value}</code></dd>
+          <%!-- Bazel sets some variables to an empty string (rules_rust's
+               CARGO_PKG_AUTHORS for a crate without authors), which differs from unset. --%>
+          <dd :if={value != ""} data-part="label"><code>{value}</code></dd>
+          <dd :if={value == ""} data-part="label" data-empty>
+            {dgettext("dashboard_builds", "Empty")}
+          </dd>
         </div>
       </div>
     </dl>

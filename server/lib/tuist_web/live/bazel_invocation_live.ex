@@ -492,21 +492,11 @@ defmodule TuistWeb.BazelInvocationLive do
               id="remote-actions-table"
               rows={trace_rows(result)}
               row_key={&("remote-action-" <> &1.action.id)}
+              row_navigate={&(&1.operation_id && remote_action_path(assigns, &1.operation_id))}
             >
               <:col :let={row} label={dgettext("dashboard_projects", "Action")}>
                 <div data-part="trace-action">
-                  <.link
-                    :if={row.operation_id}
-                    navigate={remote_action_path(assigns, row.operation_id)}
-                    data-part="action-link"
-                  >
-                    <.text_and_description_cell
-                      label={row.action.title}
-                      description={row.action.target}
-                    />
-                  </.link>
                   <.text_and_description_cell
-                    :if={!row.operation_id}
                     label={row.action.title}
                     description={row.action.target}
                   />
