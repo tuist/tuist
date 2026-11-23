@@ -46,6 +46,9 @@ jobs:
           test "$(shasum -a 256 "$dir/tuist.zip" | awk '{print $1}')" = "$expected"
           (cd "$dir" && unzip -q tuist.zip)
           echo "TUIST_CLI=$dir/tuist" >> "$GITHUB_ENV"
+      # Older CLIs (4.217 and earlier) only exchange the job's OIDC token on login.
+      - name: Authenticate
+        run: '"$TUIST_CLI" auth login'
       - name: Run the cycles
         env:
           LABEL: ${{ inputs.label }}
