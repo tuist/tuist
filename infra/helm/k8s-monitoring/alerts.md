@@ -5538,17 +5538,20 @@ The transient budget on the remote-execution surface: decoding a write's
 messages, staging a ByteStream upload, decoding a compressed `BatchUpdateBlobs`
 item, or a write whose reply the floor cannot cover, each refused before it
 stores anything. The counter is the only place it shows. ByteStream staging
-refusals (`bytestream_staging_admission_rejected`) and decode refusals
-(`grpc_write_decode_admission_rejected`) both file under this kind; the memory
+refusals (`bytestream_staging_admission_rejected`), decode refusals
+(`grpc_write_decode_admission_rejected`) and reply refusals
+(`grpc_write_reply_admission_rejected`) all file under this kind; the memory
 action separates them.
 
 Write decoding and staging borrow the ceiling headroom above the
 floor-derived budget while pressure is normal, so a shed means the pod spent
 its floor *and* that headroom, or it was above normal pressure and the borrow
-was closed. The one exception is a write's reply, which never borrows: it is
-refused when the floor cannot cover it, which happens only after that write's
-own decode borrowed, so `transient_ceiling_headroom_borrowed` in
-`kura_memory_actions_total_total` rises in the same window. A shed burst with
+was closed. The one exception is a write's reply, which never borrows: it draws
+on a 1 MiB slice of the floor set aside for replies (outside
+`kura_memory_transient_capacity_bytes`), so reads queued on a full floor cannot
+refuse it. Reply refusals mean that slice and the shared floor were both spent;
+older pods without the slice refused every write behind a queued read, filed
+as decode refusals. A shed burst with
 no borrows at normal pressure is a pod predating compressed items borrowing,
 which refused them on a full floor with the headroom idle. Read
 `kura_memory_elastic_transient_reserved_bytes` against

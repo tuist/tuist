@@ -465,6 +465,7 @@ impl ReapiLatencyMetrics {
 
 pub struct GrpcWriteAdmissionMetrics {
     decode_rejected: Counter,
+    reply_rejected: Counter,
     staging_rejected: Counter,
     capacity_shed: Counter,
 }
@@ -472,6 +473,13 @@ pub struct GrpcWriteAdmissionMetrics {
 impl GrpcWriteAdmissionMetrics {
     pub fn record_decode_rejected(&self) {
         self.decode_rejected.inc();
+        self.capacity_shed.inc();
+    }
+
+    /// A write refused because the floor could not cover its reply, before
+    /// anything decoded. Same shed kind as decoding, its own memory action.
+    pub fn record_reply_rejected(&self) {
+        self.reply_rejected.inc();
         self.capacity_shed.inc();
     }
 
@@ -942,6 +950,9 @@ impl Metrics {
         let grpc_write_admission = Arc::new(GrpcWriteAdmissionMetrics {
             decode_rejected: memory_actions.get_or_create_owned(&MemoryActionLabels {
                 action: "grpc_write_decode_admission_rejected".to_owned(),
+            }),
+            reply_rejected: memory_actions.get_or_create_owned(&MemoryActionLabels {
+                action: "grpc_write_reply_admission_rejected".to_owned(),
             }),
             staging_rejected: memory_actions.get_or_create_owned(&MemoryActionLabels {
                 action: "bytestream_staging_admission_rejected".to_owned(),

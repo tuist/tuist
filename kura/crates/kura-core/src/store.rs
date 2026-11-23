@@ -24047,7 +24047,10 @@ mod tests {
             config.memory_soft_limit_bytes = 64 * MIB;
             config.memory_hard_limit_bytes = 128 * MIB;
         });
-        assert_eq!(store.memory.transient_capacity_bytes(), 64 * MIB);
+        assert_eq!(
+            store.memory.transient_capacity_bytes() + store.memory.write_reply_reserve_bytes(),
+            64 * MIB
+        );
         let upload_id = store
             .try_start_multipart_upload("acme", "ios", "builds", "large", "Module")
             .expect("session should start");
@@ -24063,7 +24066,7 @@ mod tests {
         // is charged one drop interval rather than the whole window.
         let _other_uploads = store
             .memory
-            .try_reserve_foreground_memory(48 * MIB)
+            .try_reserve_foreground_memory(store.memory.transient_capacity_bytes() - 16 * MIB)
             .expect("the pool should admit the other uploads");
 
         tokio::time::timeout(

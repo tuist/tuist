@@ -296,10 +296,11 @@ impl Drop for ForegroundWaiter {
 }
 
 impl TransientMemoryReservation {
-    /// A floor-backed reservation of `bytes`: this reservation's floor-derived
-    /// bytes first, the floor pool for the rest, and never borrowed ceiling
-    /// headroom. Leaves this reservation untouched when the floor cannot cover
-    /// it.
+    /// A floor-backed reservation of `bytes` for a write's reply, never
+    /// borrowed ceiling headroom: this reservation's floor-derived bytes when
+    /// they cover it, else the floor slice set aside for replies, else this
+    /// reservation's floor bytes plus the shared floor pool for the rest.
+    /// Leaves this reservation untouched when none of them can cover it.
     fn try_split_off_floor_backed(&mut self, bytes: u64) -> Result<Self, ()> {
         let requested = usize::try_from(bytes).map_err(|_| ())?;
         let floor_held = self
@@ -308,15 +309,32 @@ impl TransientMemoryReservation {
             .map_or(0, OwnedSemaphorePermit::num_permits);
         let from_self = requested.min(floor_held);
         let from_pool = requested - from_self;
+        if from_pool > 0 {
+            if !self
+                .controller
+                .allow_transient_admission(AdmissionClass::Foreground)
+            {
+                return Err(());
+            }
+            // The shared floor refuses every try-only acquisition while a read
+            // is queued on it, so a reply tries its own slice first. The whole
+            // reply comes from the slice: permits of different semaphores
+            // cannot merge.
+            let permits = u32::try_from(requested).map_err(|_| ())?;
+            if let Ok(permit) = self.controller.inner.pools.try_acquire_write_reply(permits) {
+                return Ok(Self {
+                    controller: self.controller.clone(),
+                    permit: Some(permit),
+                    elastic_permit: None,
+                    _read_borrow_permit: None,
+                    elasticity: TransientElasticity::Fixed,
+                    bytes,
+                });
+            }
+        }
         let mut permit = match from_pool {
             0 => None,
             permits => {
-                if !self
-                    .controller
-                    .allow_transient_admission(AdmissionClass::Foreground)
-                {
-                    return Err(());
-                }
                 let permits = u32::try_from(permits).map_err(|_| ())?;
                 Some(self.controller.inner.pools.try_acquire_transient(permits)?)
             }

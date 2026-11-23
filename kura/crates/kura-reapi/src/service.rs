@@ -9800,7 +9800,9 @@ mod tests {
         let second_hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(limit)
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - limit,
+            )
             .expect("the remaining transient budget should be acquirable when idle");
         let serve = tokio::spawn({
             let service = service.clone();
@@ -9932,7 +9934,9 @@ mod tests {
         let second_hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(limit)
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - limit,
+            )
             .expect("the remaining transient budget should be acquirable when idle");
         let status = service
             .serve_actioncache_snapshot("ios", 0, None)
@@ -10234,7 +10238,9 @@ mod tests {
         let second_permit = context
             .state
             .memory
-            .try_acquire_reapi_materialization(materialization_limit)
+            .try_acquire_reapi_materialization(
+                context.state.memory.transient_capacity_bytes() as usize - materialization_limit,
+            )
             .expect("the response should reserve the rest of the materialization pool")
             .expect("a non-zero reservation should return a permit");
         let mut response = axum::response::Response::new(axum::body::Body::empty());
@@ -14108,6 +14114,21 @@ mod tests {
                     .expect("a non-empty reservation holds a permit"),
             );
         }
+        // And the slice set aside for write replies, so a reply has no floor
+        // left either.
+        // A write in flight may already hold part of it; take the rest.
+        let reply_slice = memory.write_reply_reserve_bytes()
+            - (memory.floor_reserved_bytes() - memory.transient_reserved_bytes());
+        if reply_slice > 0 {
+            held.push(
+                memory
+                    .try_reserve_elastic_foreground_memory(0)
+                    .expect("an empty reservation is admitted")
+                    .try_reserve_reply(reply_slice)
+                    .expect("the reply slice is free")
+                    .expect("a non-empty reservation holds a permit"),
+            );
+        }
         held
     }
 
@@ -14117,10 +14138,15 @@ mod tests {
         free_bytes: usize,
     ) -> Vec<crate::memory::MemoryPermit> {
         let mut held = hold_rest_of_floor_pool(memory);
-        let last = held.last_mut().expect("the floor pool is not empty");
+        let reply_slice = (memory.write_reply_reserve_bytes() > 0).then(|| held.pop());
+        // Every permit but the last holds a full per-request limit; the last
+        // holds what the shared pool had left.
         let limit = memory.reapi_materialization_limit_bytes();
-        last.shrink_to(limit - free_bytes)
+        let last_bytes = memory.transient_capacity_bytes() as usize - limit * (held.len() - 1);
+        let last = held.last_mut().expect("the floor pool is not empty");
+        last.shrink_to(last_bytes - free_bytes)
             .expect("a held permit shrinks");
+        held.extend(reply_slice.flatten());
         held
     }
 
@@ -14302,7 +14328,7 @@ mod tests {
             splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
-        let reserved_before = memory.transient_reserved_bytes();
+        let reserved_before = memory.floor_reserved_bytes();
 
         let mut update = Request::new(reapi::UpdateActionResultRequest {
             instance_name: "ios".into(),
@@ -14324,9 +14350,9 @@ mod tests {
             .expect("a write the floor can answer for is acknowledged");
 
         assert_eq!(memory.elastic_transient_reserved_bytes(), 0);
-        assert!(memory.transient_reserved_bytes() > reserved_before);
+        assert!(memory.floor_reserved_bytes() > reserved_before);
         drop(unread_reply);
-        assert_eq!(memory.transient_reserved_bytes(), reserved_before);
+        assert_eq!(memory.floor_reserved_bytes(), reserved_before);
     }
 
     fn pause_after_metadata_commit(
@@ -14355,7 +14381,7 @@ mod tests {
             splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
-        let reserved_before = memory.transient_reserved_bytes();
+        let reserved_before = memory.floor_reserved_bytes();
         let (reached, _resume) = pause_after_metadata_commit(&context);
 
         let mut request = Request::new(batch_update_request(b"cancelled mid-persist"));
@@ -14366,12 +14392,12 @@ mod tests {
             .expect("the write reaches its metadata commit");
 
         assert!(
-            memory.transient_reserved_bytes() > reserved_before,
+            memory.floor_reserved_bytes() > reserved_before,
             "the reply is reserved before the write persists"
         );
         call.abort();
         let _ = call.await;
-        assert_eq!(memory.transient_reserved_bytes(), reserved_before);
+        assert_eq!(memory.floor_reserved_bytes(), reserved_before);
     }
 
     // Once a write has started persisting, nothing that fills the floor in the
