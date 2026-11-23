@@ -2,6 +2,8 @@ cloud.google.com/go/longrunning v0.8.0 h1:LiKK77J3bx5gDLi4SMViHixjD2ohlkwBi+mKA7
 cloud.google.com/go/longrunning v0.8.0/go.mod h1:UmErU2Onzi+fKDg2gR7dusz11Pe26aknR4kHmJJqIfk=
 github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d h1:7izNenYM1R0KKGLzukza/7Z9aqm6DR+PRAZDJl+ZRrs=
 github.com/bazelbuild/remote-apis v0.0.0-20261020142950-c2c07e3d718d/go.mod h1:7Tyi5f5+hG+6LwC0X/G/EjCQS4ZYJUcpY0geSsU2NAw=
+github.com/bazelbuild/remote-apis v0.0.0-20261110225606-e0c0554bfc8a h1:gDr2nGTyUfbFrz4HU4cHoyPH0loLZyFoQDeRygMscMg=
+github.com/bazelbuild/remote-apis v0.0.0-20261110225606-e0c0554bfc8a/go.mod h1:7Tyi5f5+hG+6LwC0X/G/EjCQS4ZYJUcpY0geSsU2NAw=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
