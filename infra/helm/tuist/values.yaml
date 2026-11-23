@@ -2820,6 +2820,15 @@ sandboxes:
   # copying the tree into the guest. The images come out of diskGiB. 0 turns
   # them off. See infra/sandboxd/AGENTS.md, "Guest to host: checkout".
   checkoutWorkspacesGiB: 0
+  # With Linux cache volumes on, budget for copies of repositories' CI cache
+  # volumes that new sessions get as their cache drive (`sandbox_runner_cache`
+  # flag), out of diskGiB. 0 turns cache grants off. cacheDriveInTemplate
+  # gives template shapes the drive's placeholder so a fresh session attaches
+  # one without cold booting; enable it only once every node's daemon reads
+  # `cache_placeholder`. See infra/sandboxd/AGENTS.md, "Guest to host: cache
+  # images".
+  cacheImagesGiB: 0
+  cacheDriveInTemplate: false
   # Size of the root filesystem every sandbox gets, which holds home (mise
   # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
   # The template's init container grows the image to it, sparse, when it

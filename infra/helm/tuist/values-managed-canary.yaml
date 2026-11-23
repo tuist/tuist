@@ -897,8 +897,12 @@ sandboxes:
   maxMemoryGiB: 48
   # Two `linux` Orbs (38 GiB each with the 20 GiB rootfs) next to the
   # checkout workspaces, on the runner node's ~410 GiB data disk.
-  diskGiB: 100
+  diskGiB: 130
   checkoutWorkspacesGiB: 10
+  # Rollout of session cache drives: copies of CI cache volumes on this one
+  # node, attached to template creates without a cold boot.
+  cacheImagesGiB: 30
+  cacheDriveInTemplate: true
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
   archiveAfterHours: 1
