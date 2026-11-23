@@ -701,7 +701,8 @@ fleet_check_contracted_power() {
 #  - the first edge (the first VRRP member, the one nothing else can reach)
 #    declared with its TPM check code: the internet boot server takes
 #    announcements only from hosts with one. Never the empty-key hash
-#    e3b0-c442-98fc-1c14, which a vendor reports for a TPM it did not read.
+#    e3b0-c442-98fc-1c14, the hash of empty input that an early
+#    `rack-node check-code` printed when it could not read the TPM's key.
 #  - a boot server for the site, which every other host installs from.
 #  - each mini's /32 in the env's tailnet SSH grant (infra/tailscale/acls.json),
 #    which the operator dials it through before it joins the tailnet.
