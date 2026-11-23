@@ -210,8 +210,8 @@ struct SwiftPackageHeadersExporterTests {
         #expect(result.references.count == 3)
     }
 
-    @Test(arguments: ["../../Other.h", "/usr/include/zlib.h", "/usr/include/zconf.h"])
-    func rejectsModuleMapReferencesOutsideTarget(header: String) throws {
+    @Test(arguments: ["../../Other.h", "../../../package/other/Other.h"])
+    func rejectsRelativeModuleMapReferencesOutsideTarget(header: String) throws {
         let layout = Headers.SourceLayout(
             root: "/package/target", publicHeaders: "/package/target/include",
             moduleMap: "/package/target/include/module.modulemap", moduleName: "CLib",
@@ -222,6 +222,32 @@ struct SwiftPackageHeadersExporterTests {
                 "module CLib { header \"\(header)\" export * }", layout: layout, framework: true
             )
         }
+    }
+
+    /// GzipSwift's `system-zlib` declares a Linux-only system module. Its absolute headers are not package files, so
+    /// the cached module map keeps them as the source build reads them, alongside relocated package headers.
+    @Test(arguments: [false, true])
+    func keepsAbsoluteSystemHeadersVerbatim(framework: Bool) throws {
+        let layout = Headers.SourceLayout(
+            root: "/package/target", publicHeaders: "/package/target/include",
+            moduleMap: "/package/target/include/module.modulemap", moduleName: "zlibLinux",
+            usesDirectoryModuleMap: false
+        )
+        let source = """
+        module zlibLinux [system] {
+            header "/usr/include/zlib.h"
+            header "/usr/include/zconf.h"
+            header "Shim.h"
+            link "z"
+            export *
+        }
+        """
+        let result = try SwiftPackageModuleMapRelocator.relocate(source, layout: layout, framework: framework)
+        #expect(result.contents.contains("header \"/usr/include/zlib.h\""))
+        #expect(result.contents.contains("header \"/usr/include/zconf.h\""))
+        let shim = framework ? "../PrivateHeaders/TuistHeaders/include/Shim.h" : "TuistHeaders/include/Shim.h"
+        #expect(result.contents.contains("header \"\(shim)\""))
+        #expect(result.references == ["/package/target/include/Shim.h"])
     }
 }
 
