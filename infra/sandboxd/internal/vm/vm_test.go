@@ -235,6 +235,27 @@ func TestParseStatCPUTime(t *testing.T) {
 	}
 }
 
+func TestParseSmapsRollup(t *testing.T) {
+	text := `55d0c0000000-7ffd2a3f0000 ---p 00000000 00:00 0                          [rollup]
+Rss:             6291456 kB
+Pss:             5767168 kB
+Pss_Dirty:       4194304 kB
+Pss_Anon:        4194304 kB
+Pss_File:        1048576 kB
+Pss_Shmem:        524288 kB
+Shared_Clean:    1048576 kB
+Anonymous:       4194304 kB
+Swap:                  0 kB
+`
+	got, ok := parseSmapsRollup(text)
+	if !ok || got.AnonBytes != 4<<30 || got.FileBytes != 3<<29 {
+		t.Fatalf("got %+v %v, want 4 GiB anon and 1.5 GiB file", got, ok)
+	}
+	if _, ok := parseSmapsRollup("Rss: 12 kB\n"); ok {
+		t.Fatal("parsed a rollup without Pss_Anon (kernel before 5.x)")
+	}
+}
+
 func TestProcessCPUTimeOfAMissingProcess(t *testing.T) {
 	if _, ok := vcpuCPUTime("/proc", 0); ok {
 		t.Fatal("read a CPU time for pid 0")

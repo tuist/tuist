@@ -110,13 +110,14 @@ type Instance struct {
 	client      *firecracker.Client
 	Agent       *Agent
 
-	mu     sync.Mutex
-	calls  []Call
-	state  string
-	killed atomic.Bool
-	cpu    atomic.Int64
-	done   chan struct{}
-	once   sync.Once
+	mu       sync.Mutex
+	calls    []Call
+	state    string
+	killed   atomic.Bool
+	cpu      atomic.Int64
+	resident vm.Memory
+	done     chan struct{}
+	once     sync.Once
 	// FailSnapshotCreate makes PUT /snapshot/create answer 400.
 	FailSnapshotCreate bool
 
@@ -315,6 +316,19 @@ func (i *Instance) Killed() bool                  { return i.killed.Load() }
 func (i *Instance) CPUTime() (time.Duration, bool) { return time.Duration(i.cpu.Load()), true }
 
 func (i *Instance) SetCPUTime(d time.Duration) { i.cpu.Store(int64(d)) }
+
+// ResidentMemory reports what SetResidentMemory last set.
+func (i *Instance) ResidentMemory() (vm.Memory, bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.resident, true
+}
+
+func (i *Instance) SetResidentMemory(mem vm.Memory) {
+	i.mu.Lock()
+	i.resident = mem
+	i.mu.Unlock()
+}
 
 func (i *Instance) GuestPath(inJail string) string {
 	if i.jailed {

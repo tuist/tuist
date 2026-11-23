@@ -80,6 +80,9 @@ type Instance interface {
 	// VM's vCPU threads, without the VMM's own device emulation; false
 	// where it cannot be read.
 	CPUTime() (time.Duration, bool)
+	// ResidentMemory is what the VMM process holds resident; false where it cannot
+	// be read.
+	ResidentMemory() (Memory, bool)
 	Done() <-chan struct{}
 	ExitError() error
 	Kill(ctx context.Context) error
@@ -557,6 +560,60 @@ func vcpuCPUTime(proc string, pid int) (time.Duration, bool) {
 		return 0, false
 	}
 	return parseStatCPUTime(string(data))
+}
+
+// Memory is a VMM process's resident memory, proportional to sharing
+// (/proc/<pid>/smaps_rollup's Pss fields), so summing it over every VM on a
+// node does not count a page twice. Guest memory restored from a memory
+// file (the File backend maps it private) is file-backed until the guest
+// writes it: clean file pages, such as the shared template memfile, are host
+// page cache the kernel can drop and read back, while anonymous pages are
+// what the guest wrote and the host can only keep (no swap).
+type Memory struct {
+	AnonBytes uint64
+	FileBytes uint64
+}
+
+func (m *machine) ResidentMemory() (Memory, bool) { return processMemory(m.PID()) }
+
+func processMemory(pid int) (Memory, bool) {
+	if pid <= 0 {
+		return Memory{}, false
+	}
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/smaps_rollup")
+	if err != nil {
+		return Memory{}, false
+	}
+	return parseSmapsRollup(string(data))
+}
+
+// parseSmapsRollup reads Pss_Anon, Pss_File and Pss_Shmem (kB). Shmem
+// counts as file: it is what a memfd backend would show.
+func parseSmapsRollup(text string) (Memory, bool) {
+	var mem Memory
+	found := false
+	for _, line := range strings.Split(text, "\n") {
+		key, rest, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		fields := strings.Fields(rest)
+		if len(fields) == 0 {
+			continue
+		}
+		kb, err := strconv.ParseUint(fields[0], 10, 64)
+		if err != nil {
+			continue
+		}
+		switch key {
+		case "Pss_Anon":
+			mem.AnonBytes = kb << 10
+			found = true
+		case "Pss_File", "Pss_Shmem":
+			mem.FileBytes += kb << 10
+		}
+	}
+	return mem, found
 }
 
 // parseStatCPUTime sums utime and stime, fields 14 and 15 of a

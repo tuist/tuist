@@ -1356,3 +1356,21 @@ func TestCPUTimeIsReportedWhileRunningAndAtPause(t *testing.T) {
 		t.Fatalf("persisted paused_cpu_ms = %d, want 2500", meta.PausedCPUMs)
 	}
 }
+
+func TestListReportsMemoryOfRunningSandboxesOnly(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.create(t, testID, 1)
+	h.launcher.Last().SetResidentMemory(vm.Memory{AnonBytes: 3 << 30, FileBytes: 1 << 29})
+
+	got := h.m.List()[0]
+	if got.MemoryAnonBytes != 3<<30 || got.MemoryFileBytes != 1<<29 {
+		t.Fatalf("running memory = %d anon, %d file", got.MemoryAnonBytes, got.MemoryFileBytes)
+	}
+	if _, err := h.m.Pause(ctx, testID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	if got := h.m.List()[0]; got.MemoryAnonBytes != 0 || got.MemoryFileBytes != 0 {
+		t.Fatalf("paused memory = %d anon, %d file, want none", got.MemoryAnonBytes, got.MemoryFileBytes)
+	}
+}
