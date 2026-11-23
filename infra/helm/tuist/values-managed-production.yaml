@@ -2061,7 +2061,9 @@ rackLinuxFleet:
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
-    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
+    # The RS521A is alder's storage node (primeLine B 10054287), preinstalled
+    # like larch-store-a.
+    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U", "ASUSTeK COMPUTER INC. RS521A-E12-RS24U"]
   boot:
     enabled: true
     address: 192.168.50.1
