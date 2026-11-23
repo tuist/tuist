@@ -56,7 +56,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
       end
     end
 
-    test "offers public shard storage only to Xcode CLIs that split multipart uploads across connections", %{
+    test "offers public shard storage only to Xcode CLIs that split uploads and download in parallel", %{
       conn: conn,
       user: user
     } do
@@ -67,8 +67,10 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       for {build_system, cli_version, expected} <- [
             {:xcode, nil, false},
-            {:xcode, "4.219.0-canary.20", false},
-            {:xcode, "4.219.0-canary.21", true},
+            {:xcode, "4.219.0-canary.45", false},
+            {:xcode, "4.219.0-rc.1", false},
+            {:xcode, "4.219.0-rc.2", true},
+            {:xcode, "4.219.0", true},
             {:xcode, "4.220.0", true},
             {:mix, nil, true}
           ] do
