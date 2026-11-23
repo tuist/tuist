@@ -37,8 +37,8 @@ ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be
 # The first release that signs in with the sandbox's workload identity (#15541)
 # without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
 # release's SHASUMS256.txt.
-ARG TUIST_VERSION=4.219.0-canary.39
-ARG TUIST_SHA256=05ae8d377ab18ef8aee33279886124be395f48d0bbd8fd3e5807c8d450f0ea8c
+ARG TUIST_VERSION=4.220.0-canary.5
+ARG TUIST_SHA256=a653338982aa5d76c24efc109e1b161645821a47bc88580954107ecee7977995
 # Struo, which thread agents build and test with first; SHA-256 of
 # struo-<version>-x86_64-unknown-linux-gnu.tar.gz from the release's .sha256.
 ARG STRUO_VERSION=1.0.0
