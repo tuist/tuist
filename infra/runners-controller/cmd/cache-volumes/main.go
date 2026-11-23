@@ -201,10 +201,16 @@ func (a *agent) gone(name, uid string) (bool, error) {
 	}
 	return runtimeGone(ctx, a.runtime, uid)
 }
+
+// reconcile settles every slot, then cleans up Pod directories and advertises
+// the node's masters. A slot that could not be settled, such as one whose CRI
+// writer fence did not answer within its budget, is retried next round and
+// fails this one, but must not hold back the rest: those steps do not depend on it.
 func (a *agent) reconcile() error {
-	if err := a.store.Reconcile(a.gone, a.report); err != nil {
-		return err
-	}
+	return errors.Join(a.store.Reconcile(a.gone, a.report), a.reconcileNode())
+}
+
+func (a *agent) reconcileNode() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pods, err := a.kube.CoreV1().Pods(a.namespace).List(ctx, metav1.ListOptions{})
