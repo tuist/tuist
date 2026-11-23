@@ -88,6 +88,27 @@ A coding agent that runs on Linux, such as a cloud agent session, can build, tes
 2. Install the Tuist CLI where the agent runs, for example in the environment's setup script: `mise use -g tuist@latest`, or `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist` (`tuist-linux-aarch64` on ARM).
 3. Authenticate the CLI. The MCP server's sign-in doesn't carry over to it, so either run `tuist auth login` as an account member, or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope.
 4. If the environment restricts network access, allow `tuist.dev`. The CLI uploads files to the Mac through it, so it needs no other domain.
+5. Optionally, let the agent create and delete Macs without asking each time. Agents ask before calling `create_sandbox` because a Mac counts toward your account's limits, and before `delete_sandbox` because it can't be undone. In Claude Code, allow both in `.claude/settings.json`, using the name you registered the MCP server under (`tuist` here):
+
+   ```json
+   {
+     "permissions": {
+       "allow": ["mcp__tuist__create_sandbox", "mcp__tuist__delete_sandbox"]
+     }
+   }
+   ```
+
+To have the agent do the setup, give it this prompt:
+
+```text
+Set up this environment so you can build and test this project on a Tuist macOS sandbox.
+
+Read https://tuist.dev/en/docs/guides/features/sandboxes#coding-agents and follow its "Build on a Mac from a coding agent" section. It's the current Tuist guide for this, so prefer it over anything you remember about Tuist.
+
+You're done when you have created a Mac with create_sandbox, synced this repository to it with tuist sandbox sync, run the project's build there with tuist sandbox exec, and deleted the Mac.
+
+Ask me before anything that needs my login or approval, such as tuist auth login. If a step fails or is blocked, stop and tell me which step you reached and the exact error, without secrets.
+```
 
 The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. The Mac already has [Tuist](#tuist-in-sandbox), the project's pinned version when it pins one, signed in to your account's cache, and the agent reads the Mac's guide once. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses, is archived when its two-hour lifetime ends, and is deleted after 14 days; the agent extends the lifetime before a long build.
 
