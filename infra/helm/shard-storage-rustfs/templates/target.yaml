@@ -58,7 +58,11 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: [secrets]
-    resourceNames: [{{ printf "%s-service" .Release.Name | quote }}]
+    resourceNames:
+      - {{ printf "%s-service" .Release.Name | quote }}
+      {{- if .Values.dockerMirror.bucket }}
+      - {{ printf "%s-docker-mirror-service" .Release.Name | quote }}
+      {{- end }}
     verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -118,4 +122,30 @@ spec:
       remoteRef:
         key: {{ .Release.Name }}-service
         property: secret-access-key
+{{- if .Values.dockerMirror.bucket }}
+---
+# The Docker Hub mirror's credentials for the main chart's registryCache, as
+# Secret <release>-docker-mirror (keys access-key-id, secret-access-key).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Release.Name }}-docker-mirror
+  namespace: {{ .Values.serverNamespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: SecretStore
+    name: {{ $reader }}
+  target:
+    name: {{ .Release.Name }}-docker-mirror
+  data:
+    - secretKey: access-key-id
+      remoteRef:
+        key: {{ .Release.Name }}-docker-mirror-service
+        property: access-key-id
+    - secretKey: secret-access-key
+      remoteRef:
+        key: {{ .Release.Name }}-docker-mirror-service
+        property: secret-access-key
+{{- end }}
 {{- end }}
