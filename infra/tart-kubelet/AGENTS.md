@@ -314,6 +314,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   production Pulse's `opentelemetry_logs` with
   `json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND body LIKE '%wedged logd%'`.
 
+- A GitHub runner's start after its claim is logged at teardown as `runner job
+  start` (`boot_timing.go`): `claimedToListener`, `listenerToJobMessage` (the
+  Listener's `MessageReceived` job request, so a long one is GitHub late to send
+  the job), `jobMessageToJobStarted` (this VM late to run it) and
+  `claimedToJobStarted`. The claim is the `claimed` heartbeat's mtime; the rest
+  are `boot-listener`, `boot-job-message` and `boot-job-started` markers
+  `dispatch-poll.sh` and its job-started hook write. An image without them logs
+  nothing.
+
 - Readiness: without a `readinessProbe`, a Pod is Ready once its VM has an IP
   (customer runner Pods stay here). An `httpGet`/`tcpSocket` probe runs in
   `internal/podagent/readiness.go` on its own goroutine against the guest IP
