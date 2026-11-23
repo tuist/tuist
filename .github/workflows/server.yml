@@ -236,6 +236,7 @@ jobs:
       # restore its cache. Enter through the bootstrap-aware compile alias first.
       - name: Compile with dependency caching
         run: mix compile --warnings-as-errors
+      # Temporary marker: this commit measures main's pull request coverage cost.
       # Keep the persisted build plain. Coverage shards instrument their own
       # downloaded build, which is not retained in a cache volume.
       - name: Build and plan current ClickHouse shards
