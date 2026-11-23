@@ -149,11 +149,12 @@ what any action can reach.
 
 ### VM sizes
 
-An action that needs more memory than the default 2 vCPU, 4 GB VM sets the
-`tuist-memory-gb` execution property to 8 or 16, which gives it a 4x8192 or
-8x16384 VM (two vCPUs per 4 GB); 4 is the default. Values are generic
+An action that needs another size than the default 2 vCPU, 4 GB VM sets the
+`tuist-memory-gb` execution property to 2, 8 or 16, which gives it a 1x2048,
+4x8192 or 8x16384 VM (one vCPU per 2 GB); 4 is the default. Values are generic
 memory sizes, not per-toolchain pools, and the property is part of the action
-digest like the image.
+digest like the image. The gateway always sends the size to the server, so
+neither relies on the other's default while one of them is rolled out.
 
 - The gateway reads the size from the action's platform. It uses the action
   its prefetch read, or reads it again, retrying a slow or failed read with
@@ -162,8 +163,8 @@ digest like the image.
   `UNAVAILABLE` when it still cannot, because running the action in a smaller
   VM would only fail it. It asks the server for the project's cache endpoint
   when it no longer remembers one: clients check capabilities once per build.
-  Leases hold default VMs, so larger actions always go through the server,
-  which receives `memory_gb`.
+  Leases hold default VMs, so actions of other sizes always go through the
+  server.
 - The scheduler prepares a larger VM for each queued action that needs one;
   only default VMs stay warm. Queued actions take ready VMs of their size,
   oldest first, and the others keep their place. A size that does not fit the
@@ -171,8 +172,8 @@ digest like the image.
   take it, and ready VMs no queued action needs, warm ones included, are
   retired for it. An action larger than the account's limits can ever hold
   fails with `FAILED_PRECONDITION` without a VM.
-- Workers allow the three shapes and build the 2x4096 and 4x8192 snapshots at
-  startup; 8x16384 builds on its first action. Placement charges each VM its
+- Workers allow the four shapes and build the 1x2048, 2x4096 and 4x8192
+  snapshots at startup; 8x16384 builds on its first action. Placement charges each VM its
   own vCPUs and memory. The executor refuses an action whose size exceeds
   its VM's (`memory_gb` in the request; leases send none, the default).
 

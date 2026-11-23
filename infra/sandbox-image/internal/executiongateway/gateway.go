@@ -267,9 +267,9 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	if inputs != "" {
 		body["inputs"] = inputs
 	}
-	if memory != worker.DefaultMemoryGB {
-		body["memory_gb"] = memory
-	}
+	// Always sent, so the size does not depend on the server's default
+	// matching this gateway's while either is rolled out.
+	body["memory_gb"] = memory
 	for key, value := range requestMetadata(s.Context()) {
 		body[key] = value
 	}
