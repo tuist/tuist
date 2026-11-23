@@ -1,5 +1,6 @@
 import NestedKit
+import QuotedKit
 
 public func featureValue() -> Int {
-    NKValue.value()
+    NKValue.value() + QKValue.value() - 1
 }
