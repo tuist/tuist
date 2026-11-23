@@ -34,6 +34,16 @@ defmodule Tuist.Kura.StorageRollupsTest do
       assert rollup.eviction_count == 1
       assert rollup.median_shed_age_seconds == 3_600
       assert rollup.median_ring_span_seconds == 7_200
+      # Shed an hour after it was written: not under the one-hour threshold,
+      # under every longer one.
+      assert rollup.shed_age_counts == %{
+               "3600" => 0,
+               "12960" => 1,
+               "28800" => 1,
+               "88128" => 1,
+               "129600" => 1
+             }
+
       assert rollup.snapshot_count == 1
       assert rollup.max_occupancy_percent == 50
       assert rollup.max_live_segment_bytes == 5_368_709_120

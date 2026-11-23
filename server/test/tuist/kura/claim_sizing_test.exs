@@ -841,7 +841,9 @@ defmodule Tuist.Kura.ClaimSizingTest do
 
     # A 64Gi claim capped at 128Gi runs a 102 GiB ring for two weeks: under
     # the 3-day floor most days, past it for three, then one day under it
-    # again on the last day the fourteen-day rung could fast-track.
+    # again on the last day the fourteen-day rung could fast-track. Thirteen
+    # of those days cannot fill the plain rung, so only the fast-track could
+    # grow them, and the days past the floor keep it from doing so.
     test "one day under the floor does not fast-track over resized days that shed past it" do
       ring_bytes = 102 * @gibibyte
 
@@ -885,10 +887,16 @@ defmodule Tuist.Kura.ClaimSizingTest do
           current_claim_size: "128Gi",
           capped_resize_from: "64Gi",
           last_resized_at: DateTime.new!(Date.add(@today, -14), ~T[18:10:00], "Etc/UTC"),
-          rollups: rollups
+          rollups: tl(rollups)
         )
 
       assert evaluate(context) == :none
+
+      # The whole fourteen days, pooled, shed most of their evictions under the
+      # floor: that grows on the plain rung, not the fast-track.
+      assert {:grow, "256Gi", evidence} = evaluate(context(context, rollups: rollups))
+      assert evidence["window_days"] == 14
+      refute Map.has_key?(evidence, "after_capped_resize")
     end
 
     test "the fast-tracked step keeps the one-day bound and the plan ceiling" do
@@ -1646,6 +1654,96 @@ defmodule Tuist.Kura.ClaimSizingTest do
       assert {:grow, "36Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["window_days"] == 5
       assert evidence["qualifying_threshold_seconds"] == 88_128
+    end
+
+    # An air account on 8Gi in eu-east, as production rolled it up.
+    # Each day's median sits either side of the middle tier's 24.5 hours, and
+    # 11-19's burst evicted content an overnight lull had aged past the floor
+    # while also shedding content under an hour old. Read day by day, 11-19
+    # broke every rung; pooled, 11-19 and 11-20 shed most of their evictions
+    # inside 24.5 hours across 3.8 rings.
+    test "a day aged past the threshold joins the window's pool instead of breaking it" do
+      ring_bytes = 5_368_709_120
+
+      days = [
+        {~D[2026-11-17], 30, 16_102_396_713, 103_863, 315_434, 100, {0, 0, 0, 12, 16}},
+        {~D[2026-11-18], 6, 3_220_400_332, 75_517, 76_067, 96, {0, 0, 0, 6, 6}},
+        {~D[2026-11-19], 24, 12_877_145_838, 134_172, 135_060, 100, {4, 4, 6, 6, 12}},
+        {~D[2026-11-20], 14, 7_511_651_250, 75_645, 75_932, 94, {0, 0, 0, 14, 14}}
+      ]
+
+      thresholds = ClaimSizing.shed_age_thresholds()
+      assert thresholds == [3_600, 12_960, 28_800, 88_128, 129_600]
+
+      rollups =
+        Enum.map(days, fn {date, evictions, bytes, shed, span, occupancy, counts} ->
+          rollup(date,
+            region: "eu-east",
+            eviction_count: evictions,
+            evicted_bytes: bytes,
+            median_shed_age_seconds: shed,
+            median_ring_span_seconds: span,
+            shed_age_counts: thresholds |> Enum.map(&Integer.to_string/1) |> Enum.zip(Tuple.to_list(counts)) |> Map.new(),
+            snapshot_count: 192,
+            max_occupancy_percent: occupancy,
+            last_ring_budget_bytes: ring_bytes,
+            min_ring_budget_bytes: ring_bytes
+          )
+        end) ++
+          [
+            rollup(~D[2026-11-21],
+              region: "eu-east",
+              snapshot_count: 66,
+              max_occupancy_percent: 93,
+              last_ring_budget_bytes: ring_bytes,
+              min_ring_budget_bytes: ring_bytes
+            )
+          ]
+
+      context =
+        context(
+          plan: :air,
+          current_claim_size: "8Gi",
+          region_claim_sizes: %{"eu-east" => "8Gi"},
+          today: ~D[2026-11-21],
+          rollups: rollups
+        )
+
+      assert {:grow, "13Gi", evidence} = ClaimSizing.evaluate(context)
+      assert evidence["region"] == "eu-east"
+      assert evidence["window_days"] == 2
+      assert evidence["qualifying_threshold_seconds"] == 88_128
+      assert evidence["eviction_count"] == 38
+      assert evidence["evictions_under_threshold"] == 20
+      assert evidence["ring_turnover"] == 3.8
+
+      # Rolled up before the counts existed, 11-19 has only its median to go
+      # on, which votes nothing under the threshold.
+      uncounted = Enum.map(rollups, &Map.put(&1, :shed_age_counts, nil))
+      assert ClaimSizing.evaluate(context(context, rollups: uncounted)) == :none
+    end
+
+    test "ordinary days of a right-sized ring outvote one short day" do
+      ring_bytes = 5 * @gibibyte
+      thresholds = ClaimSizing.shed_age_thresholds()
+
+      day = fn date, shed_seconds, under ->
+        rollup(date,
+          eviction_count: 6,
+          evicted_bytes: 3 * @gibibyte,
+          median_shed_age_seconds: shed_seconds,
+          median_ring_span_seconds: shed_seconds,
+          shed_age_counts: Map.new(thresholds, &{Integer.to_string(&1), if(&1 > shed_seconds, do: under, else: 0)}),
+          snapshot_count: 192,
+          max_occupancy_percent: 98,
+          last_ring_budget_bytes: ring_bytes
+        )
+      end
+
+      healthy = for offset <- 13..0//-1, do: day.(Date.add(@today, -offset), 2 * @day_seconds, 0)
+      short = List.replace_at(healthy, 12, day.(Date.add(@today, -1), 20 * 3_600, 6))
+
+      assert ClaimSizing.evaluate(context(plan: :air, current_claim_size: "8Gi", rollups: short)) == :none
     end
 
     test "a ring shrinks on retention once a month keeps three floors, 4.5 days" do

@@ -36,12 +36,18 @@ defmodule Tuist.Kura.ClaimSizing do
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
   are the mechanism; give any reader a duration.
 
-  A day that misses a growth threshold because the account was idle does not
-  break the streak: a day it wrote nothing to a full ring, one it barely wrote
-  to next to such a day, or one with either inside its shed age, is passed
-  over. A day that meets the threshold always counts, and an ordinary day of a
-  right-sized ring still breaks the streak. Shrinking still needs every day in
-  its window.
+  A growth window is judged on the evictions of all its days pooled: more
+  than half of them must have shed content younger than the rung's threshold.
+  A day whose own median misses the threshold joins the pool rather than
+  ending the window, so one day aged by an overnight lull cannot hide a ring
+  that sheds hours-old content around it, while ordinary days of a
+  right-sized ring outvote a single short one.
+
+  A day that misses a growth threshold because the account was idle is passed
+  over instead: a day it wrote nothing to a full ring, one it barely wrote to
+  next to such a day, or one with either inside its shed age. A day with no
+  measured shed age and no idle explanation still ends the window. Shrinking
+  still needs every day in its window.
   """
 
   alias Tuist.Kura.Regions
@@ -94,6 +100,19 @@ defmodule Tuist.Kura.ClaimSizing do
   }
 
   def default_policy, do: @default_policy
+
+  @doc """
+  The shed-age thresholds the growth rungs read, in seconds, ascending: what a
+  storage rollup counts each day's evictions against.
+  """
+  def shed_age_thresholds(policy \\ @default_policy) do
+    floor_seconds = round(policy.retention_floor_days * @seconds_per_day)
+
+    policy.grow_windows
+    |> Enum.map(&shed_age_threshold(&1.shed_age_under, floor_seconds))
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
 
   @doc """
   How many days before today a verdict can read: a growth window collects its
@@ -240,6 +259,7 @@ defmodule Tuist.Kura.ClaimSizing do
 
       with window when not is_nil(window) <-
              qualifying_window(by_date, context.today, rung.window_days, passable_days(policy), standing),
+           true <- mostly_under?(window, threshold_seconds),
            true <- turnover_cleared?(window, rung) do
         {grow_target_bytes(window, claim_bytes, floor_seconds, rung, policy),
          grow_evidence(window, floor_seconds, threshold_seconds)}
@@ -287,7 +307,7 @@ defmodule Tuist.Kura.ClaimSizing do
   # way: a rebuilt ring refills before it sheds.
   defp shed_past_threshold?(days, idle_dates, threshold_seconds) do
     Enum.any?(days, fn {_date, rollup} ->
-      rollup.eviction_count > 0 and grow_standing(rollup, idle_dates, threshold_seconds) == :breaks
+      rollup.eviction_count > 0 and grow_standing(rollup, idle_dates, threshold_seconds) in [:pooled, :breaks]
     end)
   end
 
@@ -506,7 +526,9 @@ defmodule Tuist.Kura.ClaimSizing do
   # Idle time can only lengthen a shed age, so a day under the threshold
   # qualifies however little it evicted, today's live row included. A day over
   # it is passed over when it was idle itself or an idle day sits inside its
-  # shed age: the gap may be all it measured.
+  # shed age: the gap may be all it measured. Any other day that measured shed
+  # ages joins the window's pool, where its evictions vote with the rest;
+  # today's live row is passed over instead, since its day is not over.
   defp grow_standing(nil, _idle_dates, _threshold_seconds), do: :breaks
 
   defp grow_standing(rollup, idle_dates, threshold_seconds) do
@@ -514,7 +536,30 @@ defmodule Tuist.Kura.ClaimSizing do
       grow_day?(rollup, threshold_seconds) -> :qualifies
       MapSet.member?(idle_dates, rollup.date) -> :passed_over
       idle_within_shed_age?(rollup, idle_dates) -> :passed_over
+      rollup.eviction_count > 0 and rollup.median_shed_age_seconds != nil -> :pooled
       true -> :breaks
+    end
+  end
+
+  # More than half of the window's evictions shed content younger than the
+  # threshold. Days are weighted by how much they evicted, so a quiet day's
+  # reading counts for as little as it measured.
+  defp mostly_under?(window, threshold_seconds) do
+    {under, total} =
+      Enum.reduce(window, {0, 0}, fn rollup, {under, total} ->
+        {under + evictions_under(rollup, threshold_seconds), total + rollup.eviction_count}
+      end)
+
+    under * 2 > total
+  end
+
+  # A row rolled up before the counts existed, or counted against another
+  # policy's thresholds, falls back to its median: under it, at least half the
+  # day was, and it counts whole; over it, it counts nothing.
+  defp evictions_under(rollup, threshold_seconds) do
+    case rollup |> Map.get(:shed_age_counts) |> Kernel.||(%{}) |> Map.get(Integer.to_string(threshold_seconds)) do
+      count when is_integer(count) -> count
+      _missing -> if grow_day?(rollup, threshold_seconds), do: rollup.eviction_count, else: 0
     end
   end
 
@@ -597,7 +642,7 @@ defmodule Tuist.Kura.ClaimSizing do
     previous_day = Date.add(day, -1)
 
     case standing.(rollup) do
-      :qualifies ->
+      counted when counted in [:qualifies, :pooled] ->
         collect_window(by_date, previous_day, remaining_days - 1, passable_days, standing, [rollup | window])
 
       :passed_over when passable_days > 0 ->
@@ -740,7 +785,9 @@ defmodule Tuist.Kura.ClaimSizing do
       "median_ring_span_seconds" => window |> Enum.map(& &1.median_ring_span_seconds) |> median(),
       "evicted_bytes" => window |> Enum.map(& &1.evicted_bytes) |> Enum.sum(),
       "ring_budget_bytes" => ring_budget_bytes(window),
-      "ring_turnover" => window |> ring_turnover() |> round_turnover()
+      "ring_turnover" => window |> ring_turnover() |> round_turnover(),
+      "eviction_count" => window |> Enum.map(& &1.eviction_count) |> Enum.sum(),
+      "evictions_under_threshold" => window |> Enum.map(&evictions_under(&1, threshold_seconds)) |> Enum.sum()
     }
   end
 
