@@ -121,7 +121,7 @@ defmodule AtlasWeb.GTMLive do
   end
 
   def handle_event("create_idea", %{"blog_post_idea" => params}, socket) do
-    case GTM.create_blog_post_idea(params, socket.assigns.current_user, announce: true) do
+    case GTM.create_blog_post_idea(params, socket.assigns.current_user) do
       {:ok, _idea} ->
         {:noreply,
          socket

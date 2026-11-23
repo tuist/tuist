@@ -8,7 +8,6 @@ defmodule Atlas.Finance.Sync do
   alias Atlas.Finance.Account
   alias Atlas.Finance.Categorization
   alias Atlas.Finance.Config
-  alias Atlas.Finance.PaymentDetection
   alias Atlas.Finance.Providers.Helpers
   alias Atlas.Finance.Providers.Mercury
   alias Atlas.Finance.Providers.Qonto
@@ -73,13 +72,12 @@ defmodule Atlas.Finance.Sync do
       with {:ok, source_config} <- fetch_source_config(source_key, opts),
            {:ok, provider} <- provider_module(source_config.provider),
            {:ok, source} <- ensure_source(source_config),
-           notify_new_payments? = not is_nil(source.last_successful_sync_at),
            {:ok, sync_run} <- start_sync_run(source, now),
            {:ok, source} <- refresh_source(source, source_config, provider),
            {:ok, accounts} <- provider.list_accounts(source_config),
            internal_names = internal_entity_names(opts),
            {:ok, summary} <-
-             sync_accounts(source, accounts, source_config, provider, now, internal_names, notify_new_payments?),
+             sync_accounts(source, accounts, source_config, provider, now, internal_names),
            {:ok, _source} <- mark_source_synced(source, now),
            {:ok, _sync_run} <- finish_sync_run(sync_run, summary, now) do
         {:ok, Map.put(summary, :source_id, source.id)}
@@ -207,14 +205,14 @@ defmodule Atlas.Finance.Sync do
     |> Repo.insert()
   end
 
-  defp sync_accounts(source, accounts, source_config, provider, now, internal_names, notify_new_payments?) do
+  defp sync_accounts(source, accounts, source_config, provider, now, internal_names) do
     Enum.reduce_while(accounts, {:ok, %{accounts_seen: 0, transactions_seen: 0}}, fn account_attrs, {:ok, summary} ->
       with {:ok, account} <- upsert_account(source, account_attrs, now),
            sync_start = sync_start(account, now),
            {:ok, %{transactions: transactions, next_cursor: next_cursor}} <-
              provider.list_transactions(source_config, account, synced_after: sync_start, now: now),
            {:ok, _count} <-
-             upsert_transactions(account, transactions, internal_names, notify_new_payments?),
+             upsert_transactions(account, transactions, internal_names),
            {:ok, _account} <- update_account_sync_cursor(account, next_cursor, now) do
         {:cont,
          {:ok,
@@ -246,7 +244,7 @@ defmodule Atlas.Finance.Sync do
     )
   end
 
-  defp upsert_transactions(account, transactions, internal_names, notify_new_payments?) do
+  defp upsert_transactions(account, transactions, internal_names) do
     count =
       Enum.reduce_while(transactions, 0, fn transaction_attrs, count ->
         attrs =
@@ -256,8 +254,7 @@ defmodule Atlas.Finance.Sync do
           |> flag_internal_transfer(internal_names)
 
         case upsert_transaction(attrs) do
-          {:ok, transaction, new?} ->
-            maybe_review_new_payment(transaction, new?, notify_new_payments?)
+          {:ok, _transaction} ->
             {:cont, count + 1}
 
           {:error, reason} ->
@@ -272,15 +269,6 @@ defmodule Atlas.Finance.Sync do
   end
 
   defp upsert_transaction(attrs) do
-    new? =
-      not Repo.exists?(
-        from(transaction in Transaction,
-          where:
-            transaction.finance_account_id == ^attrs.finance_account_id and
-              transaction.external_id == ^attrs.external_id
-        )
-      )
-
     %Transaction{}
     |> Transaction.changeset(attrs)
     |> Repo.insert(
@@ -290,19 +278,12 @@ defmodule Atlas.Finance.Sync do
     )
     |> case do
       {:ok, transaction} ->
-        with {:ok, transaction} <- Categorization.apply_runway_override(transaction), do: {:ok, transaction, new?}
+        Categorization.apply_runway_override(transaction)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
-
-  defp maybe_review_new_payment(transaction, true, true) do
-    _result = PaymentDetection.review_and_notify(transaction)
-    :ok
-  end
-
-  defp maybe_review_new_payment(_transaction, _new?, _notify_new_payments?), do: :ok
 
   # Transactions whose counterparty is one of our own legal entities are
   # intercompany transfers, not operating revenue/expense. Providers don't

@@ -6,7 +6,6 @@ defmodule Atlas.Accounts.StripeInvoiceReconciliationTest do
   alias Atlas.Accounts
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Invoice
-  alias Atlas.Accounts.InvoicePaidNotifier
   alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
   alias Atlas.Accounts.Workers.StripeInvoiceReconciliationWorker
   alias Atlas.Audit.Activity
@@ -14,11 +13,6 @@ defmodule Atlas.Accounts.StripeInvoiceReconciliationTest do
   alias Atlas.TestSupport.StripeClient
 
   setup :verify_on_exit!
-
-  setup do
-    stub(InvoicePaidNotifier, :notify, fn _account, _invoice -> :ok end)
-    :ok
-  end
 
   test "reconcile_stripe_invoices/1 upserts Stripe invoices" do
     account = insert_account!(%{stripe_customer_id: "cus_123"})
@@ -55,7 +49,7 @@ defmodule Atlas.Accounts.StripeInvoiceReconciliationTest do
     assert activity.metadata["invoice_count"] == 1
   end
 
-  test "reconcile_stripe_invoices/1 updates existing Stripe invoices and notifies on paid transitions" do
+  test "reconcile_stripe_invoices/1 updates existing Stripe invoices" do
     account = insert_account!(%{stripe_customer_id: "cus_123"})
 
     insert_invoice!(account, %{
@@ -85,80 +79,11 @@ defmodule Atlas.Accounts.StripeInvoiceReconciliationTest do
        ]}
     )
 
-    test_pid = self()
-
-    expect(InvoicePaidNotifier, :notify, fn notified_account, notified_invoice ->
-      send(test_pid, {:notified, notified_account.id, notified_invoice.external_id, notified_invoice.status})
-      :ok
-    end)
-
     assert {:ok, %{account_id: account_id, invoices: 1}} = Accounts.reconcile_stripe_invoices(account)
     assert account_id == account.id
 
     invoice = Repo.get_by!(Invoice, source: "stripe", external_id: "in_123")
     assert invoice.status == "paid"
-
-    assert_received {:notified, ^account_id, "in_123", "paid"}
-  end
-
-  test "reconcile_stripe_invoices/1 does not notify when a brand-new invoice arrives already paid" do
-    account = insert_account!(%{stripe_customer_id: "cus_historical"})
-
-    put_stripe_invoices(
-      "cus_historical",
-      {:ok,
-       [
-         %StripeInvoice{
-           id: "in_historical",
-           number: "TUIST-7000",
-           due_date: ~D[2024-01-01],
-           amount_value: Decimal.new("100.00"),
-           amount_currency: "USD",
-           status: "paid",
-           hosted_url: "https://stripe.example/invoices/in_historical"
-         }
-       ]}
-    )
-
-    reject(&InvoicePaidNotifier.notify/2)
-
-    assert {:ok, %{invoices: 1}} = Accounts.reconcile_stripe_invoices(account)
-    assert Repo.get_by!(Invoice, source: "stripe", external_id: "in_historical").status == "paid"
-  end
-
-  test "reconcile_stripe_invoices/1 does not notify when an already-paid invoice is re-synced" do
-    account = insert_account!(%{stripe_customer_id: "cus_resync"})
-
-    insert_invoice!(account, %{
-      external_id: "in_resync",
-      source: "stripe",
-      number: "TUIST-7100",
-      due_date: ~D[2026-03-01],
-      amount_value: Decimal.new("500.00"),
-      amount_currency: "USD",
-      status: "paid",
-      stripe_url: "https://stripe.example/invoices/in_resync"
-    })
-
-    put_stripe_invoices(
-      "cus_resync",
-      {:ok,
-       [
-         %StripeInvoice{
-           id: "in_resync",
-           number: "TUIST-7100",
-           due_date: ~D[2026-03-01],
-           amount_value: Decimal.new("500.00"),
-           amount_currency: "USD",
-           status: "paid",
-           hosted_url: "https://stripe.example/invoices/in_resync"
-         }
-       ]}
-    )
-
-    reject(&InvoicePaidNotifier.notify/2)
-
-    assert {:ok, %{invoices: 1}} = Accounts.reconcile_stripe_invoices(account)
   end
 
   test "reconcile_stripe_invoices/1 returns not found for missing accounts" do

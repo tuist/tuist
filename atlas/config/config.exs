@@ -22,7 +22,6 @@ alias Atlas.Granola.Workers.SyncNotes
 alias Atlas.GTM.Workers.ResumeStalledDeliveries
 alias Atlas.Letters.Workers.ScheduleDeliveryChecks
 alias Atlas.Licenses.RateLimiter
-alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
 alias Atlas.Memory.Workers.RefreshBulletin, as: RefreshMemoryBulletin
 alias Atlas.Nudges.Workers.EvaluateSignals, as: EvaluateNudgeSignals
@@ -124,7 +123,6 @@ config :atlas, Oban,
        {"30 4 * * *", ScheduleServiceLevelExtractions},
        {"45 4 * * *", RefreshMemoryBulletin, args: %{"scope" => "global"}},
        {"30 5 * * *", ScheduleFeatureUsage},
-       {"15 9 * * *", NotifyExpiringLicenses},
        # Picks email delivery back up when a run was discarded mid-audience.
        {"*/15 * * * *", ResumeStalledDeliveries},
        # Deletes document rows and reserved storage objects for uploads the
@@ -155,7 +153,6 @@ config :atlas, :documents,
   embedding_receive_timeout: :timer.seconds(60)
 
 config :atlas, :env, config_env()
-config :atlas, :feature_usage, alert_slack_channel_id: nil
 
 config :atlas, :gtm_email,
   from_name: "Tuist",
@@ -188,7 +185,7 @@ config :atlas, :http,
     ]
   }
 
-config :atlas, :licenses, signing_private_key: nil, expiration_slack_channel_id: nil
+config :atlas, :licenses, signing_private_key: nil
 config :atlas, :llm, receive_timeout: llm_receive_timeout
 
 config :atlas, :pingen,

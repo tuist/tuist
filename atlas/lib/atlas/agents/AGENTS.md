@@ -40,10 +40,9 @@ Paths in this table are relative to `lib/atlas/`. All are native execution.
 | `accounts/agents/{overview_summary_agent,outcome_proposal_agent,screenshot_note_agent}.ex` | Audited text/structured generation from supplied account data or images; no coding tools. |
 | `accounts/agents/email_event_agent.ex` | Audited extraction with inline account lookup/update and event storage tools. |
 | `accounts/agents/granola_meeting_agent.ex` | Anonymous structured run with inline account/contact/event tools. |
-| `accounts/agents/{service_level_extraction_agent,invoice_paid_celebration_agent}.ex` | Anonymous structured extraction or copy generation; no domain tools. |
+| `accounts/agents/service_level_extraction_agent.ex` | Anonymous structured extraction; no domain tools. |
 | `documents/agents/document_classifier_agent.ex` | Audited classification with inline document-type and correspondent tools. |
 | `finance/agents/invoice_extractor_agent.ex` | Audited structured invoice extraction; no domain tools. |
-| `finance/agents/payment_detection_agent.ex` | Anonymous structured run with inline account search/context tools. |
 | `finance/agents/weekly_summary_agent.ex` | Anonymous structured reporting with inline finance queries. |
 | `finance/categorization.ex` | Anonymous structured run with inline web search and category/transaction tools. |
 | `letters/agents/delivery_address_agent.ex` | Audited extraction after storage download and local text extraction; no agent tools. `delivery_details_agent.ex` delegates here. |

@@ -7,17 +7,15 @@ defmodule Atlas.SupportInbox.Classifier do
     * **Thread-continuity gate.** If the inbound landed on a thread
       that has already had activity beyond the inbound itself — a
       team reply, a private note, or an earlier customer message —
-      it is part of a live conversation, and we always ping
-      `#support` without running the LLM. Live conversations are
-      the last place we want a classifier deciding to stay silent.
+      it is part of a live conversation, and we always mark it as
+      needing action without running the LLM. Live conversations are
+      the last place we want a classifier resolving a thread.
 
     * **Fresh inbound.** For the first inbound on a new thread, we
       call `Atlas.SupportInbox.Agents.ClassifierAgent` and persist
-      the decision on the thread so the notifier can route it.
+      the decision on the thread.
 
   Confident no-action decisions also resolve fresh, untouched threads.
-  The notification worker reads the persisted classification and only
-  posts inbound that needs action to `#support`.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -26,7 +24,6 @@ defmodule Atlas.SupportInbox.Classifier do
   alias Atlas.Repo
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
-  alias Atlas.Support.Workers.PostNotification
   alias Atlas.SupportInbox.Agents.ClassifierAgent
 
   require Logger
@@ -36,11 +33,10 @@ defmodule Atlas.SupportInbox.Classifier do
   @urgencies ~w(none low normal high)a
 
   @doc """
-  Classify a freshly ingested inbound, persist the decision, and queue its
-  notification atomically. A failed LLM call collapses to a fallback decision with
-  `source: :fallback` and `action_needed: true` so the notifier still
-  pings `#support`. Persistence failures return `{:error, reason}`
-  so the worker retries rather than notifying from stale state.
+  Classify a freshly ingested inbound and persist the decision. A failed LLM
+  call collapses to a fallback decision with `source: :fallback` and
+  `action_needed: true` so the thread stays open for a person. Persistence
+  failures return `{:error, reason}` so the worker retries.
   """
   def classify_and_persist(%Thread{} = thread, %Message{} = message, opts \\ []) do
     with {:ok, decision} <- classify(thread, message, opts) do
@@ -221,13 +217,7 @@ defmodule Atlas.SupportInbox.Classifier do
           audit(updated_thread, decision)
           if auto_resolve?, do: audit_resolution(updated_thread)
 
-          case PostNotification.enqueue(:inbound_received, thread_id,
-                 message_id: message.id,
-                 notification_id: message.id
-               ) do
-            {:ok, _job} -> decision
-            {:error, reason} -> Repo.rollback(reason)
-          end
+          decision
 
         {:error, changeset} ->
           Repo.rollback(changeset)
