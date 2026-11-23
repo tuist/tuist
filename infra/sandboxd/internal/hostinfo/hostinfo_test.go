@@ -199,8 +199,8 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 			t.Fatalf("%s weight = %q, want %q", id, got, want)
 		}
 		// Its guest memory is protected from the container's reclaim.
-		if got, want := read("vm-"+id+"/memory.min"), strconv.FormatUint(milli<<20, 10); got != want {
-			t.Fatalf("%s memory.min = %q, want %q", id, got, want)
+		if got, want := read("vm-"+id+"/memory.low"), strconv.FormatUint(milli<<20, 10); got != want {
+			t.Fatalf("%s memory.low = %q, want %q", id, got, want)
 		}
 	}
 	// Weights keep the guarantees' proportions: four cores weigh sixteen
@@ -220,7 +220,7 @@ func TestSetupVMCgroupsWeighsVMsByTheirGuarantee(t *testing.T) {
 	}
 	// cgroupfs removes a cgroup's interface files with it; a plain
 	// directory needs them gone first.
-	for _, name := range []string{"cpu.weight", "memory.min", "memory.current"} {
+	for _, name := range []string{"cpu.weight", "memory.low", "memory.current"} {
 		_ = os.Remove(filepath.Join(dir, "vm-four", name))
 	}
 	if err := cgroups.Remove("four"); err != nil {
@@ -248,8 +248,8 @@ func TestVMCgroupsWithoutTheMemoryController(t *testing.T) {
 		t.Fatal(err)
 	}
 	file.Close()
-	if _, err := os.Stat(filepath.Join(dir, "vm-vm", "memory.min")); !os.IsNotExist(err) {
-		t.Fatalf("wrote memory.min without the memory controller: %v", err)
+	if _, err := os.Stat(filepath.Join(dir, "vm-vm", "memory.low")); !os.IsNotExist(err) {
+		t.Fatalf("wrote memory.low without the memory controller: %v", err)
 	}
 	if _, ok := cgroups.MemoryCurrent("vm"); ok {
 		t.Fatal("read per-VM memory without the memory controller")

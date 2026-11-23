@@ -672,7 +672,7 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 
 // releaseCgroup removes the cgroup of a VM whose process is gone. The page
 // cache it is still charged for (the memory image a pause wrote, its disk
-// I/O) moves to the container's cgroup, out of the VM's memory.min, so the
+// I/O) moves to the container's cgroup, out of the VM's memory.low, so the
 // reclaim before a carve-out shrink can drop it. The next spawn opens a
 // fresh cgroup.
 func (m *Manager) releaseCgroup(id string) {

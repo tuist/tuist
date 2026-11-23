@@ -37,8 +37,12 @@ var containerCgroup atomic.Pointer[string]
 // their guarantees, and between them and the daemon in proportion to its
 // floor. Memory stays limited at the container's cgroup; where the memory
 // controller is available each VM's cgroup also accounts its own memory
-// and protects its guest memory (memory.min) from the reclaim the
-// container's limit drives, so the daemon's page cache goes first.
+// and protects its guest memory (memory.low) from the reclaim the
+// container's limit drives, so the daemon's page cache goes first. It is
+// memory.low and not memory.min: with the carve-out sized to reserved
+// memory plus a little headroom, the kernel must still be able to drop a
+// running guest's clean memory-file pages before it OOM-kills the
+// container (memory.min made those unreclaimable and the daemons OOMed).
 type VMCgroups struct {
 	dir    string
 	memory bool
@@ -119,10 +123,10 @@ func moveProcesses(from, to string) error {
 }
 
 // Open creates (or reuses) the VM's cgroup, weighs it at guaranteeMilli,
-// protects minBytes of its memory and returns the directory for the VM's
+// protects lowBytes of its memory and returns the directory for the VM's
 // process to be spawned into (SysProcAttr.CgroupFD). The caller closes it
 // once the process started.
-func (c *VMCgroups) Open(id string, guaranteeMilli, minBytes uint64) (*os.File, error) {
+func (c *VMCgroups) Open(id string, guaranteeMilli, lowBytes uint64) (*os.File, error) {
 	dir := filepath.Join(c.dir, vmCgroupPrefix+id)
 	if err := os.Mkdir(dir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, err
@@ -131,7 +135,7 @@ func (c *VMCgroups) Open(id string, guaranteeMilli, minBytes uint64) (*os.File, 
 		return nil, err
 	}
 	if c.memory {
-		if err := os.WriteFile(filepath.Join(dir, "memory.min"), []byte(strconv.FormatUint(minBytes, 10)), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "memory.low"), []byte(strconv.FormatUint(lowBytes, 10)), 0o644); err != nil {
 			return nil, fmt.Errorf("protecting the memory of %s: %w", filepath.Base(dir), err)
 		}
 	}
