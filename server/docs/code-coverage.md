@@ -149,6 +149,18 @@ A carried line has no execution count, because no run at the commit executed it.
 - Evidence records what ran, so it can't see compile-time dependencies: a changed macro, a constant folded at compile time, or a type a test uses only when compiling. Such a file isn't among a test's files unless the test also executed it. A target's hash does, when the file is in the target or one of its dependencies.
 - Trusting the target hash means an input outside the project graph (a file read at runtime, generated code outside the graph, a scheme's test arguments and environment, a test plan, CocoaPods' pods) doesn't block carrying a target whose hash didn't change. Selective testing makes the same trust when it skips the target.
 
+## Pull request comment
+
+Tuist's pull request comment (`Tuist.VCS`) has a Coverage section for the pull request's latest commit, built by `Tuist.Tests.Coverage.Comparison`. The latest commit is the one of the pull request's newest signed test run, the commit the Tests section reports, not the commit the comment job was queued for: an earlier commit's build or preview that finishes later doesn't replace the newer commit's coverage. The section names the commit it reports and links the pull request's coverage page (`/tests/coverage/pulls/<number>`), which opens on its Commits tab while the latest commit is in progress and on its Overview otherwise.
+
+- **In progress** until the commit's pipeline signals completion: the section says coverage is still being collected and shows no figure, since a scheme or shard may still be missing.
+- **Incomplete** (`reported_kind` `partial`): the figure is shown as a lower bound and isn't compared.
+- **Complete**: the total, its change from the base, a table of the modules whose coverage changed (applications for Mix, packages for Cargo; most changed first, at most ten) followed by how many didn't change, and the files whose coverage changed most (`Commits.changed_files/5`). Unchanged modules are left out so a project with hundreds of modules keeps a short table. A module the base didn't have counts as changed and shows no Δ. With no base nothing is known to have changed, so the table lists the ten least covered modules instead.
+
+**The base** is the commit the pull request branched from: the merge base the commit's signed runs reported (`test_runs.merge_base_sha`), or, when none did, the merge base the commit graph gives with the base branch's head. When the base has no complete figure (not signalled, a lower bound, or never measured), the comparison falls back to the nearest commit with one on the base's first-parent chain (`Commits.nearest_first_parent_in/3`): along the base branch's segments, never into a branch merged into it and never into the pull request's own commits. The comment says which commit it compared with and how many commits it sits below the base. That commit links to its coverage page (`/tests/coverage/commits/<sha>`), and so does the base when a run measured it; a base no run measured has no such page and links to the repository, like the comment's other commits. With no such commit, or no known base, the change is unknown.
+
+**When it's posted.** Run reports queue the comment before their commit is folded, so a fold that leaves a pull request's commit complete (the completion signal, or a run landing after it) queues it again (`VCS.enqueue_coverage_pull_request_comment/2`, called by `Commits.recompute/3`), on the ref the commit's newest pull request run reported. That job isn't deduplicated into one already running, which may have read the commit before the fold.
+
 ## Storage
 
 Scopes exist only in the raw per-run rows. Everything kept for longer is derived from them per commit.
