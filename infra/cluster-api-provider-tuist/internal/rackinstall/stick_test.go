@@ -478,3 +478,58 @@ func TestStickReinstallsAnInstalledMachine(t *testing.T) {
 		t.Fatalf("did not install what is published: %v", err)
 	}
 }
+
+// A 10G DAC in an SFP28 port that runs at a fixed 25G, a PicOS S5860's ports
+// 29 to 32, links on the ASUS edges' Broadcom card only at a forced 25G with
+// FEC off. The installer forces that once per such port without carrier,
+// records the ones that link for the install to keep, and puts back the ones
+// that still do not.
+func TestStickForces25GOnBroadcomPortsWithoutCarrier(t *testing.T) {
+	f := newStickWorld(t, stickWorld{failures: -1, blackholed: true, installed: true})
+	for nic, mac := range map[string]string{"ens17f0np0": "c0:b5:50:53:c7:08", "ens17f1np1": "c0:b5:50:53:c7:09"} {
+		dir := filepath.Join(f.sys, "class/net", nic)
+		if err := os.MkdirAll(filepath.Join(dir, "device"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range map[string]string{"address": mac + "\n", "carrier": "0\n", "device/device": "0x1750\n"} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.MkdirAll(filepath.Join(f.sys, "bus/pci/drivers/bnxt_en"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(f.sys, "bus/pci/drivers/bnxt_en"), filepath.Join(dir, "device/driver")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Only ens17f0np0's peer runs at 25G; ens17f1np1's has nothing in it.
+	ethtool := `echo "ethtool $*" >>"` + f.calls + `"
+[ "$1 $2 $4 $6" = "-s ens17f0np0 off 25000" ] && echo 1 >"` + f.sys + `/class/net/ens17f0np0/carrier"
+exit 0`
+	if err := os.WriteFile(filepath.Join(f.bin, "ethtool"), []byte("#!/bin/sh\n"+ethtool+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := f.runToReboot(t)
+
+	forced, err := os.ReadFile(f.seed + forcedLinksSuffix)
+	if err != nil || string(forced) != "c0:b5:50:53:c7:08\n" {
+		t.Fatalf("recorded %q (%v), want only the port that linked", forced, err)
+	}
+	for _, want := range []string{
+		"ethtool -s ens17f0np0 autoneg off speed 25000 duplex full\nethtool --set-fec ens17f0np0 encoding off\n",
+		"ethtool -s ens17f1np1 autoneg off speed 25000 duplex full\nethtool --set-fec ens17f1np1 encoding off\nethtool -s ens17f1np1 autoneg on\nethtool --set-fec ens17f1np1 encoding auto\n",
+	} {
+		if strings.Count(calls, want) != 1 {
+			t.Fatalf("want once:\n%s\ncalls:\n%s", want, calls)
+		}
+	}
+	if strings.Contains(calls, "ethtool -s enp") {
+		t.Fatalf("forced a port that is not Broadcom's:\n%s", calls)
+	}
+	console, _ := os.ReadFile(f.console)
+	if !strings.Contains(string(console), "ens17f0np0 linked only at 25G with FEC off") {
+		t.Fatalf("did not say what it forced:\n%s", console)
+	}
+}

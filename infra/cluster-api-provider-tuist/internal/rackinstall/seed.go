@@ -357,12 +357,28 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, password, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s%[15]s%[17]s%[18]s%[21]s`, s.Host, s.User, password, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
 		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayoutForSeed(s), dataMounts(s.Role)+kuraThinPoolModule(s),
-		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit(), passwordType, kuraThinPackages(s)), nil
+		networkConfig(s.Edge), edgeResolvers(s.Edge)+edgeFirstWAN(s.Edge), sshStartLimit(), passwordType, kuraThinPackages(s), forcedLinks), nil
 }
+
+// ForcedLinksRulePath is the installed system's udev rule that keeps the
+// forced 25G with FEC off on the ports the installer needed it for
+// (ForcedLinksPath). ethtool from a rule, renaming nothing, so the netplan's
+// matches on names and drivers stay as they are.
+const ForcedLinksRulePath = "/etc/udev/rules.d/70-tuist-dac.rules"
+
+// forcedLinks is the late-command writing ForcedLinksRulePath.
+var forcedLinks = `    - |
+      if [ -s ` + ForcedLinksPath + ` ]; then
+        mkdir -p /target` + path.Dir(ForcedLinksRulePath) + `
+        sort -u ` + ForcedLinksPath + ` | while read -r mac; do
+          printf 'ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="%s", RUN+="/usr/sbin/ethtool -s $name autoneg off speed 25000 duplex full", RUN+="/usr/sbin/ethtool --set-fec $name encoding off"\n' "$mac"
+        done >/target` + ForcedLinksRulePath + `
+      fi
+`
 
 // UplinkDrivers are the drivers of the rack hosts' uplinks: the MS-01's X710
 // (i40e) and the ASUS RS501A's Broadcom N225P (bnxt_en).
