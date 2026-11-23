@@ -72,11 +72,13 @@ checks the committed rule files for this layout.
 Pulse data source rules use **Error: Keep last state**. A query that fails
 (a datanode restart, a scan rejected for memory, a tunnel blip) keeps the
 rule's last state instead of raising `DatasourceError`. Rules that already
-treated errors as Normal kept that. Seven rules that page through IRM keep
+treated errors as Normal kept that. Six rules that page through IRM keep
 **Error: Error**, so a Pulse outage still reaches the on-call: `tuist-production-http-5xx`,
-`runner-cache-volume-saves-failing`, `dfkmt5dtpx43kb`, `cfl2e4b9eg8aoc`,
-`ffxqtj0ye58g0b`, `tuist-production-vm-allocator-burst` and
-`ffz1ualjy8fswd-prod`. The `-prod`, `-stg` and `-can` copies of
+`dfkmt5dtpx43kb`, `cfl2e4b9eg8aoc`, `ffxqtj0ye58g0b`,
+`tuist-production-vm-allocator-burst` and `ffz1ualjy8fswd-prod`.
+`runner-cache-volume-saves-failing` moved to **Error: Normal** on 2026-11-23,
+after slow Pulse scans paged it as `DatasourceError` while saves were healthy;
+`pulse-sql-unavailable` pages for the outage instead. The `-prod`, `-stg` and `-can` copies of
 `pulse-scan-memory-rejections` and `pulse-datanode-telemetry-missing` also keep
 **Error: Error**, since they watch Pulse itself.
 

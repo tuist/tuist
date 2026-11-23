@@ -1,9 +1,9 @@
 [
   {
     "annotations": {
-      "description": "Runner cache volume saves are failing on {{ $labels.platform }}: {{ $values.C.Value | humanizePercentage }} of the {{ $values.B.Value }} jobs that saved a volume in the last hour had their save refused (invalid_image, incomplete, error or timeout). A refused save keeps the previous copy, so the next jobs start from stale or empty caches and the loss compounds until the cause is fixed. Unchanged, withheld and release_pending saves are excluded because they are not failures.\n\nFirst query (Pulse SQL, the pulse-sql data source): SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, regexp_match(body, '\"result\":\"([^\"]*)\"')[1] AS result, regexp_match(body, '\"kind\":\"([^\"]*)\"')[1] AS kind, count(*) AS n FROM opentelemetry_logs WHERE timestamp > now() - INTERVAL '1 hour' AND json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND body LIKE '%\"operation\":\"publish\"%' AND (json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND body LIKE '%\"msg\":\"cache phase\"%' OR json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent' AND body LIKE '%\"msg\":\"cache volume operation\"%') GROUP BY platform, result, kind. Then read the error field of a few failing lines: select body with the same filter plus AND body LIKE '%\"result\":\"invalid_image\"%' (or the failing result), ORDER BY timestamp DESC LIMIT 20.\n\nLikely causes:\n- macOS invalid_image \"cache image failed write-back verification\": the guest could not open or write its image through the VM share. Check whether a runner image or tart-kubelet release went out just before the onset (on 2026-10-21 runner image 0.43.1 refused every save from 17:00 to 20:37).\n- macOS incomplete: the image holds less than the guest wrote (lost guest writes). See the incomplete rule.\n- Linux invalid_image with a maintenance \"loop device still has live references\" error: the agent verified a volume kubelet still held and poisoned the save (2026-10-20 to 10-22, fixed by #14590).\n- error \"image upload failed\": the cache upload endpoint or Kura is failing.\n\nRoll back the release that started it; there is no per-account mitigation.",
+      "description": "Runner cache volume saves are failing on {{ $labels.platform }}: {{ $values.A.Value | humanizePercentage }} of the jobs that saved a volume in the last hour (at least 20) had their save refused (invalid_image, incomplete, error or timeout). A refused save keeps the previous copy, so the next jobs start from stale or empty caches and the loss compounds until the cause is fixed. Unchanged, withheld and release_pending saves are excluded because they are not failures.\n\nFirst query (Pulse SQL, the pulse-sql data source): SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, regexp_match(body, '\"result\":\"([^\"]*)\"')[1] AS result, regexp_match(body, '\"kind\":\"([^\"]*)\"')[1] AS kind, count(*) AS n FROM opentelemetry_logs WHERE timestamp > now() - INTERVAL '1 hour' AND json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND body LIKE '%\"operation\":\"publish\"%' AND (json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND body LIKE '%\"msg\":\"cache phase\"%' OR json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent' AND body LIKE '%\"msg\":\"cache volume operation\"%') GROUP BY platform, result, kind. Then read the error field of a few failing lines: select body with the same filter plus AND body LIKE '%\"result\":\"invalid_image\"%' (or the failing result), ORDER BY timestamp DESC LIMIT 20.\n\nLikely causes:\n- macOS invalid_image \"cache image failed write-back verification\": the guest could not open or write its image through the VM share. Check whether a runner image or tart-kubelet release went out just before the onset (on 2026-10-21 runner image 0.43.1 refused every save from 17:00 to 20:37).\n- macOS incomplete: the image holds less than the guest wrote (lost guest writes). See the incomplete rule.\n- Linux invalid_image with a maintenance \"loop device still has live references\" error: the agent verified a volume kubelet still held and poisoned the save (2026-10-20 to 10-22, fixed by #14590).\n- error \"image upload failed\": the cache upload endpoint or Kura is failing.\n\nRoll back the release that started it; there is no per-account mitigation.",
       "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volume-saves-failing",
-      "summary": "{{ $values.C.Value | humanizePercentage }} of {{ $labels.platform }} runner cache volume saves failed in the last hour ({{ $values.B.Value }} saves)"
+      "summary": "{{ $values.A.Value | humanizePercentage }} of {{ $labels.platform }} runner cache volume saves failed in the last hour"
     },
     "condition": "D",
     "data": [
@@ -25,50 +25,8 @@
           "intervalMs": 1000,
           "maxDataPoints": 43200,
           "rawQuery": true,
-          "rawSql": "SELECT platform, count(DISTINCT CASE WHEN result IN ('invalid_image', 'incomplete', 'error', 'timeout') THEN use END) AS value\nFROM (\n  SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n  FROM opentelemetry_logs\n  WHERE timestamp > now() - INTERVAL '1 hour'\n    AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND body LIKE '%\"msg\":\"cache phase\"%' OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%')\n    AND body LIKE '%\"operation\":\"publish\"%'\n) l\nGROUP BY platform",
+          "rawSql": "SELECT platform, CASE WHEN saves >= 20 THEN CAST(failed AS DOUBLE) / saves ELSE 0 END AS value\nFROM (\n  SELECT platform, count(DISTINCT CASE WHEN result IN ('invalid_image', 'incomplete', 'error', 'timeout') THEN use END) AS failed, count(DISTINCT CASE WHEN result NOT IN ('unchanged', 'withheld', 'release_pending', 'cancelled') THEN use END) AS saves\n  FROM (\n    SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n    FROM opentelemetry_logs\n    WHERE timestamp > now() - INTERVAL '1 hour'\n      AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND body LIKE '%\"msg\":\"cache phase\"%' OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%')\n      AND body LIKE '%\"operation\":\"publish\"%'\n  ) l\n  GROUP BY platform\n) s",
           "refId": "A"
-        }
-      },
-      {
-        "refId": "B",
-        "queryType": "",
-        "relativeTimeRange": {
-          "from": 3600,
-          "to": 0
-        },
-        "datasourceUid": "pulse-sql",
-        "model": {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "pulse-sql"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "rawQuery": true,
-          "rawSql": "SELECT platform, count(DISTINCT CASE WHEN result NOT IN ('unchanged', 'withheld', 'release_pending', 'cancelled') THEN use END) AS value\nFROM (\n  SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n  FROM opentelemetry_logs\n  WHERE timestamp > now() - INTERVAL '1 hour'\n    AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND body LIKE '%\"msg\":\"cache phase\"%' OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%')\n    AND body LIKE '%\"operation\":\"publish\"%'\n) l\nGROUP BY platform",
-          "refId": "B"
-        }
-      },
-      {
-        "refId": "C",
-        "queryType": "expression",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
-        },
-        "datasourceUid": "__expr__",
-        "model": {
-          "datasource": {
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A / $B",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "refId": "C",
-          "type": "math"
         }
       },
       {
@@ -84,7 +42,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "$A > 0.3 * $B && $B >= 20",
+          "expression": "$A > 0.3",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
           "refId": "D",
@@ -92,7 +50,7 @@
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "OK",
     "folderUID": "df5dn1g4rckxsf",
     "for": "10m",
     "isPaused": false,

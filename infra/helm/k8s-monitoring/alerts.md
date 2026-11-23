@@ -3508,17 +3508,28 @@ count(sum by (use) (count_over_time(
 #    result!~`unchanged|withheld|release_pending|cancelled`
 ```
 
-- Condition: `$A > 0.3 * $B && $B >= 20`. `$C = $A / $B` only feeds the
-  annotations: in an hour with no counted saves on a platform (all
-  `unchanged` at night) `$A / $B` is NaN, NaN survives `&&`, and Grafana
-  fires on a NaN condition. That paged at 0 saves on 2026-11-18 at 05:25 UTC.
+- Condition: one Pulse SQL query `A` counts both per platform in a single scan
+  of the hour and returns the failed share when at least 20 saves counted,
+  else 0; `D` is `$A > 0.3`. It replaced two queries (`A` failed and `B`
+  saves, condition `$A > 0.3 * $B && $B >= 20`) that each scanned the same
+  hour. With five Pulse SQL rules in the group evaluating together that doubled this
+  rule's load on Pulse, and from 2026-11-23 18:14 UTC, after a Pulse rollout,
+  every evaluation ran into Grafana's 60-second evaluation deadline (`context
+  deadline exceeded`) and paged as `DatasourceError` while saves were healthy.
+  The floor in SQL also keeps the NaN of an hour with no counted saves out of
+  the condition (that paged at 0 saves on 2026-11-18 at 05:25 UTC). The
+  annotations show the share, not the save count.
+- Error: Normal. An evaluation that fails or runs past the deadline does not
+  page; `pulse-sql-unavailable` pages when Pulse SQL is down. Until 2026-11-23
+  it was Error: Error, which paged as a `DatasourceError` incident on slow
+  scans.
 - Pending period: 10 minutes; keep firing for 30 minutes, so a quiet hour in
   the middle of a breakage (17:30 to 19:00 on 2026-10-21 had 4 and 12 saves)
   does not resolve and re-page
 - Severity: critical. Routed to `Incidents` with `notification_settings`, like
   the other paging rules: a save failure loses the job's cache for every later
   job until it is fixed, and on 2026-10-21 nobody noticed for hours
-- **No Data: Normal**, **Error: Error**
+- **No Data: Normal**, **Error: Normal**
 
 Backtest, one-hour window, hours named by their end (UTC):
 
