@@ -1282,6 +1282,12 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 	if cwd == "" {
 		cwd = guestWorkspace
 	}
+	if args.CPUGuaranteeMilli > 0 && m.cgroups != nil {
+		// The VM runs at its old weight when this fails; the command still runs.
+		if err := m.cgroups.Reweigh(sb.meta.ID, args.CPUGuaranteeMilli); err != nil {
+			m.log.Warn("reweighing the sandbox's cgroup failed", "sandbox", sb.meta.ID, "error", err)
+		}
+	}
 	start := time.Now()
 	code, err := vsock.RunProcess(ctx, agent, vsock.ExecRequest{Cmd: args.Cmd, Env: args.Env, Cwd: cwd, TimeoutMs: args.TimeoutMs}, out)
 	if err != nil {
