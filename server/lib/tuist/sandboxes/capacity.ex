@@ -740,9 +740,30 @@ defmodule Tuist.Sandboxes.Capacity do
              :ok <- reserve.(grown) do
           {:ok, grown.name}
         else
-          _no_room -> {:error, :no_capacity}
+          _no_room ->
+            log_no_execution_room(sandbox, image_tag, candidates)
+            {:error, :no_capacity}
         end
     end
+  end
+
+  # Measurement branch only: why a remote execution VM found no node.
+  defp log_no_execution_room(sandbox, image_tag, candidates) do
+    nodes =
+      Enum.map(Nodes.connected_nodes(), fn node ->
+        used =
+          Repo.all(
+            from s in Sandbox,
+              where: s.node_name == ^node.name and s.state != :deleted,
+              group_by: s.state,
+              select: {s.state, coalesce(sum(s.vcpus), 0)}
+          )
+
+        cap = min(get_in(node, [:capacity, :cpus]) || 0, Map.get(node, :execution_slots, 0) * 2)
+        "#{node.name} candidate=#{Enum.any?(candidates, &(&1.name == node.name))} cap=#{cap} used=#{inspect(used)}"
+      end)
+
+    Logger.info("re placement no room vcpus=#{sandbox.vcpus} tag=#{image_tag} nodes=[#{Enum.join(nodes, "; ")}]")
   end
 
   @doc """

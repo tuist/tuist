@@ -20,6 +20,8 @@ defmodule Tuist.RemoteExecution.VMs do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
+  require Logger
+
   @lease_seconds 60
   # The node refuses a create after its deadline. A reserved row's first lease
   # outlives that deadline, so reaping can never race a create still in flight.
@@ -75,7 +77,21 @@ defmodule Tuist.RemoteExecution.VMs do
   time before which an unconfirmed create may still arrive.
   """
   def prepare(%Sandbox{} = sandbox, %Settings{} = settings) do
-    case Capacity.place_execution(sandbox, sandbox.template_tag) do
+    started = System.monotonic_time(:millisecond)
+    placed = Capacity.place_execution(sandbox, sandbox.template_tag)
+    place_ms = System.monotonic_time(:millisecond) - started
+    result = prepare_placed(placed, sandbox, settings)
+
+    # Measurement branch only: where preparation time goes.
+    Logger.info(
+      "re prepare outcome=#{elem(result, 0)} place_ms=#{place_ms} total_ms=#{System.monotonic_time(:millisecond) - started} vcpus=#{sandbox.vcpus}"
+    )
+
+    result
+  end
+
+  defp prepare_placed(placed, sandbox, settings) do
+    case placed do
       {:ok, node} ->
         sandbox = %{sandbox | node_name: node}
         deadline = DateTime.add(now(), @create_deadline_seconds, :second)
@@ -93,10 +109,19 @@ defmodule Tuist.RemoteExecution.VMs do
           cpu_guarantee_milli: Sandbox.guaranteed_cpu_milli(sandbox)
         }
 
+        created = System.monotonic_time(:millisecond)
+
         case Nodes.call(node, "create", args, timeout: @node_timeout_ms) do
           {:ok, _} ->
+            create_ms = System.monotonic_time(:millisecond) - created
             Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id), set: [state: :running])
+            connected = System.monotonic_time(:millisecond)
             preconnect(sandbox, settings.cas_endpoint)
+
+            Logger.info(
+              "re prepare steps node=#{node} create_ms=#{create_ms} preconnect_ms=#{System.monotonic_time(:millisecond) - connected}"
+            )
+
             {:ok, %{sandbox | state: :running}}
 
           {:error, _} ->
