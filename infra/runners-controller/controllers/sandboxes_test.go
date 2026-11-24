@@ -133,6 +133,32 @@ func TestSandboxDaemonsReadWhatTheSchedulerCountsAndWhatAGrowthWaitsFor(t *testi
 	}
 }
 
+// With a vmm container the server grows that one; the daemon's own stays
+// fixed. Both hold node memory.
+func TestSandboxDaemonsCountTheVMMContainer(t *testing.T) {
+	pod := sandboxDaemonPod("sandboxd-a", "node-a", 16, 8, true)
+	pod.Spec.Containers[0].Name = "vmm"
+	pod.Status.ContainerStatuses[0].Name = "vmm"
+	half := *resource.NewQuantity(gib/2, resource.BinarySI)
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name:      sandboxdContainer,
+		Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceMemory: half}},
+	})
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, corev1.ContainerStatus{
+		Name:               sandboxdContainer,
+		AllocatedResources: corev1.ResourceList{corev1.ResourceMemory: half},
+	})
+	r, _ := sandboxFixture(t, pod)
+
+	daemons, err := r.sandboxDaemons(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(daemons) != 1 || daemons[0].memory != 16*gib+gib/2 || daemons[0].deferred != 8*gib {
+		t.Fatalf("daemons = %+v, want 16.5 GiB counted and vmm's 8 GiB growth waiting", daemons)
+	}
+}
+
 func TestSandboxDaemonsAreOffWithoutANamespace(t *testing.T) {
 	r, _ := sandboxFixture(t, sandboxDaemonPod("sandboxd-a", "node-a", 16, 8, true))
 	r.SandboxesNamespace = ""

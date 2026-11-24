@@ -64,8 +64,16 @@ type Spec struct {
 	// into (clone3 CLONE_INTO_CGROUP), so Firecracker and its vCPU threads
 	// run there from their first instruction. The jailer moves nothing
 	// without --cgroup arguments.
-	Cgroup *os.File
+	Cgroup *os.File `json:"-"`
+	// MountNS, when set, is the mount namespace the process starts in
+	// (nsenter --mount): the daemon's, when the vmm container spawns it, so
+	// the jailer sees the network namespaces and lazy-disk mounts the daemon
+	// made in its own namespace.
+	MountNS *os.File `json:"-"`
 }
+
+// NsenterBin runs a spawn inside Spec.MountNS.
+var NsenterBin = "nsenter"
 
 // Instance is a spawned Firecracker process.
 type Instance interface {
@@ -231,8 +239,17 @@ func (l *FirecrackerLauncher) Launch(ctx context.Context, spec Spec) (Instance, 
 		return nil, err
 	}
 	bin, args := Command(spec)
+	if spec.MountNS != nil {
+		// ExtraFiles start at fd 3. nsenter execs in place, so the process
+		// group below is still the jailer's.
+		args = append([]string{"--mount=/proc/self/fd/3", "--wd=" + root, "--", bin}, args...)
+		bin = NsenterBin
+	}
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = root
+	if spec.MountNS != nil {
+		cmd.ExtraFiles = []*os.File{spec.MountNS}
+	}
 	cmd.Stdout = pipeW
 	cmd.Stderr = pipeW
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

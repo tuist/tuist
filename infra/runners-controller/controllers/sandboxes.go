@@ -167,31 +167,35 @@ func daemonCPU(pod *corev1.Pod) (asked, allocated int64) {
 	return daemonResource(pod, corev1.ResourceCPU, func(q resource.Quantity) int64 { return q.MilliValue() })
 }
 
+// daemonResource sums the Pod's containers: with a vmm container
+// (sandboxes.vmm.enabled) the server resizes that one and the daemon's own
+// stays fixed, and both hold node memory.
 func daemonResource(pod *corev1.Pod, name corev1.ResourceName, value func(resource.Quantity) int64) (asked, allocated int64) {
 	for _, c := range pod.Spec.Containers {
-		if c.Name == sandboxdContainer {
-			if q, ok := c.Resources.Requests[name]; ok {
-				asked = value(q)
+		var containerAsked int64
+		if q, ok := c.Resources.Requests[name]; ok {
+			containerAsked = value(q)
+		}
+		containerAllocated := containerAsked
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name != c.Name {
+				continue
+			}
+			if q, ok := cs.AllocatedResources[name]; ok {
+				containerAllocated = value(q)
+			} else if cs.Resources != nil {
+				if q, ok := cs.Resources.Requests[name]; ok {
+					containerAllocated = value(q)
+				}
+			}
+			if cs.Resources != nil {
+				if q, ok := cs.Resources.Requests[name]; ok {
+					containerAllocated = max(containerAllocated, value(q))
+				}
 			}
 		}
-	}
-	allocated = asked
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.Name != sandboxdContainer {
-			continue
-		}
-		if q, ok := cs.AllocatedResources[name]; ok {
-			allocated = value(q)
-		} else if cs.Resources != nil {
-			if q, ok := cs.Resources.Requests[name]; ok {
-				allocated = value(q)
-			}
-		}
-		if cs.Resources != nil {
-			if q, ok := cs.Resources.Requests[name]; ok {
-				allocated = max(allocated, value(q))
-			}
-		}
+		asked += containerAsked
+		allocated += containerAllocated
 	}
 	return asked, allocated
 }

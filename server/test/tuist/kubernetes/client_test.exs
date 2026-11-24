@@ -449,6 +449,34 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "resize_sandbox_daemon_memory/4 with a vmm container" do
+    @tag :tmp_dir
+    test "resizes the vmm container, which holds the VMs, instead of sandboxd", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      pod = %{
+        "metadata" => %{"resourceVersion" => "7", "uid" => "pod-uid"},
+        "spec" => %{"containers" => [%{"name" => "sandboxd"}, %{"name" => "vmm"}]}
+      }
+
+      expect(Req, :request, 2, fn request_opts ->
+        case request_opts[:method] do
+          :get ->
+            {:ok, %Req.Response{status: 200, body: pod}}
+
+          :patch ->
+            assert %{"spec" => %{"containers" => [%{"name" => "vmm", "resources" => resources}]}} =
+                     JSON.decode!(request_opts[:body])
+
+            assert resources == %{"requests" => %{"memory" => "2147483648"}, "limits" => %{"memory" => "2147483648"}}
+            {:ok, %Req.Response{status: 200, body: pod}}
+        end
+      end)
+
+      assert {:ok, _pod} = Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 2_147_483_648, opts)
+    end
+  end
+
   describe "resize_sandbox_daemon_cpu/4" do
     @tag :tmp_dir
     test "patches only the CPU request, fenced at the version it read, and skips an unchanged one", %{

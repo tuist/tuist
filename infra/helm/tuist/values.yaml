@@ -2876,6 +2876,22 @@ sandboxes:
   admin:
     enabled: false
     port: 9471
+  # Step 2a of seamless daemon restarts: Firecracker runs in a separate vmm
+  # container of the daemon's Pod, the resources above (and the server's
+  # in-place resizes) move to it, and the deploy-varying configuration moves
+  # to a ConfigMap. Behaviour is unchanged: a daemon restart still pauses
+  # every sandbox. Turning it on or off replaces every daemon Pod. See
+  # infra/sandboxd/AGENTS.md, "Process model".
+  vmm:
+    enabled: false
+    # The daemon container's own, fixed resources: the server's 512 MiB
+    # daemon reserve, with room for page cache from archives and restores.
+    daemonResources:
+      requests:
+        cpu: "250m"
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   # Run Firecracker under the jailer (chroot, dedicated uid, seccomp). Only
   # turn off to debug a jailer problem on a staging box.
   jailer: true

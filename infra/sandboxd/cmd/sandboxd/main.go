@@ -30,6 +30,7 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/direct"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
+	"github.com/tuist/tuist/infra/sandboxd/internal/envfile"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
@@ -45,8 +46,16 @@ import (
 var version = "dev"
 
 func main() {
+	// Deploy-varying configuration, LOG_LEVEL included, comes from a mounted
+	// ConfigMap, so a change to it does not change the Pod's spec; the Pod's
+	// own variables win.
+	configErr := envfile.Load(os.Getenv("SANDBOXD_CONFIG"))
 	level, levelErr := levelEnv("LOG_LEVEL", slog.LevelInfo)
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	if configErr != nil {
+		logger.Error("loading the config file", "error", configErr)
+		os.Exit(1)
+	}
 	if levelErr != nil {
 		logger.Error("invalid log level", "env", "LOG_LEVEL", "value", os.Getenv("LOG_LEVEL"), "error", levelErr)
 		os.Exit(1)
@@ -91,7 +100,26 @@ func main() {
 	// v2, a read-only hierarchy) every VM shares the daemon's cgroup as
 	// before, and hello does not offer cpu_guarantees.
 	var vmCgroups *hostinfo.VMCgroups
-	if boolEnv(logger, "VM_CGROUPS", true) {
+	// With a vmm container the VMs are spawned there and sit in its cgroup,
+	// which the server resizes, instead of this container's.
+	vmmSocket := os.Getenv("VMM_SOCKET")
+	var vmmGone <-chan struct{}
+	if vmmSocket != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		var base string
+		var err error
+		base, vmmGone, err = vm.VMMCgroup(ctx, vmmSocket)
+		cancel()
+		if err != nil {
+			logger.Error("reaching the vmm container", "error", err)
+			os.Exit(1)
+		}
+		if vmCgroups, err = hostinfo.AdoptVMCgroups(base); err != nil {
+			logger.Warn("per-VM cgroups are off; every VM shares the vmm container's", "error", err)
+			vmCgroups = nil
+			hostinfo.UseContainerCgroup(base)
+		}
+	} else if boolEnv(logger, "VM_CGROUPS", true) {
 		daemonWeight := elastic.CPUFloorMilli
 		if daemonWeight == 0 {
 			daemonWeight = protocol.DefaultCPUGuaranteeMilli
@@ -184,6 +212,16 @@ func main() {
 	snapshotCompat := hostinfo.SnapshotCompat(fcVersion)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	// A vmm that stopped took its VMs along, and a restarted one has another
+	// cgroup: stop as on SIGTERM and let the kubelet restart the daemon.
+	go func() {
+		select {
+		case <-vmmGone:
+			logger.Error("the vmm container stopped; restarting the daemon")
+			stop()
+		case <-ctx.Done():
+		}
+	}()
 	defer stop()
 
 	registry := prometheus.NewRegistry()
@@ -300,7 +338,10 @@ func main() {
 		}
 	}
 	slots := network.NewSlots(network.MaxSlots)
-	launcher := &vm.FirecrackerLauncher{Log: logger}
+	var launcher vm.Launcher = &vm.FirecrackerLauncher{Log: logger}
+	if vmmSocket != "" {
+		launcher = &vm.VMMLauncher{Socket: vmmSocket, Log: logger}
+	}
 	agent := func(path string) vsock.Agent { return vsock.NewUDSClient(path, firecracker.AgentPort) }
 	builder := &template.Builder{
 		Store: store, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,

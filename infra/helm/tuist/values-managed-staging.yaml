@@ -958,6 +958,10 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
+  # Qualifying the vmm container (step 2a of seamless daemon restarts) on
+  # KVM before canary and production.
+  vmm:
+    enabled: true
   prebuildShapes: "16x4096,16x8192"
   # Memory bursting prototype: measure how much memory guests return.
   balloonFreePageReporting: true
