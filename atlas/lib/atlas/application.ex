@@ -113,12 +113,26 @@ defmodule Atlas.Application do
     end
   end
 
-  # Forwards Logger error/warning events to Sentry. Only attached when a
-  # DSN is configured so dev/test boots stay quiet.
+  # Forwards crashes and error-level log messages to Sentry, so the Pulse
+  # copy is not limited to crashes. The rate limit covers both, since an
+  # outage can log an error per pool worker. When the sender queue backs up
+  # (Pulse down), events are dropped rather than sent synchronously from the
+  # logging process, which would block it through Sentry's retries. Bandit
+  # and Cowboy are excluded: their logs are scanner noise or plug crashes
+  # Sentry.PlugCapture already reports. Only attached when a DSN is
+  # configured so dev/test boots stay quiet.
   defp attach_sentry_logger do
     if Application.get_env(:sentry, :dsn) do
       :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
-        config: %{metadata: [:file, :line]}
+        config: %{
+          metadata: [:file, :line],
+          capture_log_messages: true,
+          level: :error,
+          excluded_domains: [:cowboy, :bandit],
+          rate_limiting: [max_events: 10, interval: 1_000],
+          sync_threshold: nil,
+          discard_threshold: 100
+        }
       })
     end
   end
