@@ -132,6 +132,7 @@ struct PackageManifestEnvironmentTests {
         let sessionVariables = [
             "PWD", "OLDPWD", "SHLVL", "_", "TERM_SESSION_ID", "ITERM_SESSION_ID", "SECURITYSESSIONID",
             "TMUX_PANE", "XPC_SERVICE_NAME", "__MISE_ORIG_PATH", "__MISE_ZSH_PRECMD_RUN",
+            "MISE_INSTALLED_TOOLS", "MISE_NO_HOOKS", "MISE_ORIGINAL_CWD", "MISE_PROJECT_ROOT",
             "CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_PID",
         ]
 
