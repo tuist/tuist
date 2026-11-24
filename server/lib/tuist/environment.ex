@@ -2039,12 +2039,17 @@ defmodule Tuist.Environment do
   end
 
   # A second DSN that receives a copy of every error, for comparing Pulse with
-  # the primary backend. See TuistCommon.SentryHTTPClient. Only web instances
-  # copy: the processors and registry sync read the same config Secret, but
-  # Pulse's NetworkPolicy admits only the web pods.
+  # the primary backend. See TuistCommon.SentryHTTPClient. In-cluster
+  # instances (web, processor and registry sync pods, which Pulse's
+  # NetworkPolicy admits) post to Pulse's in-cluster address. The xcresult
+  # processors run in Tart VMs outside the cluster network, so they use
+  # `pulse_public_dsn` instead: the server's public Sentry endpoint, with an
+  # account token as the key.
   def sentry_pulse_dsn(secrets \\ secrets(), mode \\ mode()) do
-    case {mode, get([:sentry, :pulse_dsn], secrets)} do
-      {:web, dsn} when dsn not in [nil, ""] -> dsn
+    key = if mode == :xcresult_processor, do: :pulse_public_dsn, else: :pulse_dsn
+
+    case get([:sentry, key], secrets) do
+      dsn when dsn not in [nil, ""] -> dsn
       _ -> nil
     end
   end

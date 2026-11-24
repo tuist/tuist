@@ -1159,10 +1159,17 @@ ampOrbProvider:
   enabled: true
   url: https://staging.tuist.dev
 
-# A copy of every error from the server's web instances to Pulse, beside
+# A copy of every error from the server (web, processor and registry sync
+# pods) and the registry to Pulse, beside
 # Atlas, to compare the two (sentryPulse in values.yaml). Needs
 # PULSE_SENTRY_WRITER/password in this vault and staging in the Pulse chart's
 # sentryWriter.environments.
 sentryPulse:
   services:
     server: true
+    registry: true
+  # The `tuist` account token xcresult-pulse (only account:pulse:write),
+  # stored in PULSE_SENTRY_XCRESULT/token in this vault.
+  xcresultProcessor:
+    enabled: true
+    url: https://staging.tuist.dev/api/accounts/tuist/pulse/sentry/server/1

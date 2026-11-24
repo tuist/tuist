@@ -1010,11 +1010,13 @@ ampOrbProvider:
   enabled: true
   url: https://canary.tuist.dev
 
-# A copy of every error from the server's web instances and Kura to Pulse,
+# A copy of every error from the server (web, processor and registry sync
+# pods), the registry and Kura to Pulse,
 # beside their primary DSN, to compare the two (sentryPulse in values.yaml).
 # Needs PULSE_SENTRY_WRITER/password in this vault and canary in the Pulse
 # chart's sentryWriter.environments.
 sentryPulse:
   services:
     server: true
+    registry: true
     kura: true

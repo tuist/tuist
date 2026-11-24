@@ -2886,11 +2886,18 @@ ampOrbProvider:
   enabled: true
   url: https://tuist.dev
 
-# A copy of every error from the server's web instances and Kura to Pulse,
+# A copy of every error from the server (web, processor and registry sync
+# pods), the registry and Kura to Pulse,
 # beside Atlas, to compare the two (sentryPulse in values.yaml). Needs
 # PULSE_SENTRY_WRITER/password in this vault and production in the Pulse
 # chart's sentryWriter.environments.
 sentryPulse:
   services:
     server: true
+    registry: true
     kura: true
+  # The `tuist` account token xcresult-pulse (only account:pulse:write),
+  # stored in PULSE_SENTRY_XCRESULT/token in this vault.
+  xcresultProcessor:
+    enabled: true
+    url: https://tuist.dev/api/accounts/tuist/pulse/sentry/server/1
