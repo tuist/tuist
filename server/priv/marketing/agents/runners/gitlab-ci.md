@@ -1,8 +1,8 @@
 # Tuist Runners for GitLab CI: macOS and Linux
 
-Managed macOS and Linux runners for GitLab CI on GitLab.com and self-managed GitLab. Pick the machine with a job tag. Invite-only.
+Managed macOS and Linux runners for GitLab CI on GitLab.com and self-managed GitLab. Pick the machine with a job tag.
 
-Your pipelines stay in GitLab, and Tuist provides an isolated machine for each tagged job, next to the same build cache your developers and coding agents use. Runners are invite-only while capacity scales; [request an invitation](mailto:contact@tuist.dev).
+Your pipelines stay in GitLab, and Tuist provides an isolated machine for each tagged job, next to the same build cache your developers and coding agents use.
 
 ## Choose the machine with a tag
 

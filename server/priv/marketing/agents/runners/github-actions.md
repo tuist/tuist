@@ -1,8 +1,8 @@
 # Tuist Runners for GitHub Actions: macOS and Linux
 
-Managed macOS and Linux runners for GitHub Actions. Change `runs-on`, keep your workflows, and build next to a shared cache. Invite-only.
+Managed macOS and Linux runners for GitHub Actions. Change `runs-on`, keep your workflows, and build next to a shared cache.
 
-Tuist Runners run GitHub Actions jobs on Tuist's fleet; your workflows and triggers stay on GitHub. Runners are invite-only while capacity scales; [request an invitation](mailto:contact@tuist.dev).
+Tuist Runners run GitHub Actions jobs on Tuist's fleet; your workflows and triggers stay on GitHub. Runners only run jobs from repositories owned by a GitHub organization, not a personal account.
 
 ## Switch a job with one line
 

@@ -14,8 +14,8 @@ hub's CTA. English-only, like the other Markdown-sourced pages. --%>
       <.runners_migration providers={[@provider]} />
       <nav data-part="actions">
         <.button
-          href="mailto:contact@tuist.dev?subject=Tuist%20Runners%20access"
-          label={dgettext("marketing", "Request access")}
+          href={~p"/users/register"}
+          label={dgettext("marketing", "Get started")}
         />
         <.button href={@docs_url} variant="secondary" label={dgettext("marketing", "Read docs")} />
       </nav>

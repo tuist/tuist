@@ -309,7 +309,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/solutions/slow-builds") =~ "whole-module substitution and compilation-output reuse"
 
     assert MarketingMarkdown.get("/solutions/ci-costs") =~
-             "access is invite-only, and per-minute rates are on the [pricing page]"
+             "per-minute rates are on the [pricing page]"
   end
 
   test "comparisons disclose their perspective, primary sources, and review date" do
@@ -490,7 +490,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   end
 
   test "documents important feature-specific constraints" do
-    assert MarketingMarkdown.get("/runners") =~ "invite-only"
+    assert MarketingMarkdown.get("/runners") =~ "Account concurrency limits apply"
     assert MarketingMarkdown.get("/runners") =~ "[Tuist charges]"
     assert MarketingMarkdown.get("/tests") =~ "generated-project requirements"
     assert MarketingMarkdown.get("/tests") =~ "early-access"

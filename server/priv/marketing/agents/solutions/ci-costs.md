@@ -59,7 +59,7 @@ Ask for the largest observed source of avoidable work, one intervention, and the
 1. Choose one high-volume workflow and establish its cost and timing baseline.
 2. Reduce one source of duplicate work or retries using [Cache](/marketing-markdown/cache) or [Tests](/marketing-markdown/tests).
 3. Rerun equivalent workloads and include the new cache and service charges.
-4. Compare total cost and feedback time. If compute still dominates, review optional [Tuist Runners](/marketing-markdown/runners) against your required platforms and concurrency; access is invite-only, and per-minute rates are on the [pricing page](/pricing).
+4. Compare total cost and feedback time. If compute still dominates, review optional [Tuist Runners](/marketing-markdown/runners) against your required platforms and concurrency; per-minute rates are on the [pricing page](/pricing).
 
 ## Further reading
 

@@ -1075,7 +1075,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     description =
       dgettext(
         "marketing",
-        "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup. Invite-only."
+        "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup."
       )
 
     conn

@@ -79,7 +79,7 @@ Yes. Instrument one project, establish a baseline, and test one intervention bef
 
 ### Hosted or self-hosted?
 
-Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server), which requires the Enterprise plan, and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the invite-only managed Compute fleet.
+Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server), which requires the Enterprise plan, and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the managed Compute fleet.
 
 ### How do we measure value?
 
