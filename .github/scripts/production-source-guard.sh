@@ -43,7 +43,9 @@ trap 'rm -rf "$repo"' EXIT
 git init --quiet --bare "$repo"
 git -C "$repo" remote add origin "$remote"
 # Commits only: main's full history without trees or blobs.
-git -C "$repo" fetch --quiet --no-tags --filter=tree:0 origin \
+# This disposable repository needs no maintenance; detached writers can race
+# the EXIT trap that removes it.
+git -C "$repo" fetch --quiet --no-tags --no-auto-maintenance --filter=tree:0 origin \
   +refs/heads/main:refs/remotes/origin/main
 
 # Never fetch the deploy commit on demand: it either arrived with main's

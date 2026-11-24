@@ -56,4 +56,15 @@ expect fail 'image tag built from a dangling commit' refs/heads/main "$main_tip"
 expect fail 'image tag that names no commit' refs/heads/main "$main_tip" "image_tag=latest"
 expect fail 'image tag with too short a prefix' refs/heads/main "$main_tip" "image_tag=sha-${main_tip:0:8}"
 
+# Maintenance must not outlive the disposable repository and race its cleanup.
+# Trace real Git processes: a tiny fixture otherwise rarely hits that race.
+trace="$scratch/trace.json"
+GIT_TRACE2_EVENT="$trace" expect pass 'main check without background maintenance' refs/heads/main "$main_tip"
+if grep -Eq '"event":"start".*"argv":\[.*"maintenance"' "$trace"; then
+  echo 'not ok - disposable repository launched maintenance'
+  failures=$((failures + 1))
+else
+  echo 'ok - disposable repository did not launch maintenance'
+fi
+
 [ "$failures" -eq 0 ]

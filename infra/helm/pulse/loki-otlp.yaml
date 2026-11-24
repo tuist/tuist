@@ -161,8 +161,18 @@ processors:
             } else {
               string(frame.file) ?? ""
             }
-            normalized_message = replace(evalue, r'0x[0-9a-fA-F]+', "0x*")
-            normalized_message = replace(normalized_message, r'[0-9]+', "N")
+            # Keep Atlas Fingerprint.normalize_text/1's typed placeholders
+            # and order aligned with sentry-errors.yaml. Hash the raw value,
+            # not the credential-scrubbed body or the log template.
+            normalized_message = replace(evalue, r'[A-Za-z][A-Za-z0-9+.-]*://[^ \t\n\x0B\x0C\r\x22\x27<>]+', "<url>")
+            normalized_message = replace(normalized_message, r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', "<email>")
+            normalized_message = replace(normalized_message, r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', "<uuid>")
+            normalized_message = replace(normalized_message, r'[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:[.,][0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?', "<date>")
+            normalized_message = replace(normalized_message, r'[0-9]{1,3}(?:\.[0-9]{1,3}){3}', "<ip>")
+            normalized_message = replace(normalized_message, r'(?-u:\b)[0-9a-f]{40}(?-u:\b)', "<git_sha>")
+            normalized_message = replace(normalized_message, r'0[xX][0-9a-fA-F]+|(?-u:\b)[0-9a-fA-F]{16,}(?-u:\b)', "<hex>")
+            normalized_message = replace(normalized_message, r'[0-9]+\.[0-9]+', "<float>")
+            normalized_message = replace(normalized_message, r'[0-9]+', "<int>")
             normalized_message = replace(normalized_message, r'[ \t\n\x0B\x0C\r]+', " ")
             normalized_message = string(parse_regex(normalized_message, r'(?s)^(?P<prefix>.{0,200})').prefix ?? "")
             normalized_message = strip_whitespace(normalized_message)
