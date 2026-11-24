@@ -223,6 +223,9 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
       assert %{"isError" => true, "content" => [%{"text" => text}]} = QueryPulse.call(ctx.conn, ctx.args)
       refute text =~ "secret"
     end
+
+    stub(Pulse, :query, fn _, _, _, _ -> {:error, :timeout} end)
+    assert %{"content" => [%{"text" => "Pulse query timed out." <> _}]} = QueryPulse.call(ctx.conn, ctx.args)
   end
 
   describe "exploration tools" do
