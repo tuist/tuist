@@ -66,6 +66,56 @@ defmodule Tuist.Shards.StorageTest do
     end
   end
 
+  test "a Mac places plans in its own site's store and reaches it through each site's entrance", ctx do
+    larch = %{
+      "access" => "private",
+      "site" => "larch",
+      "enabled" => true,
+      "endpoint" => "http://rustfs-larch-s3.rustfs-larch.svc.cluster.local:9000",
+      "region" => "us-east-1",
+      "bucket" => "shards",
+      "access_key_id" => "larch-key",
+      "secret_access_key" => "larch-secret",
+      "runner_endpoints" => %{"larch" => "https://s3-larch.example.com", "ber1" => "https://s3-larch-ber1.example.com"}
+    }
+
+    stub(Environment, :shard_storage_targets, fn -> %{"gra-v1" => ctx.config, "larch-v1" => larch} end)
+    xcode = %Project{build_system: :xcode}
+    at_larch = CacheGrant.mint(42, site: "larch", platform: :macos)
+    at_ber1 = CacheGrant.mint(42, site: "ber1", platform: :macos)
+
+    expect(Storage, :available?, fn %S3Target{id: "larch-v1", config: %{host: host}} ->
+      assert host == "rustfs-larch-s3.rustfs-larch.svc.cluster.local"
+      true
+    end)
+
+    assert ShardStorage.select(xcode, ctx.account, at_larch) == "larch-v1"
+
+    # Placement stays at the store's own site; the other site's entrance only reads.
+    reject(&Storage.available?/1)
+    assert ShardStorage.select(xcode, ctx.account, at_ber1) == ""
+
+    plan = %ShardPlan{storage_target: "larch-v1"}
+    key = "42/1/shards/plan/shared.aar"
+
+    for {grant, host} <- [{at_larch, "s3-larch.example.com"}, {at_ber1, "s3-larch-ber1.example.com"}] do
+      assert {:ok, %S3Target{config: config} = target} = ShardStorage.resolve_for_request(plan, ctx.account, grant)
+      assert config.host == "rustfs-larch-s3.rustfs-larch.svc.cluster.local"
+      url = URI.parse(Storage.multipart_generate_url(key, "upload", 1, target))
+      assert {url.scheme, url.host, url.path} == {"https", host, "/shards/" <> key}
+    end
+
+    for grant <- [nil, ctx.grant, CacheGrant.mint(42, site: "other", platform: :macos)] do
+      assert {:error, :shard_storage_unavailable} = ShardStorage.resolve_for_request(plan, ctx.account, grant)
+    end
+
+    # An entrance must be HTTPS: a Mac never gets a plaintext URL or a placement.
+    plaintext = put_in(larch, ["runner_endpoints", "larch"], "http://s3-larch.example.com")
+    stub(Environment, :shard_storage_targets, fn -> %{"larch-v1" => plaintext} end)
+    assert ShardStorage.select(xcode, ctx.account, at_larch) == ""
+    assert {:error, :shard_storage_unavailable} = ShardStorage.resolve_for_request(plan, ctx.account, at_larch)
+  end
+
   test "fails back before persistence when readiness fails", ctx do
     expect(Storage, :available?, fn _ -> false end)
     assert ShardStorage.select(ctx.project, ctx.account, ctx.grant) == ""

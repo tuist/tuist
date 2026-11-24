@@ -1,0 +1,71 @@
+# Shard store for the rack Macs, on larch-store-a (Kioxia CD8P-V 12.8 TB,
+# XFS /data), beside larch's minis. Macs reach no cluster network, only their
+# site's storage node on 443, so the store has no public host: each rack
+# site's gateway publishes it on that site's machines segment
+# (runnerEntrances), and the server reaches it in-cluster. Macs at larch place
+# plans here; Macs at either site read them, ber1's through its own gateway
+# over the cluster link between the sites.
+enabled: true
+namespace: rustfs-larch
+generateCredentials: true
+target:
+  id: rustfs-larch-production-v1
+  site: larch
+  # Flip once a Mac at each site gets a RustFS answer (403 without a
+  # signature) from its entrance name: curl -sS -o /dev/null -w '%{http_code}'
+  # https://<host>/shards/
+  runnerEntrancesReady: false
+privateNetwork:
+  enabled: true
+  # Only the server: Linux runners never place here (target.site is larch).
+  clients:
+    - namespace: tuist
+runnerEntrances:
+  - site: larch
+    host: s3-larch.tuist.dev
+    ingressClassName: kura-larch-runners
+    address: 10.20.0.11
+    clientCIDRs: [10.20.0.0/24]
+  # Crosses both sites' internet ports until the inter-site link carries the
+  # machines segments, as the larch-runners Kura entrance does.
+  - site: ber1
+    host: s3-larch-via-ber1.tuist.dev
+    ingressClassName: kura-ber1-runners
+    address: 10.10.0.11
+    clientCIDRs: [10.10.0.0/24]
+runnerEntranceTLS:
+  clusterIssuer: letsencrypt-cloudflare
+members: 1
+drivesPerMember: 1
+# One copy on the single NVMe drive; a drive or host loss fails plans already
+# stored here, and the server sends new plans to default storage meanwhile.
+parity: ""
+# One PVC on /data with one XFS project quota of this size. The lvm-v1
+# reinstall shrinks /data to kuraDataLVSize, which must keep room for it
+# beside the VM image cache.
+storageClass: scw-local-nvme
+volumeSize: 3000G
+nodeSelector:
+  node.cluster.x-k8s.io/pool: rack-storage-larch
+tolerations:
+  - key: tuist.dev/rack-storage
+    operator: Exists
+    effect: NoSchedule
+# Memory is larch-store-a's tight resource (12.2 GiB allocatable, Kura and the
+# image cache request ~11.5 GiB), so the request is the minimum that fits.
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+    ephemeral-storage: 3000G
+  limits:
+    memory: 2Gi
+metricsEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/metrics
+gateway:
+  replicas: 1
+  buckets: [shards]
+ingress:
+  enabled: false
+  # The rack gateways are host-network: on this node they arrive as host,
+  # from ber1-store-a as remote-node.
+  hostNetworkController: true

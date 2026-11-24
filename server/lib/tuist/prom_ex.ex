@@ -70,6 +70,7 @@ defmodule Tuist.PromEx do
         # no extra signal.
         PromEx.Plugins.Beam,
         Tuist.Storage.PromExPlugin,
+        Tuist.Shards.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
         Tuist.Tests.PromExPlugin,

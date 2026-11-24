@@ -69,25 +69,31 @@ defmodule Tuist.Runners.CacheGrant do
   defp platform(value) when value in [:linux, :macos], do: Atom.to_string(value)
   defp platform(_), do: nil
 
-  @doc "Verifies the dispatch-signed Linux site, including account, issuer, audience and lifetime."
-  def linux_site(token, account_id) when is_binary(token) and byte_size(token) <= 8192 do
+  @doc """
+  Verifies the dispatch-signed platform and site, including account, issuer,
+  audience and lifetime: `{:ok, :linux | :macos, site}`. A Linux grant's site is
+  its node's attested shard storage site, a macOS grant's the rack site its Mac
+  claimed at.
+  """
+  def runner_site(token, account_id) when is_binary(token) and byte_size(token) <= 8192 do
     with {:ok, jwk} <- private_jwk(),
          {true, %JOSE.JWT{fields: claims}, _} <- JOSE.JWT.verify_strict(JOSE.JWK.to_public(jwk), ["EdDSA"], token),
          %{
            "scope" => scope,
            "iss" => @issuer,
            "aud" => audience,
-           "platform" => "linux",
+           "platform" => platform,
            "site" => site,
            "iat" => issued,
            "exp" => expires
          } <- claims,
          true <- scope == "account-#{account_id}" and audience == Environment.cache_grant_audience(),
+         true <- platform in ["linux", "macos"],
          true <- is_binary(site) and site != "",
          true <- is_integer(issued) and is_integer(expires),
          now = System.system_time(:second),
          true <- issued <= now and expires > now and expires > issued do
-      {:ok, site}
+      {:ok, String.to_existing_atom(platform), site}
     else
       _ -> {:error, :invalid_runner_grant}
     end
@@ -95,7 +101,7 @@ defmodule Tuist.Runners.CacheGrant do
     _ -> {:error, :invalid_runner_grant}
   end
 
-  def linux_site(_, _), do: {:error, :invalid_runner_grant}
+  def runner_site(_, _), do: {:error, :invalid_runner_grant}
 
   defp private_jwk do
     case Environment.cache_grant_private_key() do

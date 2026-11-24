@@ -2153,6 +2153,14 @@ jobs:
               -f infra/helm/shard-storage-rustfs/values-production-gra.yaml \
               --wait=hookOnly ||
               echo "::warning::Could not upgrade the public RustFS store; the server keeps default shard storage."
+            # The rack Macs' store on larch-store-a. A rack is down for days at
+            # a time, so nothing waits on it: Macs keep default shard storage
+            # until it serves and its entrances are marked ready.
+            helm upgrade --install rustfs-larch infra/helm/shard-storage-rustfs \
+              --namespace rustfs-larch --create-namespace \
+              -f infra/helm/shard-storage-rustfs/values-production-larch.yaml \
+              --wait=hookOnly ||
+              echo "::warning::Could not upgrade the rack Macs' RustFS store; Macs keep default shard storage."
           fi
 
           # Helm's wait holds an OnDelete DaemonSet until its Pods run the new

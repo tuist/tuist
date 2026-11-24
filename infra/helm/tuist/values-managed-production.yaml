@@ -162,8 +162,10 @@ server:
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
     # RustFS publishes every production store, including Garage's retired
-    # ID as an alias of its buckets (infra/helm/shard-storage-rustfs).
+    # ID as an alias of its buckets (infra/helm/shard-storage-rustfs), and
+    # the rack Macs' store on larch-store-a (values-production-larch.yaml).
     shardStorage:
+      secret: rustfs-larch-targets
       publicSecret: rustfs-targets
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
@@ -2074,12 +2076,14 @@ rackLinuxFleet:
       # cluster ports on it to this host.
       publicAddress: 149.6.170.1
       # Its next install is lvm-v1, for the larch-runners thin cutover: the
-      # 1.5 TiB data LV holds the 1 TiB VM image cache, containerd's 64 GiB and
-      # the kubelet below the 85% eviction line, and the rest of the drive
-      # becomes the Kura thin pool. Nothing happens until reinstallGeneration
-      # is raised, which is the cutover's first step.
+      # data LV holds the 1 TiB VM image cache, the rack Macs' 3000G shard
+      # store (rustfs-larch), containerd's 64 GiB and the kubelet below the 85%
+      # eviction line, and the rest of the drive (~7.5 TB) becomes the Kura
+      # thin pool. Nothing happens until reinstallGeneration is raised, which
+      # is the cutover's first step; the reinstall empties the shard store, so
+      # plans stored there before it fail and new ones fall back meanwhile.
       kuraStorageLayout: lvm-v1
-      kuraDataLVSize: 1536G
+      kuraDataLVSize: 5120G
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   preinstall:
