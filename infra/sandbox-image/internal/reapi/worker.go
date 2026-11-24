@@ -83,6 +83,7 @@ func (w *Worker) Execute(ctx context.Context, digest *re.Digest) (*re.ExecuteRes
 func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResult, bool, error) {
 	metadata := &re.ExecutedActionMetadata{Worker: "firecracker-linux-amd64", WorkerStartTimestamp: timestamppb.Now()}
 	metadata.InputFetchStartTimestamp = timestamppb.Now()
+	fetchStarted := time.Now()
 	var action re.Action
 	if err := w.CAS.Message(ctx, digest, &action); err != nil {
 		return nil, false, err
@@ -107,13 +108,16 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 		return nil, false, err
 	}
 	w.streamed = nil
+	w.CAS.ObservePhase("metadata", fetchStarted)
 	if err = w.materialize(ctx, root, &input); err != nil {
 		return nil, false, err
 	}
 	// Never start the command with the host's blob channel open.
+	sealStarted := time.Now()
 	if err = w.CAS.SealHost(ctx); err != nil {
 		return nil, false, status.Error(codes.Unavailable, "sealing host blob access")
 	}
+	w.CAS.ObservePhase("seal", sealStarted)
 	metadata.InputFetchCompletedTimestamp = timestamppb.Now()
 	outputs := command.OutputPaths
 	if len(outputs) == 0 {
@@ -452,6 +456,7 @@ type inputDirectory struct {
 // files of every directory download together (see materializeFiles). Symlinks
 // come last, once nothing is written below the root any more.
 func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Directory) error {
+	treeStarted := time.Now()
 	var files []inputFile
 	var links [][2]string
 	level := []inputDirectory{{path: ".", dir: input}}
@@ -519,14 +524,19 @@ func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Direc
 		}
 		level = children
 	}
+	w.CAS.ObservePhase("tree", treeStarted)
+	filesStarted := time.Now()
 	if err := w.materializeFiles(ctx, root, files); err != nil {
 		return err
 	}
+	w.CAS.ObservePhase("files", filesStarted)
+	linksStarted := time.Now()
 	for _, link := range links {
 		if err := root.Symlink(link[1], link[0]); err != nil {
 			return err
 		}
 	}
+	w.CAS.ObservePhase("links", linksStarted)
 	return nil
 }
 

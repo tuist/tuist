@@ -115,7 +115,7 @@ func (m *metrics) observePhases(md *re.ExecutedActionMetadata, queueWaits map[st
 
 // slowInputFetch is the input-fetch duration from which the phase log line
 // also carries the executor's CAS read summary.
-const slowInputFetch = 5 * time.Second
+const slowInputFetch = 500 * time.Millisecond
 
 // casReadsKind marks the executor's CAS read summary in auxiliary metadata
 // (see executor.casReadTimings).

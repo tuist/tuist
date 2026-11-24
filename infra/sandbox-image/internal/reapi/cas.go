@@ -47,6 +47,8 @@ type CAS struct {
 	// Host, when set, serves input blobs from the node; see readHost.
 	Host       HostBlobs
 	hostFailed atomic.Bool
+	// phases are wall times of the input fetch's steps; see ObservePhase.
+	phases map[string]time.Duration
 }
 
 // casRead is one input read RPC. It carries sizes, durations and the serving
@@ -59,12 +61,16 @@ type casRead struct {
 	firstByte time.Duration
 	code      codes.Code
 	peer      string
+	// write and hash are the time a host read spent writing the input file
+	// and hashing it; the rest of took is waiting on the host.
+	write, hash time.Duration
 }
 
 type readTotal struct {
 	calls, blobs int
 	bytes        int64
 	took         time.Duration
+	write, hash  time.Duration
 }
 
 const slowestReads = 5
@@ -84,6 +90,8 @@ func (c *CAS) observeRead(r casRead) {
 	t.blobs += r.blobs
 	t.bytes += r.bytes
 	t.took += r.took
+	t.write += r.write
+	t.hash += r.hash
 	if r.rpc == "seeded" {
 		return
 	}
@@ -103,7 +111,7 @@ func (c *CAS) ReadTimings() map[string]any {
 	ms := func(d time.Duration) float64 { return float64(d.Milliseconds()) }
 	totals := map[string]any{}
 	for rpc, t := range c.reads {
-		totals[rpc] = map[string]any{"calls": float64(t.calls), "blobs": float64(t.blobs), "bytes": float64(t.bytes), "ms": ms(t.took)}
+		totals[rpc] = map[string]any{"calls": float64(t.calls), "blobs": float64(t.blobs), "bytes": float64(t.bytes), "ms": ms(t.took), "write_ms": ms(t.write), "hash_ms": ms(t.hash)}
 	}
 	slowest := make([]any, len(c.slowest))
 	for i, r := range c.slowest {
@@ -113,7 +121,11 @@ func (c *CAS) ReadTimings() map[string]any {
 		}
 		slowest[i] = read
 	}
-	return map[string]any{"totals": totals, "slowest": slowest}
+	phases := map[string]any{}
+	for name, d := range c.phases {
+		phases[name] = ms(d)
+	}
+	return map[string]any{"totals": totals, "slowest": slowest, "phases": phases}
 }
 
 func peerAddress(p *peer.Peer) string {
@@ -481,4 +493,14 @@ func uploadID() string { // UUIDs do not carry action or tenant information.
 		panic(err)
 	}
 	return hex.EncodeToString(b)
+}
+
+// ObservePhase records the wall time of one step of the input fetch.
+func (c *CAS) ObservePhase(name string, since time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.phases == nil {
+		c.phases = map[string]time.Duration{}
+	}
+	c.phases[name] += time.Since(since)
 }

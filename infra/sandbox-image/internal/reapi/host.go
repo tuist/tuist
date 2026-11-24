@@ -41,7 +41,10 @@ func (c *CAS) readHost(ctx context.Context, d *re.Digest, out io.Writer) (err er
 		c.observeRead(read)
 	}()
 	h := sha256.New()
-	counted := &countingWriter{w: io.MultiWriter(out, h)}
+	file := &timedWriter{w: out}
+	hash := &timedWriter{w: h}
+	counted := &countingWriter{w: io.MultiWriter(file, hash)}
+	defer func() { read.write, read.hash = file.took, hash.took }()
 	if err := c.Host.ReadBlob(ctx, d, 0, d.SizeBytes, counted); err != nil {
 		return err
 	}
@@ -67,5 +70,18 @@ type countingWriter struct {
 func (c *countingWriter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
 	c.n += int64(n)
+	return n, err
+}
+
+// timedWriter adds up the time spent in its writer's Write calls.
+type timedWriter struct {
+	w    io.Writer
+	took time.Duration
+}
+
+func (t *timedWriter) Write(p []byte) (int, error) {
+	started := time.Now()
+	n, err := t.w.Write(p)
+	t.took += time.Since(started)
 	return n, err
 }
