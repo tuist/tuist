@@ -95,6 +95,17 @@ the RustFS pods. Normal server credentials must have `shards-policy.json`, not
 root/admin rights. NetworkPolicy permits peer traffic only inside this release
 and gateway ingress only from the configured ingress-controller namespace.
 
+The gateway writes one JSON access line per request to stdout, which Alloy
+ships to Pulse: time, client (the last `X-Forwarded-For` entry, which the
+ingress appends), peer, method, path (`$uri`), status, bytes, duration, user
+agent, how the request was signed (`presigned`, `header` or `none`) and the
+signing access key ID. It never logs the query string or `Authorization`, which
+carry signatures; the gateway's error log and the Ingress access log stay off
+because nginx writes the whole request line there. `mise run
+helm:shard-storage-rustfs` fails if the log format names any other variable.
+In-cluster callers reach `<release>-s3:9000` directly, so their requests are
+not in this log.
+
 The shard Ingress uses a 1 MiB client-body buffer while keeping request
 buffering **off**. NGINX uses this buffer to size unbuffered HTTP/2 stream
 receive windows; the default 8 KiB body buffer leaves roughly a 64 KiB window

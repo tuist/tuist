@@ -44,7 +44,7 @@ jq -e '
     (.data["default.conf"] | contains("proxy_set_header Host $http_host;") and
       contains("proxy_pass http://storage;") and contains("proxy_request_buffering off;") and
       contains("proxy_buffering off;") and contains("location / { return 404; }") and
-      contains("access_log off;") and contains("error_log /dev/null;")))
+      contains("access_log /dev/stdout rustfs_access;") and contains("error_log /dev/null;")))
 ' "$work/render.json" >/dev/null
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set unsafeSharedDisks=true >/dev/null 2>&1; then
   echo 'FAIL: shared-disk bypass accepted for a multi-member store' >&2; exit 1
@@ -77,8 +77,8 @@ jq -e '
       .name != "RUSTFS_UNSAFE_BYPASS_DISK_CHECK")) and
   all(.[]; .kind != "Secret") and
   ([.[] | select(.kind == "ExternalSecret" and .spec.refreshPolicy == "CreatedOnce" and
-    .spec.target.creationPolicy == "Orphan") | .metadata.name] | sort) == ["rustfs-root","rustfs-service"] and
-  any(.[]; .kind == "Role" and .rules == [{apiGroups:[""],resources:["secrets"],resourceNames:["rustfs-service"],verbs:["get"]}]) and
+    .spec.target.creationPolicy == "Orphan") | .metadata.name] | sort) == ["rustfs-docker-mirror-service","rustfs-root","rustfs-service"] and
+  any(.[]; .kind == "Role" and .rules == [{apiGroups:[""],resources:["secrets"],resourceNames:["rustfs-service","rustfs-docker-mirror-service"],verbs:["get"]}]) and
   any(.[]; .kind == "ExternalSecret" and .metadata.namespace == "tuist" and .spec.target.name == "rustfs-targets" and
     (.spec.target.template.data["targets.json"] | fromjson | .["rustfs-gra-production-v1"] |
       .access == "public" and .endpoint == "https://s3.tuist.dev" and .bucket == "shards" and .site == "gra")) and
@@ -122,6 +122,22 @@ jq -e '
   any(.[]; .kind == "CronJob" and (.spec.jobTemplate.spec.template.spec.containers[0].args[0] |
     contains("mc quota set admin/actions-cache --size 500GB")))
 ' "$work/production.json" >/dev/null
+# The gateway logs every proxied request to stdout, and no log names the query
+# string (presigned signatures) or a credential header. The ingress stays
+# silent, since its format logs the whole request line.
+conf=$(jq -r '.[] | select(.kind == "ConfigMap" and .metadata.name == "rustfs-gateway") | .data["default.conf"]' "$work/production.json")
+vars=$(grep -o "log_format rustfs_access .*';" <<<"$conf" | grep -o '\$[a-z0-9_]*' | sort -u | tr '\n' ' ')
+if [ "$vars" != '$bytes_sent $http_user_agent $remote_addr $request_length $request_method $request_time $rustfs_auth $rustfs_client $rustfs_key_id $status $time_iso8601 $uri ' ]; then
+  echo "FAIL: gateway access log names unexpected variables: $vars" >&2; exit 1
+fi
+if [ "$(grep -c 'log_format' <<<"$conf")" != 1 ] ||
+  [ "$(grep -o 'access_log [^;]*;' <<<"$conf" | sort | tr '\n' ' ')" != 'access_log /dev/stdout rustfs_access; access_log off; ' ] ||
+  ! grep -q 'location = /ready { access_log off; return 200; }' <<<"$conf" ||
+  [ "$(grep -o 'error_log [^;]*;' <<<"$conf")" != 'error_log /dev/null;' ]; then
+  echo 'FAIL: gateway must log requests only in the rustfs_access format and keep its error log off' >&2; exit 1
+fi
+jq -e 'any(.[]; .kind == "Ingress" and .metadata.annotations["nginx.ingress.kubernetes.io/enable-access-log"] == "false")' \
+  "$work/production.json" >/dev/null
 if helm template rustfs "$chart" -n rustfs-production -f "$chart/values-production-gra.yaml" \
   --set privateNetwork.enabled=false --set target.privateNetworkReady=true >/dev/null 2>&1; then
   echo 'FAIL: private placement accepted without a private network' >&2; exit 1
@@ -139,6 +155,6 @@ fi
 if helm template rustfs "$chart" -n rustfs-staging --set enabled=true --set target.id=x >/dev/null 2>&1; then
   echo 'FAIL: target published without generated credentials and a public host' >&2; exit 1
 fi
-echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics, private endpoint with archive and Actions cache buckets'
+echo 'PASS: production GRA store: one 1000G drive, generated credentials, in-cluster setup, public target, OTLP drive metrics, query-free gateway access log, private endpoint with archive and Actions cache buckets'
 echo 'PASS: single-member OVH performance variant: one member, eight drives, EC:4, kura-eu-west ingress'
 echo 'PASS: disabled defaults, isolation, eight volumes, four hosts, EC:4, retained PVCs, streaming gateway and restricted services'
