@@ -135,7 +135,7 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=runners-controller
-          cache-to: type=gha,mode=max,scope=runners-controller
+          cache-to: type=gha,mode=max,scope=runners-controller,ignore-error=true
 
       - name: Build storage agent image
         uses: docker/build-push-action@v6
@@ -148,4 +148,4 @@ jobs:
           tags: |
             ${{ steps.tags.outputs.cache_tags }}
           cache-from: type=gha,scope=runner-cache-volumes
-          cache-to: type=gha,mode=max,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes,ignore-error=true
