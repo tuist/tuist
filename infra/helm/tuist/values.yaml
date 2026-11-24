@@ -363,6 +363,13 @@ egressTreeAgent:
   # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
   # no tree and their pods stay unshaped on the node-local leg.
   defaultNodeEgressMbps: 0
+  # Ceiling, in Mbit/s, of the one class every tenant shares for traffic to
+  # pods on the node's provider private-network peers (same
+  # tuist.dev/private-network label and route membership). That traffic
+  # leaves on the private link, so it sits beside the public budget rather
+  # than under it and skips the tenants' public ceilings. Size it to the
+  # private link. 0 keeps that traffic in the tenant classes.
+  privateNetworkMbps: 0
   # Kura cache pools to schedule onto, matched as
   # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
   # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)

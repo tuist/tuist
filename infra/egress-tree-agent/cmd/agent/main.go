@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -71,6 +73,11 @@ func main() {
 	ciliumSock := envOr("CILIUM_SOCK", "/var/run/cilium/cilium.sock")
 	pinRoot := envOr("BPF_PIN_ROOT", "/sys/fs/bpf/kura-egress-tree")
 	defaultNodeMbps := int64Env(logger, "DEFAULT_NODE_EGRESS_MBPS", 0)
+	privateNetworkMbps := int64Env(logger, "PRIVATE_NETWORK_MBPS", 0)
+	if privateNetworkMbps < 0 {
+		logger.Error("PRIVATE_NETWORK_MBPS must not be negative", "value", privateNetworkMbps)
+		os.Exit(1)
+	}
 	returnDetachAfter := intEnv(logger, "RETURN_ATTACH_MAX_FAILURES", 3)
 	if returnDetachAfter < 1 || returnDetachAfter > 1000 {
 		logger.Error("RETURN_ATTACH_MAX_FAILURES must be between 1 and 1000", "value", returnDetachAfter)
@@ -138,7 +145,8 @@ func main() {
 		UpdateFunc: func(oldObj, newObj any) {
 			// Node status updates are frequent (heartbeats, conditions);
 			// only the advertised egress budget matters here.
-			if nodeEgressCapacity(oldObj) != nodeEgressCapacity(newObj) {
+			if nodeEgressCapacity(oldObj) != nodeEgressCapacity(newObj) ||
+				nodePrivateNetwork(oldObj) != nodePrivateNetwork(newObj) {
 				kick()
 			}
 		},
@@ -147,9 +155,37 @@ func main() {
 		os.Exit(1)
 	}
 
+	// The private-network peers: every node carrying the network label, so
+	// their pod CIDRs can be stamped with the private class. Only watched
+	// when the class is configured; membership or pod CIDR changes kick.
+	synced := []cache.InformerSynced{podInformer.Informer().HasSynced, nodeInformer.Informer().HasSynced}
+	var privateNodes listersv1.NodeLister
+	if privateNetworkMbps > 0 {
+		privateFactory := informers.NewSharedInformerFactoryWithOptions(client, 0,
+			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = agent.PrivateNetworkLabel
+			}))
+		privateInformer := privateFactory.Core().V1().Nodes()
+		if _, err := privateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc: func(any) { kick() },
+			UpdateFunc: func(oldObj, newObj any) {
+				if nodePrivateNetwork(oldObj) != nodePrivateNetwork(newObj) {
+					kick()
+				}
+			},
+			DeleteFunc: func(any) { kick() },
+		}); err != nil {
+			logger.Error("registering private-network node event handler", "error", err)
+			os.Exit(1)
+		}
+		privateNodes = privateInformer.Lister()
+		synced = append(synced, privateInformer.Informer().HasSynced)
+		privateFactory.Start(ctx.Done())
+	}
+
 	podFactory.Start(ctx.Done())
 	nodeFactory.Start(ctx.Done())
-	if !cache.WaitForCacheSync(ctx.Done(), podInformer.Informer().HasSynced, nodeInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(ctx.Done(), synced...) {
 		logger.Error("informer caches never synced (shutdown during startup)")
 		return
 	}
@@ -165,16 +201,18 @@ func main() {
 	metrics := agent.NewMetrics(registry)
 
 	a := &agent.Agent{
-		NodeName:          nodeName,
-		DefaultNodeMbps:   defaultNodeMbps,
-		ReturnDetachAfter: returnDetachAfter,
-		Pods:              podInformer.Lister(),
-		Nodes:             nodeInformer.Lister(),
-		Endpoints:         agent.NewEndpointResolver(ciliumSock),
-		Tree:              agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev, Log: logger},
-		Attacher:          agent.Attacher{PinRoot: pinRoot, Log: logger, Metrics: metrics},
-		Metrics:           metrics,
-		Log:               logger,
+		NodeName:           nodeName,
+		DefaultNodeMbps:    defaultNodeMbps,
+		ReturnDetachAfter:  returnDetachAfter,
+		PrivateNetworkMbps: privateNetworkMbps,
+		PrivateNodes:       privateNodes,
+		Pods:               podInformer.Lister(),
+		Nodes:              nodeInformer.Lister(),
+		Endpoints:          agent.NewEndpointResolver(ciliumSock),
+		Tree:               agent.Tree{TrampolineDev: trampolineDev, ReturnDev: returnDev, Log: logger},
+		Attacher:           agent.Attacher{PinRoot: pinRoot, Log: logger, Metrics: metrics},
+		Metrics:            metrics,
+		Log:                logger,
 	}
 
 	mux := http.NewServeMux()
@@ -300,6 +338,21 @@ func nodeEgressCapacity(obj any) string {
 	}
 	quantity := node.Status.Capacity[corev1.ResourceName(agent.NodeEgressResource)]
 	return quantity.String()
+}
+
+// nodePrivateNetwork fingerprints what decides a node's private-network
+// destinations: its network, its route membership and its pod CIDRs.
+func nodePrivateNetwork(obj any) string {
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
+	node, ok := obj.(*corev1.Node)
+	if !ok {
+		return ""
+	}
+	return node.Labels[agent.PrivateNetworkLabel] + "|" +
+		node.Annotations[agent.PrivateNetworkMembersAnnotation] + "|" +
+		strings.Join(node.Spec.PodCIDRs, ",")
 }
 
 func kubernetesClient() (kubernetes.Interface, error) {
