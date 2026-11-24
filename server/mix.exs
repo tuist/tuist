@@ -57,7 +57,7 @@ defmodule Tuist.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.12"},
-      {:db_connection, "~> 2.9", override: true},
+      {:db_connection, "~> 2.10.3", override: true},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_reload, "~> 1.6.1", only: :dev},
@@ -121,7 +121,7 @@ defmodule Tuist.MixProject do
       {:telemetry_test, "~> 0.1.2"},
       {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
-      {:flop, "~> 0.26.0"},
+      {:flop, "~> 0.26.7"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       # PromEx's standalone metrics server still runs on Cowboy even though
