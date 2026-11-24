@@ -72,7 +72,7 @@ defmodule TuistWeb.API.CoverageController do
   operation(:create_upload,
     summary: "Get a signed URL to upload a test run's code coverage.",
     description:
-      "Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.",
+      "Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists. A second key and URL take the run's per-test coverage evidence, which the run references through `coverage_evidence.storage_key` and the server reads while it creates the run.",
     operation_id: "createCoverageUpload",
     parameters: @path_parameters,
     request_body:
@@ -100,7 +100,16 @@ defmodule TuistWeb.API.CoverageController do
                type: :string,
                description: "The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`)."
              },
-             upload_url: %Schema{type: :string, description: "A short-lived URL to PUT the compressed coverage to."}
+             upload_url: %Schema{type: :string, description: "A short-lived URL to PUT the compressed coverage to."},
+             evidence_storage_key: %Schema{
+               type: :string,
+               description: "The key to send with the run as `coverage_evidence.storage_key`."
+             },
+             evidence_upload_url: %Schema{
+               type: :string,
+               description:
+                 "A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run)."
+             }
            },
            required: [:storage_key, :upload_url]
          }},
@@ -112,7 +121,14 @@ defmodule TuistWeb.API.CoverageController do
 
   def create_upload(%{assigns: %{selected_project: project}, body_params: %{test_run_id: test_run_id}} = conn, _params) do
     storage_key = Coverage.storage_key(project, test_run_id)
-    json(conn, %{storage_key: storage_key, upload_url: Storage.generate_upload_url(storage_key, project.account)})
+    evidence_storage_key = Coverage.evidence_storage_key(project, test_run_id)
+
+    json(conn, %{
+      storage_key: storage_key,
+      upload_url: Storage.generate_upload_url(storage_key, project.account),
+      evidence_storage_key: evidence_storage_key,
+      evidence_upload_url: Storage.generate_upload_url(evidence_storage_key, project.account)
+    })
   end
 
   @sha_parameter [

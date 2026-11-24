@@ -552,15 +552,16 @@ A run that records evidence runs one test module at a time (`--max-cases 1`, app
 
 - `tuist_ex/test/tuist_ex/analytics/test_selection_test.exs`: the requests and the outcome against a stub server over a real repository (a selection with each changed file's `affected_modules`, a cached diff, a dirty checkout, every reason the client sends and those the server returns, `not_enabled`, failed requests, an outcome the client doesn't know), and the test index.
 - `evidence_test.exs`: attribution in a VM of its own (serial tests, overlapping `async: true` modules and the same modules one at a time, a `setup_all` and its `on_exit`, what ran before any test), the JSON written from disk with and without lines, and the positional counter diff.
+- `coverage_test.exs` (`attach_evidence/5`): evidence past the inline threshold, or within it but too large for the report inflated, is uploaded as deflated NDJSON and the run names the key; otherwise, or against a server without evidence uploads, it stays inline; a failed upload is reported.
 - `http_test.exs`: a body holding a JSON file is deflated and reads the file into it.
 - `selection_filter_test.exs`: in a VM of its own, the filter leaves out exactly the listed tests and modules (a same-named test in another describe or another module of the file, a generated name, and a new test still run; a skipped module's `setup_all` doesn't), keeps ExUnit's reason for `@tag :skip` and other filters, lets an include filter win, and a module that doesn't look as expected isn't replaced.
 - `tuist.test_test.exs`: the task applies the selection beside quarantine, reports the impact run, makes coverage partial, runs everything on a fallback, a failure, without `--cover` and with `--no-selective-testing`, and hands the skip list to retries.
 - `git_test.exs`: the diff against the working tree, a revert dropping out, untracked files, deepening a shallow clone once.
-- Server: the Mix cases in `runs_test.exs` (a selection from Mix evidence with an overlapped test selected as `no_evidence`, the `mix` block as `build_context`, scheme scoping, another build system's block ignored, a module-granular shard plan), the controller and the Test Selection page.
+- Server: `evidence_test.exs` reads uploaded evidence while the run is created (rows, test case states, status) and an unreadable or missing object as `failed`; the Mix cases in `runs_test.exs` (a selection from Mix evidence with an overlapped test selected as `no_evidence`, the `mix` block as `build_context`, scheme scoping, another build system's block ignored, a module-granular shard plan), the controller and the Test Selection page.
 
 ### Known limits on Mix
 
 - **Compile-time dependencies.** A changed macro's expansion runs in its callers' lines, so a test that exercises it executes the caller's file, not the macro's. The macro's file selects every test only when no test executed it at runtime.
 - **Recording runs modules one at a time**, so a suite that relies on `async: true` takes longer unless it's sharded. A selective run that skips most tests is short either way.
 - **Collection costs a read of every counted module once per test** (about 8 ms per 2,000 modules), so only projects that select collect.
-- **Evidence past the server's body limit** is sent without lines (carried coverage then has a gap for the tests a later run skips), and left out entirely past it even without lines. Sharding keeps each report small.
+- **Large evidence is uploaded** to object storage with its lines (see [Code coverage](code-coverage.md#mix)). Only a server without evidence uploads gets it inline without lines past its body limit (carried coverage then has a gap for the tests a later run skips), or not at all past it even without lines.

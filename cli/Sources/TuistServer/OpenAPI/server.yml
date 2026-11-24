@@ -250,7 +250,7 @@ components:
           x-struct:
           x-validate:
         coverage_evidence:
-          description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
+          description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`."
           properties:
             overlapped_tests:
               description: The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
@@ -362,9 +362,11 @@ components:
               type: string
               x-struct:
               x-validate:
-          required:
-            - paths
-            - scopes
+            storage_key:
+              description: "The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`."
+              type: string
+              x-struct:
+              x-validate:
           type: object
           x-struct:
           x-validate:
@@ -14550,6 +14552,16 @@ components:
       x-validate:
     CoverageUpload:
       properties:
+        evidence_storage_key:
+          description: The key to send with the run as `coverage_evidence.storage_key`.
+          type: string
+          x-struct:
+          x-validate:
+        evidence_upload_url:
+          description: A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run).
+          type: string
+          x-struct:
+          x-validate:
         storage_key:
           description: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
           type: string
@@ -24330,7 +24342,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads:
     post:
       callbacks: {}
-      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists.
+      description: "Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `coverage.storage_key` (or `xcode_coverage_storage_key`), and the server reads it back once the run exists. A second key and URL take the run's per-test coverage evidence, which the run references through `coverage_evidence.storage_key` and the server reads while it creates the run."
       operationId: createCoverageUpload
       parameters:
         - description: The handle of the account.
@@ -24374,6 +24386,16 @@ paths:
             application/json:
               schema:
                 properties:
+                  evidence_storage_key:
+                    description: The key to send with the run as `coverage_evidence.storage_key`.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  evidence_upload_url:
+                    description: A short-lived URL to PUT the run's DEFLATE-compressed per-test coverage evidence to (see `coverage_evidence.storage_key` on the test run).
+                    type: string
+                    x-struct:
+                    x-validate:
                   storage_key:
                     description: The key to send with the run as `coverage.storage_key` (or `xcode_coverage_storage_key`).
                     type: string
@@ -27748,7 +27770,7 @@ paths:
                   x-struct:
                   x-validate:
                 coverage_evidence:
-                  description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
+                  description: "Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution, or `mix tuist.test`): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index. Instead of `paths` and `scopes`, a client may upload the scopes (see `createCoverageUpload`) and send `storage_key`."
                   properties:
                     overlapped_tests:
                       description: The tests that have no scope because they overlapped another test of their process (Swift Testing running in parallel), so nothing could be attributed to them. At most one per test the run executed.
@@ -27860,9 +27882,11 @@ paths:
                       type: string
                       x-struct:
                       x-validate:
-                  required:
-                    - paths
-                    - scopes
+                    storage_key:
+                      description: "The `evidence_storage_key` createCoverageUpload returned for this run's id, in place of `paths` and `scopes`. The object is DEFLATE-compressed NDJSON, one scope per line, shaped as an item of `scopes` except that `files` holds the repository-relative paths themselves rather than indices; `overlapped_tests` and `status` stay in this object. The server reads it while it creates the run; an object it can't read leaves the run without evidence, its status `failed`."
+                      type: string
+                      x-struct:
+                      x-validate:
                   type: object
                   x-struct:
                   x-validate:

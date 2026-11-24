@@ -36,9 +36,14 @@ defmodule Tuist.Tests.Coverage.Evidence do
   """
   alias Tuist.ClickHouse.Inserts
   alias Tuist.IngestRepo
+  alias Tuist.Projects
+  alias Tuist.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.Workers.PublishCoverageWorker
   alias TuistCommon.Ingestion.Bufferable
+
+  require Logger
 
   # Joins a scope id's parts. A unit separator, because a slash would not
   # survive a Bazel label (`//app/core:tests`) or a test name that holds one.
@@ -49,6 +54,13 @@ defmodule Tuist.Tests.Coverage.Evidence do
   # Ranges cost the client a few bytes whatever they span, so past this a
   # file's evidence keeps only that the scope ran it.
   @line_budget 10_000_000
+  # An uploaded file is read inside the request that creates the run: at
+  # most this much inflated, no scope larger than the whole inline request
+  # may be, and no more paths or scopes than the inline form accepts.
+  @upload_max_inflated_bytes 1_000_000_000
+  @upload_max_line_bytes 50_000_000
+  @upload_max_paths 200_000
+  @upload_max_scopes 500_000
   @retention_days 2
 
   @doc """
@@ -116,6 +128,157 @@ defmodule Tuist.Tests.Coverage.Evidence do
 
     :ok
   end
+
+  @doc """
+  Calls `fun` with the run's attributes, `coverage_evidence` read from object
+  storage first when the client uploaded it (`storage_key`, see
+  `Tuist.Tests.Coverage.evidence_storage_key/2`) rather than sending `paths`
+  and `scopes` inline. The upload is DEFLATE-compressed NDJSON, one scope per
+  line naming its files by path. It is inflated to a temporary file, which a
+  first pass reads for the paths and the scopes then stream from, file indices
+  in place of paths, so `record/4` and `test_states/2` see the inline shape
+  without the scopes ever sitting in memory whole. The file is removed once
+  `fun` returns.
+
+  The file is held to the inline form's limits: an upload that inflates past
+  #{div(@upload_max_inflated_bytes, 1_000_000)} MB, has a scope larger than
+  #{div(@upload_max_line_bytes, 1_000_000)} MB, or names more paths or scopes
+  than the inline form accepts isn't read.
+
+  An upload that can't be downloaded or read leaves the run without
+  evidence, its status `failed`: evidence enriches a run and never fails it.
+  A network-trusted run, which stores no evidence, has nothing downloaded.
+  """
+  def with_uploaded(attrs, fun) do
+    case Map.get(attrs, :coverage_evidence) do
+      %{storage_key: key} = evidence when is_binary(key) ->
+        if Map.get(attrs, :submission_auth) == "network_trusted" do
+          fun.(Map.put(attrs, :coverage_evidence, Map.delete(evidence, :storage_key)))
+        else
+          read_uploaded(attrs, evidence, key, fun)
+        end
+
+      _ ->
+        fun.(attrs)
+    end
+  end
+
+  defp read_uploaded(attrs, evidence, key, fun) do
+    unique = System.unique_integer([:positive])
+    compressed = Path.join(System.tmp_dir!(), "coverage_evidence_#{unique}.deflate")
+    inflated = Path.join(System.tmp_dir!(), "coverage_evidence_#{unique}.ndjson")
+    evidence = Map.delete(evidence, :storage_key)
+
+    try do
+      evidence =
+        with %{account: account} <- Projects.get_project_by_id(Map.get(attrs, :project_id)),
+             {:ok, _} <- Storage.download_to_file(key, compressed, account),
+             :ok <- PublishCoverageWorker.inflate(compressed, inflated, @upload_max_inflated_bytes),
+             {:ok, paths} <- uploaded_paths(inflated) do
+          Map.merge(evidence, %{paths: paths, scopes: uploaded_scopes(inflated, paths)})
+        else
+          problem ->
+            Logger.warning(
+              "The coverage evidence uploaded for test run #{Map.get(attrs, :id)} could not be read: #{inspect(problem)}"
+            )
+
+            Map.merge(evidence, %{paths: [], scopes: [], status: "failed"})
+        end
+
+      fun.(Map.put(attrs, :coverage_evidence, evidence))
+    after
+      File.rm(compressed)
+      File.rm(inflated)
+    end
+  end
+
+  # Every path the scopes name, once, in the order they first appear; an
+  # error when a line isn't a JSON object or the file is past the limits.
+  defp uploaded_paths(path) do
+    path
+    |> uploaded_lines()
+    |> Enum.reduce_while({%{}, [], 0}, fn
+      :too_long, _acc ->
+        {:halt, {:error, :scope_too_large}}
+
+      _line, {_seen, _paths, @upload_max_scopes} ->
+        {:halt, {:error, :too_many_scopes}}
+
+      line, {seen, paths, count} ->
+        with {:ok, %{} = scope} <- JSON.decode(line),
+             {seen, paths} <- scope_paths(scope, seen, paths) do
+          {:cont, {seen, paths, count + 1}}
+        else
+          {:error, :too_many_paths} -> {:halt, {:error, :too_many_paths}}
+          _ -> {:halt, {:error, :invalid_coverage_evidence}}
+        end
+    end)
+    |> case do
+      {:error, reason} -> {:error, reason}
+      {_seen, paths, _count} -> {:ok, Enum.reverse(paths)}
+    end
+  end
+
+  defp scope_paths(scope, seen, paths) do
+    scope
+    |> Map.get("files")
+    |> List.wrap()
+    |> Enum.filter(&is_binary/1)
+    |> Enum.reduce_while({seen, paths}, fn file, {seen, paths} ->
+      cond do
+        Map.has_key?(seen, file) -> {:cont, {seen, paths}}
+        map_size(seen) == @upload_max_paths -> {:halt, {:error, :too_many_paths}}
+        true -> {:cont, {Map.put(seen, file, true), [file | paths]}}
+      end
+    end)
+  end
+
+  # The scopes as the inline form holds them, read again on each pass.
+  defp uploaded_scopes(path, paths) do
+    index = paths |> Enum.with_index() |> Map.new()
+
+    path
+    |> uploaded_lines()
+    |> Stream.map(fn line ->
+      scope = JSON.decode!(line)
+      Map.put(scope, "files", scope |> Map.get("files") |> List.wrap() |> Enum.map(&Map.get(index, &1, -1)))
+    end)
+  end
+
+  # The file's non-empty lines, read in fixed-size chunks so that a line
+  # past `@upload_max_line_bytes` is `:too_long`, which ends the stream,
+  # rather than a binary that size.
+  defp uploaded_lines(path) do
+    path
+    |> File.stream!(65_536)
+    |> Stream.transform(fn -> {[], 0} end, &split_lines/2, &last_line/1, fn _acc -> :ok end)
+    |> Stream.reject(&(&1 == ""))
+  end
+
+  defp split_lines(_chunk, :too_long), do: {:halt, :too_long}
+
+  defp split_lines(chunk, {parts, size}) do
+    case :binary.split(chunk, "\n", [:global]) do
+      [partial] ->
+        pending(parts, size, partial, [])
+
+      [first | rest] ->
+        {complete, [partial]} = Enum.split(rest, -1)
+
+        if size + byte_size(first) > @upload_max_line_bytes,
+          do: {[:too_long], :too_long},
+          else: pending([], 0, partial, [IO.iodata_to_binary(Enum.reverse([first | parts])) | complete])
+    end
+  end
+
+  defp pending(parts, size, partial, lines) do
+    if size + byte_size(partial) > @upload_max_line_bytes,
+      do: {lines ++ [:too_long], :too_long},
+      else: {lines, {[partial | parts], size + byte_size(partial)}}
+  end
+
+  defp last_line(:too_long), do: {[], :too_long}
+  defp last_line({parts, _size}), do: {[IO.iodata_to_binary(Enum.reverse(parts))], {[], 0}}
 
   @doc """
   The tests a report holds evidence of their own for, as `{name,

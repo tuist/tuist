@@ -114,10 +114,15 @@ defmodule Tuist.Tests.Workers.PublishCoverageWorker do
     end
   end
 
-  # Raw DEFLATE (what the CLI's `NSData.compressed(using: .zlib)` and the
-  # Compression framework produce), inflated a chunk at a time so the file
-  # never sits in memory whole, and never grows past `limit` on disk.
-  defp inflate(source, destination, limit) do
+  @doc """
+  Inflates raw DEFLATE (what the CLI's `NSData.compressed(using: .zlib)`, the
+  Compression framework and `tuist_ex` produce) from `source` to
+  `destination` a chunk at a time, so the file never sits in memory whole and
+  never grows past `limit` on disk. `{:cancel, reason}` when it can't: the
+  same object fails the same way again. Uploaded evidence is read with it too
+  (`Tuist.Tests.Coverage.Evidence.with_uploaded/2`).
+  """
+  def inflate(source, destination, limit) do
     z = :zlib.open()
     :ok = :zlib.inflateInit(z, -15)
 
