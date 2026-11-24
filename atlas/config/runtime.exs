@@ -638,7 +638,13 @@ case System.get_env("MCP_PROXY_SERVERS") do
             token_url: "https://mcp.grafana.com/mcp/oauth/token",
             registration_url: "https://mcp.grafana.com/mcp/oauth/register",
             scopes: ["grafana:read", "grafana:write"],
-            headers: grafana_headers
+            headers: grafana_headers,
+            # Pulse log scans through Grafana's SQL data sources often take
+            # 15 to 30 seconds (about 1.5 s per hour of logs), and at the
+            # default 15 s Atlas cut them off as an unreachable upstream. 45 s
+            # outlasts Grafana's own 30 s data source timeout, so a slower
+            # query ends with Grafana's error instead.
+            receive_timeout: 45_000
           },
           # OVHcloud's MCP server serves one API section per URL, and every
           # fleet is on the OVHcloud US account. Each person connects their own
