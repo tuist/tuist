@@ -184,6 +184,10 @@ type Sandbox struct {
 	memoryPending bool
 	disksPending  bool
 	lazy          *lazyDisks
+	// memoryServed is the instance whose guest memory this process serves
+	// through userfaultfd, for as long as it runs: a warm restore's. It
+	// cannot outlive the daemon.
+	memoryServed vm.Instance
 }
 
 var (
@@ -507,16 +511,12 @@ func (m *Manager) resolveTemplate(name, tag string) (template.Template, error) {
 func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Instance, func(error) (vm.Instance, vsock.Agent, error), error) {
 	networkStarted := time.Now()
 	ns := m.namespace(meta.ID)
-	uid := m.cfg.UIDBase + meta.Slot
 	if err := m.net.Setup(ctx, ns, meta.Slot); err != nil {
 		return nil, nil, fmt.Errorf("network setup: %w", err)
 	}
 	m.observePhase("network_setup", networkStarted)
 	launchStarted := time.Now()
-	spec := vm.Spec{
-		ID: meta.ID, JailBase: m.cfg.JailBase, FirecrackerBin: m.cfg.FirecrackerBin, JailerBin: m.cfg.JailerBin,
-		JailerEnabled: m.cfg.JailerEnabled, UID: uid, GID: uid, NetNS: ns,
-	}
+	spec := m.vmSpec(meta)
 	if m.cgroups != nil {
 		guarantee := meta.CPUGuaranteeMilli
 		if guarantee == 0 {
@@ -550,6 +550,14 @@ func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Ins
 		return nil, nil, err
 	}
 	return inst, fail, nil
+}
+
+func (m *Manager) vmSpec(meta Metadata) vm.Spec {
+	uid := m.cfg.UIDBase + meta.Slot
+	return vm.Spec{
+		ID: meta.ID, JailBase: m.cfg.JailBase, FirecrackerBin: m.cfg.FirecrackerBin, JailerBin: m.cfg.JailerBin,
+		JailerEnabled: m.cfg.JailerEnabled, UID: uid, GID: uid, NetNS: m.namespace(meta.ID),
+	}
 }
 
 // attach brings the guest agent up to date after a restore or a boot (clock,
@@ -1433,13 +1441,28 @@ func (m *Manager) refreshGauges() {
 }
 
 // Recover rebuilds the registry from the jail directories after a restart.
-// Nothing survives a pod restart, so a sandbox recorded as running is
-// downgraded to paused when its snapshot files exist and to error
-// otherwise. Directories without metadata (a create or template build the
-// restart interrupted) are removed, as are stale namespaces.
+// A sandbox recorded as running lost its VM, so it is downgraded to paused
+// when its snapshot files exist and to error otherwise, unless the previous
+// daemon handed it over and the vmm container still holds that very
+// process: the daemon then attaches it and it stays running (step 2b).
+// Directories without metadata (a create or template build the restart
+// interrupted) are removed, as are stale namespaces and the VMs vmm holds
+// that no sandbox claims.
 func (m *Manager) Recover(ctx context.Context) error {
 	m.removePartialDiskSnapshots()
 	m.removePartialCacheImages()
+	attacher, _ := m.launcher.(vm.Attacher)
+	held := map[string]vm.VMMVM{}
+	if attacher != nil {
+		vms, err := attacher.List(ctx)
+		if err != nil {
+			m.log.Warn("listing the VMs vmm holds; handed-over sandboxes cold boot", "error", err)
+		}
+		for _, v := range vms {
+			held[v.ID] = v
+		}
+	}
+	var handedOver []*Sandbox
 	base := filepath.Join(m.cfg.JailBase, "firecracker")
 	entries, err := os.ReadDir(base)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -1492,6 +1515,18 @@ func (m *Manager) Recover(ctx context.Context) error {
 			}
 		case protocol.StateError:
 		default:
+			if h := meta.Handover; h != nil && hasDisks && meta.Error == "" {
+				if v, ok := held[meta.ID]; ok && !v.Exited && v.PID == h.PID && v.Start == h.Start {
+					sb := &Sandbox{root: root, meta: meta}
+					m.mu.Lock()
+					m.sandboxes[meta.ID] = sb
+					m.mu.Unlock()
+					handedOver = append(handedOver, sb)
+					continue
+				}
+				m.log.Warn("the sandbox's handed-over VM is gone; it will cold boot on its next resume", "sandbox", meta.ID, "pid", h.PID)
+			}
+			meta.Handover = nil
 			// The VM was running when the daemon stopped, so its disks have
 			// moved on since whatever memory image is on disk; restoring that
 			// image against them would hand the guest a stale page cache and
@@ -1518,12 +1553,37 @@ func (m *Manager) Recover(ctx context.Context) error {
 		m.mu.Unlock()
 		m.log.Info("recovered sandbox", "sandbox", meta.ID, "state", meta.State, "slot", meta.Slot)
 	}
+	adopted := map[string]bool{}
+	for _, sb := range handedOver {
+		if err := m.adopt(ctx, sb, attacher); err != nil {
+			m.lostHandover(sb, err)
+			continue
+		}
+		adopted[sb.meta.ID] = true
+	}
+	// A VM no sandbox claims (its metadata moved on, or its adoption
+	// failed and killed it already) must not run on beside the sandbox's
+	// next spawn.
+	for id, v := range held {
+		if adopted[id] || v.Exited {
+			continue
+		}
+		if inst, err := attacher.Attach(ctx, vm.Spec{ID: id, JailBase: m.cfg.JailBase}, v.PID); err == nil {
+			m.log.Warn("killing a VM vmm holds that no sandbox claims", "sandbox", id, "pid", v.PID)
+			killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_ = inst.Kill(killCtx)
+			cancel()
+		}
+	}
 	namespaces, err := m.net.Namespaces(ctx)
 	if err != nil {
 		m.log.Warn("listing network namespaces", "error", err)
 	}
 	for _, ns := range namespaces {
 		if !strings.HasPrefix(ns, "sbx-") {
+			continue
+		}
+		if id, ok := strings.CutPrefix(ns, "sbx-"); ok && adopted[id] {
 			continue
 		}
 		if err := m.net.Teardown(ctx, ns, -1); err != nil {
@@ -1534,8 +1594,6 @@ func (m *Manager) Recover(ctx context.Context) error {
 	return nil
 }
 
-// Shutdown pauses every running sandbox without a worker, concurrently,
-// until ctx expires.
 // Shutdown pauses every running sandbox within the deadline so a daemon
 // restart restores memory rather than cold booting. A running worker is
 // stopped first: its SIGTERM handler force-stops the work item, and
@@ -1543,6 +1601,18 @@ func (m *Manager) Recover(ctx context.Context) error {
 // be paused in time stay running and are marked for a cold boot on
 // recovery.
 func (m *Manager) Shutdown(ctx context.Context) {
+	m.stopAll(ctx, func(id string) {
+		// Synced, so the paused sandbox can be archived or saved without its
+		// memory image, like any other pause.
+		if _, err := m.PauseWith(ctx, protocol.PauseArgs{SandboxID: id, SyncDisks: true}); err != nil {
+			m.log.Error("pausing sandbox on shutdown", "sandbox", id, "error", err)
+		}
+	})
+}
+
+// stopAll stops each running sandbox's worker and then runs stop for it,
+// concurrently, until ctx expires.
+func (m *Manager) stopAll(ctx context.Context, stop func(id string)) {
 	var wg sync.WaitGroup
 	for _, info := range m.List() {
 		if info.State != protocol.StateRunning {
@@ -1557,11 +1627,7 @@ func (m *Manager) Shutdown(ctx context.Context) {
 					return
 				}
 			}
-			// Synced, so the paused sandbox can be archived or saved
-			// without its memory image, like any other pause.
-			if _, err := m.PauseWith(ctx, protocol.PauseArgs{SandboxID: id, SyncDisks: true}); err != nil {
-				m.log.Error("pausing sandbox on shutdown", "sandbox", id, "error", err)
-			}
+			stop(id)
 		}(info.ID, info.WorkerRunning)
 	}
 	done := make(chan struct{})
@@ -1574,6 +1640,168 @@ func (m *Manager) Shutdown(ctx context.Context) {
 	case <-ctx.Done():
 		m.log.Warn("shutdown deadline reached with pauses still in flight")
 	}
+}
+
+// adopt attaches the VM the previous daemon handed over and rebuilds what
+// this process holds for it: the Firecracker API, the guest agent, the
+// network namespace's name and the exit watch. It checks the process is
+// that sandbox's running VM first; on any failure the VM is killed.
+func (m *Manager) adopt(ctx context.Context, sb *Sandbox, attacher vm.Attacher) error {
+	meta := sb.meta
+	inst, err := attacher.Attach(ctx, m.vmSpec(meta), meta.Handover.PID)
+	if err != nil {
+		return fmt.Errorf("attaching pid %d: %w", meta.Handover.PID, err)
+	}
+	fail := func(err error) error {
+		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = inst.Kill(killCtx)
+		return err
+	}
+	if h, ok := inst.(vm.Handoff); ok && h.Start() != meta.Handover.Start {
+		return fail(fmt.Errorf("pid %d started at %d, not %d", inst.PID(), h.Start(), meta.Handover.Start))
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	info, err := inst.API().Info(checkCtx)
+	if err != nil {
+		return fail(fmt.Errorf("firecracker api: %w", err))
+	}
+	if info.ID != meta.ID || info.State != "Running" {
+		return fail(fmt.Errorf("firecracker answers as %q in state %q", info.ID, info.State))
+	}
+	if err := m.net.Adopt(checkCtx, m.namespace(meta.ID), inst.PID()); err != nil {
+		return fail(fmt.Errorf("naming the network namespace: %w", err))
+	}
+	agent := m.agent(inst.VsockPath())
+	if _, err := agent.Ping(checkCtx); err != nil {
+		return fail(fmt.Errorf("guest agent: %w", err))
+	}
+	sb.mu.Lock()
+	sb.epoch++
+	epoch := sb.epoch
+	sb.inst, sb.agent = inst, agent
+	sb.meta.Handover = nil
+	err = sb.meta.Save(sb.root)
+	sb.mu.Unlock()
+	go m.watch(sb, inst, epoch)
+	if err != nil {
+		m.log.Error("saving a re-attached sandbox's metadata", "sandbox", meta.ID, "error", err)
+	}
+	m.log.Info("sandbox re-attached", "sandbox", meta.ID, "pid", inst.PID(), "slot", meta.Slot)
+	return nil
+}
+
+// lostHandover is recovery's cold-boot path for a handed-over sandbox whose
+// VM could not be attached.
+func (m *Manager) lostHandover(sb *Sandbox, cause error) {
+	sb.mu.Lock()
+	sb.meta.Handover = nil
+	sb.meta.State = protocol.StatePaused
+	sb.meta.ColdBoot = true
+	sb.meta.PausedCPUMs = 0
+	meta := sb.meta
+	err := sb.meta.Save(sb.root)
+	sb.mu.Unlock()
+	m.log.Warn("re-attaching a handed-over sandbox failed; it will cold boot on its next resume", "sandbox", meta.ID, "error", cause)
+	if err != nil {
+		m.log.Error("saving the sandbox's metadata", "sandbox", meta.ID, "error", err)
+	}
+	m.releaseCgroup(meta.ID)
+	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
+}
+
+// Handover is Shutdown for an in-place upgrade of the daemon's container
+// (step 2b): each running sandbox stays running in the vmm container,
+// recorded for the next daemon to attach, instead of pausing. Its running
+// worker is stopped first, as on Shutdown, since the worker's exec stream
+// ends with this process. So does the memory server of a warm restore and
+// the lazy mounts of disks still arriving from an archive: a sandbox that
+// depends on either, or that vmm will not keep, is paused as Shutdown
+// pauses it.
+func (m *Manager) Handover(ctx context.Context) {
+	m.stopAll(ctx, func(id string) {
+		if m.handOver(ctx, id) {
+			return
+		}
+		if _, err := m.PauseWith(ctx, protocol.PauseArgs{SandboxID: id, SyncDisks: true}); err != nil {
+			m.log.Error("pausing sandbox on shutdown", "sandbox", id, "error", err)
+		}
+	})
+}
+
+// HandoverBlocked counts the running sandboxes a handover would pause:
+// those whose disks still arrive through the daemon's mounts (minutes after
+// a restore) and those whose guest memory the daemon serves (for the VM's
+// whole life after a warm restore from an archive).
+func (m *Manager) HandoverBlocked() (lazyDisks, memoryServed int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, sb := range m.sandboxes {
+		sb.mu.Lock()
+		if sb.meta.State == protocol.StateRunning && sb.inst != nil {
+			if sb.lazy != nil {
+				lazyDisks++
+			}
+			if sb.memoryServed == sb.inst {
+				memoryServed++
+			}
+		}
+		sb.mu.Unlock()
+	}
+	return lazyDisks, memoryServed
+}
+
+// handOver detaches the sandbox's VM and records it, reporting whether
+// nothing is left to do for it (handed over, or no longer running).
+func (m *Manager) handOver(ctx context.Context, id string) bool {
+	sb, err := m.get(id)
+	if err != nil {
+		return true
+	}
+	sb.opMu.Lock()
+	defer sb.opMu.Unlock()
+	if !m.current(id, sb) {
+		return true
+	}
+	sb.mu.Lock()
+	if sb.meta.State != protocol.StateRunning || sb.inst == nil {
+		sb.mu.Unlock()
+		return true
+	}
+	inst := sb.inst
+	h, ok := inst.(vm.Handoff)
+	if !ok || sb.lazy != nil || sb.memoryServed == inst {
+		sb.mu.Unlock()
+		return false
+	}
+	// The detach ends the instance on this side; watch must not take that
+	// for the VM's death.
+	sb.epoch++
+	sb.mu.Unlock()
+	if err := h.Detach(ctx); err != nil {
+		m.log.Warn("vmm did not keep the sandbox; pausing it", "sandbox", id, "error", err)
+		sb.mu.Lock()
+		sb.epoch++
+		epoch := sb.epoch
+		sb.mu.Unlock()
+		go m.watch(sb, inst, epoch)
+		return false
+	}
+	sb.mu.Lock()
+	sb.inst = nil
+	sb.dropAgent()
+	sb.meta.Handover = &Handover{PID: inst.PID(), Start: h.Start()}
+	err = sb.meta.Save(sb.root)
+	sb.mu.Unlock()
+	if err != nil {
+		// The next daemon finds no record, cold boots the sandbox and kills
+		// the VM vmm keeps.
+		m.log.Error("recording the handed-over sandbox", "sandbox", id, "error", err)
+		return true
+	}
+	m.log.Info("sandbox handed over to the next daemon", "sandbox", id, "pid", inst.PID())
+	return true
 }
 
 // lineLogger writes guest stdout/stderr to the daemon log one line at a

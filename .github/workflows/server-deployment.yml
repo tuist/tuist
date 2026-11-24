@@ -1737,6 +1737,18 @@ jobs:
             image_sets+=(--set "kuraVolumesCSI.enabled=false")
           fi
 
+          # With in-place daemon upgrades (step 2b), vmm keeps its live image
+          # unless the env's values pin one: moving it replaces every daemon
+          # Pod. The render below only needs some tag to pass the chart's check.
+          sandbox_values=$(yq ea '. as $i ireduce ({}; . * $i) | .sandboxes' \
+            "$HELM_CHART_PATH/values.yaml" "$HELM_CHART_PATH/values-managed-common.yaml" "$HELM_CHART_PATH/values-managed-${TARGET_ENVIRONMENT}.yaml" -o=json)
+          sandboxd_in_place=$(jq -r '(.enabled and .vmm.enabled and .vmm.inPlaceUpgrades) // false' <<< "$sandbox_values")
+          vmm_render_sets=()
+          if [ "$sandboxd_in_place" = true ] && [ -z "$(jq -r '.vmm.image.tag // ""' <<< "$sandbox_values")" ]; then
+            vmm_render_sets=(--set "sandboxes.vmm.image.tag=vmm-render-probe")
+          fi
+          echo "SANDBOXD_IN_PLACE=$sandboxd_in_place" >> "$GITHUB_ENV"
+
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
           registry_render="$(mktemp)"
           helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
@@ -1746,6 +1758,7 @@ jobs:
             --set registry.image.tag="$registry_probe_tag" \
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
+            "${vmm_render_sets[@]}" \
             > "$registry_render"
 
           if grep -Eq '^[[:space:]]+app\.kubernetes\.io/component: registry$' "$registry_render"; then
@@ -1776,6 +1789,13 @@ jobs:
             sandboxd_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.containers[] | select(.name == "sandboxd") | .image' "$registry_render")
             sandboxd_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" sandboxd "$sandboxd_image" "$SANDBOXD_IMAGE_TAG")
             add_set "sandboxes.image.tag" "$sandboxd_tag"
+            if [ "${#vmm_render_sets[@]}" -gt 0 ]; then
+              vmm_image=$(yq 'select(.kind == "DaemonSet" and .metadata.labels."app.kubernetes.io/component" == "sandboxd") | .spec.template.spec.containers[] | select(.name == "vmm") | .image' "$registry_render")
+              vmm_tag=$(bash .github/scripts/sandbox-live-image-tag.sh "$sandbox_namespace" "$sandbox_name" vmm "$vmm_image" "")
+              add_set "sandboxes.vmm.image.tag" "$vmm_tag"
+            fi
+            echo "SANDBOXD_NAMESPACE=$sandbox_namespace" >> "$GITHUB_ENV"
+            echo "SANDBOXD_DAEMONSET=$sandbox_name" >> "$GITHUB_ENV"
           fi
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
@@ -2298,6 +2318,12 @@ jobs:
           kubectl -n "$NAMESPACE" get externalsecret,secretstore 2>&1 || true
           kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
           echo "::endgroup::"
+      # OnDelete leaves the daemon Pods on their old spec. A daemon-only change
+      # restarts the sandboxd container in place and keeps the running VMs;
+      # anything else replaces the Pod, pausing its sandboxes.
+      - name: sandboxd in-place upgrade
+        if: env.SANDBOXD_IN_PLACE == 'true'
+        run: bash .github/scripts/sandboxd-upgrade.sh "$SANDBOXD_NAMESPACE" "$SANDBOXD_DAEMONSET"
       - name: Remove the server image pre-pull
         if: always()
         run: kubectl -n "$NAMESPACE" delete daemonset tuist-server-image-prepull --ignore-not-found --wait=false || true

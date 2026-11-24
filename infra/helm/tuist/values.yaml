@@ -2885,6 +2885,15 @@ sandboxes:
   # infra/sandboxd/AGENTS.md, "Process model".
   vmm:
     enabled: false
+    # Step 2b: the deploy upgrades the daemon container in place and the
+    # running VMs stay in vmm (OnDelete; .github/scripts/sandboxd-upgrade.sh
+    # rolls the Pods). Needs vmm.image.tag.
+    inPlaceUpgrades: false
+    image:
+      # vmm's own image, which holds Firecracker. Pinned on its own once
+      # upgrades are in place: changing it replaces every daemon Pod and
+      # pauses their sandboxes. Empty: the daemon's tag.
+      tag: ""
     # The daemon container's own, fixed resources: the server's 512 MiB
     # daemon reserve, with room for page cache from archives and restores.
     daemonResources:
