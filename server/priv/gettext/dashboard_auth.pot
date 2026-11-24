@@ -1354,7 +1354,7 @@ msgstr ""
 msgid "Continue only if you just started signing in to %{client} yourself."
 msgstr ""
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:244
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:248
 #, elixir-autogen, elixir-format
 msgid "Sign in to %{client} · Tuist"
 msgstr ""
@@ -1399,7 +1399,7 @@ msgstr ""
 msgid "Authorize"
 msgstr ""
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:243
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:247
 #, elixir-autogen, elixir-format
 msgid "Authorize application · Tuist"
 msgstr ""
@@ -1424,7 +1424,7 @@ msgstr ""
 msgid "Signed in as"
 msgstr ""
 
-#: lib/tuist_web/controllers/oauth/authorize_controller.ex:230
+#: lib/tuist_web/controllers/oauth/authorize_controller.ex:234
 #, elixir-autogen, elixir-format
 msgid "Unnamed application"
 msgstr ""
