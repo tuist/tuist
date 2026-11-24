@@ -432,6 +432,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   account's projects is connected to; `mac_source/3`): the Mac boots from the
   repository's darwin snapshot of its Xcode template and workspace size, else
   bare with a build requested (`request_mac_build/1`, the default macOS shape).
+  A Mac that boots from a snapshot older than six hours requests a build too:
+  `tuist generate` takes more targets from the binary cache as it fills in
+  after a push, which changes their dependents' build settings, and a
+  session's first build recompiled 302 files of the Tuist app a few hours
+  after its snapshot (measured, 2026-11).
   Such a Mac records the repository (`sandboxes.repository`): the Macs
   created for it on the snapshot's template in 24 hours, except creates that
   failed (`error`), are the snapshot's spawns, which make it popular and so copied out like an Orb snapshot (the
@@ -447,12 +452,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   the first sync is a delta and leaves unchanged files' modification times,
   which Xcode compares, alone (a full sync rewrites every file and rebuilt
   459 Swift files of the Tuist app in a measurement). A delta drops
-  `commit`. Measured on Xcode 27.0 (2026-11): every boot mounts the Metal
-  toolchain cryptex under a new random path that ends up in the link line of
-  host macro plugins, so after any cold boot, a snapshot boot included, the
-  macro plugins relink and their dependents rebuild (about 55 s of 140 s for
-  the Tuist app); the rest stays warm. A stable mount path in the image would
-  remove it. A Mac build's command starts as `:snapshot_build`, so its
+  `commit`. Every boot mounts the Metal toolchain cryptex under a new random
+  path. On Xcode 27.0 it reached the link line of host macro plugins built
+  from source, so they relinked and their dependents rebuilt after any cold
+  boot; with the macros taken from the binary cache (Xcode 27.2, 2026-11) it
+  reaches only `ExtractAppIntentsMetadata` of targets that rebuild anyway. A Mac build's command starts as `:snapshot_build`, so its
   script gets a `TUIST_OIDC_TOKEN` with read access to the account's cache
   that exchanges only while the build runs (`CommandCredentials`): an
   unauthenticated `tuist generate` skips the cache setup and writes other
@@ -463,12 +467,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
   simulator devices and stops the simulator services, since runtimes mount
   at new paths on each boot and a Mac restored with the builder's devices
-  and simulator state lost its iOS runtime. Before that it waits up to five
-  minutes for the compilation cache's `tuist-spool` to drain, stops the
-  cache proxy and build service, and deletes `CompilationCache.noindex` if
-  publications are still owed: a copied store whose spool owed some failed
-  session compiles with "not a IncludeFileList node kind" (see
-  `cas-plugin/AGENTS.md`). The build ends with `sync`. The snapshot's key hashes the
+  and simulator state lost its iOS runtime. Before that it stops the cache
+  proxy and build service, waits for them to exit, and deletes the records
+  `tuist-spool` still holds, keeping `CompilationCache.noindex`: the build's
+  credential only reads the cache, so the remote refuses every publication
+  and the spool never drains. A store saved while the proxy and build
+  service ran failed session compiles with "not a IncludeFileList node kind". The build ends with `sync`. The snapshot's key hashes the
   build script with the macOS setup script, so changing either rebuilds it.
   `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
