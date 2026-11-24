@@ -498,6 +498,10 @@ jobs:
       - name: Run shard ${{ matrix.shard }}
         run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -parallel-testing-enabled NO
         env:
+          # xcodebuild hands TEST_RUNNER_-prefixed variables to the test process
+          # without the prefix, at test time, so they stay out of the xctestrun.
+          TEST_RUNNER_TUIST_AUTH_EMAIL: ${{ secrets.TUIST_CANARY_ACCEPTANCE_EMAIL }}
+          TEST_RUNNER_TUIST_AUTH_PASSWORD: ${{ secrets.TUIST_CANARY_ACCEPTANCE_PASSWORD }}
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
 
@@ -539,6 +543,9 @@ jobs:
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run tests
         run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        env:
+          # Forks get no secrets, so the tests that sign in to canary are cancelled.
+          TEST_RUNNER_TUIST_ACCEPTANCE_SKIP_CANARY: "1"
 
   # Compiles the coverage-based test selection acceptance tests without running
   # them: canary doesn't serve the selection endpoints yet, so they can't join

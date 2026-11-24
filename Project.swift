@@ -50,12 +50,15 @@ func launchArgumentsFor(_ module: Module) -> [LaunchArgument] {
     }
 }
 
+// The canary account the acceptance tests sign in with is not set here: scheme variables are baked
+// into the .xctestrun that CI uploads between its build and test jobs. CI passes it at test time as
+// TEST_RUNNER_TUIST_AUTH_EMAIL and TEST_RUNNER_TUIST_AUTH_PASSWORD from repository secrets. Runs
+// without it (fork pull requests) set TEST_RUNNER_TUIST_ACCEPTANCE_SKIP_CANARY=1 to cancel the
+// tests that sign in; anywhere else a missing account fails them.
 func acceptanceTestsEnvironmentVariables() -> [String: EnvironmentVariable] {
     [
         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
-        "TUIST_AUTH_EMAIL": "tuistrocks@tuist.dev",
-        "TUIST_AUTH_PASSWORD": "tuistrocks",
     ]
 }
 
