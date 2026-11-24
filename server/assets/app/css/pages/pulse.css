@@ -27,7 +27,7 @@
     & [data-part="timeline-item"] {
       flex-wrap: nowrap;
       gap: 10px;
-      box-shadow: var(--noora-light-border-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-5);

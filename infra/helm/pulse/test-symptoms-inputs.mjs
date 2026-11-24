@@ -267,6 +267,9 @@ try {
   });
   const issues = await sql(`SELECT event_id, fingerprint FROM ${errors}`);
   const fingerprint = id => issues.find(issue => issue.event_id === id).fingerprint;
+  // Independent anchor: equality alone could let both pipelines drift from
+  // Atlas's type|function|module|normalized-message contract.
+  assert.equal(fingerprint(crashEvent.event_id), 'd257aae35ea052f66029d8957d4d1b5827f16b161b28f0b6c5709d4dede6d983');
   assert.equal(row(crash).exception_fp, fingerprint(crashEvent.event_id));
   assert.equal(row(exit).exception_fp, fingerprint(exitEvent.event_id));
   assert.notEqual(row(crash).exception_fp, row(exit).exception_fp);
@@ -313,6 +316,56 @@ try {
     ['tuist-server', 'GET /api/projects/:id', 'tuist-server', 'tuist.repo.query', 1],
   ]);
   assert.ok(edges.every(edge => BigInt(edge.time_window) === BigInt(hour.getTime()) * 1000000n));
+
+  // Asymmetric normalization regression: these expected hashes come from
+  // explicit canonical keys, not either pipeline's output. Two different
+  // values of each type must group together, while different messages must
+  // stay distinct. The key prefixes are:
+  // RuntimeError|Tuist.Worker.run/1|Elixir.Tuist.Worker|
+  const normalizationCases = [
+    {
+      // Sync <uuid> for <email> at <date> calling <url>
+      fingerprint: 'f423bbe5f83fc45d55c8fc6f0e5ca6b5bf2fb7aee16f9c3974550df607b00cb7',
+      values: [
+        'Sync 0190a0b1-c2d3-7e4f-8a9b-0c1d2e3f4a5b for ops@example.com at 2026-11-20T08:15:00Z calling https://api.example.com/v1/runs/42?page=3',
+        'Sync 7F1E2D3C-4B5A-4968-8776-655443322110 for dev@tuist.dev at 2026-11-21 09:00:01 calling http://localhost:8080/v1/runs/7',
+      ],
+    },
+    {
+      // Build <git_sha> on <ip> took <float>s; trace <hex>, buffer <hex> at attempt <int>
+      fingerprint: '335c966cc039d27a7fe3b355ebd071e75da1cdaaa45c6b7ee7bc9b5f00a80e65',
+      values: [
+        'Build 3f2a9c1e5d7b8a6c4e2f0a1b3c5d7e9f1a2b3c4d on 10.0.12.7 took 12.5s; trace 4bf92f3577b34da6a3ce929d0e0e4736, buffer 0x7ffd at attempt 3',
+        'Build 1234567890abcdef1234567890abcdef12345678 on 192.168.1.42 took 0.25s; trace abcdef0123456789, buffer 0XDEAD at attempt 99',
+      ],
+    },
+  ];
+  let regressionIndex = 0;
+  for (const testCase of normalizationCases) {
+    for (const value of testCase.values) {
+      const event = {
+        event_id: (++regressionIndex).toString(16).padStart(32, '0'),
+        exception: { values: [{ type: 'RuntimeError', value, stacktrace: { frames: [{
+          module: 'Elixir.Tuist.Worker', function: 'Tuist.Worker.run/1', filename: 'lib/tuist/worker.ex', lineno: 42, in_app: false,
+        }] } }] },
+      };
+      const line = `** (RuntimeError) ${value}\n    (tuist 0.1.0) lib/tuist/worker.ex:42: Tuist.Worker.run/1`;
+      await call('/v1/loki/api/v1/push', {
+        body: JSON.stringify({ streams: [{ stream: { service_name: 'tuist-regression', level: 'error' },
+          values: [[String(now + BigInt(regressionIndex) * second), line]] }] }),
+        contentType: 'application/json',
+        headers: { 'X-Pulse-DB-Name': 'public', 'X-Pulse-Pipeline-Name': lokiPipeline, 'X-Pulse-Log-Table-Name': logs },
+      });
+      await call(`/v1/ingest?${new URLSearchParams({ db: 'public', table: errors, pipeline_name: errorsPipeline })}`, {
+        body: JSON.stringify([{ service: 'tuist-regression', event }]), contentType: 'application/json',
+      });
+      const [log] = await sql(`SELECT exception_fp FROM ${logs} WHERE "service" = 'tuist-regression' ORDER BY "timestamp" DESC LIMIT 1`);
+      const [error] = await sql(`SELECT fingerprint FROM ${errors} WHERE event_id = '${event.event_id}'`);
+      assert.equal(log.exception_fp, testCase.fingerprint, `Loki: ${value}`);
+      assert.equal(error.fingerprint, testCase.fingerprint, `Sentry: ${value}`);
+    }
+  }
+  console.log(`PASS: ${regressionIndex} typed-normalization crashes match independent fingerprint anchors`);
   console.log(`PASS: ${lines.length} log lines keyed and masked (${secrets.length} with tokens), 2 crashes fingerprinted like their Sentry events, ${flows.length} Flows and the span-edge table`);
 } finally {
   await cleanup();
