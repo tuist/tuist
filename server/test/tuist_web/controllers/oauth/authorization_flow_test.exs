@@ -19,6 +19,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   alias Boruta.Ecto.Client
   alias Boruta.Ecto.Codes
   alias Boruta.Ecto.Token
+  alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
   alias Tuist.OAuth.Clients
@@ -26,6 +27,9 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @redirect_uri "https://claude.ai/api/mcp/auth_callback"
+  # The RFC 7636 example pair: registered clients must use S256 PKCE.
+  @code_verifier "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+  @code_challenge "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -41,7 +45,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
         "grant_type" => "authorization_code",
         "client_id" => client_id,
         "redirect_uri" => @redirect_uri,
-        "code" => code
+        "code" => code,
+        "code_verifier" => @code_verifier
       })
 
     assert %{"access_token" => access_token, "refresh_token" => refresh_token} =
@@ -110,6 +115,143 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     assert build_conn() |> init_test_session(%{}) |> put_session(:user_token, google_token) |> authorize(client_id)
   end
 
+  describe "consent" do
+    test "a GET shows the client and its redirect host without issuing a code", %{conn: conn} do
+      client_id = register_client(conn)
+
+      html = conn |> get(~p"/oauth2/authorize", authorize_params(client_id)) |> html_response(200)
+
+      assert html =~ "Claude Code"
+      assert html =~ "claude.ai"
+      assert html =~ ~s(name="_csrf_token")
+      refute Repo.exists?(from(token in Token, where: token.client_id == ^client_id and token.type == "code"))
+    end
+
+    test "a cross-site POST without the CSRF token can't approve", %{conn: conn} do
+      client_id = register_client(conn)
+
+      assert_raise InvalidCSRFTokenError, fn ->
+        conn
+        |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+        |> post(authorize_path(client_id), %{"consent" => "allow"})
+      end
+
+      refute Repo.exists?(from(token in Token, where: token.client_id == ^client_id and token.type == "code"))
+    end
+
+    test "declining redirects with access_denied and no code", %{conn: conn} do
+      client_id = register_client(conn)
+
+      query =
+        conn
+        |> post(authorize_path(client_id), %{"consent" => "deny"})
+        |> redirected_to()
+        |> URI.parse()
+        |> Map.fetch!(:query)
+        |> URI.decode_query()
+
+      assert %{"error" => "access_denied", "state" => "claude-state"} = query
+      refute Map.has_key?(query, "code")
+    end
+
+    test "a request without scopes is granted only the mcp preset", %{conn: conn} do
+      client_id = register_client(conn)
+
+      assert conn |> get(authorize_path(client_id, %{"scope" => ""})) |> html_response(200)
+
+      %{"code" => code} =
+        conn
+        |> post(authorize_path(client_id, %{"scope" => ""}), %{"consent" => "allow"})
+        |> redirected_to()
+        |> URI.parse()
+        |> Map.fetch!(:query)
+        |> URI.decode_query()
+
+      assert %{"access_token" => access_token} = exchange_code(client_id, code)
+      assert {:ok, %{"scopes" => ["mcp"]}} = Tuist.Guardian.decode_and_verify(access_token)
+    end
+  end
+
+  describe "registered client hardening" do
+    test "registration accepts only HTTPS, loopback HTTP and app schemes, matched exactly" do
+      for redirect_uri <- [
+            "http://claude.ai/callback",
+            "https://*.evil.example/callback",
+            "file://host/callback",
+            "https://claude.ai/callback#fragment"
+          ] do
+        assert %{"error" => "invalid_redirect_uri"} =
+                 build_conn()
+                 |> post(~p"/oauth2/register", registration_params(redirect_uri))
+                 |> json_response(400)
+      end
+
+      for redirect_uri <- [
+            "https://claude.ai/callback",
+            "http://127.0.0.1:4317/callback",
+            "http://[::1]:4317/callback",
+            "http://localhost:4317/callback",
+            "cursor://anysphere.cursor-retrieval/oauth/callback"
+          ] do
+        assert %{"client_id" => _} =
+                 build_conn() |> post(~p"/oauth2/register", registration_params(redirect_uri)) |> json_response(201)
+      end
+    end
+
+    test "clients registered before the rules can't send codes to a disallowed redirect URI", %{conn: conn} do
+      {:ok, client} =
+        Admin.create_client(%{
+          name: "Legacy",
+          redirect_uris: ["http://legacy.example/callback"],
+          supported_grant_types: ["authorization_code", "refresh_token"]
+        })
+
+      params = Map.put(authorize_params(client.id), "redirect_uri", "http://legacy.example/callback")
+
+      assert %{"error" => "invalid_client"} =
+               conn |> get(~p"/oauth2/authorize", params) |> json_response(401)
+    end
+
+    test "authorization requires S256 PKCE, also for clients registered without it", %{conn: conn} do
+      {:ok, client} =
+        Admin.create_client(%{
+          name: "Legacy without PKCE",
+          redirect_uris: [@redirect_uri],
+          supported_grant_types: ["authorization_code", "refresh_token"],
+          pkce: false
+        })
+
+      for client_id <- [register_client(conn), client.id] do
+        without_pkce = Map.drop(authorize_params(client_id), ["code_challenge", "code_challenge_method"])
+        plain = Map.put(authorize_params(client_id), "code_challenge_method", "plain")
+        no_method = Map.delete(authorize_params(client_id), "code_challenge_method")
+
+        assert %{"error" => "invalid_request"} = conn |> get(~p"/oauth2/authorize", plain) |> json_response(400)
+        assert %{"error" => "invalid_request"} = conn |> get(~p"/oauth2/authorize", no_method) |> json_response(400)
+
+        assert %{"error" => "invalid_request"} =
+                 conn
+                 |> post("/oauth2/authorize?" <> URI.encode_query(without_pkce), %{"consent" => "allow"})
+                 |> redirected_to()
+                 |> URI.parse()
+                 |> Map.fetch!(:query)
+                 |> URI.decode_query()
+
+        code = authorize(conn, client_id)
+
+        assert %{"error" => "invalid_request"} =
+                 build_conn()
+                 |> post(~p"/oauth2/token", %{
+                   "grant_type" => "authorization_code",
+                   "client_id" => client_id,
+                   "redirect_uri" => @redirect_uri,
+                   "code" => code
+                 })
+                 |> json_response(400)
+      end
+    end
+  end
+
   describe "client jwks_uri" do
     # Registration is anonymous and Boruta fetches `jwks_uri` with a plain
     # Finch GET, so accepting it would let anyone make the server request an
@@ -173,6 +315,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
           "client_id" => client.id,
           "redirect_uri" => @redirect_uri,
           "code" => "unused",
+          "code_verifier" => @code_verifier,
           "client_assertion_type" => "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
           "client_assertion" => assertion
         })
@@ -339,7 +482,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                "grant_type" => "authorization_code",
                "client_id" => client_id,
                "redirect_uri" => @redirect_uri,
-               "code" => code
+               "code" => code,
+               "code_verifier" => @code_verifier
              })
              |> json_response(400)
   end
@@ -354,7 +498,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                "grant_type" => "authorization_code",
                "client_id" => client_id,
                "redirect_uri" => @redirect_uri,
-               "code" => code
+               "code" => code,
+               "code_verifier" => @code_verifier
              })
              |> json_response(200)
 
@@ -386,7 +531,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                "grant_type" => "authorization_code",
                "client_id" => client_id,
                "redirect_uri" => @redirect_uri,
-               "code" => code
+               "code" => code,
+               "code_verifier" => @code_verifier
              })
              |> json_response(200)
 
@@ -434,7 +580,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                "grant_type" => "authorization_code",
                "client_id" => client_id,
                "redirect_uri" => @redirect_uri,
-               "code" => code
+               "code" => code,
+               "code_verifier" => @code_verifier
              })
              |> json_response(200)
 
@@ -518,7 +665,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
                "grant_type" => "authorization_code",
                "client_id" => mcp_client_id,
                "redirect_uri" => @redirect_uri,
-               "code" => authorize(conn, mcp_client_id)
+               "code" => authorize(conn, mcp_client_id),
+               "code_verifier" => @code_verifier
              })
              |> json_response(200)
 
@@ -596,7 +744,8 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       "grant_type" => "authorization_code",
       "client_id" => client_id,
       "redirect_uri" => @redirect_uri,
-      "code" => code
+      "code" => code,
+      "code_verifier" => @code_verifier
     })
     |> json_response(200)
   end
@@ -674,7 +823,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     end
 
     # The consent form is the only way to approve, so it must keep its CSRF protection.
-    assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
+    assert_raise InvalidCSRFTokenError, fn ->
       conn
       |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
       |> post("/oauth2/authorize?" <> query.("luft://oauth-callback"), %{"consent" => "allow"})
@@ -779,13 +928,35 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     client_id
   end
 
+  # Dynamically registered clients get a code only after the user approves
+  # the consent page the GET renders, with a POST to the same URL.
   defp authorize(conn, client_id) do
-    conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
+    assert conn |> get(~p"/oauth2/authorize", authorize_params(client_id)) |> html_response(200) =~
+             "allow-oauth-consent"
 
     %{"code" => code} =
-      conn |> redirected_to() |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+      conn
+      |> post(authorize_path(client_id), %{"consent" => "allow"})
+      |> redirected_to()
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
 
     code
+  end
+
+  defp authorize_path(client_id, params \\ %{}) do
+    "/oauth2/authorize?" <> URI.encode_query(Map.merge(authorize_params(client_id), params))
+  end
+
+  defp registration_params(redirect_uri) do
+    %{
+      "client_name" => "Redirect URI check",
+      "redirect_uris" => [redirect_uri],
+      "grant_types" => ["authorization_code", "refresh_token"],
+      "response_types" => ["code"],
+      "token_endpoint_auth_method" => "none"
+    }
   end
 
   defp authorize_params(client_id) do
@@ -794,7 +965,9 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       "client_id" => client_id,
       "redirect_uri" => @redirect_uri,
       "scope" => "mcp",
-      "state" => "claude-state"
+      "state" => "claude-state",
+      "code_challenge" => @code_challenge,
+      "code_challenge_method" => "S256"
     }
   end
 end

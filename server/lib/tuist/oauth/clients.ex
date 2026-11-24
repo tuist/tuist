@@ -19,6 +19,8 @@ defmodule Tuist.OAuth.Clients do
   alias Tuist.Environment
 
   @authorization_code_ttl 300
+  @loopback_hosts ["127.0.0.1", "::1", "localhost"]
+  @forbidden_redirect_schemes ~w(file javascript data vbscript blob ftp)
   @luft_client_id "6653b77b-b787-4eb2-b955-8380ea5f1478"
   @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
   # The OpenID Connect scopes (OIDC Core 5.4).
@@ -50,11 +52,52 @@ defmodule Tuist.OAuth.Clients do
 
       nil ->
         case EctoClients.get_client(client_id) do
-          %Client{} = client -> client |> ensure_authorization_code_ttl() |> restrict_grant_types()
-          nil -> nil
+          %Client{} = client ->
+            client
+            |> ensure_authorization_code_ttl()
+            |> restrict_grant_types()
+            |> restrict_redirect_uris()
+            |> Map.put(:pkce, true)
+
+          nil ->
+            nil
         end
     end
   end
+
+  @doc """
+  Whether `client_id` names a first-party app's client: the Tuist apps' or
+  Luft's. Their tokens get the default user scopes when they request none,
+  and only clients whose redirect URIs nobody else chooses skip the consent
+  page: the Tuist apps'. Luft's redirects can be claimed by other apps, so
+  `TuistWeb.Oauth.AuthorizeController` asks for consent anyway.
+  """
+  def first_party?(client_id) when is_binary(client_id), do: client_id in [Environment.oauth_client_id(), @luft_client_id]
+
+  def first_party?(_client_id), do: false
+
+  @doc """
+  Whether a dynamically registered client may use `redirect_uri` (RFC 9700
+  section 4.1, RFC 8252 section 7): HTTPS, plain HTTP only on a loopback host,
+  or an app's own scheme. Registration is anonymous, so this keeps codes off
+  cleartext and local-file targets, and rejecting `*`, which Boruta reads as a
+  wildcard, keeps redirect URI matching exact.
+  """
+  def allowed_redirect_uri?(redirect_uri) when is_binary(redirect_uri) do
+    case URI.parse(redirect_uri) do
+      %URI{host: host, fragment: nil, scheme: scheme} when is_binary(host) and host != "" and is_binary(scheme) ->
+        not String.contains?(redirect_uri, "*") and allowed_redirect_target?(scheme, String.downcase(host))
+
+      _ ->
+        false
+    end
+  end
+
+  def allowed_redirect_uri?(_redirect_uri), do: false
+
+  defp allowed_redirect_target?("https", _host), do: true
+  defp allowed_redirect_target?("http", host), do: host in @loopback_hosts
+  defp allowed_redirect_target?(scheme, _host), do: scheme not in @forbidden_redirect_schemes
 
   @doc """
   Luft's client ID. Luft is a first-party app, like the Tuist app: its
@@ -124,6 +167,7 @@ defmodule Tuist.OAuth.Clients do
   def create_client(registration_params) do
     registration_params
     |> Map.put(:authorization_code_ttl, @authorization_code_ttl)
+    |> Map.put(:pkce, true)
     |> Map.update(:supported_grant_types, @supported_grant_types, &supported_grant_types/1)
     |> EctoClients.create_client()
   end
@@ -317,6 +361,13 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp ensure_authorization_code_ttl(%Client{} = client), do: client
+
+  # Clients registered before redirect URIs were restricted keep only those
+  # that are still allowed. Every dynamically registered client is public in
+  # practice and must use PKCE (RFC 9700 section 2.1.1), set above.
+  defp restrict_redirect_uris(%Client{redirect_uris: redirect_uris} = client) do
+    %{client | redirect_uris: Enum.filter(redirect_uris || [], &allowed_redirect_uri?/1)}
+  end
 
   # Clients registered before registration was restricted still carry Boruta's
   # default grant list, which includes grants Tuist doesn't support.

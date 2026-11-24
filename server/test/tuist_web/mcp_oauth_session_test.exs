@@ -192,7 +192,7 @@ defmodule TuistWeb.MCPOAuthSessionTest do
     organization: organization
   } do
     result =
-      call_tool(conn, oauth_access_token(admin, nil), "list_webhook_endpoints", %{
+      call_tool(conn, oauth_access_token(admin, "project:cache:read"), "list_webhook_endpoints", %{
         "account_handle" => organization.account.name
       })
 
