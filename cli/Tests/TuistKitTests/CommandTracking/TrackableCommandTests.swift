@@ -244,6 +244,31 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
+    func test_whenOptionalAuthenticationIsEnabled_andTokenExpiredDuringTheRun_refreshesAndUploadsRunMetadata() async throws {
+        // Given: the access token expired while the command ran (user tokens
+        // live 10 minutes), and the refresh token can still renew it.
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any, refreshIfNeeded: .value(false))
+            .willReturn(nil)
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any, refreshIfNeeded: .value(true))
+            .willReturn(.user(accessToken: .test(token: "refreshed"), refreshToken: .test(token: "refresh")))
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(1)
+    }
+
     func test_whenRunMetadataUploadTimesOut_doesNotFailCommand() async throws {
         // Given
         uploadAnalyticsService.reset()
