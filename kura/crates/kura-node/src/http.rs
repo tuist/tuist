@@ -206,13 +206,6 @@ pub fn combined_router(state: SharedState) -> Router {
 }
 
 pub async fn guard_response_stream_transport(mut response: Response) -> Response {
-    if let Some(borrowed) = response
-        .extensions_mut()
-        .remove::<crate::memory::BorrowedResponse>()
-    {
-        let body = std::mem::take(response.body_mut());
-        *response.body_mut() = borrowed.into_body(body);
-    }
     let Some(guard) = response.extensions_mut().remove::<ResponseTransportGuard>() else {
         return response;
     };

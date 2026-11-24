@@ -34,9 +34,6 @@ pub(super) struct MemoryPools {
     mmap_serving: Arc<Semaphore>,
     transient_capacity_bytes: usize,
     elastic_transient_capacity_bytes: usize,
-    /// Caps how much of the elastic pool borrowed batch-read responses may
-    /// hold at once. The whole elastic pool.
-    read_borrow: Arc<Semaphore>,
     /// Floor bytes only write replies draw on. A reply is reserved without
     /// waiting, and a semaphore hands every released permit to its queued
     /// waiters first, so while a read waits on the shared floor every
@@ -150,7 +147,6 @@ impl MemoryPools {
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),
             transient_capacity_bytes,
             elastic_transient_capacity_bytes,
-            read_borrow: Arc::new(Semaphore::new(elastic_transient_capacity_bytes)),
             write_reply: Arc::new(Semaphore::new(write_reply_reserve_bytes)),
             write_reply_reserve_bytes,
             reapi_materialization_limit_bytes,
@@ -262,19 +258,6 @@ impl MemoryPools {
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())
-    }
-
-    pub(super) fn try_acquire_read_borrow(
-        &self,
-        permits: u32,
-    ) -> Result<(OwnedSemaphorePermit, OwnedSemaphorePermit), ()> {
-        let cap = self
-            .read_borrow
-            .clone()
-            .try_acquire_many_owned(permits)
-            .map_err(|_| ())?;
-        let elastic = self.try_acquire_elastic_transient(permits)?;
-        Ok((cap, elastic))
     }
 
     pub(super) fn mmap_serving_bytes(&self) -> usize {

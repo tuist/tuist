@@ -10,7 +10,6 @@ use tokio::time::timeout;
 use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 use crate::metrics::Metrics;
 
-mod borrowed;
 mod cgroup;
 mod pools;
 mod pressure;
@@ -18,7 +17,6 @@ mod reservation;
 #[cfg(test)]
 mod response_tests;
 
-pub use borrowed::BorrowedResponse;
 pub use cgroup::{
     ContainerMemoryPressureSample, ContainerMemorySnapshot, container_memory_pressure_sample,
     container_memory_protection, container_memory_snapshot,
@@ -646,49 +644,6 @@ impl MemoryController {
         }))
     }
 
-    /// Admission for a batch-read response the floor-derived pool cannot take
-    /// right now, from the ceiling headroom above the floor instead.
-    ///
-    /// Only while pressure is normal, and capped at the whole elastic pool: a
-    /// read burst may take headroom write decoding would otherwise borrow,
-    /// which stress runs showed costs writes nothing, because queued reads on
-    /// a full floor refuse writes sooner than borrowed reads do. Unlike
-    /// `reserve_response_materialization` this never waits. The caller must
-    /// hand the permit to a [`BorrowedResponse`], which bounds how long the
-    /// unprotected memory stays held; holding it in a `ResponseTransportGuard`
-    /// would let a stalled reader keep it indefinitely.
-    pub fn try_borrow_response_materialization(
-        &self,
-        content_bytes: usize,
-    ) -> Result<Option<MemoryPermit>, ()> {
-        let requested_bytes = content_bytes.checked_mul(2).ok_or(())?;
-        if requested_bytes == 0 {
-            return Ok(None);
-        }
-        if requested_bytes > self.reapi_materialization_limit_bytes()
-            || self.pressure() != MemoryPressure::Normal
-        {
-            return Err(());
-        }
-        let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let (cap, elastic) = self.inner.pools.try_acquire_read_borrow(permits)?;
-        // Not `transient_ceiling_headroom_borrowed`: the runbook reads that
-        // one as the write-decode tell.
-        self.inner
-            .metrics
-            .record_memory_action("reapi_read_headroom_borrowed");
-        Ok(Some(MemoryPermit {
-            _transient: TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                elastic_permit: Some(elastic),
-                _read_borrow_permit: Some(cap),
-                elasticity: TransientElasticity::Fixed,
-                bytes: requested_bytes as u64,
-            },
-        }))
-    }
-
     /// Non-waiting admission for the mmap fast path.
     ///
     /// mmap serving is an optimization over the streaming reader, so queueing
@@ -1196,7 +1151,6 @@ impl MemoryController {
                     controller: self.clone(),
                     permit: Some(permit),
                     elastic_permit: None,
-                    _read_borrow_permit: None,
                     elasticity: TransientElasticity::Fixed,
                     bytes: requested_bytes,
                 });
@@ -1210,7 +1164,6 @@ impl MemoryController {
             controller: self.clone(),
             permit: None,
             elastic_permit: None,
-            _read_borrow_permit: None,
             elasticity,
             bytes: 0,
         }

@@ -41,7 +41,6 @@ uuid.workspace = true
 zstd.workspace = true
 
 [dev-dependencies]
-h2.workspace = true
 kura-core = { workspace = true, features = ["test-support"] }
 kura-node = { workspace = true, features = ["test-support"] }
 tokio = { workspace = true, features = ["test-util"] }
