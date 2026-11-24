@@ -110,6 +110,13 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_ATLAS
 
 server:
+  # The Symptoms evaluator (infra/helm/symptoms, release `symptoms` in
+  # `symptoms-staging`). Enable once SYMPTOMS/api_token exists in this environment's
+  # vault and the evaluator is deployed.
+  symptoms:
+    enabled: false
+    url: http://symptoms.symptoms-staging.svc.cluster.local
+    evaluatorNamespace: symptoms-staging
   kuraCapacityAdmission:
     enabled: true
 

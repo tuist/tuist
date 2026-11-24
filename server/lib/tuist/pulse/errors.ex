@@ -157,7 +157,7 @@ defmodule Tuist.Pulse.Errors do
   defp scope(service, fingerprint, opts),
     do:
       "#{bounds(opts.finish - opts.seconds, opts.finish)} AND service = #{literal(service)} " <>
-        "AND fingerprint = #{literal(fingerprint)}"
+        "AND fingerprint = #{literal(fingerprint)}#{environment(opts.params)}"
 
   defp bucket(opts) do
     start = opts.finish - opts.seconds

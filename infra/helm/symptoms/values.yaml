@@ -1,0 +1,172 @@
+# Defaults for the symptoms chart. Each managed environment layers
+# values-<env>.yaml on top; image.tag comes from the deploy workflow
+# (.github/workflows/symptoms-deployment.yml). The release is `symptoms` in
+# the `symptoms-<env>` namespace of that environment's workload cluster.
+
+# staging, canary or production. Required.
+environment: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tuist/symptoms
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Phoenix endpoint. `host` is PHX_HOST, the evaluator's tailnet name.
+host: ""
+port: 4000
+poolSize: 10
+# The release migrates on boot unless SKIP_MIGRATIONS=true.
+skipMigrations: false
+
+# Paging (README "Decision"). It stays off until shadow precision has been
+# reviewed; until then `decision.would_page` in the log is the only trace. The
+# IRM webhook URL is SYMPTOMS/irm_webhook_url. `linkBaseUrl`, when set, is
+# prepended to the symptom id as the page's link.
+decision:
+  pagingEnabled: false
+  linkBaseUrl: ""
+
+# Pulse (infra/helm/pulse dashboard-auth). Reads use the read-only
+# `dashboard` identity; the hourly span-edge INSERT uses the write-only
+# `tuist` identity. Both passwords are PULSE_TOKEN/password today; point
+# writeTokenItem at another item if Pulse gets a dedicated writer.
+pulse:
+  url: http://pulse.observability.svc.cluster.local:4000
+  username: dashboard
+  tokenItem: PULSE_TOKEN
+  tokenField: password
+  writeUsername: tuist
+  writeTokenItem: PULSE_TOKEN
+  writeTokenField: password
+  namespace: observability
+  podLabels:
+    app.kubernetes.io/instance: pulse
+  port: 4000
+
+# The Tuist server, for GET /api/internal/symptoms/state. The evaluator
+# authenticates with a projected ServiceAccount token for `stateToken.audience`,
+# which the server verifies with TokenReview against
+# TUIST_SYMPTOMS_EVALUATOR_NAMESPACE / TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT.
+tuist:
+  url: ""
+  namespace: ""
+  podLabels:
+    app.kubernetes.io/instance: tuist
+    app.kubernetes.io/component: server
+  # The server pods' container port (Service port 80 targets it).
+  port: 8080
+
+stateToken:
+  audience: tuist-symptoms-state
+  expirationSeconds: 3600
+
+# Grafana Cloud Prometheus, read for the metrics source (PromQL at 1 min).
+# Credentials: SYMPTOMS/grafana_cloud_metrics_user and
+# SYMPTOMS/grafana_cloud_metrics_read_token.
+prometheus:
+  url: https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom
+
+# Exported for Grafana Cloud (heartbeat, coverage, freshness) through the
+# cluster's annotation autodiscovery scrape (k8s-monitoring).
+metrics:
+  enabled: true
+  path: /metrics
+
+# Cluster-wide read of Kubernetes events (get, list, watch only).
+eventsReader:
+  enabled: true
+
+service:
+  type: ClusterIP
+  port: 80
+  # Tailnet only: the Tailscale operator exposes the Service as
+  # `<hostname>.<tailnet>.ts.net`. There is no public Ingress.
+  tailscale:
+    expose: true
+    hostname: ""
+
+networkPolicy:
+  enabled: true
+  dnsNamespace: kube-system
+  # Where the Tailscale operator runs the proxy for the tailnet Service.
+  tailscaleNamespace: tailscale-operator
+  # alloy-metrics scrapes the metrics endpoint from here.
+  observabilityNamespace: observability
+  # Public HTTPS hosts (Cilium toFQDNs): Grafana Cloud.
+  egressFQDNs:
+    - matchPattern: "*.grafana.net"
+
+# One 1Password item per environment vault (tuist-k8s-<env>), fields:
+#   api_token                         bearer token of the evaluator API; the
+#                                     server reads the same field
+#   secret_key_base                   `mix phx.gen.secret`
+#   irm_webhook_url                   Grafana IRM formatted-webhook URL; may
+#                                     be empty while paging is off
+#   grafana_cloud_metrics_user        Grafana Cloud Prometheus instance ID
+#   grafana_cloud_metrics_read_token  Grafana Cloud access policy token, metrics:read
+externalSecret:
+  refreshInterval: "1h"
+  item: SYMPTOMS
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+
+postgresql:
+  # Two instances so a node drain can evict the primary (see the comment on
+  # postgresql.instances in ../tuist-ops/values.yaml).
+  instances: 2
+  storageSize: 20Gi
+  storageClass: ""
+  database: symptoms
+  owner: symptoms
+  image:
+    repository: ghcr.io/cloudnative-pg/postgresql
+    tag: "16.6"
+  parameters:
+    max_connections: "50"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  backup:
+    enabled: true
+    # Set per environment: s3://tuist-<env>-pg-backups/symptoms.
+    destinationPath: ""
+    endpointURL: https://t3.storage.dev
+    retentionPolicy: "30d"
+    # ESO-synced from the environment's S3_BACKUP_CREDENTIALS item, the one
+    # the server's CNPG cluster uses.
+    credentialsItem: S3_BACKUP_CREDENTIALS
+    credentialsSecretName: symptoms-backup-credentials
+    plugin:
+      name: barman-cloud.cloudnative-pg.io
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+nodeSelector: {}
+tolerations: []
+podAnnotations: {}
+
+probes:
+  path: /healthz
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 60
+  readiness:
+    periodSeconds: 10
+    failureThreshold: 3
+  liveness:
+    periodSeconds: 30
+    failureThreshold: 3

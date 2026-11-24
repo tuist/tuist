@@ -550,6 +550,7 @@ defmodule Tuist.PulseTest do
                " FROM errors WHERE timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"
 
       assert sql =~ " AND service = 'server''s' AND fingerprint = '#{@fingerprint}'"
+      assert sql =~ " AND environment = 'prod''uction'"
 
       cond do
         sql =~ "GROUP BY service, fingerprint" ->
@@ -602,6 +603,7 @@ defmodule Tuist.PulseTest do
     assert {:ok, detail} =
              Pulse.error_issue(ctx.user, ctx.account, @fingerprint, %{
                "service" => "server's",
+               "environment" => "prod'uction",
                "end_at" => "2026-11-06T12:00:00Z",
                "page" => "2",
                "page_size" => "2"

@@ -8,14 +8,13 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.CacheVolumes.Query
   alias TuistWeb.API.RunnerVolumesController, as: Controller
 
   setup do
     account = %Account{id: 1, name: "acme", visibility: :private}
     stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
-    stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
     %{account: account, id: Ecto.UUID.generate()}
   end
 
@@ -97,7 +96,7 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
 
   test "disabled accounts cannot query volumes", %{account: account} do
     expect(Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
-    stub(FeatureFlags, :runners_enabled?, fn ^account -> false end)
+    stub(Environment, :runners_available?, fn -> false end)
     reject(&Query.run/3)
     assert call(:list).status == 404
   end

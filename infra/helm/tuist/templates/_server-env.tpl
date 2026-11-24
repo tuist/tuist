@@ -70,6 +70,15 @@ environment.
             - name: TUIST_ATLAS_SUPPORT_INGEST_TOKEN_PATH
               value: /var/run/secrets/atlas-support-ingest/token
             {{- end }}
+            {{- if .Values.server.symptoms.enabled }}
+            # TUIST_SYMPTOMS_TOKEN comes from the server-config ExternalSecret.
+            - name: TUIST_SYMPTOMS_URL
+              value: {{ required "server.symptoms.url is required when server.symptoms.enabled" .Values.server.symptoms.url | quote }}
+            - name: TUIST_SYMPTOMS_EVALUATOR_NAMESPACE
+              value: {{ required "server.symptoms.evaluatorNamespace is required when server.symptoms.enabled" .Values.server.symptoms.evaluatorNamespace | quote }}
+            - name: TUIST_SYMPTOMS_EVALUATOR_SERVICE_ACCOUNT
+              value: {{ .Values.server.symptoms.evaluatorServiceAccount | quote }}
+            {{- end }}
             - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
               value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             {{- if .Values.server.turnstile.enabled }}
@@ -212,8 +221,8 @@ environment.
             {{- if or .Values.runnersFleet.enabled .Values.runnersFleetLinux.enabled }}
             # Runners namespace. The server reads RunnerPool CRs at
             # dispatch time to discover the fleet name; runner
-            # availability is gated by the `:runners` feature flag and
-            # has no chart-level setting.
+            # availability follows `server.hosted` and has no
+            # chart-level setting.
             - name: TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE
               value: {{ include "tuist.runnerCacheVolumesNamespace" . | quote }}
             - name: TUIST_RUNNER_CACHE_VOLUMES_SA_NAME

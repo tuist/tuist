@@ -8,7 +8,7 @@ defmodule Tuist.EnvironmentTest do
     account_handles = Environment.blocked_account_handles()
 
     assert "app" in account_handles
-    assert Environment.blocked_project_handles() == account_handles -- ["app"]
+    assert Environment.blocked_project_handles() == (account_handles -- ["app"]) ++ ["pulse"]
     assert Application.fetch_env!(:tuist, :blocked_handles) == account_handles
   end
 
@@ -135,6 +135,21 @@ defmodule Tuist.EnvironmentTest do
 
       for disabled <- [false, nil, "true", "false", "1", 1] do
         refute Environment.network_trusted_cache_access_enabled?(false, disabled)
+      end
+    end
+  end
+
+  describe "runners_available?/2" do
+    test "production and canary offer runners only when Tuist hosts them" do
+      assert Environment.runners_available?(:prod, true)
+      assert Environment.runners_available?(:can, true)
+      refute Environment.runners_available?(:prod, false)
+      refute Environment.runners_available?(:can, false)
+    end
+
+    test "other environments always offer runners" do
+      for env <- [:stag, :preview, :dev, :test] do
+        assert Environment.runners_available?(env, false)
       end
     end
   end

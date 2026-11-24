@@ -23,6 +23,10 @@ import (
 
 const actionRoot = "/workspace/action"
 
+// inputsDir holds the node's verified input blobs when sandboxd swapped its
+// inputs image in as the workspace (sandboxd blobcache.InputsDir).
+const inputsDir = "/workspace/.sbx-inputs"
+
 // A guest restored from the template snapshot faults in every page on first
 // touch. Preparation executes one throwaway action through the worker, before
 // any credential or input exists, so the admitted action does not pay for

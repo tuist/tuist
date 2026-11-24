@@ -2,13 +2,14 @@ defmodule Tuist.MCP.Events.Catalog do
   @moduledoc false
 
   @project_events ["test_case.marked_flaky", "build.failed", "test_run.failed"]
-  @account_events ["ci_job.failed"]
+  @account_events ["ci_job.failed", "pulse_symptom.opened"]
 
   def supported?(name), do: name in @project_events or name in @account_events
 
   def target("build.failed"), do: {:project, :build}
   def target(name) when name in @project_events, do: {:project, :test}
-  def target(name) when name in @account_events, do: {:account, :runners}
+  def target("ci_job.failed"), do: {:account, :runners}
+  def target("pulse_symptom.opened"), do: {:account, :pulse}
   def target(_name), do: nil
 
   def list do
@@ -33,6 +34,12 @@ defmodule Tuist.MCP.Events.Catalog do
           "A continuous integration runner job in the selected account failed.",
           account_schema(),
           ["workflow_job_id", "workflow_run_id"]
+        ),
+        descriptor(
+          "pulse_symptom.opened",
+          "Pulse opened or reopened a symptom at board or page tier in the selected account.",
+          account_schema(),
+          ["symptom_id", "tier", "service", "kind", "key"]
         )
       ]
     }
@@ -74,7 +81,7 @@ defmodule Tuist.MCP.Events.Catalog do
           })
       end)
       |> then(fn props ->
-        if name == "ci_job.failed", do: props, else: Map.put(props, "project_handle", %{"type" => "string"})
+        if name in @account_events, do: props, else: Map.put(props, "project_handle", %{"type" => "string"})
       end)
 
     %{

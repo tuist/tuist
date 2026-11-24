@@ -215,6 +215,18 @@ affinity:
           app.kubernetes.io/name: kura
   ports:
     - {port: 4000, protocol: TCP}
+# The symptoms evaluator (infra/helm/symptoms) reads evidence from the HTTP
+# API as the read-only dashboard user, from its own namespace.
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: symptoms-{{ .Values.environment }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: symptoms
+          app.kubernetes.io/component: evaluator
+  ports:
+    - {port: 4000, protocol: TCP}
 {{- end }}
 {{- end }}
 {{- end }}

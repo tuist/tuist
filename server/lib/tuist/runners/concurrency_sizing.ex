@@ -16,6 +16,7 @@ defmodule Tuist.Runners.ConcurrencySizing do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Concurrency
@@ -116,7 +117,7 @@ defmodule Tuist.Runners.ConcurrencySizing do
 
   defp eligible?(account) do
     Billing.effective_plan(account) in [:pro, :enterprise] and
-      Tuist.FeatureFlags.runners_enabled?(account) and
+      Environment.runners_available?() and
       Tuist.FeatureFlags.runner_concurrency_growth_enabled?(account)
   end
 

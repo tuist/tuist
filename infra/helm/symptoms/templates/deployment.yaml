@@ -1,0 +1,122 @@
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- $environment := include "symptoms.environment" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "symptoms.fullname" . }}
+  labels:
+    {{- include "symptoms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: evaluator
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # One evaluator writes detection state and migrates on boot; Recreate keeps
+  # two versions from running windows or migrations side by side.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "symptoms.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "symptoms.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: evaluator
+      annotations:
+        {{- if .Values.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.port | quote }}
+        prometheus.io/path: {{ .Values.metrics.path | quote }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "symptoms.serviceAccountName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: symptoms
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            - name: PHX_HOST
+              value: {{ required "host is required" .Values.host | quote }}
+            - name: PORT
+              value: {{ .Values.port | quote }}
+            - name: POOL_SIZE
+              value: {{ .Values.poolSize | quote }}
+            - name: SKIP_MIGRATIONS
+              value: {{ .Values.skipMigrations | ternary "true" "false" | quote }}
+            # CNPG's `<cluster>-app` Secret carries a ready postgres:// URL.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "symptoms.pgClusterName" . }}-app
+                  key: uri
+            - name: SYMPTOMS_ENVIRONMENT
+              value: {{ $environment | quote }}
+            - name: SYMPTOMS_PAGING_ENABLED
+              value: {{ .Values.decision.pagingEnabled | ternary "true" "false" | quote }}
+            {{- with .Values.decision.linkBaseUrl }}
+            - name: SYMPTOMS_LINK_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SYMPTOMS_PULSE_URL
+              value: {{ .Values.pulse.url | quote }}
+            - name: SYMPTOMS_PULSE_USER
+              value: {{ .Values.pulse.username | quote }}
+            - name: SYMPTOMS_PULSE_WRITE_USER
+              value: {{ .Values.pulse.writeUsername | quote }}
+            - name: SYMPTOMS_STATE_URL
+              value: {{ required "tuist.url is required" .Values.tuist.url | quote }}
+            - name: SYMPTOMS_STATE_TOKEN_PATH
+              value: /var/run/secrets/tuist-symptoms-state/token
+            - name: SYMPTOMS_PROMETHEUS_URL
+              value: {{ .Values.prometheus.url | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ include "symptoms.runtimeSecretName" . }}
+          volumeMounts:
+            - name: tuist-symptoms-state
+              mountPath: /var/run/secrets/tuist-symptoms-state
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        # Presented to the Tuist server's state endpoint, which verifies it
+        # with TokenReview for this audience. The kubelet rotates it in place.
+        - name: tuist-symptoms-state
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.stateToken.audience | quote }}
+                  expirationSeconds: {{ .Values.stateToken.expirationSeconds }}
+                  path: token

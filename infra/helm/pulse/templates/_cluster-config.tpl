@@ -106,6 +106,7 @@ metasrv_addrs = {{ $metasrv }}
 {{- $metasrv := printf "[\"%s:3002\"]" (include "pulse.svc" "pulse-metasrv") -}}
 # One flownode, so its ID never changes; the Deployment never runs two.
 node_id = 0
+enable_telemetry = false
 [grpc]
 bind_addr = "0.0.0.0:3004"
 [http]

@@ -308,6 +308,23 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  @doc """
+  Whether this deployment offers Tuist Runners, which every account on it can
+  use. Every deployment does except self-hosted installations, which have no
+  runner fleet.
+
+  This is also the source of truth for co-located private Kura cache
+  infrastructure.
+  """
+  def runners_available?(env \\ env(), hosted \\ tuist_hosted?()) do
+    not self_hosted?(env, hosted)
+  end
+
+  # A self-hosted server runs as production (or canary) without `TUIST_HOSTED`,
+  # which Tuist's managed deployments set. Development, test, staging and
+  # preview never run as production or canary.
+  defp self_hosted?(env, hosted), do: env in [:can, :prod] and not hosted
+
   # Enable only after every web/ingestion and build-processor replica accepts the expanded limit.
   # Before a downgrade, disable and drain in-flight reports before rolling back.
   def expanded_build_metadata_enabled? do
@@ -2306,6 +2323,15 @@ defmodule Tuist.Environment do
   end
 
   def pulse_config, do: Application.get_env(:tuist, :pulse, [])
+
+  @doc """
+  The symptoms evaluator (`symptoms/` at the repository root): `base_url` and
+  `token` for pulling its symptom log, and the `evaluator_namespace` and
+  `evaluator_service_account` whose projected token (audience
+  `tuist-symptoms-state`) may read the human state back. Unset outside the
+  Tuist deployment.
+  """
+  def symptoms_config, do: Application.get_env(:tuist, :symptoms, [])
 
   @doc """
   Path of the projected ServiceAccount token (audience `atlas-support-ingest`)

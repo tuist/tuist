@@ -24,6 +24,7 @@ defmodule Atlas.MCP.Tools.CreateMyGmailDraft do
   @impl EMCP.Tool
   def description do
     "Create a draft in the caller's own Gmail mailbox. Set body_format to markdown or html for rich text; default plain. " <>
+      "Pass attachments as Base64 files. " <>
       "Nothing is sent. Use send_my_gmail_draft to send after confirmation in the calling client. Pass reply_to_message_id to reply within a thread. " <>
       "Requires Allow Gmail drafts in Atlas settings."
   end

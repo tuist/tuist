@@ -1392,7 +1392,7 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:210
+#: lib/atlas_web/live/connections_live.ex:219
 #: lib/atlas_web/live/mcp_live.ex:503
 #: lib/atlas_web/live/outreach_contacts_live.ex:1405
 #, elixir-autogen, elixir-format
@@ -1442,7 +1442,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:212
+#: lib/atlas_web/live/connections_live.ex:221
 #: lib/atlas_web/live/mcp_live.ex:505
 #: lib/atlas_web/live/overview_live.ex:355
 #, elixir-autogen, elixir-format
@@ -12790,7 +12790,7 @@ msgstr ""
 msgid "Read access granted"
 msgstr ""
 
-#: lib/atlas_web/live/connections_live.ex:211
+#: lib/atlas_web/live/connections_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Reconnect needed"
 msgstr ""
@@ -12914,4 +12914,9 @@ msgstr ""
 #: lib/atlas_web/live/approvals_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Requests from agents to act as you, such as elevating a thread's cluster access. Only you can see and decide them, and each approval covers one action."
+msgstr ""
+
+#: lib/atlas_web/live/connections_live.ex:189
+#, elixir-autogen, elixir-format
+msgid "Prepare vendor payments as transfer requests in Qonto from Atlas tools (finance_create_transfer_request). Nothing is paid until someone with review rights approves the request in Qonto."
 msgstr ""

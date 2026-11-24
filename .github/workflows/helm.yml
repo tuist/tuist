@@ -123,6 +123,7 @@ jobs:
             "infra/helm/xcresult-processor|"
             "infra/helm/rack-cache-gateways|"
             "infra/helm/remote-execution|values-ci.yaml"
+            "infra/helm/symptoms|values-production.yaml values-ci.yaml"
           )
           failed=()
           for entry in "${configs[@]}"; do
@@ -157,6 +158,9 @@ jobs:
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
+      # Uses the promtool installed by the step above.
+      - name: Test Symptoms watcher and backstop alerts
+        run: bash infra/helm/k8s-monitoring/test-symptoms-alerts.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
       - name: Test kubelet Lease telemetry and host alerts
@@ -232,6 +236,7 @@ jobs:
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
             "platform (pentest)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-pentest.yaml"
+            "symptoms (production)|infra/helm/symptoms|symptoms|values-production.yaml values-ci.yaml"
           )
           failed=()
           for entry in "${configs[@]}"; do

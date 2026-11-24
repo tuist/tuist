@@ -67,6 +67,7 @@ general node with a `maxUnavailable: 1` disruption budget:
 | `pulse-kafka` | 3 | KRaft brokers/controllers holding the remote WAL |
 | `pulse-metasrv` | 3 | Leader-elected through etcd; region failover enabled |
 | `pulse-datanode` | 3 | Regions; local disk is a rebuildable cache |
+| `pulse-flownode` | 1 | Runs the [Symptoms](#symptoms-inputs) Flows; keeps no data |
 | `pulse-frontend` | 2 | Authenticated HTTP API behind Service `pulse:4000` |
 | `pulse-flownode` | 1 | Runs flows (the `error_issues` rollup, see [Errors](#errors)) |
 
@@ -205,7 +206,9 @@ Each environment moves in this order:
    elsewhere), the `error_issue_hours` table and `error_issues` flow
    (`error-issues.sql`), the `sentry_errors` pipeline (`sentry-errors.yaml`;
    see [Errors](#errors)) and the `sessions` table (`sessions.sql`, same TTL as
-   `errors`; see [Release health](#release-health)), flushes the flow, and smoke
+   `errors`; see [Release health](#release-health)) and,
+   once a trace exists, the Symptoms columns, Flows and tables (`symptoms.sql`;
+   see [Symptoms inputs](#symptoms-inputs)), flushes the flow, and smoke
    tests dashboard reads, rejected dashboard mutation, rejected writer reads and
    unauthenticated rejection, then rereads the data after restarting every
    stateful component.
@@ -263,7 +266,8 @@ are not per-table/per-tenant authorization; server account authorization remains
 necessary.
 
 Logs retain native `timestamp`, `body`, `resource_attributes`, `severity_text`,
-`trace_id`; traces expose `timestamp`, `service_name`, `span_name`,
+`trace_id`, and Loki lines add the [Symptoms](#symptoms-inputs) columns
+`service`, `level`, `template_key`, `template` and `exception_fp`; traces expose `timestamp`, `service_name`, `span_name`,
 `duration_nano`, `span_status_code`, `trace_id`. Loki normalization keeps labels
 and metadata separately in JSON resource/log attributes, preserves nanosecond
 timestamps, maps `service_name` to `service.name`, prefers metadata trace IDs and
@@ -274,6 +278,10 @@ peers for server component pods and exact PDC-agent labels (name=tuist,
 instance=tuist, component=pdc-agent). Namespace and Pod selectors are ANDed:
 `tuist-staging`, `tuist-canary`, **`tuist` for production**. No backend public
 Ingress exists. Parent manages server/PDC endpoint configuration.
+With `dashboard.enabled`, `pulse-private` also admits the symptoms evaluator
+(`app.kubernetes.io/name=symptoms`, `component=evaluator`, from
+`infra/helm/symptoms`) in `symptoms-<environment>` to TCP 4000; it reads as the
+read-only dashboard user.
 
 Environments listed in `pulse.postgres` (`templates/_helpers.tpl`: production)
 also serve PostgreSQL on TCP 4003 from the frontends for Grafana's SQL log alerts
@@ -456,6 +464,97 @@ writes Sentry `log` items to `opentelemetry_logs` and spans to
 `http.sentry_events_per_minute` error events per frontend (600 by default),
 answering more with Sentry's `429` rate-limit headers.
 
+## Symptoms inputs
+
+The [Symptoms](../../../symptoms/README.md) evaluator reads these from database
+`public`. Windows are UTC and start at `time_window`, the sink tables' time
+index; counts are per window. The deployment smoke installs them alongside
+`loki_otlp`: `loki-otlp.yaml`, then `symptoms.sql` once a trace exists, both
+idempotent. The Flows' sink tables and `symptoms_span_edges_1h` keep 35 days
+whatever the database TTL.
+
+**Log columns** on `opentelemetry_logs`, written by `loki_otlp` for every Loki
+line (native OTLP rows leave them null):
+
+| Column | Value |
+| --- | --- |
+| `service` | `service.name`, or `unknown` |
+| `level` | `debug`, `info`, `warning`, `error`, `critical` or `unknown`: the stream's `level`, else a JSON line's `level` or a console line's `[level]` |
+| `template_key` | `code:<16 hex>`, a hash of the logger call site when the line's metadata names it (OTel `code.function`, `code.filepath`, `code.lineno`; Elixir `mfa`, `module`, `function`, `file`, `line`); else `text:<16 hex>`, a hash of the tracing `target` and `template` |
+| `template` | The message's first line, masked, at most 256 characters. A JSON line's message is its `message` (or `fields.message`); a console line's is what follows `[level] ` |
+| `exception_fp` | For a line with an Elixir exception banner (`** (Type) message`) and stack trace, the `errors` table's `fingerprint` for the Sentry event of the same crash; null otherwise |
+
+Before anything else, credentials become `<token>` in both `template` and the
+stored `body`: the word after `Bearer`, JWTs (`eyJ….….…`), and runs of 32 or
+more base64/base64url characters with upper case, lower case and a digit (with
+`/` only alongside `+` or `=`, so paths survive). `exception_fp` still hashes
+the raw line, so it keeps matching Sentry's fingerprint.
+
+Masking replaces timestamps (`<ts>`), runner and temporary paths (`<path>`),
+emails, UUIDs, Elixir terms such as `#PID<…>` and `#Ecto.Changeset<…>`
+(`<term>`), bare PIDs, maps and structs up to three levels deep (`<map>`),
+quoted strings, IPv4 and IPv6 addresses, hex of 8 or more characters with a
+digit and `0x…` (`<hex>`), and numbers (`<n>`). A number after `status`,
+`http`, `code`, `errno`, `sqlstate`, `error`, `exit status`, `exit code` or
+`HTTP/1.1` is kept, and so are codes inside words (`E1001`, `v2`). Words are
+never masked, so a message that interpolates a name (an account handle) gets
+one template per name.
+
+The server's Loki handler sends no call-site metadata today, so its keys are
+`text:`. Adding `:mfa`, `:file` and `:line` to its `structured_metadata`
+switches them to `code:` keys, which then change whenever the line moves. Pod
+console logs arrive one line per entry, so only the server's own Loki handler
+delivers a whole stack trace in one line. `exception_fp` follows
+`sentry-errors.yaml`: type, the innermost frame's function and module
+(`Elixir.<Module>`, or the bare Erlang module; the Elixir SDK marks no frame
+in-app, so Atlas picks that frame too) and the exception message normalized the
+same way. It covers `Sentry.capture_exception` and crashes the logger handler
+reports as exceptions, not Rust panics.
+
+**Flows** (batching mode). Each writes the sink table of the same name, whose
+primary key is its non-count columns other than `time_window`; sinks also get
+the Flow engine's `update_at` column.
+
+| Flow and table | Window | Keys | Values |
+| --- | --- | --- | --- |
+| `symptoms_trace_counts_1m` | 1 min | `service_name`, `span_kind` (`SPAN_KIND_SERVER`, …), `span_name`, `service_version` (resource `service.version`, null when unset) | `span_count`, `error_count` (spans with `span_status_code = 'STATUS_CODE_ERROR'`) |
+| `symptoms_trace_latency_5m` | 5 min | The same, plus `latency_bucket` | `span_count` |
+| `symptoms_log_counts_1m` | 1 min | `service`, `level`, `template_key` | `line_count` |
+| `symptoms_log_totals_1m` | 1 min | `service` | `line_count` |
+
+`latency_bucket` is `floor(ln(duration in ms) / ln 1.1)` clamped to 0..115:
+bucket `b` holds `[1.1^b, 1.1^(b+1))` ms, bucket 0 also everything under
+1.1 ms, and bucket 115 everything from about 57.6 s. Both log Flows count only
+lines with a `template_key`, that is, lines that went through `loki_otlp`.
+
+Flows count rows written while they run. They do not backfill earlier data,
+and rows written while the flownode is down (frontends log `Failed to insert
+data into flownode`) are missing from their windows unless a later row lands in
+the same window. Treat a missing window as unknown, never as zero. To repair a
+range, run the Flow's own `SELECT` restricted to it and `INSERT` the result into
+the sink, which overwrites rows with the same keys.
+
+**Span edges.** A Flow cannot join, so `symptoms.sql` only creates
+`symptoms_span_edges_1h` (`time_window` is the hour's start; keys
+`caller_service`, `caller_span_name`, `callee_service`, `callee_span_name`;
+value `edge_count`), and the evaluator fills it with `span-edges.sql` every
+hour, for the hour that ended at least 10 minutes earlier. It counts each span
+whose parent is in the same trace and started at most an hour before the window,
+by the child's start. Rerunning an hour overwrites it.
+
+**Cost.** Frontends mirror every write to `opentelemetry_traces` and
+`opentelemetry_logs` to the flownode and keep those tables off the bulk insert
+path, and each Flow reruns its query over the windows that changed. The
+span-edge query self-joins up to two hours of spans. None of this has been
+measured at production volume; watch frontend and datanode memory and the
+`pulse-flownode` pod after the first deploy. `DROP FLOW` on a `symptoms_*` Flow
+stops its cost without touching ingest.
+
+The flownode queries frontends on their internal gRPC listener (4010), which
+does not authenticate; `pulse-internal` admits only Pulse's own pods to it.
+`pulse-readiness.sh` does not gate server deploys on the flownode: ingest does
+not depend on it.
+
 ## Rollback boundaries
 
 Rolling back a collector change means pointing `k8s-monitoring` back at
@@ -487,6 +586,7 @@ bash infra/helm/pulse/test-managed.sh
 node --test .github/scripts/pulse-storage.test.mjs
 node --test .github/scripts/pulse-readiness.test.mjs
 PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/pulse/test-sentry-errors.mjs
+PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:<password> node infra/helm/pulse/test-symptoms-inputs.mjs
 helm repo add grafana https://grafana.github.io/helm-charts
 helm dependency build infra/helm/k8s-monitoring
 bash .github/scripts/pulse-collectors.test.sh

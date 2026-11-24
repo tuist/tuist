@@ -310,6 +310,8 @@ defmodule Tuist do
       Pulse.LuftTelemetry,
       Pulse.OTLP,
       Pulse.Schemas,
+      Pulse.Symptoms,
+      Pulse.Investigations,
       Ecto.Utils,
       GitHub.InstallationAuthorization,
       GitHub.Installations,

@@ -7,7 +7,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   import TuistWeb.Widget
 
   alias Tuist.Authorization
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.DockerCache
   alias Tuist.Utilities.ByteFormatter
@@ -20,7 +20,7 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: user}} = socket) do
-    if !(Authorization.authorize(:runners_read, user, account) == :ok and FeatureFlags.runners_enabled?(account)) do
+    if !(Authorization.authorize(:runners_read, user, account) == :ok and Environment.runners_available?()) do
       raise NotFoundError
     end
 

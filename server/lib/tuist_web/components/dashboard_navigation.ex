@@ -5,6 +5,7 @@ defmodule TuistWeb.DashboardNavigation do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
@@ -20,7 +21,7 @@ defmodule TuistWeb.DashboardNavigation do
       [
         item(dgettext("dashboard", "Projects"), root <> "/projects", "folders"),
         group(
-          FeatureFlags.runners_enabled?(account),
+          Environment.runners_available?(),
           "sidebar-runners",
           dgettext("dashboard", "Runners"),
           root <> "/runners",
@@ -51,7 +52,7 @@ defmodule TuistWeb.DashboardNavigation do
           "users",
           Accounts.organization?(account) and Authorization.authorize(:organization_read, user, account) == :ok
         ),
-        group(Tuist.Pulse.authorized?(user, account), "sidebar-pulse", "Pulse", nil, "chart_arcs", [
+        group(Tuist.Pulse.authorized?(user, account), "sidebar-pulse", "Pulse", root <> "/pulse", "chart_arcs", [
           item(dgettext("dashboard", "Metrics"), root <> "/pulse/metrics", "chart_arcs"),
           item(dgettext("dashboard", "Logs"), root <> "/pulse/logs", "file_text"),
           item(dgettext("dashboard", "Traces"), root <> "/pulse/traces", "list_tree"),

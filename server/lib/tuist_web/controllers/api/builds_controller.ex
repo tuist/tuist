@@ -513,8 +513,10 @@ defmodule TuistWeb.API.BuildsController do
 
   defp valid_build_cursor?(cursor) do
     case Flop.Cursor.decode(cursor) do
-      {:ok, %{inserted_at: %NaiveDateTime{} = inserted_at, id: id} = decoded} when map_size(decoded) == 2 ->
-        Ecto.Type.cast(:naive_datetime_usec, Map.from_struct(inserted_at)) == {:ok, inserted_at} and
+      # Flop encodes the `inserted_at` NaiveDateTime as an ISO 8601 string and
+      # rejects cursors that carry structs.
+      {:ok, %{inserted_at: inserted_at, id: id} = decoded} when is_binary(inserted_at) and map_size(decoded) == 2 ->
+        match?({:ok, _}, Ecto.Type.cast(:naive_datetime_usec, inserted_at)) and
           match?({:ok, _}, Ecto.UUID.cast(id))
 
       _ ->

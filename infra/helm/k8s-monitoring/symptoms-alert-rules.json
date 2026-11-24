@@ -1,0 +1,890 @@
+[
+  {
+    "annotations": {
+      "description": "symptoms_pipeline_last_success_timestamp_seconds{window_seconds=\"60\"} has not moved for over 10 minutes: the evaluator is running but no 1-minute window finishes, so nothing reaches the board or pages. Read the evaluator's logs in symptoms-production and its Oban jobs; check Pulse and Grafana Cloud reachability (the coverage and freshness rules say which input stopped).",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-evaluator-has-no-successful-window",
+      "summary": "The Symptoms evaluator in {{ $labels.cluster }} has not completed a window for {{ $values.A.Value | humanizeDuration }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "time() - max by (cluster) (symptoms_pipeline_last_success_timestamp_seconds{cluster=\"tuist-production\", window_seconds=\"60\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  600
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "1m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms evaluator has no successful window",
+    "uid": "symptoms-heartbeat-stale"
+  },
+  {
+    "annotations": {
+      "description": "No symptoms_pipeline_last_success_timestamp_seconds{window_seconds=\"60\"} sample reached Grafana Cloud in 10 minutes. Either the evaluator is down (kubectl -n symptoms-production get pods), its database is unreachable (the evaluator down rule, on symptoms_up), its metrics are not scraped (prometheus.io/scrape on the pod, the symptoms NetworkPolicy's observability ingress), or the cluster's collectors are down, which the collector rules cover.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-evaluator-heartbeat-missing",
+      "summary": "Grafana Cloud has received no Symptoms evaluator heartbeat from tuist-production for 10 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "absent_over_time(symptoms_pipeline_last_success_timestamp_seconds{cluster=\"tuist-production\", window_seconds=\"60\"}[10m])",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms evaluator heartbeat missing",
+    "uid": "symptoms-heartbeat-missing"
+  },
+  {
+    "annotations": {
+      "description": "symptoms_up has been 0 for 5 minutes: the evaluator serves /metrics but its PostgreSQL (CNPG symptoms-pg in symptoms-production) does not answer, so no window runs and the pipeline and coverage series are missing. Check the CNPG cluster's pods and the evaluator's logs.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-evaluator-database-unreachable",
+      "summary": "The Symptoms evaluator in {{ $labels.cluster }} cannot reach its database"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "min by (cluster) (symptoms_up{cluster=\"tuist-production\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  1
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms evaluator database unreachable",
+    "uid": "symptoms-down"
+  },
+  {
+    "annotations": {
+      "description": "symptoms_coverage_ratio, entities with evidence over entities expected, has stayed under 90% for 15 minutes. Entities without evidence read as unknown, not quiet, so failures there cannot be detected. Check the freshness rule for a stale source and the disabled-streams rule.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-evidence-coverage-low",
+      "summary": "Only {{ $values.A.Value | humanizePercentage }} of expected Symptoms entities have evidence in {{ $labels.cluster }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "min by (cluster) (symptoms_coverage_ratio{cluster=\"tuist-production\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.9
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms evidence coverage low",
+    "uid": "symptoms-coverage-low"
+  },
+  {
+    "annotations": {
+      "description": "The evaluator has no configured source (symptoms_sources_configured) or expects no entity (symptoms_entities_expected) for 15 minutes. symptoms_coverage_ratio reads 1 when nothing is expected, so the coverage rule cannot see this: nothing is being watched. Check config :symptoms, :sources and disabled_sources in the deployed release and the evaluator's logs.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-evaluator-watches-nothing",
+      "summary": "Symptoms has no source or no expected entity in {{ $labels.cluster }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "min by (cluster) (clamp_max(symptoms_sources_configured{cluster=\"tuist-production\"}, 1) * clamp_max(symptoms_entities_expected{cluster=\"tuist-production\"}, 1))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  1
+                ],
+                "type": "lt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms evaluator watches nothing",
+    "uid": "symptoms-nothing-watched"
+  },
+  {
+    "annotations": {
+      "description": "The newest input the evaluator has from {{ $labels.source }} is over 15 minutes old. Every entity fed only by it reads unknown. For Pulse sources compare with the Pulse pipeline rules (lag and the Grafana Cloud comparison); for metrics check the Grafana Cloud read token; for Kubernetes events the events watch and its RBAC.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-input-stale",
+      "summary": "Symptoms source {{ $labels.source }} in {{ $labels.cluster }} is {{ $values.A.Value | humanizeDuration }} old"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster, source) (symptoms_source_freshness_seconds{cluster=\"tuist-production\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  900
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms input stale",
+    "uid": "symptoms-source-stale"
+  },
+  {
+    "annotations": {
+      "description": "symptoms_streams_disabled, the sources whose symptoms_source_up is 0 (disabled, or their last collect failed), has been above 0 for 30 minutes, so their entities contribute no evidence. symptoms_source_up says which; read the evaluator's logs and audit log for why, and re-enable or fix it.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-streams-disabled",
+      "summary": "{{ $values.A.Value }} Symptoms streams have been disabled for 30 minutes in {{ $labels.cluster }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster) (symptoms_streams_disabled{cluster=\"tuist-production\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "30m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms streams disabled",
+    "uid": "symptoms-streams-disabled"
+  },
+  {
+    "annotations": {
+      "description": "symptoms_pipeline_lag_seconds{window_seconds=\"60\"}, how far the end of the latest finished 1-minute window is behind now, has been over 5 minutes for 10 minutes. Windows wait on late input or run slowly, and the board and pages fall behind. Check Pulse (Pulse rules), the collectors and the evaluator's Oban jobs.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#symptoms-sees-pulse-lagging",
+      "summary": "The Symptoms evaluator's 1-minute windows are {{ $values.A.Value | humanizeDuration }} behind in {{ $labels.cluster }}"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (cluster) (symptoms_pipeline_lag_seconds{cluster=\"tuist-production\", window_seconds=\"60\"})",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  300
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Symptoms sees Pulse lagging",
+    "uid": "symptoms-pipeline-lag"
+  },
+  {
+    "annotations": {
+      "description": "The same collectors send every log line to Grafana Cloud and to Pulse. Over the 15 minutes ending 10 minutes ago, Pulse's symptoms_log_totals_1m (service tuist) counted under 90% of the lines Grafana Cloud Loki holds for service_name tuist in tuist-production. The evaluator's log evidence is then incomplete. Check Pulse ingestion (loki_otlp pipeline, frontends), the collectors' Pulse destination, and the symptoms_log_totals_1m Flow on pulse-flownode. A query error here means Grafana cannot reach Pulse through PDC.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-log-lines-behind-grafana-cloud",
+      "summary": "Pulse holds {{ $values.C.Value | humanizePercentage }} of the server log lines Grafana Cloud received over 15 minutes"
+    },
+    "condition": "D",
+    "data": [
+      {
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT sum(line_count) AS value FROM symptoms_log_totals_1m WHERE service = 'tuist' AND time_window >= now() - INTERVAL '25 minutes' AND time_window < now() - INTERVAL '10 minutes'",
+          "refId": "A"
+        },
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({cluster=\"tuist-production\", service_name=\"tuist\"} [15m] offset 10m))",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "B"
+        },
+        "queryType": "instant",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A / $B",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$C < 0.9 && $B >= 1000",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "D",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "D",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Pulse log lines behind Grafana Cloud",
+    "uid": "symptoms-pulse-log-lines-behind"
+  },
+  {
+    "annotations": {
+      "description": "Grafana Cloud's tail sampler keeps every trace with an error span, so error spans are the one span count both pipelines should agree on. Over the 15 minutes ending 10 minutes ago, Pulse's symptoms_trace_counts_1m counted under 90% of the error calls Grafana Cloud Tempo's span metrics did. Paused until the span-metrics selector is previewed (see alerts.md).",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#pulse-error-spans-behind-grafana-cloud",
+      "summary": "Pulse holds {{ $values.C.Value | humanizePercentage }} of the error spans Grafana Cloud received over 15 minutes"
+    },
+    "condition": "D",
+    "data": [
+      {
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT sum(error_count) AS value FROM symptoms_trace_counts_1m WHERE time_window >= now() - INTERVAL '25 minutes' AND time_window < now() - INTERVAL '10 minutes'",
+          "refId": "A"
+        },
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum(increase(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\", deployment_environment=\"production\"}[15m] offset 10m))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "B"
+        },
+        "queryType": "",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A / $B",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$C < 0.9 && $B >= 50",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "D",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "D",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": true,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Symptoms",
+    "title": "Pulse error spans behind Grafana Cloud",
+    "uid": "symptoms-pulse-error-spans-behind"
+  }
+]

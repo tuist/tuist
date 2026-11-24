@@ -73,7 +73,10 @@ for environment in staging canary; do
       .ingress[4] == {ports:[{port:4000,protocol:"TCP"}], from:[
         {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"kura"}},
          podSelector:{matchLabels:{"app.kubernetes.io/name":"kura"}}}]} and
-      (.ingress | length) == 5)
+      .ingress[5] == {ports:[{port:4000,protocol:"TCP"}], from:[
+        {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":("symptoms-" + ($ns | ltrimstr("tuist-")))}},
+         podSelector:{matchLabels:{"app.kubernetes.io/name":"symptoms","app.kubernetes.io/component":"evaluator"}}}]} and
+      (.ingress | length) == 6)
   ' | grep -qx true
 done
 # The Sentry writer exists only in the environments listed, so a vault without
@@ -228,12 +231,13 @@ cp -R "$chart" "$tmp/edited"
 sed -e 's/^min.insync.replicas=2$/min.insync.replicas=3/' -e 's/^num_topics = 16$/num_topics = 32/' \
   "$chart/templates/_cluster-config.tpl" > "$tmp/edited/templates/_cluster-config.tpl"
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$tmp/edited")" '
-  ([$before["pulse-kafka", "pulse-metasrv", "pulse-datanode", "pulse-frontend"]] | all(length == 16)) and
+  ([$before["pulse-kafka", "pulse-metasrv", "pulse-datanode", "pulse-flownode", "pulse-frontend"]] | all(length == 16)) and
   ($after | to_entries | length == 6) and
   ($before["pulse-kafka"] != $after["pulse-kafka"]) and
   ($before["pulse-metasrv"] != $after["pulse-metasrv"]) and
   ($before["pulse-datanode"] == $after["pulse-datanode"]) and
-  ($before["pulse-frontend"] == $after["pulse-frontend"])' > /dev/null
+  ($before["pulse-frontend"] == $after["pulse-frontend"]) and
+  ($before["pulse-flownode"] == $after["pulse-flownode"])' > /dev/null
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$chart" --set cluster.frontend.replicas=3)" \
   '$before == $after' > /dev/null
 # Every workload cluster runs GC in both metasrv and datanodes.

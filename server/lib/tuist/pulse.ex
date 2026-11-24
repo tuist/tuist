@@ -248,14 +248,15 @@ defmodule Tuist.Pulse do
   @doc """
   One error issue, `(service, fingerprint)`, over a window. String-keyed params
   are a required `service`, `range`, an ISO8601 `end_at`, `page` and
-  `page_size`. Returns the issue summary, a 60-bucket occurrence series, the
-  latest event with its scrubbed payload and one page of events, newest first,
+  `page_size`, and an optional `environment` filter on events. Returns the
+  issue summary, a 60-bucket occurrence series, the latest event with its
+  scrubbed payload and one page of events, newest first,
   with pagination `meta`; `:not_found` when the issue has no events in the
   window.
   """
   def error_issue(user, account, fingerprint, params) do
     if authorized?(user, account) do
-      with {:ok, service, opts} <- issue_params(fingerprint, params, ~w(service range end_at page page_size)),
+      with {:ok, service, opts} <- issue_params(fingerprint, params, ~w(service range end_at page page_size environment)),
            {:ok, client} <- credentials() do
         Errors.issue(service, fingerprint, opts, &request(client, "/v1/sql", &1))
       end

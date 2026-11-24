@@ -4,7 +4,7 @@ defmodule Tuist.Runners.BuildkiteTest do
   import Ecto.Query
   import Mimic
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Buildkite
@@ -25,7 +25,6 @@ defmodule Tuist.Runners.BuildkiteTest do
 
   setup do
     stub(Catalog, :default_xcode_version, fn -> nil end)
-    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
     stub(Allowance, :exhausted?, fn _account -> false end)
 
     %{account: account} =
@@ -405,7 +404,7 @@ defmodule Tuist.Runners.BuildkiteTest do
     end
 
     test "is a no-op when runners are disabled for the account", %{installation: installation} do
-      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(Environment, :runners_available?, fn -> false end)
       reject(&Client.list_scheduled_jobs/4)
 
       assert {:error, :runners_disabled} = Buildkite.poll(installation)

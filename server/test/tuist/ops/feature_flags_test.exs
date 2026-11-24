@@ -36,8 +36,8 @@ defmodule Tuist.Ops.FeatureFlagsTest do
   test "account inspection respects actor exclusions and never enumerates projects" do
     excluded = AccountsFixtures.user_fixture().account
     included = AccountsFixtures.user_fixture().account
-    gate(:runners, :boolean, nil, true)
-    gate(:runners, :actor, "account:#{excluded.id}", false)
+    gate(:pulse, :boolean, nil, true)
+    gate(:pulse, :actor, "account:#{excluded.id}", false)
     gate(:runner_site_cache, :actor, "account:#{included.id}", true)
     gate(:kura_thin_volumes, :actor, "account:#{included.id}", true)
     gate(:runner_actions_cache, :actor, "account:#{included.id}", true)
@@ -48,32 +48,30 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => excluded.id})
     assert result.resource == %{account_id: excluded.id, project_id: nil}
     assert result.environment == "prod"
-    assert length(result.evaluations) == 26
+    assert length(result.evaluations) == 25
     refute enabled?(result, "runner_shard_storage")
     refute enabled?(result, "public_shard_storage")
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
-    refute enabled?(result, "runners")
+    refute enabled?(result, "pulse")
     refute enabled?(result, "runner_site_cache")
     refute enabled?(result, "kura_thin_volumes")
     refute enabled?(result, "runner_actions_cache")
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => included.id})
-    assert enabled?(result, "runners")
+    assert enabled?(result, "pulse")
     assert enabled?(result, "runner_site_cache")
     assert enabled?(result, "kura_thin_volumes")
     assert enabled?(result, "runner_actions_cache")
     assert enabled?(result, "public_shard_storage")
   end
 
-  test "runner concurrency growth can be held globally or per account without disabling runners" do
+  test "runner concurrency growth can be held globally or per account" do
     account = AccountsFixtures.user_fixture().account
-    gate(:runners, :actor, "account:#{account.id}", true)
     assert {:ok, initial} = FeatureFlags.evaluate(%{"account_id" => account.id})
     assert enabled?(initial, "runner_concurrency_growth_paused")
     gate(:runner_concurrency_growth_paused, :boolean, nil, true)
     assert {:ok, paused} = FeatureFlags.evaluate(%{"account_id" => account.id})
     refute enabled?(paused, "runner_concurrency_growth_paused")
-    assert enabled?(paused, "runners")
     gate(:runner_concurrency_growth_paused, :actor, "account:#{account.id}", false)
     assert {:ok, resumed} = FeatureFlags.evaluate(%{"account_id" => account.id})
     assert enabled?(resumed, "runner_concurrency_growth_paused")
@@ -81,18 +79,18 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
   test "the persisted batch excludes other actors and flags outside the catalog" do
     account = AccountsFixtures.user_fixture().account
-    gate(:runners, :boolean, nil, true)
+    gate(:pulse, :boolean, nil, true)
     gate(:runner_site_cache, :actor, "account:#{account.id}", true)
     gate(:outside_the_operator_catalog, :boolean, nil, true)
 
     for id <- 1..50 do
-      gate(:runners, :actor, "account:unrelated-#{id}", true)
+      gate(:pulse, :actor, "account:unrelated-#{id}", true)
       gate(:build_entities, :actor, "project:unrelated-#{id}", true)
     end
 
     ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
-    assert enabled?(result, "runners")
+    assert enabled?(result, "pulse")
     assert enabled?(result, "runner_site_cache")
 
     assert_receive {[:tuist, :repo, :query], ^ref, _, %{source: "feature_flags", result: {:ok, %{num_rows: 2}}}}
@@ -108,7 +106,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"project_id" => project.id})
     assert result.resource == %{account_id: project.account_id, project_id: project.id}
-    assert length(result.evaluations) == 27
+    assert length(result.evaluations) == 26
     assert enabled?(result, "build_entities")
     assert enabled?(result, "runner_site_cache")
     assert Enum.find(result.evaluations, &(&1.name == "runner_site_cache")).actor_id == project.account_id
@@ -136,16 +134,15 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     account = AccountsFixtures.user_fixture().account
     gate(:immutable_shard_reports, :actor, "account:#{account.id}", true)
 
-    for {env, runners, test_impact_analysis, site, stable} <- [
-          {:prod, false, false, false, false},
-          {:can, false, false, true, true},
-          {:stag, true, true, true, false},
-          {:dev, true, true, false, false}
+    for {env, test_impact_analysis, site, stable} <- [
+          {:prod, false, false, false},
+          {:can, false, true, true},
+          {:stag, true, true, false},
+          {:dev, true, false, false}
         ] do
       stub(Environment, :env, fn -> env end)
       assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
       assert result.environment == Atom.to_string(env)
-      assert enabled?(result, "runners") == runners
       assert enabled?(result, "test_impact_analysis") == test_impact_analysis
       assert enabled?(result, "runner_site") == site
       assert enabled?(result, "kura_stable_hostname") == stable
@@ -184,11 +181,11 @@ defmodule Tuist.Ops.FeatureFlagsTest do
   test "percentage gates use the same stable actor evaluation with explicit exclusions taking precedence" do
     accounts = Enum.map(1..4, fn _ -> AccountsFixtures.user_fixture().account end)
     [excluded | _] = accounts
-    gate(:runners, :percentage_of_actors, 0.5, true)
-    gate(:runners, :actor, "account:#{excluded.id}", false)
+    gate(:pulse, :percentage_of_actors, 0.5, true)
+    gate(:pulse, :actor, "account:#{excluded.id}", false)
 
     flag = %Flag{
-      name: :runners,
+      name: :pulse,
       gates: [
         %Gate{type: :percentage_of_actors, for: 0.5, enabled: true},
         %Gate{type: :actor, for: "account:#{excluded.id}", enabled: false}
@@ -198,7 +195,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     for account <- accounts do
       expected = Flag.enabled?(flag, for: account)
       assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
-      assert enabled?(result, "runners") == expected
+      assert enabled?(result, "pulse") == expected
       assert {:ok, ^result} = FeatureFlags.evaluate(%{"account_id" => account.id})
     end
   end
@@ -236,7 +233,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     end
   end
 
-  test "preloaded helpers preserve short-circuit evaluation and the original runner flag overload" do
+  test "preloaded helpers preserve short-circuit evaluation" do
     account = AccountsFixtures.user_fixture().account
     stub(Environment, :env, fn -> :can end)
     reject(FunWithFlags, :enabled?, 1)
@@ -247,8 +244,6 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     refute Evaluation.immutable_shard_reports_enabled?(account, %{
              immutable_shard_reports: Flag.new(:immutable_shard_reports, [])
            })
-
-    refute Evaluation.runners_enabled?(account, Flag.new(:runners, []))
 
     refute Evaluation.test_impact_analysis_account_enabled?(account, %{
              test_impact_analysis: Flag.new(:test_impact_analysis, [])

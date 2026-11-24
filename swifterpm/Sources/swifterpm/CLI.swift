@@ -586,7 +586,13 @@ enum CLIRunner {
                     packageDirectory: package, scratchDirectory: scratch,
                     sharedCacheDirectory: sharedCacheDirectory
                 ) {
-                    try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
+                    try await RegistryDownloadLayout.withContext(
+                        packageDirectory: package,
+                        registryConfigurationPath: paths.resolve(cli.configPath),
+                        defaultRegistryURL: cli.defaultRegistryURL
+                    ) {
+                        try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
+                    }
                 }
                 try await CachePruner.pruneAfterInstallation(
                     cacheDirectory: sharedCacheDirectory,

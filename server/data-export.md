@@ -580,7 +580,7 @@ operations; retain them until an administrator removes them.
 - Test case run flaky corrections (`test_case_run_flaky_corrections` table): durable operational ledger keyed by test case run identifier. Each row stores the project, test case, commit, correction state, and timestamps so retries cannot create additional correction work after the background job history is pruned.
 
 ### Managed CI Runners
-- **Per-account availability and concurrency configuration**: whether runners are enabled for an account is gated by the `:runners` feature flag (`Tuist.FeatureFlags.runners_enabled?/1`). PostgreSQL `runner_concurrency_limits` stores one row per account and runner platform (`linux | macos`) with the aggregate `vcpus` and `memory_gb` that active runners may consume concurrently. These configuration rows do not contain observed usage history and are deleted with their account.
+- **Per-account availability and concurrency configuration**: every account can use runners on deployments that offer them (`Tuist.Environment.runners_available?/0`), so no per-account availability is stored. PostgreSQL `runner_concurrency_limits` stores one row per account and runner platform (`linux | macos`) with the aggregate `vcpus` and `memory_gb` that active runners may consume concurrently. These configuration rows do not contain observed usage history and are deleted with their account.
 - **Concurrency history** (Postgres `runner_concurrency_history`): an effective-limit snapshot for each actual change, recorded by a database trigger in the limit transaction, including dashboard, Atlas, automatic and direct operator writes. Columns: `id`, `account_id`, `platform`, `vcpus`, `memory_gb`, `source` (`initial`, `baseline`, `manual`, `automatic`), `reason` (automatic sizing mode and before/after resources; empty for other writes), and microsecond `recorded_at`. Used for customer limit timelines, historical queue attribution and persisted automatic-growth rate limits. Deployment records only the then-current baseline; earlier grants are unknown, not reconstructed from today's limit. Retained for the account lifetime, cascade-deleted with the account. Export with `SELECT * FROM runner_concurrency_history WHERE account_id = $1 ORDER BY recorded_at, id`. The older Atlas-only `runner_concurrency_limit_changes` audit remains separate and unchanged.
 - **Runner profiles** (Postgres `runner_profiles`): account-scoped named bundles that customers reference from `runs-on:` as `tuist-<name>`. Columns: `id` (PK), `account_id`, `name`, `platform` (enum `linux | macos` — the runner OS the profile dispatches to), `vcpus`, `memory_gb`, `xcode_version` (string, macOS-only; pins the runner image's Xcode tag), `os_version` (string, Linux-only, e.g. `ubuntu-24.04`; the Ubuntu release of the profile's pool and runner image; existing Linux rows were set to `ubuntu-24.04` when the column was added), `protected` (boolean), `cache_writer_default_branch` (boolean, default true; whether jobs on each repository's default branch save custom cache volumes), `cache_writer_branches` (nullable list of up to 20 additional branch names or `*` patterns whose same-repository jobs and pull requests also save custom cache volumes), `cached_checkouts` (boolean, default true; whether macOS and Linux jobs on the profile get a cached checkout), `docker_cache` (boolean, default true; whether Linux jobs on the profile get their repository's Docker cache volume), `inserted_at`, `updated_at`. The dispatch path resolves `(account, requested-label)` through these rows to the matching shape pool. The shape pool itself is operator-managed in Kubernetes and not customer data. Every account is auto-bootstrapped at sign-up with one protected `linux` row and one protected `macos` row; protected rows cannot be deleted, but their shape (and the Linux row's Ubuntu release and the macOS row's Xcode version) remains customer-editable.
 - **Active claim coordination** (Postgres `runner_claims`): one row per Pod currently holding one of its account's concurrency slots. Columns: `pod_name` (the SA / Pod that won the claim, PK), `workflow_job_id` (GitHub's job id — the job this Pod is currently reserved for, uniquely indexed among live claims; NULL once GitHub proves the Pod is running a different job, at which point the displaced job returns to the queue while the Pod keeps its slot), `account_id`, `fleet_name` (the RunnerPool name the claim is bound to), `site` (operational metadata, not customer content: the rack site of the Node the claiming Pod runs on, NULL off the rack), `claimed_at`, `platform` (`linux | macos`), `vcpus`, `memory_gb`, `lifecycle_state` (`claimed` during the JIT-mint window, `running` once the runner has registered with GitHub), `runner_name` (the GitHub-side runner label, populated when `lifecycle_state` flips to `running`), and `executed_workflow_job_id` (the job GitHub actually ran on this runner, learned from the `workflow_job.in_progress` / `completed` webhook's `runner_name`; NULL until GitHub proves the runner ran something, and never equals `workflow_job_id` unless GitHub ran the job the claim was minted for, because GitHub assigns queued jobs to any label-eligible runner regardless of which one the server claimed the job for), and `pod_missing_since` (operational reconciliation state, not customer content: the first tick on which the claim's Pod was observed absent from a complete cluster read, NULL whenever the Pod is present. `Tuist.Runners.Workers.PodReconciliationWorker` requires the absence to persist before releasing the claim, so the column exists only between the first missed observation and the release, and is deleted with the row). The resource columns power atomic per-platform concurrency enforcement and current usage display. Rows are deleted when the executing runner's job completes, on release / stale recovery, or when the Pod stops; steady-state size is bounded by the number of in-flight runners.
@@ -1442,11 +1442,64 @@ the subject's verified session IDs or the truncated SHA-256 distinct ID
 (`hex(SHA256(distinct_id)[0:16])`), including sequence and update timestamp so
 the current logical state can be reconstructed. No raw distinct ID is stored.
 
+### Pulse symptoms
+
+Pulse symptoms are detected by the symptoms evaluator (`symptoms/` at the
+repository root, its own database) and mirrored into PostgreSQL for the
+account Pulse is configured for. They describe Tuist's own services, not
+customer resources.
+
+- `pulse_symptoms` (`Tuist.Pulse.Symptom`): the latest revision of each
+  symptom: its key, state, tier, transition, entity (environment, service,
+  kind and key), masked title, phenomena with their evidence, score,
+  P(degraded), impact, decision, root, suspected change, evidence
+  references and masked excerpts, brief reference, outcome, and times.
+- `pulse_symptom_revisions` (`Tuist.Pulse.SymptomRevision`): every revision
+  the mirror received, with its log `seq` and the full snapshot as sent.
+- `pulse_symptom_cursors`: the last log `seq` the mirror processed.
+- `pulse_symptom_acks`, `pulse_symptom_mutes` and `pulse_symptom_outcomes`:
+  human state. An ack records the symptom, revision and acknowledging user; a
+  mute records the entity, phenomenon, expiry, the symptom it was set from and
+  the user; an outcome records `bad` or `fine` and the confirming user. The
+  evaluator reads these back without user IDs through
+  `GET /api/internal/symptoms/state`.
+
+Titles and excerpts are masked by the evaluator; the mirror holds no event
+payloads or customer data. Rows live as long as the account and are deleted
+with it (revisions, acks and outcomes also with their symptom; a deleted user
+leaves their acks, mutes and outcomes without a user). For a legal export,
+select the account's rows in each table by `account_id`, and a user's acks,
+mutes and outcomes by `user_id`.
+
+Investigation requests and existing briefs (`Tuist.Pulse.Investigations`),
+scoped to the same account. New requests do not generate briefs or steps;
+agent dispatch and result ingestion are not wired yet:
+
+- `pulse_investigations` (`Tuist.Pulse.Investigations.Investigation`): each
+  trigger on a symptom at board or page tier: the symptom, the symptoms merged
+  into it, trigger and its log `seq`, `request_id`, the requesting user
+  (if a person requested it) and its `change_seq`.
+- `pulse_briefs` (`Tuist.Pulse.Investigations.Brief`): versioned briefs per
+  symptom, linked to their trigger.
+- `pulse_brief_steps` (`Tuist.Pulse.Investigations.BriefStep`): each brief's
+  historical mitigate-now steps: the previously code-generated command and its undo with
+  the safety check's result, and the status a person set with their user ID
+  and time.
+
+Historical steps were built from the symptom's entity and the server's own
+release and migrations; removing the generator does not delete these records.
+Rows live as long as the account
+and their symptom; a deleted user leaves them without a user. The evaluator
+reads them back as investigations, without user IDs, through
+`GET /api/internal/symptoms/state`. For an export, select each table by
+`account_id`, and a user's rows by `requested_by_id` and `status_by_id`.
+
 ## Bazel remote execution
 
 - **Purpose:** Account-controlled Linux build and test execution.
 - **Account limits:** `accounts.remote_execution_vcpus_limit` and `accounts.remote_execution_memory_gb_limit` (defaults 16 and 32), set by Tuist operators. They live on the account row and are deleted with it. Export with `SELECT remote_execution_vcpus_limit, remote_execution_memory_gb_limit FROM accounts WHERE id = <account_id>`. The execution image, CAS endpoint and executor endpoint come from the deployment and are not stored per account; the former `remote_execution_settings` table was dropped without ever holding production rows.
 - **Execution VMs:** `sandboxes` rows with `purpose = remote_execution`, one per single-use VM, linked to the account. They store the VM shape, image tag, node placement and `execution_lease_expires_at`, the lease the owning scheduler renews. Rows are deleted once the node acknowledges VM deletion, normally right after the VM's action; rows whose lease lapsed are reaped by minute maintenance. Account deletion cascades the rows; nodes remove VMs whose rows are gone. Export with `SELECT * FROM sandboxes WHERE account_id = <account_id> AND purpose = 'remote_execution'`. The rows contain no action data or credentials. The VM's root and workspace images live under `/data/remote-execution` on the reserved Linux host while the VM exists and hold the action's inputs and outputs; they are not replicated and cannot be exported after deletion.
+- **Node input cache:** each remote execution node's sandboxd keeps copies of the large input blobs it served to execution VMs under `<data dir>/blobs`, one directory per CAS scope (account and project cache endpoint) named by digest. The copies are bounded by the node's `BLOB_CACHE_GIB` budget, evicted least recently used first, and deleted whenever sandboxd starts. In the same directory, sandboxd builds an ext4 inputs image per scope from that scope's blobs requested at least twice (at most 4 GiB of blobs per image and 4 scopes per node). It rebuilds the image at most once a minute, and the image counts against the same budget. An image is deleted when it is replaced, when a fifth scope needs one, or when sandboxd starts. Each execution VM gets a private copy as its workspace, which is deleted with the VM. All of this is a disposable copy of blobs already in Kura's CAS; export them from there with authenticated CAS reads.
 - **Operations:** not stored as such. Queued and running operations live only in the account scheduler's memory and for at most one minute after completion. Project cache credentials issued for actions are held in scheduler memory and passed to the guest through the exec environment; they are never persisted.
 - **Action records** (ClickHouse `remote_execution_actions`): one row per action the execution gateway executed, on the scheduled and leased paths, pushed by the gateway in best-effort batches after the client has its result and only when Bazel's request metadata names an invocation. Rows are keyed by `project_id`, `invocation_id` and `operation_id` (ReplacingMergeTree, so a redelivered record is one row) and also carry `account_id`. They hold the Action digest (`action_hash`, `action_size`), the client's tool name and version, mnemonic, target label and configuration ID, the execution path (`scheduled | lease`), sandbox VM ID, worker, memory size, timeout, `do_not_cache`, `cached_result`, the command's `arguments` (at most 64 KiB, `arguments_truncated` when cut), `environment_names`/`environment_values`, `working_directory`, `platform_names`/`platform_values`, `output_paths` (at most 32 KiB and 512 paths) and `output_count`, the number of outputs the command declared, the gRPC `status_code` and `status_message`, `exit_code`, the first 16 KiB of `stdout` and `stderr` with their full sizes and truncation flags, the executor's queued/worker/input-fetch/execution/output-upload timestamps and `inserted_at`. Environment values whose names contain TOKEN, SECRET, PASSWORD or KEY, and argument values of flags so named, are replaced with `****` by the gateway and again by the server before storage; other values are stored as the build sent them. The server never reads the cache to fill them. Rows expire after 90 days. Export with `SELECT * FROM remote_execution_actions WHERE account_id = <account_id>`.
 - **CAS and action cache:** Inputs, outputs, directory trees, stdout/stderr and action-cache entries use the existing account/project-scoped Kura REAPI storage and its ordinary eviction. No new object-storage bucket or key namespace. Retrieve still-retained blobs with authenticated CAS reads using the action and output digests; there is no automated remote-execution export endpoint.
