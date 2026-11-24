@@ -912,22 +912,25 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		sb.pausing = false
 		sb.mu.Unlock()
 	}()
-	synced := false
+	synced, syncFailed := false, false
 	if args.SyncDisks {
 		if err := m.syncGuest(ctx, sb); err != nil {
 			m.log.Warn("guest sync before pause failed; the disks will not be saved", "sandbox", id, "error", err)
+			syncFailed = true
 		} else {
 			synced = true
 		}
 	}
 	// A ballooned guest returns the cache it drops, so the snapshot stores
 	// zeros (punched below) instead of cache the guest rereads from disk.
-	if m.builder != nil && m.builder.Balloon {
+	// A guest whose sync just timed out would only time out again, which
+	// would push the pause past the server's 120 s call.
+	if m.builder != nil && m.builder.Balloon && !syncFailed {
 		dropStart := time.Now()
 		if cached, err := m.dropGuestCache(ctx, sb); err != nil {
 			m.log.Warn("dropping the guest's page cache before pause failed", "sandbox", id, "error", err)
 		} else if cached > 64<<20 {
-			awaitReturnedMemory(ctx, inst, 10*time.Second)
+			awaitReturnedMemory(ctx, inst, 5*time.Second)
 			m.log.Info("dropped the guest's page cache before pause", "sandbox", id, "cached_bytes", cached, "duration", time.Since(dropStart))
 		}
 	}
