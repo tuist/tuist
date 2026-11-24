@@ -60,15 +60,33 @@ without that Secret reference or the private network policy. Helm renders
 offline; Kubernetes checks that the referenced Secret and key exist at startup.
 
 **Before the first production deployment with this configuration**, an operator
-must provision `luft-server-cluster-cookie` in namespace `luft`, with a
-`release-cookie` key (`cluster.cookieSecretKey`). Store a high-entropy, private,
-nonempty value without whitespace in your approved secret manager and sync it
-to this dedicated Secret. Keep the same value across replicas, image rebuilds
-and rolling upgrades. This chart does not create or generate the cookie and does
-not fetch it from the `LUFT_SERVER` OAuth item or any Tuist Secret. Do not reuse
+must create the dedicated Password item `LUFT_SERVER_CLUSTER_COOKIE` in the
+`tuist-k8s-production` 1Password vault. Check that the item does not already exist
+before creating it; never regenerate it during routine deployment or recovery:
+
+```bash
+op item create --vault tuist-k8s-production --category Password \
+  --title LUFT_SERVER_CLUSTER_COOKIE --generate-password=letters,digits,64 >/dev/null
+```
+
+Production enables `cluster.externalSecret.enabled`: the `onepassword`
+ClusterSecretStore syncs `LUFT_SERVER_CLUSTER_COOKIE/password` into the dedicated
+`luft-server-cluster-cookie` Secret in namespace `luft`, key `release-cookie`.
+The ExternalSecret uses `refreshPolicy: OnChange` to avoid timer-driven rotation
+and `deletionPolicy: Retain` to preserve the runtime copy on source loss. Missing
+or empty source values fail synchronization without generating a replacement.
+Verify ExternalSecret `Ready=True` before relying on peer joins; this does not
+prove membership. Self-hosters can leave this integration disabled and provision
+`cluster.cookieExistingSecret` themselves.
+
+Keep the same high-entropy, private, nonempty whitespace-free value across
+replicas, image rebuilds and rolling upgrades. The chart never generates it or
+fetches it from the `LUFT_SERVER` OAuth item or any Tuist Secret. Do not reuse
 the Tuist server's distribution cookie. A missing key blocks pod startup; an
 empty or whitespace-containing value fails distributed release startup without
-printing the value. Coordinate a full process replacement for cookie rotation;
+printing the value. Source edits alone do not synchronize an OnChange resource;
+explicitly force synchronization during an approved rotation and coordinate a
+full process replacement;
 a normal rolling rotation partitions old and new cookie holders.
 
 The chart sets `DNS_CLUSTER_QUERY=<release>-headless.<namespace>.svc`, `POD_IP`
