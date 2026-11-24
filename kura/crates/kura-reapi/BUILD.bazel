@@ -14,7 +14,6 @@ rust_library(
     edition = "2024",
     # tuist-memory-gb also sets the remote-execution VM's CPUs (two per 4 GB), and rustc's codegen
     # spreads across them. Ignored outside remote execution.
-    exec_properties = {"tuist-memory-gb": "8"},
     rustc_flags = DENY_WARNINGS,
     version = KURA_VERSION,
     visibility = ["//visibility:public"],
@@ -42,7 +41,6 @@ rust_library(
     aliases = _TEST_ALIASES,
     crate_name = "kura_reapi",
     edition = "2024",
-    exec_properties = {"tuist-memory-gb": "8"},
     # Only test binaries link it, and it is on their critical path, so like them it skips rustc's
     # crate-local ThinLTO.
     rustc_flags = DENY_WARNINGS + ["-Clto=off"],
@@ -58,7 +56,6 @@ rust_junit_test(
     crate_name = "kura_reapi",
     crate_root = "src/lib.rs",
     edition = "2024",
-    exec_properties = {"tuist-memory-gb": "8"},
     # The suite waits on timeouts more than it uses CPU, so shards run it in parallel VMs.
     shard_count = 2,
     # Test binaries skip rustc's crate-local ThinLTO: it is a large share of the compile and the

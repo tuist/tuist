@@ -26,7 +26,6 @@ rust_library(
     aliases = aliases(),
     crate_name = "kura",
     edition = "2024",
-    exec_properties = {"tuist-memory-gb": "8"},
     rustc_flags = DENY_WARNINGS,
     version = KURA_VERSION,
     visibility = ["//visibility:public"],
@@ -72,7 +71,6 @@ rust_junit_test(
     crate_name = "kura",
     crate_root = "src/lib.rs",
     edition = "2024",
-    exec_properties = {"tuist-memory-gb": "8"},
     # Test binaries skip rustc's crate-local ThinLTO: it is a large share of the compile and the
     # tests run just as fast without it. The libraries and shipped binary keep the default.
     rustc_flags = DENY_WARNINGS + ["-Clto=off"],
