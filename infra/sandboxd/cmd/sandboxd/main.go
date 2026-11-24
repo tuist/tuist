@@ -50,7 +50,7 @@ func main() {
 	// Deploy-varying configuration, LOG_LEVEL included, comes from a mounted
 	// ConfigMap, so a change to it does not change the Pod's spec; the Pod's
 	// own variables win.
-	configErr := envfile.Load(os.Getenv("SANDBOXD_CONFIG"))
+	configSum, configErr := envfile.Load(os.Getenv("SANDBOXD_CONFIG"))
 	level, levelErr := levelEnv("LOG_LEVEL", slog.LevelInfo)
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	if configErr != nil {
@@ -242,6 +242,12 @@ func main() {
 
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
+	// The configuration this process runs with: the in-place updater
+	// restarts the daemon when the ConfigMap moved on (step 2b).
+	registry.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "sandboxd_config_info", Help: "SHA-256 of the configuration file the daemon loaded at startup.",
+		ConstLabels: prometheus.Labels{"sha256": configSum},
+	}, func() float64 { return 1 }))
 	metrics := sandbox.NewMetrics(registry)
 	var blobs *blobcache.Cache
 	if blobCacheGiB > 0 {

@@ -12,6 +12,10 @@ set -euo pipefail
 # kubelet restarts only that container; the VMs stay in the vmm container and
 # the new daemon re-attaches them. Any other difference (vmm's image, volumes,
 # a first rollout) replaces the Pod, which pauses its sandboxes as before.
+# A Pod on the current revision whose daemon loaded an older ConfigMap
+# (`sandboxd_config_info`) restarts the same way, by a SIGTERM to the daemon
+# instead of an image patch: the kubelet refreshes the mounted file, but the
+# daemon reads it only at startup.
 #
 # Usage: sandboxd-upgrade.sh <namespace> <daemonset>
 namespace=$1
@@ -45,6 +49,14 @@ normalize='del(."$patch") | del(.metadata.labels."controller-revision-hash")
   | .spec.containers |= map(if .name == $c then del(.image) else . end)'
 want_spec=$(jq -cS --arg c "$container" ".spec.template | $normalize" <<< "$ds")
 
+metrics() {
+  k exec "$1" -c "$container" -- sh -c 'curl -fsS "http://$METRICS_ADDR/metrics"' 2>/dev/null || true
+}
+
+loaded_config() {
+  metrics "$1" | sed -n 's/^sandboxd_config_info{sha256="\([0-9a-f]*\)"} .*/\1/p'
+}
+
 log_lines() { k logs "$1" -c "$container" --since="${2:-10m}" 2>/dev/null || true; }
 
 wait_ready() {
@@ -76,12 +88,16 @@ replace() {
   k wait --for=condition=Ready "pod/$new" --timeout=10m
 }
 
+# upgrade_in_place <pod> <node> <container id> <patch|restart>
 upgrade_in_place() {
-  local pod=$1 node=$2 old_id=$3
-  echo "Upgrading $pod on $node in place to $want_image"
+  local pod=$1 node=$2 old_id=$3 how=$4
+  if [ "$how" = patch ]; then
+    echo "Upgrading $pod on $node in place to $want_image"
+  else
+    echo "Restarting $pod's daemon on $node in place for its new configuration"
+  fi
   for _ in $(seq 1 $((lazy_wait_seconds / sleep_step))); do
-    metrics=$(k exec "$pod" -c "$container" -- sh -c 'curl -fsS "http://$METRICS_ADDR/metrics"' 2>/dev/null || true)
-    lazy=$(awk '/^sandboxd_handover_blocked\{reason="lazy_disks"\}/ {print $2}' <<< "$metrics")
+    lazy=$(metrics "$pod" | awk '/^sandboxd_handover_blocked\{reason="lazy_disks"\}/ {print $2}')
     [ "${lazy:-0}" = 0 ] && break
     echo "$pod: $lazy sandboxes still receive their disks; waiting"
     sleep "$sleep_step"
@@ -107,8 +123,13 @@ upgrade_in_place() {
     replace "$pod" "$node"
     return
   fi
-  k patch pod "$pod" --type=strategic -p "$(jq -cn --arg c "$container" --arg i "$want_image" --arg h "$current_hash" \
-    '{metadata: {labels: {"controller-revision-hash": $h}}, spec: {containers: [{name: $c, image: $i}]}}')" >/dev/null
+  if [ "$how" = patch ]; then
+    k patch pod "$pod" --type=strategic -p "$(jq -cn --arg c "$container" --arg i "$want_image" --arg h "$current_hash" \
+      '{metadata: {labels: {"controller-revision-hash": $h}}, spec: {containers: [{name: $c, image: $i}]}}')" >/dev/null
+  else
+    # The Pod shares one PID namespace, so PID 1 is the pause container.
+    k exec "$pod" -c "$container" -- sh -c 'kill -TERM $(pidof sandboxd)' >/dev/null
+  fi
   if ! wait_ready "$pod" "$old_id"; then
     echo "::error::$pod's sandboxd did not come back ready on $want_image"
     k logs "$pod" -c "$container" --tail=80 || true
@@ -129,13 +150,20 @@ rolled=0
 while IFS='|' read -r -u 3 pod node hash old_id image; do
   [ -n "$pod" ] || continue
   if [ "$hash" = "$current_hash" ] && [ "$image" = "$want_image" ]; then
+    loaded=$(loaded_config "$pod")
+    if [ -z "$loaded" ]; then
+      echo "::warning::$pod does not report the configuration it loaded; leaving it"
+    elif [ "$loaded" != "$want_config" ] && [ -n "$old_id" ]; then
+      rolled=$((rolled + 1))
+      upgrade_in_place "$pod" "$node" "$old_id" restart
+    fi
     continue
   fi
   have_spec=$(jq -cS --arg c "$container" --arg h "$hash" \
     ".items[] | select(.metadata.labels.\"controller-revision-hash\" == \$h) | .data.spec.template | $normalize" <<< "$revisions" | head -n1)
   rolled=$((rolled + 1))
   if [ -n "$have_spec" ] && [ "$have_spec" = "$want_spec" ] && [ -n "$old_id" ]; then
-    upgrade_in_place "$pod" "$node" "$old_id"
+    upgrade_in_place "$pod" "$node" "$old_id" patch
   else
     replace "$pod" "$node"
   fi

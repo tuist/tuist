@@ -1,4 +1,3 @@
-// Staging qualification build for step 2b; drop before merging.
 package main
 
 // An in-place upgrade of the daemon's container (step 2b) leaves the VMs

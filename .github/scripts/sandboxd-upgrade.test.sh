@@ -23,7 +23,8 @@ template() {
       volumes: [{name: "config", configMap: {name: "sandboxd-config"}}]}}'
 }
 
-# scenario <pod's daemon tag> <pod's vmm tag> <arms: yes|no>; the
+# scenario <pod's daemon tag> <pod's vmm tag> <arms: yes|no> [loaded config
+# sum, default the ConfigMap's]; the
 # DaemonSet always wants daemon sha-new and vmm sha-vmm.
 scenario() {
   state="$scratch/state"
@@ -43,6 +44,7 @@ scenario() {
      status: {containerStatuses: [{name: "sandboxd", containerID: $id, ready: true, image: $t.spec.containers[0].image}]}}]}' > "$state/pods.json"
   jq -n --arg c "$config" '{data: {"config.env": $c}}' > "$state/cm.json"
   [ "$3" = yes ] && touch "$state/arms"
+  echo "${4:-$config_sum}" > "$state/loaded"
   cat > "$state/bin/kubectl" <<EOF
 #!/usr/bin/env bash
 state="$state"
@@ -75,7 +77,14 @@ case "$1 $2" in
       echo '{"msg":"sandbox re-attached","sandbox":"sbx-1"}'
     fi ;;
   "patch pod") echo "${!#}" > "$state/patch"; touch "$state/patched" ;;
-  "exec sandboxd-x") echo 'sandboxd_handover_blocked{reason="lazy_disks"} 0' ;;
+  "exec sandboxd-x")
+    if [[ "$*" == *kill* ]]; then
+      touch "$state/patched" "$state/killed"
+      echo "$config_sum" > "$state/loaded"
+    else
+      echo 'sandboxd_handover_blocked{reason="lazy_disks"} 0'
+      echo "sandboxd_config_info{sha256=\"$(cat "$state/loaded")\"} 1"
+    fi ;;
   *) ;;
 esac
 EOF
@@ -116,5 +125,14 @@ check "a vmm image change replaces the Pod" \
 scenario sha-new sha-vmm yes
 check "a current Pod is left alone" \
   '! grep -qE "^(delete|patch|annotate)" "$state/calls"'
+
+stale=$(printf old | sha256sum | cut -d' ' -f1)
+scenario sha-new sha-vmm yes "$stale"
+check "a config-only change restarts the daemon in place after it armed" \
+  '[ -e "$state/killed" ] && grep -q "^annotate pod sandboxd-x --overwrite" "$state/calls" && [ ! -e "$state/patch" ] && ! grep -q "^delete" "$state/calls"'
+
+scenario sha-new sha-vmm no "$stale"
+check "a config-only change replaces a daemon that never arms" \
+  '[ ! -e "$state/killed" ] && grep -q "^delete pod sandboxd-x" "$state/calls"'
 
 [ "$failures" -eq 0 ] || { echo "$failures failures"; exit 1; }

@@ -786,7 +786,7 @@ agent so the manager runs end to end without KVM).
 | `CACHE_IMAGES_TTL` | `24h` | How long a copied master stays after a sandbox last attached it; checked every 10 minutes. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
-| `SANDBOXD_CONFIG` | | A file of `KEY=VALUE` lines (`internal/envfile`) that fills any variable above the environment leaves unset. With `sandboxes.vmm.enabled` the chart puts the deploy-varying ones in a ConfigMap read this way. Without `vmm.inPlaceUpgrades` the Pod carries a checksum of it, so a change rolls the Pods; with it, the kubelet refreshes the file and the next in-place daemon restart reads it. `cmd/vmm` reads the same file. |
+| `SANDBOXD_CONFIG` | | A file of `KEY=VALUE` lines (`internal/envfile`) that fills any variable above the environment leaves unset. With `sandboxes.vmm.enabled` the chart puts the deploy-varying ones in a ConfigMap read this way. Without `vmm.inPlaceUpgrades` the Pod carries a checksum of it, so a change rolls the Pods; with it, the kubelet refreshes the file, the daemon reports the hash of what it loaded at startup (`sandboxd_config_info{sha256}`), and the deploy's updater restarts a daemon whose hash is stale in place, with a handover. `cmd/vmm` reads the same file. |
 | `HANDOVER_FILE` | | A downward API file of the Pod's annotations (`sandboxes.vmm.inPlaceUpgrades`). An unexpired `sandboxes.tuist.dev/handover` marker naming this container turns the next SIGTERM into a handover (see Process model). |
 | `FIRECRACKER_BIN`, `JAILER_BIN` (vmm) | `/proc/<vmm pid>/root/usr/local/bin/…` | The binaries vmm spawns, overriding the daemon's spec, so a daemon upgrade never changes the Firecracker under running VMs. |
 | `VMM_SOCKET` | | The vmm container's socket (see Process model). Set, the daemon spawns every VM through it and places VM cgroups under vmm's cgroup; unset, it spawns them itself as before. |
@@ -855,7 +855,10 @@ differs from the DaemonSet only in the `sandboxd` image, it waits for
 minutes), annotates the Pod with `{container, until, nonce}`, waits for the
 daemon's `handover armed` log with that nonce and the new ConfigMap's hash,
 and patches the container's image; the kubelet restarts only that
-container. Any other difference replaces the Pod. An armed daemon stops its
+container. A Pod already on the current revision whose
+`sandboxd_config_info` differs from the ConfigMap's hash restarts the same
+way, with a SIGTERM to the daemon (`pidof`: PID 1 is the pause container)
+instead of the patch. Any other difference replaces the Pod. An armed daemon stops its
 workers and detaches each running VM, recording `handover {pid, start}` in
 its metadata; VMs whose memory it serves through userfaultfd, whose disks
 still arrive through its mounts, or that vmm refuses are paused instead.
@@ -954,6 +957,7 @@ and `sandboxd_vm_file_bytes` (the running VMs' guest memory and what their
 processes hold, summed over the node) and observes every running VM's
 resident share of its guest memory in `sandboxd_vm_resident_share`.
 `sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
+`sandboxd_config_info{sha256}` names the configuration file the daemon loaded;
 `sandboxd_handover_blocked{reason}` counts running sandboxes a handover would pause (`lazy_disks`, `memory_served`).
 `sandboxd_blob_cache_requests_total{result}`, `sandboxd_blob_cache_fetched_bytes_total` and `sandboxd_blob_cache_bytes` cover the blob cache. sandbox IDs are never labels. Delete overlaps process exit and network teardown,
 but retains files, the instance reference and slot until both succeed.

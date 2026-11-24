@@ -29,7 +29,7 @@ var version = "dev"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	if err := envfile.Load(os.Getenv("SANDBOXD_CONFIG")); err != nil {
+	if _, err := envfile.Load(os.Getenv("SANDBOXD_CONFIG")); err != nil {
 		logger.Error("loading the config file", "error", err)
 		os.Exit(1)
 	}
