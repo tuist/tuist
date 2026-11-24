@@ -863,17 +863,22 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "sentry_pulse_dsn/2" do
-    # The processors and registry sync share the web pods' config Secret, but
-    # Pulse admits only web pods, so only they may copy errors there.
-    test "returns the Pulse DSN only in web mode" do
-      secrets = %{"sentry" => %{"pulse_dsn" => "http://sentry:pw@pulse:4000/v1/sentry/server/1"}}
+    # Every mode shares the config Secret, but the xcresult processors run
+    # outside the cluster network, where Pulse's address does not resolve, so
+    # they post to the server's public endpoint instead.
+    test "returns the in-cluster DSN in cluster modes and the public one for xcresult processors" do
+      in_cluster = "http://sentry:pw@pulse:4000/v1/sentry/server/1"
+      public = "https://tuist_token%2F@tuist.dev/api/accounts/tuist/pulse/sentry/server/1"
+      secrets = %{"sentry" => %{"pulse_dsn" => in_cluster, "pulse_public_dsn" => public}}
 
-      assert Environment.sentry_pulse_dsn(secrets, :web) ==
-               "http://sentry:pw@pulse:4000/v1/sentry/server/1"
-
-      for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
-        assert Environment.sentry_pulse_dsn(secrets, mode) == nil
+      for mode <- [:web, :processor, :swift_registry_sync] do
+        assert Environment.sentry_pulse_dsn(secrets, mode) == in_cluster
       end
+
+      assert Environment.sentry_pulse_dsn(secrets, :xcresult_processor) == public
+
+      assert Environment.sentry_pulse_dsn(%{"sentry" => %{"pulse_dsn" => in_cluster}}, :xcresult_processor) ==
+               nil
 
       assert Environment.sentry_pulse_dsn(%{"sentry" => %{"pulse_dsn" => ""}}, :web) == nil
     end

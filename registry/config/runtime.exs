@@ -48,6 +48,12 @@ if config_env() == :prod do
     config :sentry,
       dsn: sentry_dsn,
       environment_name: System.get_env("SENTRY_ENV") || "production"
+
+    # A copy of every envelope for Pulse (TuistCommon.SentryHTTPClient), set
+    # by the chart's sentryPulse.services.registry.
+    if pulse_dsn = env.("TUIST_SENTRY_PULSE_DSN") do
+      config :tuist_common, sentry_pulse_dsn: pulse_dsn
+    end
   end
 
   s3_endpoint = System.get_env("S3_ENDPOINT")

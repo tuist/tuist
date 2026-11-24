@@ -107,6 +107,20 @@ defmodule Tuist.GitHistory do
       "**/mise.toml",
       "**/.mise.toml"
     ],
+    # Struo's graph/rules and the Go collector's build inputs. Other adapters
+    # retain graph selection until they supply compatible evidence.
+    once: [
+      "**/struo.toml",
+      "**/once.toml",
+      "**/*.star",
+      "**/go.mod",
+      "**/go.sum",
+      "**/go.work",
+      "**/go.work.sum",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ],
     # Build scripts and their logic, version catalogs, properties, dependency
     # locks, the wrapper's Gradle version and the JDK pins.
     gradle: [

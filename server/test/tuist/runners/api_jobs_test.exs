@@ -120,8 +120,8 @@ defmodule Tuist.Runners.APIJobsTest do
       refute theirs.workflow_job_id == first.workflow_job_id
     end
 
-    test "refuses a profile larger than the account's whole limit", %{account: account} do
-      # The profile is 4 vCPU / 16 GB; one vCPU short of it can never admit the job.
+    test "queues a profile larger than the account's whole limit", %{account: account} do
+      # The profile is 4 vCPU / 16 GB; the job waits until the limit admits it.
       {:ok, _} =
         Concurrency.update_limits(account, %{
           runner_linux_vcpus_limit: 3,
@@ -130,8 +130,8 @@ defmodule Tuist.Runners.APIJobsTest do
           runner_macos_memory_gb_limit: 24
         })
 
-      assert {:error, :shape_exceeds_limit} = APIJobs.create_job(account, attrs())
-      assert Repo.aggregate(WorkflowJob, :count) == 0
+      assert {:ok, _job, :created} = APIJobs.create_job(account, attrs())
+      assert Repo.one!(WorkflowJob).status == "queued"
     end
 
     test "rejects requests it cannot route or run", %{account: account} do

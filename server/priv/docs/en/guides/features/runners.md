@@ -7,12 +7,6 @@
 ---
 # Runners {#runners}
 
-> [!IMPORTANT]
-> **Invite-only**
->
-> Tuist Runners are currently invite-only while we scale capacity. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account. Pricing will be announced when Runners become generally available.
-
-
 Tuist Runners are managed macOS and Linux runners for your GitHub Actions, Buildkite, GitLab CI, and Bitrise pipelines. Instead of running jobs on your CI provider's hosted machines, you point a job at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and it runs on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses, with no runner agent to install and no infrastructure to maintain. To work out what drives your CI bill before changing machines, see [CI costs](https://tuist.dev/solutions/ci-costs).
 
 Adopting them is usually a one-line change to a job:

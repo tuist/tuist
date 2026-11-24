@@ -568,6 +568,10 @@ kuraController:
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
+  # Every OVH Kura box has a 25 Gbps vRack link separate from its public
+  # link, so traffic to private-network peers (remote execution workers,
+  # other Kura boxes) skips the tenants' public ceilings up to this rate.
+  privateNetworkMbps: 20000
 
 # CSI installation and upgrades are separate from tenant enrollment. Routine
 # server deployments preserve its installed image; upgrades require an explicit digest.
@@ -1876,18 +1880,18 @@ rackFleet:
           minWarmPoolFloor: 0
           maxLearnedWarmPoolFloor: 11
           maxReplicas: 52
-      # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
-      # history, and learns up to three for its fan-outs. Its demand is
-      # starting from no history, and a cold 16 vCPU job has to wait for a
-      # whole host to free up before it boots (p50 41 s, up to 110 s, in the
-      # week to 2026-10-29 on 27.1's pool). The other Xcodes' 16 vCPU pools
+      # 27.0's 16 vCPU pool learns up to three warm guests for its fan-outs.
+      # It kept one, a whole host, whatever its history until 2026-11-24, but
+      # had no job in the 14 days before, while 27.1's customer bursts booted
+      # cold for want of the two seats it held. Like every pool, it keeps a
+      # warm guest for a day after a job. The other Xcodes' 16 vCPU pools
       # keep the shape's scaling below.
       "27.0":
         shapes:
           16vcpu-48gb:
             autoscaling:
               enabled: true
-              minWarmPoolFloor: 1
+              minWarmPoolFloor: 0
               maxLearnedWarmPoolFloor: 3
               maxReplicas: 26
     shapes:
@@ -2616,6 +2620,10 @@ sandboxes:
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"
+  # Firecracker in its own vmm container (step 2a of seamless daemon
+  # restarts), after qualifying on staging and canary.
+  vmm:
+    enabled: true
   # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
   # (about 38 GiB each) per node. The nodes have about 830 GiB.
   # Plus 30 GiB for copies of CI cache volumes below.
@@ -2878,11 +2886,18 @@ ampOrbProvider:
   enabled: true
   url: https://tuist.dev
 
-# A copy of every error from the server's web instances and Kura to Pulse,
+# A copy of every error from the server (web, processor and registry sync
+# pods), the registry and Kura to Pulse,
 # beside Atlas, to compare the two (sentryPulse in values.yaml). Needs
 # PULSE_SENTRY_WRITER/password in this vault and production in the Pulse
 # chart's sentryWriter.environments.
 sentryPulse:
   services:
     server: true
+    registry: true
     kura: true
+  # The `tuist` account token xcresult-pulse (only account:pulse:write),
+  # stored in PULSE_SENTRY_XCRESULT/token in this vault.
+  xcresultProcessor:
+    enabled: true
+    url: https://tuist.dev/api/accounts/tuist/pulse/sentry/server/1

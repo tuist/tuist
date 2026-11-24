@@ -271,19 +271,19 @@ defmodule TuistWeb.CoverageLiveTest do
   end
 
   describe "build systems" do
-    test "shows the pages of Xcode, Mix, Cargo and Gradle projects in every account and no others", %{
+    test "shows the pages of Xcode, Mix, Cargo, Gradle and Once projects in every account and no others", %{
       conn: conn,
       organization: organization
     } do
       # Production, where coverage once needed an account flag.
       stub(Tuist.Environment, :env, fn -> :prod end)
 
-      for build_system <- [:xcode, :mix, :cargo, :gradle] do
+      for build_system <- [:xcode, :mix, :cargo, :gradle, :once] do
         project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
         assert {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       end
 
-      for build_system <- [:bazel, :once] do
+      for build_system <- [:bazel] do
         project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
         base = "/#{organization.account.name}/#{project.name}/tests/coverage"
 

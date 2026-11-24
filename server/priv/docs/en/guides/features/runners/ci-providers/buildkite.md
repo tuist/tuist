@@ -7,8 +7,6 @@
 ---
 # Buildkite {#buildkite}
 
-<!-- @snippet: ./_invite-only -->
-
 Tuist watches the self-hosted queues in your Buildkite cluster and runs the jobs it finds there on the fleet. Your pipelines keep running on Buildkite; only the compute changes. Running a job on the fleet takes three changes: connect your cluster, name a queue after a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link>, and target it from a step.
 
 1. **Connect your cluster.** In Buildkite, open your cluster, go to **Agent Tokens**, and create a token; it starts with `bkct_`. In your Tuist dashboard, go to **Settings → Integrations**, choose **Connect** on the Buildkite card, and enter your organization slug and the token. The token is stored encrypted and never shown again. To change the organization or rotate the token later, edit the fields on the card and choose **Save changes**. Tuist begins watching the cluster within a minute.

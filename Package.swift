@@ -1404,6 +1404,7 @@ var targets: [Target] = [
         name: "TuistAndroidTests",
         dependencies: [
             "TuistAndroid",
+            "TuistEnvironment",
             pathDependency,
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),

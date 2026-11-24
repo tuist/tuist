@@ -5373,6 +5373,50 @@ limit in the summary, which is what the on-call needs to pick the lever:
 sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 ```
 
+### Kura trickling cache write sheds
+
+Live as [rule `efx228hqspvk0b`](https://tuist.grafana.net/alerting/grafana/efx228hqspvk0b/view).
+
+```promql
+sum by (cluster, region, pod, kind) (
+  sum by (cluster, pod, kind) (increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization|reapi_request_budget|reapi_write_decode"}[1h]))
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp((max by (cluster, pod, region) (kura_node_geo_info{cluster="tuist-production"})))))
+)
+```
+
+- Data source: Tuist Pulse Metrics (`cg3i1jh2k1v5sb`), instant query
+- Threshold: `> 1000`, as a separate threshold expression on `A`, so the alert
+  value is the number of writes refused in the last hour
+- Pending period: 10 minutes (group `Cache` evaluates every 5 minutes)
+- Severity: warning
+- Production only, with the region join inlined from `kura_node_geo_info` (see
+  [Pulse storage with Grafana Cloud](pulse-grafana.md) for why the `kura:*`
+  recordings are inlined). Folder `Alerts`, group `Cache`; **No Data: Normal**,
+  **Error: Normal** (it had Keep last state until the filter fix, which the
+  Atlas Grafana tool cannot set).
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} shed
+  {{ $values.A.Value | printf "%.0f" }} writes at the {{ $labels.kind }} limit
+  in the last hour ({{ $labels.cluster }})`
+- Description: `The pod refused more than a thousand uploads at the named limit
+  in the last hour, below the per-second bar of "Kura shedding cache writes by
+  kind" but a thousand artifacts lost all the same, since uploads are never
+  retried. Same kinds and levers as that rule.`
+
+The hourly companion of **Kura shedding cache writes by kind**, with the same
+kind filter. It dates from when that rule fired on a per-second rate; since it
+became a `> 0` count over 15 minutes, this rule only fires for a pod that rule
+already reported, and adds the hourly total.
+
+Until 2026-11-24 the filter was `kind!="response_stream"`, so the three
+remote-execution kinds counted as lost uploads. A burst of BatchReadBlobs
+refused at the `reapi_materialization` pool fired it as about 15,000 "writes"
+on one pod, while no upload was refused: those reads answer
+`RESOURCE_EXHAUSTED`, which clients retry, and alert in **Kura shedding
+remote-execution reads**. Remote-execution write sheds (`reapi_write_decode`)
+are retried too and alert in **Kura shedding remote-execution writes**;
+`reapi_request_budget` is not a capacity signal. In the week before the fix,
+every production shed this rule counted was one of those three kinds.
+
 
 ### Kura disk-pressure reclamation
 

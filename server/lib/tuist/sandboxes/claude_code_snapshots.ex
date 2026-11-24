@@ -116,7 +116,10 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # script's simulators, and stops the simulator services: a Mac booted
   # from the disks mounts the simulator runtimes at new paths, and the
   # devices and services the disks recorded left its runtimes unavailable
-  # (measured, 2026-11).
+  # (measured, 2026-11). The script runs without the clone's
+  # `GIT_TERMINAL_PROMPT`, which a session's commands lack: Tuist keys its
+  # package-manifest cache on the environment, and the variable left the
+  # session's first `tuist install` recompiling the manifests.
   @macos_sync_build_script """
   set -eu
   path=$1 url=$2 script=$3
@@ -124,7 +127,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   rm -rf "$path" "$path.sbx-clone"
   git clone --quiet "$url" "$path.sbx-clone"
   mv "$path.sbx-clone" "$path"
-  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT
   cd "$path"
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
   cache="$HOME/Library/Developer/Xcode/DerivedData/CompilationCache.noindex"

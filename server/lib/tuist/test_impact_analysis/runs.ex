@@ -100,7 +100,10 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       strategy: "coverage",
       build_system: params.build_system,
       platform: Map.get(params, :platform) || "",
-      build_context: Map.get(params, :xcode) || %{},
+      build_context:
+        (Map.get(params, :xcode) || %{})
+        |> Map.put(:scheme, TestImpactAnalysis.scope(params))
+        |> Map.put(:coverage_policy, Map.get(params, :coverage_policy)),
       requested_modules: params.decided_modules,
       skipped_modules: Map.new(params.skipped_modules, &{&1, 0}),
       rules_version: TestImpactAnalysis.rules_version()
@@ -159,7 +162,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       parent_shas: Map.get(params, :parent_shas) || [],
       ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
-      scheme: get_in(params, [:xcode, :scheme])
+      scheme: TestImpactAnalysis.scope(params)
     }
   end
 
@@ -178,9 +181,10 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           request = %{
             commit_sha: commit_sha,
             git_branch: Map.get(params, :git_branch) || "",
-            scheme: get_in(params, [:xcode, :scheme]),
+            scheme: TestImpactAnalysis.scope(params),
             platform: Map.get(params, :platform) || "",
             requested_modules: params.decided_modules,
+            coverage_policy: if(!Map.get(params, :dirty), do: Map.get(params, :coverage_policy)),
             before: DateTime.utc_now()
           }
 

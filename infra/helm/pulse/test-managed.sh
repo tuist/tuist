@@ -67,9 +67,13 @@ for environment in staging canary; do
         podSelector:{matchLabels:{"app.kubernetes.io/name":"tuist","app.kubernetes.io/instance":"tuist","app.kubernetes.io/component":"pdc-agent"}}}] and
       .ingress[2].ports == [{port:4000,protocol:"TCP"},{port:4003,protocol:"TCP"}] and
       .ingress[3] == {ports:[{port:4000,protocol:"TCP"}], from:[
+        {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
+         podSelector:{matchExpressions:[{key:"app.kubernetes.io/component",operator:"In",
+           values:["processor","swift-registry-sync","registry"]}]}}]} and
+      .ingress[4] == {ports:[{port:4000,protocol:"TCP"}], from:[
         {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"kura"}},
          podSelector:{matchLabels:{"app.kubernetes.io/name":"kura"}}}]} and
-      (.ingress | length) == 4)
+      (.ingress | length) == 5)
   ' | grep -qx true
 done
 # The Sentry writer exists only in the environments listed, so a vault without

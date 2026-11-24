@@ -14,7 +14,7 @@ defmodule Tuist.TestImpactAnalysis.Storage do
   alias Tuist.TestImpactAnalysis.Run
 
   @changed_files_limit 5_000
-  @build_context_keys ~w(scheme test_plan destination)
+  @build_context_keys ~w(scheme test_plan destination coverage_policy)
   @build_context_value_limit 1_024
 
   @doc """

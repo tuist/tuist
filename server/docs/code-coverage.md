@@ -1,6 +1,6 @@
 # Code coverage
 
-How Tuist collects, stores and shows code coverage today. Xcode, Mix, Cargo and Gradle projects have it in every account. `Tuist.Tests.Coverage.supported?/1` decides per project from its build system, and the ingestion, the API, the MCP tools, the pages and the sidebar all follow it; a build system joins the list there once its client reports coverage.
+How Tuist collects, stores and shows code coverage today. Xcode, Mix, Cargo, Gradle and Once projects have it in every account. `Tuist.Tests.Coverage.supported?/1` decides per project from its build system, and the ingestion, the API, the MCP tools, the pages and the sidebar all follow it; a build system joins the list there once its client reports coverage.
 
 ## Immutable shard plans
 
@@ -209,6 +209,12 @@ Limitations that apply to all the attributed scopes:
 - Images loaded after the first test starts, such as a framework the tests `dlopen`, are missing from the records.
 - Recording works on macOS and the iOS simulator only, not on devices.
 - When tests run in parallel inside one process, coverage counters must be bumped atomically (`OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all`). Plain increments lose counts, which `xccov` reports as negative counts and as lines covered that never ran.
+
+## Once / Struo
+
+Struo reports normalized observations with `build_system` `once`, using the shared `coverage` and `coverage_evidence` blocks. The first collector is Go. Aggregate coverprofiles describe a target invocation, not its individual cases. Only an isolated exact-case process can attribute that profile to one case; its opaque native unit ID is the case `name`, with canonical target as `module` and an empty `suite`. Partial, failed, ambiguous or unresolved profiles cannot supply complete negative evidence for selection. No server code interprets Go import paths or profiles: that normalization belongs to the collector.
+
+The client binds collector/configuration, toolchain, platform and current inventory compatibility to a versioned report `scheme`, also sent as `scope` to selection. The shared storage and retention above apply unchanged. Struo's graph manifests (`struo.toml`, `once.toml`), Starlark rules, Go module/workspace manifests and locks, and mise/toolchain pins are tracked inputs. Coverage-based exclusion remains explicit opt-in and heuristic; graph selection is the strict default. Target-only evidence keeps the shared `no_evidence` fallback for tests without their own observations. See [coverage-based test selection](coverage-test-selection.md#once--struo).
 
 ## Mix
 

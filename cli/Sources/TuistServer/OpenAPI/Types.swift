@@ -343,6 +343,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/analytics`.
     /// - Remark: Generated from `#/paths//api/analytics/post(createCommandEvent)`.
     func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output
+    /// Read part of a remote action's standard output or error.
+    ///
+    /// Returns up to 64 KiB of the stream, by byte offset in the original stream. Tuist records the first 16 KiB of each stream and copies longer ones whole, or their last 16 MiB when they are longer, kept like other run artifacts; `recorded` lists the byte ranges available. Without `offset`, returns the stream's last `limit` bytes.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/get(getBazelRemoteActionLog)`.
+    func getBazelRemoteActionLog(_ input: Operations.getBazelRemoteActionLog.Input) async throws -> Operations.getBazelRemoteActionLog.Output
     /// Get the account's sandbox analytics for a time range.
     ///
     /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
@@ -665,6 +672,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/metrics`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/metrics/get(gradleBuildMetrics)`.
     func gradleBuildMetrics(_ input: Operations.gradleBuildMetrics.Input) async throws -> Operations.gradleBuildMetrics.Output
+    /// Get one remote action of a Bazel invocation.
+    ///
+    /// Returns the action's command, environment, platform, worker, exit code, the start of its standard output and error, output paths and phase timings.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/get(getBazelRemoteAction)`.
+    func getBazelRemoteAction(_ input: Operations.getBazelRemoteAction.Input) async throws -> Operations.getBazelRemoteAction.Output
     /// Get a Mix compiled file and its analytics across builds.
     ///
     /// Get a Mix compiled file and its analytics across builds.
@@ -726,6 +740,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments/get(listTestCaseRunAttachments)`.
     func listTestCaseRunAttachments(_ input: Operations.listTestCaseRunAttachments.Input) async throws -> Operations.listTestCaseRunAttachments.Output
+    /// List the remote actions of a Bazel invocation.
+    ///
+    /// Actions Tuist remote execution ran for the invocation, as the execution gateway recorded them, kept for 90 days. Records are best effort: a missing action does not prove it did not run remotely.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/get(listBazelRemoteActions)`.
+    func listBazelRemoteActions(_ input: Operations.listBazelRemoteActions.Input) async throws -> Operations.listBazelRemoteActions.Output
     /// List all account tokens.
     ///
     /// This endpoint returns all tokens for a given account with pagination support.
@@ -2619,6 +2640,23 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Read part of a remote action's standard output or error.
+    ///
+    /// Returns up to 64 KiB of the stream, by byte offset in the original stream. Tuist records the first 16 KiB of each stream and copies longer ones whole, or their last 16 MiB when they are longer, kept like other run artifacts; `recorded` lists the byte ranges available. Without `offset`, returns the stream's last `limit` bytes.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/get(getBazelRemoteActionLog)`.
+    public func getBazelRemoteActionLog(
+        path: Operations.getBazelRemoteActionLog.Input.Path,
+        query: Operations.getBazelRemoteActionLog.Input.Query = .init(),
+        headers: Operations.getBazelRemoteActionLog.Input.Headers = .init()
+    ) async throws -> Operations.getBazelRemoteActionLog.Output {
+        try await getBazelRemoteActionLog(Operations.getBazelRemoteActionLog.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Get the account's sandbox analytics for a time range.
     ///
     /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
@@ -3389,6 +3427,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get one remote action of a Bazel invocation.
+    ///
+    /// Returns the action's command, environment, platform, worker, exit code, the start of its standard output and error, output paths and phase timings.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/get(getBazelRemoteAction)`.
+    public func getBazelRemoteAction(
+        path: Operations.getBazelRemoteAction.Input.Path,
+        headers: Operations.getBazelRemoteAction.Input.Headers = .init()
+    ) async throws -> Operations.getBazelRemoteAction.Output {
+        try await getBazelRemoteAction(Operations.getBazelRemoteAction.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Get a Mix compiled file and its analytics across builds.
     ///
     /// Get a Mix compiled file and its analytics across builds.
@@ -3539,6 +3592,23 @@ extension APIProtocol {
     ) async throws -> Operations.listTestCaseRunAttachments.Output {
         try await listTestCaseRunAttachments(Operations.listTestCaseRunAttachments.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// List the remote actions of a Bazel invocation.
+    ///
+    /// Actions Tuist remote execution ran for the invocation, as the execution gateway recorded them, kept for 90 days. Records are best effort: a missing action does not prove it did not run remotely.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/get(listBazelRemoteActions)`.
+    public func listBazelRemoteActions(
+        path: Operations.listBazelRemoteActions.Input.Path,
+        query: Operations.listBazelRemoteActions.Input.Query = .init(),
+        headers: Operations.listBazelRemoteActions.Input.Headers = .init()
+    ) async throws -> Operations.listBazelRemoteActions.Output {
+        try await listBazelRemoteActions(Operations.listBazelRemoteActions.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -9506,6 +9576,87 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case repository_url
                 case shas
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog`.
+        public struct BazelRemoteActionLog: Codable, Hashable, Sendable {
+            /// Where `text` starts in the stream.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/offset`.
+            public var offset: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/recordedPayload`.
+            public struct recordedPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/recordedPayload/length`.
+                public var length: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/recordedPayload/offset`.
+                public var offset: Swift.Int
+                /// Creates a new `recordedPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - length:
+                ///   - offset:
+                public init(
+                    length: Swift.Int,
+                    offset: Swift.Int
+                ) {
+                    self.length = length
+                    self.offset = offset
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case length
+                    case offset
+                }
+            }
+            /// The stream's recorded byte ranges.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/recorded`.
+            public typealias recordedPayload = [Components.Schemas.BazelRemoteActionLog.recordedPayloadPayload]
+            /// The stream's recorded byte ranges.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/recorded`.
+            public var recorded: Components.Schemas.BazelRemoteActionLog.recordedPayload
+            /// The stream's size when the action ran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/size_bytes`.
+            public var size_bytes: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/stream`.
+            @frozen public enum streamPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case stdout = "stdout"
+                case stderr = "stderr"
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/stream`.
+            public var stream: Components.Schemas.BazelRemoteActionLog.streamPayload
+            /// Empty when the range was not recorded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionLog/text`.
+            public var text: Swift.String
+            /// Creates a new `BazelRemoteActionLog`.
+            ///
+            /// - Parameters:
+            ///   - offset: Where `text` starts in the stream.
+            ///   - recorded: The stream's recorded byte ranges.
+            ///   - size_bytes: The stream's size when the action ran.
+            ///   - stream:
+            ///   - text: Empty when the range was not recorded.
+            public init(
+                offset: Swift.Int,
+                recorded: Components.Schemas.BazelRemoteActionLog.recordedPayload,
+                size_bytes: Swift.Int,
+                stream: Components.Schemas.BazelRemoteActionLog.streamPayload,
+                text: Swift.String
+            ) {
+                self.offset = offset
+                self.recorded = recorded
+                self.size_bytes = size_bytes
+                self.stream = stream
+                self.text = text
+            }
+            public enum CodingKeys: String, CodingKey {
+                case offset
+                case recorded
+                case size_bytes
+                case stream
+                case text
             }
         }
         /// - Remark: Generated from `#/components/schemas/XcodeCachedModuleObservation`.
@@ -18113,6 +18264,193 @@ public enum Components {
                 case organizations
             }
         }
+        /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList`.
+        public struct BazelRemoteActionsList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload`.
+            public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                /// The REAPI Action digest.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/action_digest`.
+                public struct action_digestPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/action_digest/hash`.
+                    public var hash: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/action_digest/size_bytes`.
+                    public var size_bytes: Swift.Int
+                    /// Creates a new `action_digestPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - hash:
+                    ///   - size_bytes:
+                    public init(
+                        hash: Swift.String,
+                        size_bytes: Swift.Int
+                    ) {
+                        self.hash = hash
+                        self.size_bytes = size_bytes
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case hash
+                        case size_bytes
+                    }
+                }
+                /// The REAPI Action digest.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/action_digest`.
+                public var action_digest: Components.Schemas.BazelRemoteActionsList.actionsPayloadPayload.action_digestPayload
+                /// Whether the executor served a cached result.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/cached_result`.
+                public var cached_result: Swift.Bool
+                /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/duration_ms`.
+                public var duration_ms: Swift.Double?
+                /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/execution_ms`.
+                public var execution_ms: Swift.Double?
+                /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/execution_path`.
+                @frozen public enum execution_pathPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case scheduled = "scheduled"
+                    case lease = "lease"
+                    case _empty = ""
+                }
+                /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/execution_path`.
+                public var execution_path: Components.Schemas.BazelRemoteActionsList.actionsPayloadPayload.execution_pathPayload
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/exit_code`.
+                public var exit_code: Swift.Int
+                /// The remote execution operation ID.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/id`.
+                public var id: Swift.String
+                /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/input_fetch_ms`.
+                public var input_fetch_ms: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/invocation_id`.
+                public var invocation_id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/memory_gb`.
+                public var memory_gb: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/mnemonic`.
+                public var mnemonic: Swift.String
+                /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/output_upload_ms`.
+                public var output_upload_ms: Swift.Double?
+                /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/queue_ms`.
+                public var queue_ms: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/queued_at`.
+                public var queued_at: Foundation.Date?
+                /// The gRPC status code of the execution; 0 is OK.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/status_code`.
+                public var status_code: Swift.Int
+                /// The Bazel target label, when the client reported it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actionsPayload/target`.
+                public var target: Swift.String
+                /// Creates a new `actionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - action_digest: The REAPI Action digest.
+                ///   - cached_result: Whether the executor served a cached result.
+                ///   - duration_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///   - execution_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///   - execution_path: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                ///   - exit_code:
+                ///   - id: The remote execution operation ID.
+                ///   - input_fetch_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///   - invocation_id:
+                ///   - memory_gb:
+                ///   - mnemonic:
+                ///   - output_upload_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///   - queue_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                ///   - queued_at:
+                ///   - status_code: The gRPC status code of the execution; 0 is OK.
+                ///   - target: The Bazel target label, when the client reported it.
+                public init(
+                    action_digest: Components.Schemas.BazelRemoteActionsList.actionsPayloadPayload.action_digestPayload,
+                    cached_result: Swift.Bool,
+                    duration_ms: Swift.Double? = nil,
+                    execution_ms: Swift.Double? = nil,
+                    execution_path: Components.Schemas.BazelRemoteActionsList.actionsPayloadPayload.execution_pathPayload,
+                    exit_code: Swift.Int,
+                    id: Swift.String,
+                    input_fetch_ms: Swift.Double? = nil,
+                    invocation_id: Swift.String,
+                    memory_gb: Swift.Int,
+                    mnemonic: Swift.String,
+                    output_upload_ms: Swift.Double? = nil,
+                    queue_ms: Swift.Double? = nil,
+                    queued_at: Foundation.Date? = nil,
+                    status_code: Swift.Int,
+                    target: Swift.String
+                ) {
+                    self.action_digest = action_digest
+                    self.cached_result = cached_result
+                    self.duration_ms = duration_ms
+                    self.execution_ms = execution_ms
+                    self.execution_path = execution_path
+                    self.exit_code = exit_code
+                    self.id = id
+                    self.input_fetch_ms = input_fetch_ms
+                    self.invocation_id = invocation_id
+                    self.memory_gb = memory_gb
+                    self.mnemonic = mnemonic
+                    self.output_upload_ms = output_upload_ms
+                    self.queue_ms = queue_ms
+                    self.queued_at = queued_at
+                    self.status_code = status_code
+                    self.target = target
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case action_digest
+                    case cached_result
+                    case duration_ms
+                    case execution_ms
+                    case execution_path
+                    case exit_code
+                    case id
+                    case input_fetch_ms
+                    case invocation_id
+                    case memory_gb
+                    case mnemonic
+                    case output_upload_ms
+                    case queue_ms
+                    case queued_at
+                    case status_code
+                    case target
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actions`.
+            public typealias actionsPayload = [Components.Schemas.BazelRemoteActionsList.actionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/actions`.
+            public var actions: Components.Schemas.BazelRemoteActionsList.actionsPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionsList/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.PaginationMetadata
+            /// Creates a new `BazelRemoteActionsList`.
+            ///
+            /// - Parameters:
+            ///   - actions:
+            ///   - pagination_metadata:
+            public init(
+                actions: Components.Schemas.BazelRemoteActionsList.actionsPayload,
+                pagination_metadata: Components.Schemas.PaginationMetadata
+            ) {
+                self.actions = actions
+                self.pagination_metadata = pagination_metadata
+            }
+            public enum CodingKeys: String, CodingKey {
+                case actions
+                case pagination_metadata
+            }
+        }
         /// Fires when a new preview row is created in the account. The `object` is a snapshot of the newly-created preview.
         ///
         /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent`.
@@ -21383,6 +21721,168 @@ public enum Components {
                 case id
                 case stdin
                 case timeout_ms
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BazelRemoteAction`.
+        public struct BazelRemoteAction: Codable, Hashable, Sendable {
+            /// The REAPI Action digest.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/action_digest`.
+            public struct action_digestPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/action_digest/hash`.
+                public var hash: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/action_digest/size_bytes`.
+                public var size_bytes: Swift.Int
+                /// Creates a new `action_digestPayload`.
+                ///
+                /// - Parameters:
+                ///   - hash:
+                ///   - size_bytes:
+                public init(
+                    hash: Swift.String,
+                    size_bytes: Swift.Int
+                ) {
+                    self.hash = hash
+                    self.size_bytes = size_bytes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case hash
+                    case size_bytes
+                }
+            }
+            /// The REAPI Action digest.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/action_digest`.
+            public var action_digest: Components.Schemas.BazelRemoteAction.action_digestPayload
+            /// Whether the executor served a cached result.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/cached_result`.
+            public var cached_result: Swift.Bool
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/duration_ms`.
+            public var duration_ms: Swift.Double?
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/execution_ms`.
+            public var execution_ms: Swift.Double?
+            /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/execution_path`.
+            @frozen public enum execution_pathPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case scheduled = "scheduled"
+                case lease = "lease"
+                case _empty = ""
+            }
+            /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/execution_path`.
+            public var execution_path: Components.Schemas.BazelRemoteAction.execution_pathPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/exit_code`.
+            public var exit_code: Swift.Int
+            /// The remote execution operation ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/id`.
+            public var id: Swift.String
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/input_fetch_ms`.
+            public var input_fetch_ms: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/invocation_id`.
+            public var invocation_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/mnemonic`.
+            public var mnemonic: Swift.String
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/output_upload_ms`.
+            public var output_upload_ms: Swift.Double?
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/queue_ms`.
+            public var queue_ms: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/queued_at`.
+            public var queued_at: Foundation.Date?
+            /// The gRPC status code of the execution; 0 is OK.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/status_code`.
+            public var status_code: Swift.Int
+            /// The Bazel target label, when the client reported it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteAction/target`.
+            public var target: Swift.String
+            /// Creates a new `BazelRemoteAction`.
+            ///
+            /// - Parameters:
+            ///   - action_digest: The REAPI Action digest.
+            ///   - cached_result: Whether the executor served a cached result.
+            ///   - duration_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - execution_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - execution_path: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+            ///   - exit_code:
+            ///   - id: The remote execution operation ID.
+            ///   - input_fetch_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - invocation_id:
+            ///   - memory_gb:
+            ///   - mnemonic:
+            ///   - output_upload_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - queue_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - queued_at:
+            ///   - status_code: The gRPC status code of the execution; 0 is OK.
+            ///   - target: The Bazel target label, when the client reported it.
+            public init(
+                action_digest: Components.Schemas.BazelRemoteAction.action_digestPayload,
+                cached_result: Swift.Bool,
+                duration_ms: Swift.Double? = nil,
+                execution_ms: Swift.Double? = nil,
+                execution_path: Components.Schemas.BazelRemoteAction.execution_pathPayload,
+                exit_code: Swift.Int,
+                id: Swift.String,
+                input_fetch_ms: Swift.Double? = nil,
+                invocation_id: Swift.String,
+                memory_gb: Swift.Int,
+                mnemonic: Swift.String,
+                output_upload_ms: Swift.Double? = nil,
+                queue_ms: Swift.Double? = nil,
+                queued_at: Foundation.Date? = nil,
+                status_code: Swift.Int,
+                target: Swift.String
+            ) {
+                self.action_digest = action_digest
+                self.cached_result = cached_result
+                self.duration_ms = duration_ms
+                self.execution_ms = execution_ms
+                self.execution_path = execution_path
+                self.exit_code = exit_code
+                self.id = id
+                self.input_fetch_ms = input_fetch_ms
+                self.invocation_id = invocation_id
+                self.memory_gb = memory_gb
+                self.mnemonic = mnemonic
+                self.output_upload_ms = output_upload_ms
+                self.queue_ms = queue_ms
+                self.queued_at = queued_at
+                self.status_code = status_code
+                self.target = target
+            }
+            public enum CodingKeys: String, CodingKey {
+                case action_digest
+                case cached_result
+                case duration_ms
+                case execution_ms
+                case execution_path
+                case exit_code
+                case id
+                case input_fetch_ms
+                case invocation_id
+                case memory_gb
+                case mnemonic
+                case output_upload_ms
+                case queue_ms
+                case queued_at
+                case status_code
+                case target
             }
         }
         /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint`.
@@ -26764,6 +27264,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/platform`.
             public var platform: Swift.String?
+            /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/scope`.
+            public var scope: Swift.String?
             /// Xcode only: the scope the invocation tests.
             ///
             /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode`.
@@ -26813,6 +27317,7 @@ public enum Components {
             ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
             ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
             ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+            ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
                 ancestor_shas: [Swift.String]? = nil,
@@ -26820,6 +27325,7 @@ public enum Components {
                 commit_sha: Swift.String,
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
+                scope: Swift.String? = nil,
                 xcode: Components.Schemas.ResolveTestImpactBaselineParams.xcodePayload? = nil
             ) {
                 self.ancestor_shas = ancestor_shas
@@ -26827,6 +27333,7 @@ public enum Components {
                 self.commit_sha = commit_sha
                 self.parent_shas = parent_shas
                 self.platform = platform
+                self.scope = scope
                 self.xcode = xcode
             }
             public enum CodingKeys: String, CodingKey {
@@ -26835,6 +27342,7 @@ public enum Components {
                 case commit_sha
                 case parent_shas
                 case platform
+                case scope
                 case xcode
             }
         }
@@ -32912,6 +33420,433 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/SelectiveTestingChangedFilesPage`.
         public typealias SelectiveTestingChangedFilesPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail`.
+        public struct BazelRemoteActionDetail: Codable, Hashable, Sendable {
+            /// The REAPI Action digest.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/action_digest`.
+            public struct action_digestPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/action_digest/hash`.
+                public var hash: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/action_digest/size_bytes`.
+                public var size_bytes: Swift.Int
+                /// Creates a new `action_digestPayload`.
+                ///
+                /// - Parameters:
+                ///   - hash:
+                ///   - size_bytes:
+                public init(
+                    hash: Swift.String,
+                    size_bytes: Swift.Int
+                ) {
+                    self.hash = hash
+                    self.size_bytes = size_bytes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case hash
+                    case size_bytes
+                }
+            }
+            /// The REAPI Action digest.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/action_digest`.
+            public var action_digest: Components.Schemas.BazelRemoteActionDetail.action_digestPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/environmentPayload`.
+            public struct environmentPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/environmentPayload/name`.
+                public var name: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/environmentPayload/value`.
+                public var value: Swift.String
+                /// Creates a new `environmentPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - name:
+                ///   - value:
+                public init(
+                    name: Swift.String,
+                    value: Swift.String
+                ) {
+                    self.name = name
+                    self.value = value
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case name
+                    case value
+                }
+            }
+            /// Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/environment`.
+            public typealias environmentPayload = [Components.Schemas.BazelRemoteActionDetail.environmentPayloadPayload]
+            /// Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/environment`.
+            public var environment: Components.Schemas.BazelRemoteActionDetail.environmentPayload
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/execution_ms`.
+            public var execution_ms: Swift.Double?
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/queue_ms`.
+            public var queue_ms: Swift.Double?
+            /// The declared outputs, up to 32 KiB of paths.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/output_paths`.
+            public var output_paths: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/timeout_ms`.
+            public var timeout_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errorsPayload`.
+            public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errorsPayload/column`.
+                public var column: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errorsPayload/line`.
+                public var line: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errorsPayload/message`.
+                public var message: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errorsPayload/path`.
+                public var path: Swift.String
+                /// Creates a new `errorsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - column:
+                ///   - line:
+                ///   - message:
+                ///   - path:
+                public init(
+                    column: Swift.Int? = nil,
+                    line: Swift.Int,
+                    message: Swift.String,
+                    path: Swift.String
+                ) {
+                    self.column = column
+                    self.line = line
+                    self.message = message
+                    self.path = path
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case column
+                    case line
+                    case message
+                    case path
+                }
+            }
+            /// Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errors`.
+            public typealias errorsPayload = [Components.Schemas.BazelRemoteActionDetail.errorsPayloadPayload]
+            /// Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/errors`.
+            public var errors: Components.Schemas.BazelRemoteActionDetail.errorsPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/do_not_cache`.
+            public var do_not_cache: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/configuration_id`.
+            public var configuration_id: Swift.String
+            /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/execution_path`.
+            @frozen public enum execution_pathPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case scheduled = "scheduled"
+                case lease = "lease"
+                case _empty = ""
+            }
+            /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/execution_path`.
+            public var execution_path: Components.Schemas.BazelRemoteActionDetail.execution_pathPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/tool_name`.
+            public var tool_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/arguments`.
+            public var arguments: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/invocation_id`.
+            public var invocation_id: Swift.String
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/output_upload_ms`.
+            public var output_upload_ms: Swift.Double?
+            /// Relative to the action's input root, which is /workspace/action on Tuist's workers. Empty for the input root itself.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/working_directory`.
+            public var working_directory: Swift.String
+            /// How many outputs the command declared; more than output_paths when the list was cut.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/output_count`.
+            public var output_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/worker`.
+            public var worker: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/mnemonic`.
+            public var mnemonic: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/stdout_truncated`.
+            public var stdout_truncated: Swift.Bool
+            /// The gRPC status code of the execution; 0 is OK.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/status_code`.
+            public var status_code: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/stdout_size_bytes`.
+            public var stdout_size_bytes: Swift.Int
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/input_fetch_ms`.
+            public var input_fetch_ms: Swift.Double?
+            /// The Bazel target label, when the client reported it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/exit_code`.
+            public var exit_code: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/stderr_size_bytes`.
+            public var stderr_size_bytes: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/platformPayload`.
+            public struct platformPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/platformPayload/name`.
+                public var name: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/platformPayload/value`.
+                public var value: Swift.String
+                /// Creates a new `platformPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - name:
+                ///   - value:
+                public init(
+                    name: Swift.String,
+                    value: Swift.String
+                ) {
+                    self.name = name
+                    self.value = value
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case name
+                    case value
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/platform`.
+            public typealias platformPayload = [Components.Schemas.BazelRemoteActionDetail.platformPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/platform`.
+            public var platform: Components.Schemas.BazelRemoteActionDetail.platformPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/sandbox_id`.
+            public var sandbox_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/tool_version`.
+            public var tool_version: Swift.String
+            /// Whether the executor served a cached result.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/cached_result`.
+            public var cached_result: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/arguments_truncated`.
+            public var arguments_truncated: Swift.Bool
+            /// The executor's reported timestamps; null when not reported.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/timestamps`.
+            public struct timestampsPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                public var additionalProperties: [String: Foundation.Date?]
+                /// Creates a new `timestampsPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(additionalProperties: [String: Foundation.Date?] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                public init(from decoder: any Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The executor's reported timestamps; null when not reported.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/timestamps`.
+            public var timestamps: Components.Schemas.BazelRemoteActionDetail.timestampsPayload
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/queued_at`.
+            public var queued_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/status_message`.
+            public var status_message: Swift.String
+            /// The remote execution operation ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/id`.
+            public var id: Swift.String
+            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/duration_ms`.
+            public var duration_ms: Swift.Double?
+            /// Up to the first 16 KiB of standard output.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/stdout`.
+            public var stdout: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/stderr_truncated`.
+            public var stderr_truncated: Swift.Bool
+            /// Up to the first 16 KiB of standard error.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BazelRemoteActionDetail/stderr`.
+            public var stderr: Swift.String
+            /// Creates a new `BazelRemoteActionDetail`.
+            ///
+            /// - Parameters:
+            ///   - action_digest: The REAPI Action digest.
+            ///   - environment: Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+            ///   - execution_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - queue_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - output_paths: The declared outputs, up to 32 KiB of paths.
+            ///   - timeout_ms:
+            ///   - errors: Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+            ///   - do_not_cache:
+            ///   - configuration_id:
+            ///   - execution_path: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+            ///   - tool_name:
+            ///   - memory_gb:
+            ///   - arguments:
+            ///   - invocation_id:
+            ///   - output_upload_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - working_directory: Relative to the action's input root, which is /workspace/action on Tuist's workers. Empty for the input root itself.
+            ///   - output_count: How many outputs the command declared; more than output_paths when the list was cut.
+            ///   - worker:
+            ///   - mnemonic:
+            ///   - stdout_truncated:
+            ///   - status_code: The gRPC status code of the execution; 0 is OK.
+            ///   - stdout_size_bytes:
+            ///   - input_fetch_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - target: The Bazel target label, when the client reported it.
+            ///   - exit_code:
+            ///   - stderr_size_bytes:
+            ///   - platform:
+            ///   - sandbox_id:
+            ///   - tool_version:
+            ///   - cached_result: Whether the executor served a cached result.
+            ///   - arguments_truncated:
+            ///   - timestamps: The executor's reported timestamps; null when not reported.
+            ///   - queued_at:
+            ///   - status_message:
+            ///   - id: The remote execution operation ID.
+            ///   - duration_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+            ///   - stdout: Up to the first 16 KiB of standard output.
+            ///   - stderr_truncated:
+            ///   - stderr: Up to the first 16 KiB of standard error.
+            public init(
+                action_digest: Components.Schemas.BazelRemoteActionDetail.action_digestPayload,
+                environment: Components.Schemas.BazelRemoteActionDetail.environmentPayload,
+                execution_ms: Swift.Double? = nil,
+                queue_ms: Swift.Double? = nil,
+                output_paths: [Swift.String],
+                timeout_ms: Swift.Int,
+                errors: Components.Schemas.BazelRemoteActionDetail.errorsPayload,
+                do_not_cache: Swift.Bool,
+                configuration_id: Swift.String,
+                execution_path: Components.Schemas.BazelRemoteActionDetail.execution_pathPayload,
+                tool_name: Swift.String,
+                memory_gb: Swift.Int,
+                arguments: [Swift.String],
+                invocation_id: Swift.String,
+                output_upload_ms: Swift.Double? = nil,
+                working_directory: Swift.String,
+                output_count: Swift.Int,
+                worker: Swift.String,
+                mnemonic: Swift.String,
+                stdout_truncated: Swift.Bool,
+                status_code: Swift.Int,
+                stdout_size_bytes: Swift.Int,
+                input_fetch_ms: Swift.Double? = nil,
+                target: Swift.String,
+                exit_code: Swift.Int,
+                stderr_size_bytes: Swift.Int,
+                platform: Components.Schemas.BazelRemoteActionDetail.platformPayload,
+                sandbox_id: Swift.String,
+                tool_version: Swift.String,
+                cached_result: Swift.Bool,
+                arguments_truncated: Swift.Bool,
+                timestamps: Components.Schemas.BazelRemoteActionDetail.timestampsPayload,
+                queued_at: Foundation.Date? = nil,
+                status_message: Swift.String,
+                id: Swift.String,
+                duration_ms: Swift.Double? = nil,
+                stdout: Swift.String,
+                stderr_truncated: Swift.Bool,
+                stderr: Swift.String
+            ) {
+                self.action_digest = action_digest
+                self.environment = environment
+                self.execution_ms = execution_ms
+                self.queue_ms = queue_ms
+                self.output_paths = output_paths
+                self.timeout_ms = timeout_ms
+                self.errors = errors
+                self.do_not_cache = do_not_cache
+                self.configuration_id = configuration_id
+                self.execution_path = execution_path
+                self.tool_name = tool_name
+                self.memory_gb = memory_gb
+                self.arguments = arguments
+                self.invocation_id = invocation_id
+                self.output_upload_ms = output_upload_ms
+                self.working_directory = working_directory
+                self.output_count = output_count
+                self.worker = worker
+                self.mnemonic = mnemonic
+                self.stdout_truncated = stdout_truncated
+                self.status_code = status_code
+                self.stdout_size_bytes = stdout_size_bytes
+                self.input_fetch_ms = input_fetch_ms
+                self.target = target
+                self.exit_code = exit_code
+                self.stderr_size_bytes = stderr_size_bytes
+                self.platform = platform
+                self.sandbox_id = sandbox_id
+                self.tool_version = tool_version
+                self.cached_result = cached_result
+                self.arguments_truncated = arguments_truncated
+                self.timestamps = timestamps
+                self.queued_at = queued_at
+                self.status_message = status_message
+                self.id = id
+                self.duration_ms = duration_ms
+                self.stdout = stdout
+                self.stderr_truncated = stderr_truncated
+                self.stderr = stderr
+            }
+            public enum CodingKeys: String, CodingKey {
+                case action_digest
+                case environment
+                case execution_ms
+                case queue_ms
+                case output_paths
+                case timeout_ms
+                case errors
+                case do_not_cache
+                case configuration_id
+                case execution_path
+                case tool_name
+                case memory_gb
+                case arguments
+                case invocation_id
+                case output_upload_ms
+                case working_directory
+                case output_count
+                case worker
+                case mnemonic
+                case stdout_truncated
+                case status_code
+                case stdout_size_bytes
+                case input_fetch_ms
+                case target
+                case exit_code
+                case stderr_size_bytes
+                case platform
+                case sandbox_id
+                case tool_version
+                case cached_result
+                case arguments_truncated
+                case timestamps
+                case queued_at
+                case status_message
+                case id
+                case duration_ms
+                case stdout
+                case stderr_truncated
+                case stderr
+            }
+        }
         /// What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
         ///
         /// - Remark: Generated from `#/components/schemas/CoverageReported`.
@@ -38099,6 +39034,17 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/commit_sha`.
             public var commit_sha: Swift.String?
+            /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/coverage_policy`.
+            @frozen public enum coverage_policyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case strict = "strict"
+                case instrumented = "instrumented"
+            }
+            /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/coverage_policy`.
+            public var coverage_policy: Components.Schemas.CreateTestImpactRunParams.coverage_policyPayload?
             /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/dirty`.
@@ -38158,6 +39104,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/platform`.
             public var platform: Swift.String?
+            /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/scope`.
+            public var scope: Swift.String?
             /// Xcode only: the scope the invocation tests.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
@@ -38208,6 +39158,7 @@ public enum Components {
             ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
             ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
             ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+            ///   - coverage_policy: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
             ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
             ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
             ///   - git_branch: The git branch, shown on the overview.
@@ -38215,6 +39166,7 @@ public enum Components {
             ///   - modules: Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
             ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
             ///   - platform: The platform the tests run on. Absent where the build system has none.
+            ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
             ///   - xcode: Xcode only: the scope the invocation tests.
             public init(
                 ancestor_shas: [Swift.String]? = nil,
@@ -38223,6 +39175,7 @@ public enum Components {
                 changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload? = nil,
                 changed_files_count: Swift.Int? = nil,
                 commit_sha: Swift.String? = nil,
+                coverage_policy: Components.Schemas.CreateTestImpactRunParams.coverage_policyPayload? = nil,
                 dirty: Swift.Bool? = nil,
                 fallback_reason: Swift.String? = nil,
                 git_branch: Swift.String? = nil,
@@ -38230,6 +39183,7 @@ public enum Components {
                 modules: Components.Schemas.CreateTestImpactRunParams.modulesPayload,
                 parent_shas: [Swift.String]? = nil,
                 platform: Swift.String? = nil,
+                scope: Swift.String? = nil,
                 xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
             ) {
                 self.ancestor_shas = ancestor_shas
@@ -38238,6 +39192,7 @@ public enum Components {
                 self.changed_files = changed_files
                 self.changed_files_count = changed_files_count
                 self.commit_sha = commit_sha
+                self.coverage_policy = coverage_policy
                 self.dirty = dirty
                 self.fallback_reason = fallback_reason
                 self.git_branch = git_branch
@@ -38245,6 +39200,7 @@ public enum Components {
                 self.modules = modules
                 self.parent_shas = parent_shas
                 self.platform = platform
+                self.scope = scope
                 self.xcode = xcode
             }
             public enum CodingKeys: String, CodingKey {
@@ -38254,6 +39210,7 @@ public enum Components {
                 case changed_files
                 case changed_files_count
                 case commit_sha
+                case coverage_policy
                 case dirty
                 case fallback_reason
                 case git_branch
@@ -38261,6 +39218,7 @@ public enum Components {
                 case modules
                 case parent_shas
                 case platform
+                case scope
                 case xcode
             }
         }
@@ -67671,6 +68629,383 @@ public enum Operations {
             }
         }
     }
+    /// Read part of a remote action's standard output or error.
+    ///
+    /// Returns up to 64 KiB of the stream, by byte offset in the original stream. Tuist records the first 16 KiB of each stream and copies longer ones whole, or their last 16 MiB when they are longer, kept like other run artifacts; `recorded` lists the byte ranges available. Without `offset`, returns the stream's last `limit` bytes.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/get(getBazelRemoteActionLog)`.
+    public enum getBazelRemoteActionLog {
+        public static let id: Swift.String = "getBazelRemoteActionLog"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// The ID from listBazelRemoteActions.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path/operation_id`.
+                public var operation_id: Swift.String
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path/stream`.
+                @frozen public enum streamPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case stdout = "stdout"
+                    case stderr = "stderr"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/path/stream`.
+                public var stream: Operations.getBazelRemoteActionLog.Input.Path.streamPayload
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - invocation_id: Bazel invocation identifier.
+                ///   - operation_id: The ID from listBazelRemoteActions.
+                ///   - stream:
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String,
+                    operation_id: Swift.String,
+                    stream: Operations.getBazelRemoteActionLog.Input.Path.streamPayload
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                    self.operation_id = operation_id
+                    self.stream = stream
+                }
+            }
+            public var path: Operations.getBazelRemoteActionLog.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Byte offset to read from.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/query/offset`.
+                public var offset: Swift.Int?
+                /// Bytes to read.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/query/limit`.
+                public var limit: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - offset: Byte offset to read from.
+                ///   - limit: Bytes to read.
+                public init(
+                    offset: Swift.Int? = nil,
+                    limit: Swift.Int? = nil
+                ) {
+                    self.offset = offset
+                    self.limit = limit
+                }
+            }
+            public var query: Operations.getBazelRemoteActionLog.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelRemoteActionLog.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelRemoteActionLog.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getBazelRemoteActionLog.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getBazelRemoteActionLog.Input.Path,
+                query: Operations.getBazelRemoteActionLog.Input.Query = .init(),
+                headers: Operations.getBazelRemoteActionLog.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Where `text` starts in the stream.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/offset`.
+                        public var offset: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/recordedPayload`.
+                        public struct recordedPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/recordedPayload/length`.
+                            public var length: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/recordedPayload/offset`.
+                            public var offset: Swift.Int
+                            /// Creates a new `recordedPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - length:
+                            ///   - offset:
+                            public init(
+                                length: Swift.Int,
+                                offset: Swift.Int
+                            ) {
+                                self.length = length
+                                self.offset = offset
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case length
+                                case offset
+                            }
+                        }
+                        /// The stream's recorded byte ranges.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/recorded`.
+                        public typealias recordedPayload = [Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload.recordedPayloadPayload]
+                        /// The stream's recorded byte ranges.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/recorded`.
+                        public var recorded: Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload.recordedPayload
+                        /// The stream's size when the action ran.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/size_bytes`.
+                        public var size_bytes: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/stream`.
+                        @frozen public enum streamPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case stdout = "stdout"
+                            case stderr = "stderr"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/stream`.
+                        public var stream: Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload.streamPayload
+                        /// Empty when the range was not recorded.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/json/text`.
+                        public var text: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - offset: Where `text` starts in the stream.
+                        ///   - recorded: The stream's recorded byte ranges.
+                        ///   - size_bytes: The stream's size when the action ran.
+                        ///   - stream:
+                        ///   - text: Empty when the range was not recorded.
+                        public init(
+                            offset: Swift.Int,
+                            recorded: Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload.recordedPayload,
+                            size_bytes: Swift.Int,
+                            stream: Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload.streamPayload,
+                            text: Swift.String
+                        ) {
+                            self.offset = offset
+                            self.recorded = recorded
+                            self.size_bytes = size_bytes
+                            self.stream = stream
+                            self.text = text
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case offset
+                            case recorded
+                            case size_bytes
+                            case stream
+                            case text
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getBazelRemoteActionLog.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelRemoteActionLog.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelRemoteActionLog.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Remote action log
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/get(getBazelRemoteActionLog)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getBazelRemoteActionLog.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getBazelRemoteActionLog.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelRemoteActionLog.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelRemoteActionLog.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/get(getBazelRemoteActionLog)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getBazelRemoteActionLog.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getBazelRemoteActionLog.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelRemoteActionLog.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelRemoteActionLog.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Invocation or action not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}/get(getBazelRemoteActionLog)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getBazelRemoteActionLog.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getBazelRemoteActionLog.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get the account's sandbox analytics for a time range.
     ///
     /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
@@ -95839,6 +97174,690 @@ public enum Operations {
             }
         }
     }
+    /// Get one remote action of a Bazel invocation.
+    ///
+    /// Returns the action's command, environment, platform, worker, exit code, the start of its standard output and error, output paths and phase timings.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/get(getBazelRemoteAction)`.
+    public enum getBazelRemoteAction {
+        public static let id: Swift.String = "getBazelRemoteAction"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// The ID from listBazelRemoteActions.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/path/operation_id`.
+                public var operation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - invocation_id: Bazel invocation identifier.
+                ///   - operation_id: The ID from listBazelRemoteActions.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String,
+                    operation_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                    self.operation_id = operation_id
+                }
+            }
+            public var path: Operations.getBazelRemoteAction.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelRemoteAction.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelRemoteAction.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getBazelRemoteAction.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getBazelRemoteAction.Input.Path,
+                headers: Operations.getBazelRemoteAction.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The REAPI Action digest.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/action_digest`.
+                        public struct action_digestPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/action_digest/hash`.
+                            public var hash: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/action_digest/size_bytes`.
+                            public var size_bytes: Swift.Int
+                            /// Creates a new `action_digestPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - hash:
+                            ///   - size_bytes:
+                            public init(
+                                hash: Swift.String,
+                                size_bytes: Swift.Int
+                            ) {
+                                self.hash = hash
+                                self.size_bytes = size_bytes
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case hash
+                                case size_bytes
+                            }
+                        }
+                        /// The REAPI Action digest.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/action_digest`.
+                        public var action_digest: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.action_digestPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/environmentPayload`.
+                        public struct environmentPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/environmentPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/environmentPayload/value`.
+                            public var value: Swift.String
+                            /// Creates a new `environmentPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - name:
+                            ///   - value:
+                            public init(
+                                name: Swift.String,
+                                value: Swift.String
+                            ) {
+                                self.name = name
+                                self.value = value
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case name
+                                case value
+                            }
+                        }
+                        /// Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/environment`.
+                        public typealias environmentPayload = [Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.environmentPayloadPayload]
+                        /// Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/environment`.
+                        public var environment: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.environmentPayload
+                        /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/execution_ms`.
+                        public var execution_ms: Swift.Double?
+                        /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/queue_ms`.
+                        public var queue_ms: Swift.Double?
+                        /// The declared outputs, up to 32 KiB of paths.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/output_paths`.
+                        public var output_paths: [Swift.String]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/timeout_ms`.
+                        public var timeout_ms: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errorsPayload`.
+                        public struct errorsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errorsPayload/column`.
+                            public var column: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errorsPayload/line`.
+                            public var line: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errorsPayload/message`.
+                            public var message: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errorsPayload/path`.
+                            public var path: Swift.String
+                            /// Creates a new `errorsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - column:
+                            ///   - line:
+                            ///   - message:
+                            ///   - path:
+                            public init(
+                                column: Swift.Int? = nil,
+                                line: Swift.Int,
+                                message: Swift.String,
+                                path: Swift.String
+                            ) {
+                                self.column = column
+                                self.line = line
+                                self.message = message
+                                self.path = path
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case column
+                                case line
+                                case message
+                                case path
+                            }
+                        }
+                        /// Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errors`.
+                        public typealias errorsPayload = [Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.errorsPayloadPayload]
+                        /// Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/errors`.
+                        public var errors: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.errorsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/do_not_cache`.
+                        public var do_not_cache: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/configuration_id`.
+                        public var configuration_id: Swift.String
+                        /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/execution_path`.
+                        @frozen public enum execution_pathPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case scheduled = "scheduled"
+                            case lease = "lease"
+                            case _empty = ""
+                        }
+                        /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/execution_path`.
+                        public var execution_path: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.execution_pathPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/tool_name`.
+                        public var tool_name: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/memory_gb`.
+                        public var memory_gb: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/arguments`.
+                        public var arguments: [Swift.String]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/invocation_id`.
+                        public var invocation_id: Swift.String
+                        /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/output_upload_ms`.
+                        public var output_upload_ms: Swift.Double?
+                        /// Relative to the action's input root, which is /workspace/action on Tuist's workers. Empty for the input root itself.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/working_directory`.
+                        public var working_directory: Swift.String
+                        /// How many outputs the command declared; more than output_paths when the list was cut.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/output_count`.
+                        public var output_count: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/worker`.
+                        public var worker: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/mnemonic`.
+                        public var mnemonic: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/stdout_truncated`.
+                        public var stdout_truncated: Swift.Bool
+                        /// The gRPC status code of the execution; 0 is OK.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/status_code`.
+                        public var status_code: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/stdout_size_bytes`.
+                        public var stdout_size_bytes: Swift.Int
+                        /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/input_fetch_ms`.
+                        public var input_fetch_ms: Swift.Double?
+                        /// The Bazel target label, when the client reported it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/target`.
+                        public var target: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/exit_code`.
+                        public var exit_code: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/stderr_size_bytes`.
+                        public var stderr_size_bytes: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/platformPayload`.
+                        public struct platformPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/platformPayload/name`.
+                            public var name: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/platformPayload/value`.
+                            public var value: Swift.String
+                            /// Creates a new `platformPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - name:
+                            ///   - value:
+                            public init(
+                                name: Swift.String,
+                                value: Swift.String
+                            ) {
+                                self.name = name
+                                self.value = value
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case name
+                                case value
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/platform`.
+                        public typealias platformPayload = [Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.platformPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/platform`.
+                        public var platform: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.platformPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/sandbox_id`.
+                        public var sandbox_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/tool_version`.
+                        public var tool_version: Swift.String
+                        /// Whether the executor served a cached result.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/cached_result`.
+                        public var cached_result: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/arguments_truncated`.
+                        public var arguments_truncated: Swift.Bool
+                        /// The executor's reported timestamps; null when not reported.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/timestamps`.
+                        public struct timestampsPayload: Codable, Hashable, Sendable {
+                            /// A container of undocumented properties.
+                            public var additionalProperties: [String: Foundation.Date?]
+                            /// Creates a new `timestampsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - additionalProperties: A container of undocumented properties.
+                            public init(additionalProperties: [String: Foundation.Date?] = .init()) {
+                                self.additionalProperties = additionalProperties
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeAdditionalProperties(additionalProperties)
+                            }
+                        }
+                        /// The executor's reported timestamps; null when not reported.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/timestamps`.
+                        public var timestamps: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.timestampsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/queued_at`.
+                        public var queued_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/status_message`.
+                        public var status_message: Swift.String
+                        /// The remote execution operation ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Double?
+                        /// Up to the first 16 KiB of standard output.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/stdout`.
+                        public var stdout: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/stderr_truncated`.
+                        public var stderr_truncated: Swift.Bool
+                        /// Up to the first 16 KiB of standard error.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/json/stderr`.
+                        public var stderr: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - action_digest: The REAPI Action digest.
+                        ///   - environment: Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+                        ///   - execution_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///   - queue_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///   - output_paths: The declared outputs, up to 32 KiB of paths.
+                        ///   - timeout_ms:
+                        ///   - errors: Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+                        ///   - do_not_cache:
+                        ///   - configuration_id:
+                        ///   - execution_path: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                        ///   - tool_name:
+                        ///   - memory_gb:
+                        ///   - arguments:
+                        ///   - invocation_id:
+                        ///   - output_upload_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///   - working_directory: Relative to the action's input root, which is /workspace/action on Tuist's workers. Empty for the input root itself.
+                        ///   - output_count: How many outputs the command declared; more than output_paths when the list was cut.
+                        ///   - worker:
+                        ///   - mnemonic:
+                        ///   - stdout_truncated:
+                        ///   - status_code: The gRPC status code of the execution; 0 is OK.
+                        ///   - stdout_size_bytes:
+                        ///   - input_fetch_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///   - target: The Bazel target label, when the client reported it.
+                        ///   - exit_code:
+                        ///   - stderr_size_bytes:
+                        ///   - platform:
+                        ///   - sandbox_id:
+                        ///   - tool_version:
+                        ///   - cached_result: Whether the executor served a cached result.
+                        ///   - arguments_truncated:
+                        ///   - timestamps: The executor's reported timestamps; null when not reported.
+                        ///   - queued_at:
+                        ///   - status_message:
+                        ///   - id: The remote execution operation ID.
+                        ///   - duration_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                        ///   - stdout: Up to the first 16 KiB of standard output.
+                        ///   - stderr_truncated:
+                        ///   - stderr: Up to the first 16 KiB of standard error.
+                        public init(
+                            action_digest: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.action_digestPayload,
+                            environment: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.environmentPayload,
+                            execution_ms: Swift.Double? = nil,
+                            queue_ms: Swift.Double? = nil,
+                            output_paths: [Swift.String],
+                            timeout_ms: Swift.Int,
+                            errors: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.errorsPayload,
+                            do_not_cache: Swift.Bool,
+                            configuration_id: Swift.String,
+                            execution_path: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.execution_pathPayload,
+                            tool_name: Swift.String,
+                            memory_gb: Swift.Int,
+                            arguments: [Swift.String],
+                            invocation_id: Swift.String,
+                            output_upload_ms: Swift.Double? = nil,
+                            working_directory: Swift.String,
+                            output_count: Swift.Int,
+                            worker: Swift.String,
+                            mnemonic: Swift.String,
+                            stdout_truncated: Swift.Bool,
+                            status_code: Swift.Int,
+                            stdout_size_bytes: Swift.Int,
+                            input_fetch_ms: Swift.Double? = nil,
+                            target: Swift.String,
+                            exit_code: Swift.Int,
+                            stderr_size_bytes: Swift.Int,
+                            platform: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.platformPayload,
+                            sandbox_id: Swift.String,
+                            tool_version: Swift.String,
+                            cached_result: Swift.Bool,
+                            arguments_truncated: Swift.Bool,
+                            timestamps: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload.timestampsPayload,
+                            queued_at: Foundation.Date? = nil,
+                            status_message: Swift.String,
+                            id: Swift.String,
+                            duration_ms: Swift.Double? = nil,
+                            stdout: Swift.String,
+                            stderr_truncated: Swift.Bool,
+                            stderr: Swift.String
+                        ) {
+                            self.action_digest = action_digest
+                            self.environment = environment
+                            self.execution_ms = execution_ms
+                            self.queue_ms = queue_ms
+                            self.output_paths = output_paths
+                            self.timeout_ms = timeout_ms
+                            self.errors = errors
+                            self.do_not_cache = do_not_cache
+                            self.configuration_id = configuration_id
+                            self.execution_path = execution_path
+                            self.tool_name = tool_name
+                            self.memory_gb = memory_gb
+                            self.arguments = arguments
+                            self.invocation_id = invocation_id
+                            self.output_upload_ms = output_upload_ms
+                            self.working_directory = working_directory
+                            self.output_count = output_count
+                            self.worker = worker
+                            self.mnemonic = mnemonic
+                            self.stdout_truncated = stdout_truncated
+                            self.status_code = status_code
+                            self.stdout_size_bytes = stdout_size_bytes
+                            self.input_fetch_ms = input_fetch_ms
+                            self.target = target
+                            self.exit_code = exit_code
+                            self.stderr_size_bytes = stderr_size_bytes
+                            self.platform = platform
+                            self.sandbox_id = sandbox_id
+                            self.tool_version = tool_version
+                            self.cached_result = cached_result
+                            self.arguments_truncated = arguments_truncated
+                            self.timestamps = timestamps
+                            self.queued_at = queued_at
+                            self.status_message = status_message
+                            self.id = id
+                            self.duration_ms = duration_ms
+                            self.stdout = stdout
+                            self.stderr_truncated = stderr_truncated
+                            self.stderr = stderr
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case action_digest
+                            case environment
+                            case execution_ms
+                            case queue_ms
+                            case output_paths
+                            case timeout_ms
+                            case errors
+                            case do_not_cache
+                            case configuration_id
+                            case execution_path
+                            case tool_name
+                            case memory_gb
+                            case arguments
+                            case invocation_id
+                            case output_upload_ms
+                            case working_directory
+                            case output_count
+                            case worker
+                            case mnemonic
+                            case stdout_truncated
+                            case status_code
+                            case stdout_size_bytes
+                            case input_fetch_ms
+                            case target
+                            case exit_code
+                            case stderr_size_bytes
+                            case platform
+                            case sandbox_id
+                            case tool_version
+                            case cached_result
+                            case arguments_truncated
+                            case timestamps
+                            case queued_at
+                            case status_message
+                            case id
+                            case duration_ms
+                            case stdout
+                            case stderr_truncated
+                            case stderr
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getBazelRemoteAction.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelRemoteAction.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelRemoteAction.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Remote action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/get(getBazelRemoteAction)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getBazelRemoteAction.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getBazelRemoteAction.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelRemoteAction.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelRemoteAction.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/get(getBazelRemoteAction)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getBazelRemoteAction.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getBazelRemoteAction.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelRemoteAction.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelRemoteAction.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Invocation or action not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/get(getBazelRemoteAction)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getBazelRemoteAction.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getBazelRemoteAction.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a Mix compiled file and its analytics across builds.
     ///
     /// Get a Mix compiled file and its analytics across builds.
@@ -100546,6 +102565,496 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the remote actions of a Bazel invocation.
+    ///
+    /// Actions Tuist remote execution ran for the invocation, as the execution gateway recorded them, kept for 90 days. Records are best effort: a missing action does not prove it did not run remotely.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/get(listBazelRemoteActions)`.
+    public enum listBazelRemoteActions {
+        public static let id: Swift.String = "listBazelRemoteActions"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - invocation_id: Bazel invocation identifier.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                }
+            }
+            public var path: Operations.listBazelRemoteActions.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The maximum number of results to return.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// The page number.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query/page`.
+                public var page: Swift.Int?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case duration = "duration"
+                    case queued_at = "queued_at"
+                }
+                /// Longest first, or earliest queued first.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query/sort_by`.
+                public var sort_by: Operations.listBazelRemoteActions.Input.Query.sort_byPayload?
+                /// Only actions that exited non-zero or whose execution failed.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query/failed`.
+                public var failed: Swift.Bool?
+                /// Only actions with this mnemonic.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/query/mnemonic`.
+                public var mnemonic: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page_size: The maximum number of results to return.
+                ///   - page: The page number.
+                ///   - sort_by: Longest first, or earliest queued first.
+                ///   - failed: Only actions that exited non-zero or whose execution failed.
+                ///   - mnemonic: Only actions with this mnemonic.
+                public init(
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil,
+                    sort_by: Operations.listBazelRemoteActions.Input.Query.sort_byPayload? = nil,
+                    failed: Swift.Bool? = nil,
+                    mnemonic: Swift.String? = nil
+                ) {
+                    self.page_size = page_size
+                    self.page = page
+                    self.sort_by = sort_by
+                    self.failed = failed
+                    self.mnemonic = mnemonic
+                }
+            }
+            public var query: Operations.listBazelRemoteActions.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBazelRemoteActions.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBazelRemoteActions.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listBazelRemoteActions.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listBazelRemoteActions.Input.Path,
+                query: Operations.listBazelRemoteActions.Input.Query = .init(),
+                headers: Operations.listBazelRemoteActions.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload`.
+                        public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The REAPI Action digest.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/action_digest`.
+                            public struct action_digestPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/action_digest/hash`.
+                                public var hash: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/action_digest/size_bytes`.
+                                public var size_bytes: Swift.Int
+                                /// Creates a new `action_digestPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - hash:
+                                ///   - size_bytes:
+                                public init(
+                                    hash: Swift.String,
+                                    size_bytes: Swift.Int
+                                ) {
+                                    self.hash = hash
+                                    self.size_bytes = size_bytes
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case hash
+                                    case size_bytes
+                                }
+                            }
+                            /// The REAPI Action digest.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/action_digest`.
+                            public var action_digest: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayloadPayload.action_digestPayload
+                            /// Whether the executor served a cached result.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/cached_result`.
+                            public var cached_result: Swift.Bool
+                            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/duration_ms`.
+                            public var duration_ms: Swift.Double?
+                            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/execution_ms`.
+                            public var execution_ms: Swift.Double?
+                            /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/execution_path`.
+                            @frozen public enum execution_pathPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case scheduled = "scheduled"
+                                case lease = "lease"
+                                case _empty = ""
+                            }
+                            /// Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/execution_path`.
+                            public var execution_path: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayloadPayload.execution_pathPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/exit_code`.
+                            public var exit_code: Swift.Int
+                            /// The remote execution operation ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/id`.
+                            public var id: Swift.String
+                            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/input_fetch_ms`.
+                            public var input_fetch_ms: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/invocation_id`.
+                            public var invocation_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/memory_gb`.
+                            public var memory_gb: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/mnemonic`.
+                            public var mnemonic: Swift.String
+                            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/output_upload_ms`.
+                            public var output_upload_ms: Swift.Double?
+                            /// Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/queue_ms`.
+                            public var queue_ms: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/queued_at`.
+                            public var queued_at: Foundation.Date?
+                            /// The gRPC status code of the execution; 0 is OK.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/status_code`.
+                            public var status_code: Swift.Int
+                            /// The Bazel target label, when the client reported it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actionsPayload/target`.
+                            public var target: Swift.String
+                            /// Creates a new `actionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - action_digest: The REAPI Action digest.
+                            ///   - cached_result: Whether the executor served a cached result.
+                            ///   - duration_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///   - execution_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///   - execution_path: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                            ///   - exit_code:
+                            ///   - id: The remote execution operation ID.
+                            ///   - input_fetch_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///   - invocation_id:
+                            ///   - memory_gb:
+                            ///   - mnemonic:
+                            ///   - output_upload_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///   - queue_ms: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                            ///   - queued_at:
+                            ///   - status_code: The gRPC status code of the execution; 0 is OK.
+                            ///   - target: The Bazel target label, when the client reported it.
+                            public init(
+                                action_digest: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayloadPayload.action_digestPayload,
+                                cached_result: Swift.Bool,
+                                duration_ms: Swift.Double? = nil,
+                                execution_ms: Swift.Double? = nil,
+                                execution_path: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayloadPayload.execution_pathPayload,
+                                exit_code: Swift.Int,
+                                id: Swift.String,
+                                input_fetch_ms: Swift.Double? = nil,
+                                invocation_id: Swift.String,
+                                memory_gb: Swift.Int,
+                                mnemonic: Swift.String,
+                                output_upload_ms: Swift.Double? = nil,
+                                queue_ms: Swift.Double? = nil,
+                                queued_at: Foundation.Date? = nil,
+                                status_code: Swift.Int,
+                                target: Swift.String
+                            ) {
+                                self.action_digest = action_digest
+                                self.cached_result = cached_result
+                                self.duration_ms = duration_ms
+                                self.execution_ms = execution_ms
+                                self.execution_path = execution_path
+                                self.exit_code = exit_code
+                                self.id = id
+                                self.input_fetch_ms = input_fetch_ms
+                                self.invocation_id = invocation_id
+                                self.memory_gb = memory_gb
+                                self.mnemonic = mnemonic
+                                self.output_upload_ms = output_upload_ms
+                                self.queue_ms = queue_ms
+                                self.queued_at = queued_at
+                                self.status_code = status_code
+                                self.target = target
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case action_digest
+                                case cached_result
+                                case duration_ms
+                                case execution_ms
+                                case execution_path
+                                case exit_code
+                                case id
+                                case input_fetch_ms
+                                case invocation_id
+                                case memory_gb
+                                case mnemonic
+                                case output_upload_ms
+                                case queue_ms
+                                case queued_at
+                                case status_code
+                                case target
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actions`.
+                        public typealias actionsPayload = [Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/actions`.
+                        public var actions: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - actions:
+                        ///   - pagination_metadata:
+                        public init(
+                            actions: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload.actionsPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
+                            self.actions = actions
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case actions
+                            case pagination_metadata
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/200/content/application\/json`.
+                    case json(Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listBazelRemoteActions.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelRemoteActions.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelRemoteActions.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Remote actions
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/get(listBazelRemoteActions)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listBazelRemoteActions.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listBazelRemoteActions.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelRemoteActions.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelRemoteActions.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/get(listBazelRemoteActions)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listBazelRemoteActions.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listBazelRemoteActions.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelRemoteActions.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelRemoteActions.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Invocation or action not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/get(listBazelRemoteActions)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listBazelRemoteActions.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listBazelRemoteActions.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -119601,6 +122110,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/platform`.
                     public var platform: Swift.String?
+                    /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/scope`.
+                    public var scope: Swift.String?
                     /// Xcode only: the scope the invocation tests.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode`.
@@ -119650,6 +122163,7 @@ public enum Operations {
                     ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
                     ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
                     ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                    ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
                         ancestor_shas: [Swift.String]? = nil,
@@ -119657,6 +122171,7 @@ public enum Operations {
                         commit_sha: Swift.String,
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
+                        scope: Swift.String? = nil,
                         xcode: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
                         self.ancestor_shas = ancestor_shas
@@ -119664,6 +122179,7 @@ public enum Operations {
                         self.commit_sha = commit_sha
                         self.parent_shas = parent_shas
                         self.platform = platform
+                        self.scope = scope
                         self.xcode = xcode
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -119672,6 +122188,7 @@ public enum Operations {
                         case commit_sha
                         case parent_shas
                         case platform
+                        case scope
                         case xcode
                     }
                 }
@@ -145503,6 +148020,17 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/commit_sha`.
                     public var commit_sha: Swift.String?
+                    /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/coverage_policy`.
+                    @frozen public enum coverage_policyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case strict = "strict"
+                        case instrumented = "instrumented"
+                    }
+                    /// Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/coverage_policy`.
+                    public var coverage_policy: Operations.createTestImpactRun.Input.Body.jsonPayload.coverage_policyPayload?
                     /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/dirty`.
@@ -145562,6 +148090,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/platform`.
                     public var platform: Swift.String?
+                    /// The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/scope`.
+                    public var scope: Swift.String?
                     /// Xcode only: the scope the invocation tests.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
@@ -145612,6 +148144,7 @@ public enum Operations {
                     ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
                     ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
                     ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                    ///   - coverage_policy: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
                     ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
                     ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
                     ///   - git_branch: The git branch, shown on the overview.
@@ -145619,6 +148152,7 @@ public enum Operations {
                     ///   - modules: Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
                     ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
                     ///   - platform: The platform the tests run on. Absent where the build system has none.
+                    ///   - scope: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
                     ///   - xcode: Xcode only: the scope the invocation tests.
                     public init(
                         ancestor_shas: [Swift.String]? = nil,
@@ -145627,6 +148161,7 @@ public enum Operations {
                         changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload? = nil,
                         changed_files_count: Swift.Int? = nil,
                         commit_sha: Swift.String? = nil,
+                        coverage_policy: Operations.createTestImpactRun.Input.Body.jsonPayload.coverage_policyPayload? = nil,
                         dirty: Swift.Bool? = nil,
                         fallback_reason: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
@@ -145634,6 +148169,7 @@ public enum Operations {
                         modules: Operations.createTestImpactRun.Input.Body.jsonPayload.modulesPayload,
                         parent_shas: [Swift.String]? = nil,
                         platform: Swift.String? = nil,
+                        scope: Swift.String? = nil,
                         xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
                     ) {
                         self.ancestor_shas = ancestor_shas
@@ -145642,6 +148178,7 @@ public enum Operations {
                         self.changed_files = changed_files
                         self.changed_files_count = changed_files_count
                         self.commit_sha = commit_sha
+                        self.coverage_policy = coverage_policy
                         self.dirty = dirty
                         self.fallback_reason = fallback_reason
                         self.git_branch = git_branch
@@ -145649,6 +148186,7 @@ public enum Operations {
                         self.modules = modules
                         self.parent_shas = parent_shas
                         self.platform = platform
+                        self.scope = scope
                         self.xcode = xcode
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -145658,6 +148196,7 @@ public enum Operations {
                         case changed_files
                         case changed_files_count
                         case commit_sha
+                        case coverage_policy
                         case dirty
                         case fallback_reason
                         case git_branch
@@ -145665,6 +148204,7 @@ public enum Operations {
                         case modules
                         case parent_shas
                         case platform
+                        case scope
                         case xcode
                     }
                 }

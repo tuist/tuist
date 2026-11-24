@@ -118,6 +118,7 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
         guard FileManager.default.fileExists(atPath: directory.pathString) else {
             throw SnapshotsUploadServiceError.missingDirectory(directory)
         }
+        let started = ContinuousClock.now
         let images = try await SnapshotImages.collect(directory: directory)
         guard !images.isEmpty else {
             AlertController.current.warning(.alert("No snapshot images in \(directory.pathString); nothing to upload."))
@@ -160,17 +161,21 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
 
         let files = Dictionary(images.map { ($0.manifest.contentHash, $0.path) }, uniquingKeysWith: { first, _ in first })
         let uploads = created.uploads.compactMap { upload in files[upload.contentHash].map { ($0, upload.url) } }
-        _ = try await uploads.concurrentMap(maxConcurrentTasks: 8) { [snapshotBuildService] file, url in
+        let concurrency = SnapshotImages.maxConcurrentTransfers
+        let sizes = try await uploads.concurrentMap(maxConcurrentTasks: concurrency) { [snapshotBuildService] file, url in
             try await snapshotBuildService.uploadSnapshotImage(file, to: url)
+            return SnapshotImages.fileSize(file)
         }
         _ = try await snapshotBuildService.completeSnapshotBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             buildID: created.build.id
         )
+        let uploaded = ContinuousClock.now
         if !options.json {
+            let transfer = SnapshotImages.transferSummary(bytes: sizes.reduce(0, +), duration: uploaded - started)
             AlertController.current.success(
-                .alert("Uploaded \(images.count) snapshot images (\(uploads.count) new) to set '\(options.set)'.")
+                .alert("Uploaded \(images.count) snapshot images (\(uploads.count) new, \(transfer)) to set '\(options.set)'.")
             )
         }
 
@@ -178,7 +183,12 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
         if options.json {
             try Noora.current.json(SnapshotBuildOutput(build))
         }
-        try report(build, failOnChanges: options.failOnChanges, quiet: options.json)
+        try report(
+            build,
+            comparison: SnapshotImages.seconds(ContinuousClock.now - uploaded),
+            failOnChanges: options.failOnChanges,
+            quiet: options.json
+        )
         return build
     }
 
@@ -197,9 +207,12 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
         )
     }
 
+    /// Most comparisons finish within a second or two, so the first polls come quickly and back
+    /// off to `pollInterval`: a fixed interval left every run waiting for its next tick.
     private func awaitVerdict(fullHandle: String, serverURL: URL, buildID: String) async throws -> ServerSnapshotBuild {
         let clock = ContinuousClock()
         let deadline = clock.now + timeout
+        var interval = min(.milliseconds(250), pollInterval)
         while true {
             let build = try await snapshotBuildService.getSnapshotBuild(
                 fullHandle: fullHandle,
@@ -207,11 +220,12 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
                 buildID: buildID
             )
             if build.status != "processing" || clock.now >= deadline { return build }
-            try await Task.sleep(for: pollInterval)
+            try await Task.sleep(for: interval)
+            interval = min(interval * 2, pollInterval)
         }
     }
 
-    private func report(_ build: ServerSnapshotBuild, failOnChanges: Bool, quiet: Bool) throws {
+    private func report(_ build: ServerSnapshotBuild, comparison: String, failOnChanges: Bool, quiet: Bool) throws {
         let summary = [
             "\(build.changedCount) changed",
             "\(build.addedCount) added",
@@ -236,7 +250,11 @@ public struct SnapshotsUploadService: SnapshotsUploadServicing {
         case "processing":
             if !quiet { AlertController.current.warning(.alert("The snapshot comparison is still running. See \(build.url)")) }
         default:
-            if !quiet { AlertController.current.success(.alert("Snapshots \(build.status) (\(summary)): \(build.url)")) }
+            if !quiet {
+                AlertController.current.success(
+                    .alert("Snapshots \(build.status) (\(summary), compared in \(comparison)): \(build.url)")
+                )
+            }
         }
     }
 

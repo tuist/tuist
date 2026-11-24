@@ -457,7 +457,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   that exchanges only while the build runs (`CommandCredentials`): an
   unauthenticated `tuist generate` skips the cache setup and writes other
   build settings than a session's, and the session's first build then
-  recompiled everything (measured, 2026-11). After the script the build
+  recompiled everything (measured, 2026-11). The script runs without the
+  clone's `GIT_TERMINAL_PROMPT`, since Tuist keys its package-manifest cache
+  on the environment and a session's commands lack it. After the script the build
   deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
   simulator devices and stops the simulator services, since runtimes mount
   at new paths on each boot and a Mac restored with the builder's devices

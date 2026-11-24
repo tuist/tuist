@@ -917,6 +917,17 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 			synced = true
 		}
 	}
+	// A ballooned guest returns the cache it drops, so the snapshot stores
+	// zeros (punched below) instead of cache the guest rereads from disk.
+	if m.builder != nil && m.builder.Balloon {
+		dropStart := time.Now()
+		if cached, err := m.dropGuestCache(ctx, sb); err != nil {
+			m.log.Warn("dropping the guest's page cache before pause failed", "sandbox", id, "error", err)
+		} else if cached > 64<<20 {
+			awaitReturnedMemory(ctx, inst, 10*time.Second)
+			m.log.Info("dropped the guest's page cache before pause", "sandbox", id, "cached_bytes", cached, "duration", time.Since(dropStart))
+		}
+	}
 	api := inst.API()
 	if err := api.PatchVMState(ctx, firecracker.VMPaused); err != nil {
 		return res, err

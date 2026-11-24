@@ -4514,8 +4514,9 @@ observability:
 # Sends a copy of every Sentry error to Pulse as well as to each service's
 # primary DSN (Atlas), to compare the two backends. Atlas stays primary: the
 # copy is fire-and-forget (TuistCommon.SentryHTTPClient, Kura's
-# FanOutTransport). Only the web server and Kura send copies, and Pulse's
-# NetworkPolicy admits only them. Off for every service by default. Each
+# FanOutTransport). The server (web, processor and registry sync pods), the
+# registry and Kura send copies, and Pulse's NetworkPolicy admits only them.
+# Off for every service by default. Each
 # enabled service gets the DSN http://<user>:<password>@<host>/v1/sentry/<service>/1,
 # built from the write-only Pulse user whose password lives in `item`/`field`
 # of the environment's vault.
@@ -4542,12 +4543,29 @@ sentryPulse:
   field: password
   host: pulse.observability.svc.cluster.local:4000
   services:
-    # TUIST_SENTRY_PULSE_DSN in the server-config Secret. Only web instances
-    # use it (Tuist.Environment.sentry_pulse_dsn/2); the processors and
-    # registry sync share the Secret but Pulse does not admit them.
+    # TUIST_SENTRY_PULSE_DSN in the server-config Secret. The web, processor
+    # and registry sync pods use it (Tuist.Environment.sentry_pulse_dsn/2);
+    # the xcresult processors share the Secret but run outside the cluster
+    # network, so they do not.
     server: false
+    # TUIST_SENTRY_PULSE_DSN in the registry's runtime Secret, under the
+    # `registry` service. Needs registry.managedSecrets; also opens the
+    # registry's egress to Pulse.
+    registry: false
     # KURA_SENTRY_PULSE_DSN, merged into kura-shared-secrets for every Kura pod.
     kura: false
+  # TUIST_SENTRY_PULSE_PUBLIC_DSN in the server-config Secret, for the
+  # xcresult processors: they run in Tart VMs outside the cluster network,
+  # so they post to the server's public Sentry endpoint (`url`, the enrolled
+  # Pulse account's) instead, with an account token holding only
+  # account:pulse:write as the DSN key. Create the token on the environment's
+  # server and store it in `item`/`field` before enabling: a missing item
+  # fails the server's ExternalSecret and blocks its deploy.
+  xcresultProcessor:
+    enabled: false
+    url: ""  # such as https://tuist.dev/api/accounts/tuist/pulse/sentry/server/1
+    item: PULSE_SENTRY_XCRESULT
+    field: token
 
 # One global wildcard fallback; explicit account Route53 records take precedence.
 # Enable in one cluster only after validation. No PVCs or Kubernetes API token.

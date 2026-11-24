@@ -44,7 +44,14 @@ defmodule Tuist.Runners.Workers.BitrisePollWorker do
 
   defp run_window(connection, deadline) do
     result = Bitrise.poll(connection)
-    Bitrise.record_poll_result(connection, normalize(result))
+
+    # The next pass compares its error with the one just stored, so it
+    # logs only a change.
+    connection =
+      case Bitrise.record_poll_result(connection, normalize(result)) do
+        {:ok, updated} -> updated
+        _ -> connection
+      end
 
     cond do
       match?({:error, reason} when reason in @halting_errors, result) ->

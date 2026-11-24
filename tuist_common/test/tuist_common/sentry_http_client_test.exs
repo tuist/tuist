@@ -65,6 +65,25 @@ defmodule TuistCommon.SentryHTTPClientTest do
                "sentry_key=sentry, sentry_secret=pulse-secret"
   end
 
+  test "copies with only a key when the Pulse DSN has no secret, as the public endpoint's does" do
+    atlas = start_stub(:atlas)
+    pulse = start_stub(:pulse)
+    # An account token's base64 `/`, `+` and `=` stay percent-encoded; the
+    # server's SentryAuthPlug decodes them.
+    pulse_dsn(
+      "http://tuist_ab%2Bc%2Fd%3D@#{URI.parse(pulse).authority}/api/accounts/tuist/pulse/sentry/server/1"
+    )
+
+    SentryHTTPClient.post("#{atlas}/api/1/envelope/", [{"X-Sentry-Auth", @atlas_auth}], @body)
+
+    assert_receive {:pulse, "/api/accounts/tuist/pulse/sentry/server/api/1/envelope/",
+                    pulse_headers, @body}
+
+    assert header(pulse_headers, "x-sentry-auth") ==
+             "Sentry sentry_version=7, sentry_client=sentry-elixir/11.0.4, sentry_timestamp=1, " <>
+               "sentry_key=tuist_ab%2Bc%2Fd%3D"
+  end
+
   test "returns Atlas's response without waiting for a slow Pulse" do
     atlas = start_stub(:atlas)
     pulse = start_stub(:pulse, delay: 3_000)
@@ -85,7 +104,7 @@ defmodule TuistCommon.SentryHTTPClientTest do
 
     for dsn <- [
           "http://sentry:pulse-secret@127.0.0.1:1/v1/sentry/server/1",
-          "http://sentry@127.0.0.1:1/v1/sentry/server/1",
+          "http://127.0.0.1:1/v1/sentry/server/1",
           "not a dsn"
         ] do
       pulse_dsn(dsn)

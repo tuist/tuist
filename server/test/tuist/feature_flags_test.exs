@@ -117,11 +117,11 @@ defmodule Tuist.FeatureFlagsTest do
     test "canary and production require the account flag" do
       account = %Account{id: 42, name: "tuist"}
 
-      for env <- [:can, :prod], flag? <- [true, false] do
+      for env <- [:can, :prod], flag? <- [true, false], build_system <- [:xcode, :once] do
         stub(Environment, :env, fn -> env end)
         stub(FunWithFlags, :enabled?, fn :test_impact_analysis, [for: ^account] -> flag? end)
 
-        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) == flag?
+        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: build_system}) == flag?
       end
     end
 

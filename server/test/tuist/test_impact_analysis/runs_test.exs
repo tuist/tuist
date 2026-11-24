@@ -117,7 +117,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert run.commit_sha == "c2"
       assert run.baseline_run_ids == [baseline.id]
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
-      assert run.rules_version == "2"
+      assert run.rules_version == "3"
       assert List.last(run.rule_trace).rule == "unaffected"
       assert run.build_context == %{"scheme" => "App"}
 

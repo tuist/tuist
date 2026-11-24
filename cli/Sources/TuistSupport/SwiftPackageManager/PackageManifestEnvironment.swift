@@ -70,6 +70,12 @@ public enum PackageManifestEnvironment {
             "TMUX_PANE",
             "XPC_SERVICE_NAME",
             "__MISE_*",
+            // mise sets these for the hooks and tasks it runs, such as a
+            // postinstall hook running `tuist install`, and the shell lacks them.
+            "MISE_INSTALLED_TOOLS",
+            "MISE_NO_HOOKS",
+            "MISE_ORIGINAL_CWD",
+            "MISE_PROJECT_ROOT",
             "CLAUDECODE",
             "CLAUDE_*",
             "TUIST_CACHE_ENDPOINT",

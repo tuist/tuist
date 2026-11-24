@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "dc8399bf295ff7be7f69b4cbc3b272826c292212898d534d622527fa620bf819",
+  "hash": "13ad73de263456741794078348723f9cc661516c13f36ca8d76e5dd0a7fd1cc2",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# API {#api}": {
-                  "content_hash": "ee4758d5d96024c44a9fa140363e71b8f140f70c3539e48b7978d6ceb1646628"
+                  "content_hash": "8ae77e7f0b93ebbfd8fe5f3a8b6ef8349b54ca4162af708d9d69bb8a35cad5bf"
                 },
                 "## Caching and trust {#trust}": {
                   "content_hash": "c251e6350966c681aa9119e42460fa6f4b32976de34fb9b8452fcf7c002eeb3a"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2de8a7c6667b21700dbd11ba1cb29c9707dab3e695356d65f0baeac216c137d9",
+          "hash": "648159e3e7bfc3f7236cbc5d2165d5b220867251a0bd1236d3a05a1cbd1c1aa2",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/runners/ci-providers/api.md",
           "metadata": {
-            "content_hash": "ba261abcca8ea7a68758082b821e2dc117cebd2f437a1b8dcd0ce985866a7957"
+            "content_hash": "1871128513476240a4e2fa3a7c6c695fc0413b811d72fff35fb7bd1a8a57622e"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "dc8399bf295ff7be7f69b4cbc3b272826c292212898d534d622527fa620bf819",
+      "hash": "13ad73de263456741794078348723f9cc661516c13f36ca8d76e5dd0a7fd1cc2",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/runners/ci-providers/api.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "8ebcd6a18420979d86aefd1a08986d937437d26f44966899aa37b0d44aa035a2",
+  "output_hash": "1bca97f4220f7749fb39dab68eb5c35d3d794f8f08f288f628c01443b7c00fc3",
   "output_path": "server/priv/docs/zh_Hant/guides/features/runners/ci-providers/api.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +260,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1e6d3d407b9ed8b1be711409d6b85b315f19218f",
+  "source_commit_sha": "b8555c38b38b06097bb039927ff09f5e43d2768b",
   "source_path": "server/priv/docs/en/guides/features/runners/ci-providers/api.md",
-  "translated_at": "2026-11-19T14:13:27.281999Z",
-  "translation_session_id": "01a1f425-ef20-75ca-a48f-3b41bfd55274"
+  "translated_at": "2026-11-24T16:49:25.506275Z",
+  "translation_session_id": "01a20e70-9654-7b34-acb1-e4dffd01b038"
 }

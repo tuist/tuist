@@ -69,6 +69,11 @@ spec:
           port: 4317
         - protocol: TCP
           port: 4318
+        {{- if $.Values.sentryPulse.services.registry }}
+        # Pulse's HTTP API, for the copy of each error (sentryPulse).
+        - protocol: TCP
+          port: 4000
+        {{- end }}
     {{- end }}
     - to:
         - ipBlock:

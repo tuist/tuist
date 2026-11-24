@@ -38,6 +38,5 @@ defmodule Tuist.Runners.Workers.GitLabPollWorker do
   defp continue_polling?({:ok, :inactive}), do: false
   defp continue_polling?({:ok, _}), do: true
   defp continue_polling?({:error, :invalid_job_tags}), do: true
-  defp continue_polling?({:error, :shape_exceeds_limit}), do: true
   defp continue_polling?(_), do: false
 end

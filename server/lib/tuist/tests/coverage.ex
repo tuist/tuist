@@ -79,7 +79,7 @@ defmodule Tuist.Tests.Coverage do
 
   # The build systems whose clients report coverage (`supported?/1`). Add one
   # here once its client does.
-  @build_systems [:xcode, :mix, :cargo, :gradle]
+  @build_systems [:xcode, :mix, :cargo, :gradle, :once]
 
   # ClickHouse sends every query parameter as an HTTP form field and refuses a
   # request carrying more than `http_max_fields`, which defaults to 1000. A
@@ -867,11 +867,18 @@ defmodule Tuist.Tests.Coverage do
       )
 
     if Keyword.get(opts, :lines, true) do
+      # One read of the runs' rows names the layouts by week and id; two
+      # (`epoch IN` and `layout_id IN`) read them twice for a looser filter.
       layouts =
         from(l in CoverageFileLayout,
           where:
-            l.project_id == ^project_id and l.epoch in subquery(select(rows, [f], f.epoch)) and
-              l.layout_id in subquery(select(rows, [f], f.layout_id))
+            l.project_id == ^project_id and
+              fragment(
+                "(?, ?) IN ?",
+                l.epoch,
+                l.layout_id,
+                subquery(select(rows, [f], %{epoch: f.epoch, layout_id: f.layout_id}))
+              )
         )
 
       subquery(

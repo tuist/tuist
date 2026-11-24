@@ -1012,6 +1012,26 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       refute File.exists?(Path.join(home, ".cache"))
     end
 
+    test "ends the stream quietly when a later read fails after the client went away", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      %{"id" => id} =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "sleep", args: ["600"]})
+        |> json_response(:accepted)
+
+      expect(Nodes, :call, guest_read("running - 0 0 -", ""))
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:error, "connection reset"} end)
+      # Writing the error line finds the client's socket closed.
+      expect(Plug.Adapters.Test.Conn, :chunk, fn _state, _body -> {:error, :closed} end)
+
+      response = get(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{id}/logs")
+
+      assert response.status == 200
+      assert response.state == :chunked
+    end
+
     test "streams 404 as a plain status for an unknown command", %{conn: conn, account: account} do
       sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
       reject(&Nodes.call/4)

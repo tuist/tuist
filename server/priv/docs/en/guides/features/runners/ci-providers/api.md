@@ -7,8 +7,6 @@
 ---
 # API {#api}
 
-<!-- @snippet: ./_invite-only -->
-
 Git forges, merge queues, and agent orchestrators that have no runner protocol of their own can run jobs on Tuist Runners directly. You create a job with one request, a Tuist machine of the <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> you choose checks out the commit and runs your script, and Tuist reports the result to your webhook endpoint.
 
 ## Run a job {#run-a-job}

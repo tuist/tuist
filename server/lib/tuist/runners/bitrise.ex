@@ -183,10 +183,10 @@ defmodule Tuist.Runners.Bitrise do
          {:ok, builds} <- Client.list_unfinished_builds(connection) do
       settle_finished(connection, account, MapSet.new(builds, & &1.build_slug))
 
-      with :ok <- check_enabled(account) do
-        waiting =
-          Enum.filter(builds, &(is_nil(&1.started_on_worker_at) and Map.has_key?(pools_by_stack, &1.stack_identifier)))
+      waiting =
+        Enum.filter(builds, &(is_nil(&1.started_on_worker_at) and Map.has_key?(pools_by_stack, &1.stack_identifier)))
 
+      with :ok <- check_enabled(account, waiting) do
         {:ok, enqueue_waiting(connection, account, pools_by_stack, waiting)}
       end
     end
@@ -206,11 +206,17 @@ defmodule Tuist.Runners.Bitrise do
     end
   end
 
-  defp check_enabled(account) do
-    cond do
-      not FeatureFlags.runners_enabled?(account) -> {:error, :runners_disabled}
-      Allowance.exhausted?(account) -> {:error, :allowance_exhausted}
-      true -> :ok
+  defp check_enabled(account, waiting) do
+    result =
+      cond do
+        not FeatureFlags.runners_enabled?(account) -> {:error, :runners_disabled}
+        Allowance.exhausted?(account) -> {:error, :allowance_exhausted}
+        true -> :ok
+      end
+
+    with {:error, reason} when waiting != [] <- result do
+      Dispatch.report_refused("bitrise", reason, length(waiting))
+      result
     end
   end
 
@@ -225,29 +231,20 @@ defmodule Tuist.Runners.Bitrise do
     |> Enum.reduce(0, fn {stack, stack_builds}, count ->
       pool = Map.fetch!(pools_by_stack, stack)
 
-      with {:ok, target} <- Dispatch.resolve_dispatch_target(account, [pool.profile_label]),
-           :ok <- Dispatch.check_shape_fits_limit(account, target) do
-        enqueued = enqueue_all(connection, account, target, stack_builds)
+      case Dispatch.resolve_dispatch_target(account, [pool.profile_label]) do
+        {:ok, target} ->
+          enqueued = enqueue_all(connection, account, target, stack_builds)
 
-        if enqueued > 0 do
-          Logger.info("runners: bitrise enqueued",
-            account: account.name,
-            stack: stack,
-            fleet: target.pool_name,
-            count: enqueued
-          )
-        end
+          if enqueued > 0 do
+            Logger.info("runners: bitrise enqueued",
+              account: account.name,
+              stack: stack,
+              fleet: target.pool_name,
+              count: enqueued
+            )
+          end
 
-        count + enqueued
-      else
-        {:error, :shape_exceeds_limit} ->
-          Logger.info("runners: bitrise pool shape exceeds the account's concurrency limit",
-            account: account.name,
-            stack: stack,
-            profile: pool.profile_label
-          )
-
-          count
+          count + enqueued
 
         {:error, reason} ->
           Logger.info("runners: bitrise pool matches no profile",
@@ -461,7 +458,6 @@ defmodule Tuist.Runners.Bitrise do
          {:ok, %{status: 0} = remote} <- Client.get_build(connection, app_slug, build_slug),
          %Pool{} = pool <- Map.get(pools_by_stack, remote.stack_identifier) || {:error, :invalid_build},
          {:ok, target} <- Dispatch.resolve_dispatch_target(account, [pool.profile_label]),
-         :ok <- Dispatch.check_shape_fits_limit(account, target),
          1 <- enqueue_all(connection, account, target, [remote]) do
       {:ok, Repo.get_by!(Build, build_slug: build_slug)}
     else
@@ -500,9 +496,21 @@ defmodule Tuist.Runners.Bitrise do
 
   def record_poll_result(%Connection{} = connection, {:error, reason}) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    error = describe_error(reason)
+
+    # Polls repeat every few seconds, so only a new error is logged. A
+    # refused build otherwise sits on Bitrise with nothing in the logs
+    # saying why.
+    if error != connection.last_error do
+      Logger.warning("runners: bitrise poll refused or failed",
+        connection_id: connection.id,
+        account_id: connection.account_id,
+        reason: inspect(reason)
+      )
+    end
 
     connection
-    |> Ecto.Changeset.change(%{last_polled_at: now, last_error: describe_error(reason), last_error_at: now})
+    |> Ecto.Changeset.change(%{last_polled_at: now, last_error: error, last_error_at: now})
     |> Repo.update()
   end
 
@@ -511,7 +519,8 @@ defmodule Tuist.Runners.Bitrise do
   defp describe_error(:not_found), do: "Bitrise does not recognize this workspace."
   defp describe_error(:runners_disabled), do: "Runners are not enabled for this account."
 
-  defp describe_error(:allowance_exhausted), do: "The account's runner allowance is exhausted."
+  defp describe_error(:allowance_exhausted),
+    do: "The account's free runner allowance is exhausted, so waiting builds stay queued on Bitrise."
 
   defp describe_error(reason), do: inspect(reason)
 end

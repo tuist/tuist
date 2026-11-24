@@ -7,8 +7,6 @@
 ---
 # GitLab CI {#gitlab-ci}
 
-<!-- @snippet: ./_invite-only -->
-
 Your pipelines stay in GitLab. Tuist provides an isolated Linux or macOS machine for each job and reports its logs and outcome to GitLab and the Tuist dashboard. GitLab 19.3 or newer is required. GitLab.com and self-managed instances reachable over public HTTPS are supported.
 
 1. **Create a GitLab runner.** In your project's **Settings → CI/CD → Runners**, create a project runner. You can also use a group runner. Add all the Tuist profile labels you want to use as runner tags, for example `tuist-linux` and `tuist-macos`, and disable **Run untagged jobs**. Keep the authentication token GitLab shows, which starts with `glrt-`. You do not need to install a runner on your own machine.

@@ -995,6 +995,46 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
+    func run_preview_link_android_app_rejects_invalid_package_name_before_downloading() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let androidDevice = AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)
+        given(getPreviewService)
+            .getPreview(.any, fullHandle: .any, serverURL: .any)
+            .willReturn(.test(
+                builds: [.test(supportedPlatforms: [.android], type: .apk)],
+                bundleIdentifier: "com.example.app;reboot",
+                supportedPlatforms: [.android]
+            ))
+        given(adbController).findAvailableDevices().willReturn([androidDevice])
+
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        try await fileSystem.touch(downloadedArchive)
+        given(remoteArtifactDownloader).download(url: .any).willReturn(downloadedArchive)
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory).makeFileUnarchiver(for: .any).willReturn(fileUnarchiver)
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+        given(fileUnarchiver).unzip().willReturn(unarchivedPath)
+        try await fileSystem.makeDirectory(at: unarchivedPath)
+        try await fileSystem.touch(unarchivedPath.appending(component: "app.apk"))
+        given(adbController).installApp(at: .any, device: .any).willReturn()
+        given(adbController).launchApp(packageName: .any, device: .any).willReturn()
+
+        // When / Then
+        await #expect(throws: AdbControllerError.invalidPackageName("com.example.app;reboot")) {
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                device: "Pixel_6"
+            )
+        }
+        verify(remoteArtifactDownloader).download(url: .any).called(0)
+        verify(adbController).installApp(at: .any, device: .any).called(0)
+    }
+
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func run_preview_link_android_apk_not_in_archive() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

@@ -4,6 +4,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
 
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
+  alias Tuist.TestImpactAnalysis
   alias Tuist.TestImpactAnalysis.Baselines
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Storage
@@ -47,6 +48,14 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     }
   }
 
+  @scope_schema %Schema{
+    type: :string,
+    minLength: 1,
+    maxLength: 1_024,
+    description:
+      "The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline."
+  }
+
   operation(:baseline,
     summary: "Resolve the baseline for coverage-based test selection.",
     description:
@@ -85,6 +94,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none."
            },
+           scope: @scope_schema,
            xcode: @xcode_schema
          },
          required: [:build_system, :commit_sha]
@@ -115,7 +125,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
       parent_shas: Map.get(params, :parent_shas) || [],
       ancestor_shas: Map.get(params, :ancestor_shas) || [],
       platform: Map.get(params, :platform),
-      scheme: get_in(params, [:xcode, :scheme])
+      scheme: TestImpactAnalysis.scope(params)
     }
 
     case Baselines.resolve(project, scope) do
@@ -231,6 +241,13 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description: "The platform the tests run on. Absent where the build system has none."
            },
            git_branch: %Schema{type: :string, description: "The git branch, shown on the overview."},
+           scope: @scope_schema,
+           coverage_policy: %Schema{
+             type: :string,
+             enum: ["strict", "instrumented"],
+             description:
+               "Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs."
+           },
            xcode: @xcode_schema
          },
          required: [:build_system, :head_sha, :modules]

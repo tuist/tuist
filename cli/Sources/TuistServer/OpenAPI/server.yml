@@ -1155,12 +1155,12 @@ components:
           x-validate:
       required:
         - page
-        - total_pages
-        - total_count
+        - end_at
         - page_size
+        - total_count
+        - total_pages
         - has_next_page
         - has_previous_page
-        - end_at
       title: PulsePagination
       type: object
       x-struct:
@@ -2205,6 +2205,61 @@ components:
         - repository_url
         - shas
       title: MissingCommitListingsRequest
+      type: object
+      x-struct:
+      x-validate:
+    BazelRemoteActionLog:
+      properties:
+        offset:
+          description: Where `text` starts in the stream.
+          type: integer
+          x-struct:
+          x-validate:
+        recorded:
+          description: The stream's recorded byte ranges.
+          items:
+            properties:
+              length:
+                type: integer
+                x-struct:
+                x-validate:
+              offset:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - offset
+              - length
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        size_bytes:
+          description: The stream's size when the action ran.
+          type: integer
+          x-struct:
+          x-validate:
+        stream:
+          enum:
+            - stdout
+            - stderr
+          type: string
+          x-struct:
+          x-validate:
+        text:
+          description: Empty when the range was not recorded.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - stream
+        - size_bytes
+        - offset
+        - text
+        - recorded
+      title: BazelRemoteActionLog
       type: object
       x-struct:
       x-validate:
@@ -7111,8 +7166,8 @@ components:
         - id
         - unit
         - value
-        - points
         - previous_value
+        - points
       title: PulseWidget
       type: object
       x-struct:
@@ -7430,12 +7485,12 @@ components:
               x-validate:
           required:
             - page
-            - total_pages
-            - total_count
+            - end_at
             - page_size
+            - total_count
+            - total_pages
             - has_next_page
             - has_previous_page
-            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -7974,6 +8029,142 @@ components:
       required:
         - organizations
       title: OrganizationList
+      type: object
+      x-struct:
+      x-validate:
+    BazelRemoteActionsList:
+      properties:
+        actions:
+          items:
+            properties:
+              action_digest:
+                description: The REAPI Action digest.
+                properties:
+                  hash:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  size_bytes:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - hash
+                  - size_bytes
+                type: object
+                x-struct:
+                x-validate:
+              cached_result:
+                description: Whether the executor served a cached result.
+                type: boolean
+                x-struct:
+                x-validate:
+              duration_ms:
+                description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              execution_ms:
+                description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              execution_path:
+                description: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                enum:
+                  - scheduled
+                  - lease
+                  - ""
+                type: string
+                x-struct:
+                x-validate:
+              exit_code:
+                type: integer
+                x-struct:
+                x-validate:
+              id:
+                description: The remote execution operation ID.
+                type: string
+                x-struct:
+                x-validate:
+              input_fetch_ms:
+                description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              invocation_id:
+                type: string
+                x-struct:
+                x-validate:
+              memory_gb:
+                type: integer
+                x-struct:
+                x-validate:
+              mnemonic:
+                type: string
+                x-struct:
+                x-validate:
+              output_upload_ms:
+                description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              queue_ms:
+                description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              queued_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              status_code:
+                description: The gRPC status code of the execution; 0 is OK.
+                type: integer
+                x-struct:
+                x-validate:
+              target:
+                description: The Bazel target label, when the client reported it.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - target
+              - exit_code
+              - duration_ms
+              - memory_gb
+              - invocation_id
+              - action_digest
+              - status_code
+              - mnemonic
+              - execution_path
+              - cached_result
+              - queued_at
+              - queue_ms
+              - input_fetch_ms
+              - execution_ms
+              - output_upload_ms
+            title: BazelRemoteAction
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - actions
+        - pagination_metadata
+      title: BazelRemoteActionsList
       type: object
       x-struct:
       x-validate:
@@ -10213,6 +10404,127 @@ components:
       type: object
       x-struct:
       x-validate:
+    BazelRemoteAction:
+      properties:
+        action_digest:
+          description: The REAPI Action digest.
+          properties:
+            hash:
+              type: string
+              x-struct:
+              x-validate:
+            size_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - hash
+            - size_bytes
+          type: object
+          x-struct:
+          x-validate:
+        cached_result:
+          description: Whether the executor served a cached result.
+          type: boolean
+          x-struct:
+          x-validate:
+        duration_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        execution_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        execution_path:
+          description: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+          enum:
+            - scheduled
+            - lease
+            - ""
+          type: string
+          x-struct:
+          x-validate:
+        exit_code:
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: The remote execution operation ID.
+          type: string
+          x-struct:
+          x-validate:
+        input_fetch_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        invocation_id:
+          type: string
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        mnemonic:
+          type: string
+          x-struct:
+          x-validate:
+        output_upload_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        queue_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        queued_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status_code:
+          description: The gRPC status code of the execution; 0 is OK.
+          type: integer
+          x-struct:
+          x-validate:
+        target:
+          description: The Bazel target label, when the client reported it.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - target
+        - exit_code
+        - duration_ms
+        - memory_gb
+        - invocation_id
+        - action_digest
+        - status_code
+        - mnemonic
+        - execution_path
+        - cached_result
+        - queued_at
+        - queue_ms
+        - input_fetch_ms
+        - execution_ms
+        - output_upload_ms
+      title: BazelRemoteAction
+      type: object
+      x-struct:
+      x-validate:
     SandboxAnalyticsSessionDurationPoint:
       additionalProperties: false
       properties:
@@ -11306,8 +11618,8 @@ components:
         - release
         - environment
         - account_handle
-        - event_id
         - trace_id
+        - event_id
       title: PulseErrorEvent
       type: object
       x-struct:
@@ -13769,6 +14081,13 @@ components:
           type: string
           x-struct:
           x-validate:
+        scope:
+          description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+          maxLength: 1024
+          minLength: 1
+          type: string
+          x-struct:
+          x-validate:
         xcode:
           description: 'Xcode only: the scope the invocation tests.'
           properties:
@@ -14308,8 +14627,8 @@ components:
               - release
               - environment
               - account_handle
-              - event_id
               - trace_id
+              - event_id
             title: PulseErrorEvent
             type: object
             x-struct:
@@ -14497,12 +14816,12 @@ components:
               x-validate:
           required:
             - page
-            - total_pages
-            - total_count
+            - end_at
             - page_size
+            - total_count
+            - total_pages
             - has_next_page
             - has_previous_page
-            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -14541,8 +14860,8 @@ components:
         - events
         - warnings
         - issue
-        - latest_event
         - occurrence_series
+        - latest_event
       title: PulseErrorIssue
       type: object
       x-struct:
@@ -16691,8 +17010,8 @@ components:
               - id
               - unit
               - value
-              - points
               - previous_value
+              - points
             title: PulseWidget
             type: object
             x-struct:
@@ -17856,6 +18175,323 @@ components:
       minimum: 1
       title: SelectiveTestingChangedFilesPage
       type: integer
+      x-struct:
+      x-validate:
+    BazelRemoteActionDetail:
+      properties:
+        action_digest:
+          description: The REAPI Action digest.
+          properties:
+            hash:
+              type: string
+              x-struct:
+              x-validate:
+            size_bytes:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - hash
+            - size_bytes
+          type: object
+          x-struct:
+          x-validate:
+        environment:
+          description: Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+          items:
+            properties:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+              value:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - value
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        execution_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        queue_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        output_paths:
+          description: The declared outputs, up to 32 KiB of paths.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        timeout_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        errors:
+          description: Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+          items:
+            properties:
+              column:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              line:
+                type: integer
+                x-struct:
+                x-validate:
+              message:
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - line
+              - column
+              - message
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        do_not_cache:
+          type: boolean
+          x-struct:
+          x-validate:
+        configuration_id:
+          type: string
+          x-struct:
+          x-validate:
+        execution_path:
+          description: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+          enum:
+            - scheduled
+            - lease
+            - ""
+          type: string
+          x-struct:
+          x-validate:
+        tool_name:
+          type: string
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: integer
+          x-struct:
+          x-validate:
+        arguments:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        invocation_id:
+          type: string
+          x-struct:
+          x-validate:
+        output_upload_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        working_directory:
+          description: "Relative to the action's input root, which is /workspace/action on Tuist's workers. Empty for the input root itself."
+          type: string
+          x-struct:
+          x-validate:
+        output_count:
+          description: How many outputs the command declared; more than output_paths when the list was cut.
+          type: integer
+          x-struct:
+          x-validate:
+        worker:
+          type: string
+          x-struct:
+          x-validate:
+        mnemonic:
+          type: string
+          x-struct:
+          x-validate:
+        stdout_truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+        status_code:
+          description: The gRPC status code of the execution; 0 is OK.
+          type: integer
+          x-struct:
+          x-validate:
+        stdout_size_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        input_fetch_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        target:
+          description: The Bazel target label, when the client reported it.
+          type: string
+          x-struct:
+          x-validate:
+        exit_code:
+          type: integer
+          x-struct:
+          x-validate:
+        stderr_size_bytes:
+          type: integer
+          x-struct:
+          x-validate:
+        platform:
+          items:
+            properties:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+              value:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - value
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        sandbox_id:
+          type: string
+          x-struct:
+          x-validate:
+        tool_version:
+          type: string
+          x-struct:
+          x-validate:
+        cached_result:
+          description: Whether the executor served a cached result.
+          type: boolean
+          x-struct:
+          x-validate:
+        arguments_truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+        timestamps:
+          additionalProperties:
+            format: date-time
+            nullable: true
+            type: string
+            x-struct:
+            x-validate:
+          description: The executor's reported timestamps; null when not reported.
+          type: object
+          x-struct:
+          x-validate:
+        queued_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        status_message:
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: The remote execution operation ID.
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        stdout:
+          description: Up to the first 16 KiB of standard output.
+          type: string
+          x-struct:
+          x-validate:
+        stderr_truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+        stderr:
+          description: Up to the first 16 KiB of standard error.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - tool_version
+        - memory_gb
+        - execution_path
+        - status_message
+        - queued_at
+        - exit_code
+        - duration_ms
+        - queue_ms
+        - errors
+        - worker
+        - stderr_size_bytes
+        - cached_result
+        - stdout_truncated
+        - do_not_cache
+        - stderr
+        - mnemonic
+        - output_paths
+        - status_code
+        - platform
+        - stdout
+        - target
+        - arguments
+        - id
+        - environment
+        - action_digest
+        - invocation_id
+        - stdout_size_bytes
+        - input_fetch_ms
+        - stderr_truncated
+        - timeout_ms
+        - arguments_truncated
+        - tool_name
+        - output_count
+        - sandbox_id
+        - working_directory
+        - timestamps
+        - configuration_id
+        - execution_ms
+        - output_upload_ms
+      title: BazelRemoteActionDetail
+      type: object
       x-struct:
       x-validate:
     CoverageReported:
@@ -21466,6 +22102,14 @@ components:
           type: string
           x-struct:
           x-validate:
+        coverage_policy:
+          description: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+          enum:
+            - strict
+            - instrumented
+          type: string
+          x-struct:
+          x-validate:
         dirty:
           default: false
           description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
@@ -21520,6 +22164,13 @@ components:
           x-validate:
         platform:
           description: The platform the tests run on. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
+        scope:
+          description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+          maxLength: 1024
+          minLength: 1
           type: string
           x-struct:
           x-validate:
@@ -31139,8 +31790,8 @@ paths:
                         - id
                         - unit
                         - value
-                        - points
                         - previous_value
+                        - points
                       title: PulseWidget
                       type: object
                       x-struct:
@@ -31999,6 +32650,150 @@ paths:
       summary: Create a a new command analytics event
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}/logs/{stream}:
+    get:
+      callbacks: {}
+      description: Returns up to 64 KiB of the stream, by byte offset in the original stream. Tuist records the first 16 KiB of each stream and copies longer ones whole, or their last 16 MiB when they are longer, kept like other run artifacts; `recorded` lists the byte ranges available. Without `offset`, returns the stream's last `limit` bytes.
+      operationId: getBazelRemoteActionLog
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID from listBazelRemoteActions.
+          in: path
+          name: operation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: stream
+          required: true
+          schema:
+            enum:
+              - stdout
+              - stderr
+            type: string
+            x-struct:
+            x-validate:
+        - description: Byte offset to read from.
+          in: query
+          name: offset
+          required: false
+          schema:
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Bytes to read.
+          in: query
+          name: limit
+          required: false
+          schema:
+            default: 65536
+            maximum: 65536
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  offset:
+                    description: Where `text` starts in the stream.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  recorded:
+                    description: The stream's recorded byte ranges.
+                    items:
+                      properties:
+                        length:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        offset:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - offset
+                        - length
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  size_bytes:
+                    description: The stream's size when the action ran.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  stream:
+                    enum:
+                      - stdout
+                      - stderr
+                    type: string
+                    x-struct:
+                    x-validate:
+                  text:
+                    description: Empty when the range was not recorded.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - stream
+                  - size_bytes
+                  - offset
+                  - text
+                  - recorded
+                title: BazelRemoteActionLog
+                type: object
+                x-struct:
+                x-validate:
+          description: Remote action log
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invocation or action not found
+      summary: Read part of a remote action's standard output or error.
+      tags:
+        - Bazel
   /api/accounts/{account_handle}/sandboxes/analytics:
     get:
       callbacks: {}
@@ -39548,8 +40343,8 @@ paths:
                         - release
                         - environment
                         - account_handle
-                        - event_id
                         - trace_id
+                        - event_id
                       title: PulseErrorEvent
                       type: object
                       x-struct:
@@ -39737,12 +40532,12 @@ paths:
                         x-validate:
                     required:
                       - page
-                      - total_pages
-                      - total_count
+                      - end_at
                       - page_size
+                      - total_count
+                      - total_pages
                       - has_next_page
                       - has_previous_page
-                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -39781,8 +40576,8 @@ paths:
                   - events
                   - warnings
                   - issue
-                  - latest_event
                   - occurrence_series
+                  - latest_event
                 title: PulseErrorIssue
                 type: object
                 x-struct:
@@ -41919,6 +42714,381 @@ paths:
       summary: Gradle build health, duration metrics and failure tables.
       tags:
         - Metrics
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions/{operation_id}:
+    get:
+      callbacks: {}
+      description: Returns the action's command, environment, platform, worker, exit code, the start of its standard output and error, output paths and phase timings.
+      operationId: getBazelRemoteAction
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID from listBazelRemoteActions.
+          in: path
+          name: operation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  action_digest:
+                    description: The REAPI Action digest.
+                    properties:
+                      hash:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      size_bytes:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - hash
+                      - size_bytes
+                    type: object
+                    x-struct:
+                    x-validate:
+                  environment:
+                    description: Values of variables whose names contain TOKEN, SECRET, PASSWORD or KEY are ****.
+                    items:
+                      properties:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        value:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - value
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  execution_ms:
+                    description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  queue_ms:
+                    description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  output_paths:
+                    description: The declared outputs, up to 32 KiB of paths.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  timeout_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  errors:
+                    description: Compiler errors recognised in the recorded stderr of a failed action, in order. Empty when none were recognised.
+                    items:
+                      properties:
+                        column:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        line:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        message:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - path
+                        - line
+                        - column
+                        - message
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  do_not_cache:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  configuration_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  execution_path:
+                    description: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                    enum:
+                      - scheduled
+                      - lease
+                      - ""
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tool_name:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  arguments:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  invocation_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  output_upload_ms:
+                    description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  working_directory:
+                    description: "Relative to the action's input root, which is /workspace/action on Tuist's workers. Empty for the input root itself."
+                    type: string
+                    x-struct:
+                    x-validate:
+                  output_count:
+                    description: How many outputs the command declared; more than output_paths when the list was cut.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  worker:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  mnemonic:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  stdout_truncated:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  status_code:
+                    description: The gRPC status code of the execution; 0 is OK.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  stdout_size_bytes:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  input_fetch_ms:
+                    description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  target:
+                    description: The Bazel target label, when the client reported it.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  exit_code:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  stderr_size_bytes:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  platform:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        value:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - value
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  sandbox_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tool_version:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  cached_result:
+                    description: Whether the executor served a cached result.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  arguments_truncated:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  timestamps:
+                    additionalProperties:
+                      format: date-time
+                      nullable: true
+                      type: string
+                      x-struct:
+                      x-validate:
+                    description: The executor's reported timestamps; null when not reported.
+                    type: object
+                    x-struct:
+                    x-validate:
+                  queued_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status_message:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The remote execution operation ID.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  stdout:
+                    description: Up to the first 16 KiB of standard output.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  stderr_truncated:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  stderr:
+                    description: Up to the first 16 KiB of standard error.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - tool_version
+                  - memory_gb
+                  - execution_path
+                  - status_message
+                  - queued_at
+                  - exit_code
+                  - duration_ms
+                  - queue_ms
+                  - errors
+                  - worker
+                  - stderr_size_bytes
+                  - cached_result
+                  - stdout_truncated
+                  - do_not_cache
+                  - stderr
+                  - mnemonic
+                  - output_paths
+                  - status_code
+                  - platform
+                  - stdout
+                  - target
+                  - arguments
+                  - id
+                  - environment
+                  - action_digest
+                  - invocation_id
+                  - stdout_size_bytes
+                  - input_fetch_ms
+                  - stderr_truncated
+                  - timeout_ms
+                  - arguments_truncated
+                  - tool_name
+                  - output_count
+                  - sandbox_id
+                  - working_directory
+                  - timestamps
+                  - configuration_id
+                  - execution_ms
+                  - output_upload_ms
+                title: BazelRemoteActionDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Remote action
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invocation or action not found
+      summary: Get one remote action of a Bazel invocation.
+      tags:
+        - Bazel
   /api/projects/{account_handle}/{project_handle}/mix/files/{file_id}:
     get:
       callbacks: {}
@@ -43483,6 +44653,241 @@ paths:
       summary: List attachments for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/remote-actions:
+    get:
+      callbacks: {}
+      description: 'Actions Tuist remote execution ran for the invocation, as the execution gateway recorded them, kept for 90 days. Records are best effort: a missing action does not prove it did not run remotely.'
+      operationId: listBazelRemoteActions
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The maximum number of results to return.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The page number.
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Longest first, or earliest queued first.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: duration
+            enum:
+              - duration
+              - queued_at
+            type: string
+            x-struct:
+            x-validate:
+        - description: Only actions that exited non-zero or whose execution failed.
+          in: query
+          name: failed
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Only actions with this mnemonic.
+          in: query
+          name: mnemonic
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actions:
+                    items:
+                      properties:
+                        action_digest:
+                          description: The REAPI Action digest.
+                          properties:
+                            hash:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            size_bytes:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - hash
+                            - size_bytes
+                          type: object
+                          x-struct:
+                          x-validate:
+                        cached_result:
+                          description: Whether the executor served a cached result.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        execution_ms:
+                          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        execution_path:
+                          description: Whether the action ran on a scheduled worker or a worker leased for the invocation.
+                          enum:
+                            - scheduled
+                            - lease
+                            - ""
+                          type: string
+                          x-struct:
+                          x-validate:
+                        exit_code:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The remote execution operation ID.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        input_fetch_ms:
+                          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        invocation_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        memory_gb:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        mnemonic:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        output_upload_ms:
+                          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        queue_ms:
+                          description: Milliseconds between the executor's reported timestamps. Null when the executor did not report them.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        queued_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status_code:
+                          description: The gRPC status code of the execution; 0 is OK.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The Bazel target label, when the client reported it.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - target
+                        - exit_code
+                        - duration_ms
+                        - memory_gb
+                        - invocation_id
+                        - action_digest
+                        - status_code
+                        - mnemonic
+                        - execution_path
+                        - cached_result
+                        - queued_at
+                        - queue_ms
+                        - input_fetch_ms
+                        - execution_ms
+                        - output_upload_ms
+                      title: BazelRemoteAction
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - actions
+                  - pagination_metadata
+                title: BazelRemoteActionsList
+                type: object
+                x-struct:
+                x-validate:
+          description: Remote actions
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invocation or action not found
+      summary: List the remote actions of a Bazel invocation.
+      tags:
+        - Bazel
   /api/accounts/{account_handle}/tokens:
     get:
       callbacks: {}
@@ -48811,12 +50216,12 @@ paths:
                         x-validate:
                     required:
                       - page
-                      - total_pages
-                      - total_count
+                      - end_at
                       - page_size
+                      - total_count
+                      - total_pages
                       - has_next_page
                       - has_previous_page
-                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -50661,6 +52066,13 @@ paths:
                   x-validate:
                 platform:
                   description: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                  type: string
+                  x-struct:
+                  x-validate:
+                scope:
+                  description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                  maxLength: 1024
+                  minLength: 1
                   type: string
                   x-struct:
                   x-validate:
@@ -60075,6 +61487,14 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                coverage_policy:
+                  description: Defaults to strict. Opt-in instrumented policy may skip a single target for modified product files its single-target checkpoint's complete reports measured with zero hits. Unknown paths, test code, partial reports, dirty checkouts and multi-target checkpoints retain strict ownership fallback. The client must bind scope to its current test inventory and selection-sensitive inputs.
+                  enum:
+                    - strict
+                    - instrumented
+                  type: string
+                  x-struct:
+                  x-validate:
                 dirty:
                   default: false
                   description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
@@ -60129,6 +61549,13 @@ paths:
                   x-validate:
                 platform:
                   description: The platform the tests run on. Absent where the build system has none.
+                  type: string
+                  x-struct:
+                  x-validate:
+                scope:
+                  description: The stable test invocation scope, matching `scheme` on its test reports. For example, a workspace test group. Takes precedence over the legacy `xcode.scheme`. Omitted for clients that use an unscoped baseline.
+                  maxLength: 1024
+                  minLength: 1
                   type: string
                   x-struct:
                   x-validate:

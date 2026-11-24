@@ -103,6 +103,40 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
                %{"baseline_sha" => nil, "reason" => "history_unknown", "diff_cached" => false}
     end
 
+    test "resolves a generic scope without borrowing another scope's checkpoint", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, project} = Tuist.Projects.update_project(project, %{build_system: :once})
+
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        repository_id: repository_id,
+        commit_sha: "base",
+        scheme: "workspace-tests",
+        platform: "linux"
+      )
+
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
+      params = %{build_system: "once", commit_sha: "head", scope: "workspace-tests", platform: "linux"}
+
+      assert conn |> post(path, params) |> json_response(:ok) == %{"baseline_sha" => "base", "diff_cached" => false}
+
+      assert conn
+             |> post(path, Map.put(params, :xcode, %{scheme: "other-tests"}))
+             |> json_response(:ok) == %{"baseline_sha" => "base", "diff_cached" => false}
+
+      assert conn |> post(path, %{params | scope: "other-tests"}) |> json_response(:ok) ==
+               %{"baseline_sha" => nil, "reason" => "no_baseline", "diff_cached" => false}
+    end
+
     test "requires the build system and the checked-out commit", %{conn: conn, user: user, project: project} do
       conn =
         post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline", %{
@@ -225,6 +259,72 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
                Storage.get_run(project.id, id)
 
       assert {:ok, %{changed_files_count: 3}} = Storage.get_diff(project.id, "head", "base")
+    end
+
+    test "uses and retains the generic scope when deciding a run", %{conn: conn, user: user, project: project} do
+      {:ok, project} = Tuist.Projects.update_project(project, %{build_system: :once})
+
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
+      TestSelectionFixtures.snapshot_fixture(
+        project_id: project.id,
+        repository_id: repository_id,
+        commit_sha: "base",
+        scheme: "workspace-tests",
+        platform: "linux",
+        tests: [
+          %{
+            test_case_id: UUIDv7.generate(),
+            module_name: "tests",
+            suite_name: "math",
+            name: "adds",
+            files: ["src/add.go"]
+          },
+          %{
+            test_case_id: UUIDv7.generate(),
+            module_name: "tests",
+            suite_name: "math",
+            name: "subtracts",
+            files: ["src/subtract.go"]
+          }
+        ]
+      )
+
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/runs"
+
+      params = %{
+        build_system: "once",
+        head_sha: "head",
+        baseline_sha: "base",
+        scope: "workspace-tests",
+        coverage_policy: "instrumented",
+        platform: "linux",
+        modules: [%{name: "tests"}],
+        changed_files: [%{path: "src/add.go", status: "M", blob: "new-add", affected_modules: ["tests"]}]
+      }
+
+      response = conn |> post(path, params) |> json_response(:ok)
+
+      assert %{
+               "id" => id,
+               "outcome" => "selected",
+               "counts" => %{"requested" => 2, "selected" => 1, "skipped" => 1},
+               "skipped_tests" => [%{"module" => "tests", "suite" => "math", "name" => "subtracts"}]
+             } = response
+
+      assert {:ok,
+              %{
+                build_context: %{"scheme" => "workspace-tests", "coverage_policy" => "instrumented"},
+                build_system: "once"
+              }} =
+               Storage.get_run(project.id, id)
+
+      assert conn |> post(path, %{params | scope: "other-tests"}) |> json_response(:ok) |> Map.take(["outcome", "reason"]) ==
+               %{"outcome" => "fallback", "reason" => "no_baseline"}
     end
 
     test "rejects a changed file without a path or status", %{conn: conn, user: user, project: project} do

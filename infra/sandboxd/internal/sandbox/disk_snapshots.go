@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -417,6 +418,79 @@ func (m *Manager) syncGuest(ctx context.Context, sb *Sandbox) error {
 		return fmt.Errorf("sync exited with %d", code)
 	}
 	return nil
+}
+
+// dropCacheScript writes back and drops the page cache of a guest with a
+// virtio balloon and prints how much cache it held, in kB. A guest without
+// one prints nothing: dropping would gain the host nothing, since only the
+// balloon's free page reporting returns freed pages. The guest reports only
+// free 2 MiB blocks (page_reporting_order 9), and dropped cache leaves most
+// of its pages scattered among used ones, so it compacts memory too: on
+// staging a 4 GiB guest returned 1 GiB of dropped cache that way, against
+// half of it without compaction, and compaction took 180 ms.
+const dropCacheScript = `ls /sys/bus/virtio/drivers/virtio_balloon 2>/dev/null | grep -q '^virtio' || exit 0
+sync
+sed -n 's/^Cached: *\([0-9]*\) kB$/\1/p' /proc/meminfo
+echo 1 > /proc/sys/vm/drop_caches
+echo 1 > /proc/sys/vm/compact_memory`
+
+// dropGuestCache drops a ballooned guest's page cache before a pause so the
+// snapshot holds zeros, not cache, for those pages, and answers the bytes of
+// cache the guest held (0 without a balloon).
+func (m *Manager) dropGuestCache(ctx context.Context, sb *Sandbox) (int64, error) {
+	sb.mu.Lock()
+	agent := sb.agent
+	sb.mu.Unlock()
+	if agent == nil {
+		return 0, ErrNotRunning
+	}
+	ctx, cancel := context.WithTimeout(ctx, guestSyncTimeout)
+	defer cancel()
+	var out []byte
+	code, err := vsock.RunProcess(ctx, agent, vsock.ExecRequest{Cmd: []string{"/bin/sh", "-c", dropCacheScript}, Cwd: "/"}, func(stream string, data []byte) {
+		if stream == "stdout" && len(out) < 64 {
+			out = append(out, data...)
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+	if code != 0 {
+		return 0, fmt.Errorf("dropping the page cache exited with %d", code)
+	}
+	kb, _ := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	return kb << 10, nil
+}
+
+// awaitReturnedMemory waits, up to max, for the guest's freed pages to leave
+// the VM process: free page reporting hands them over in batches about 2 s
+// apart, so it stops once the process's resident memory has not fallen by
+// 16 MiB for 3 s.
+func awaitReturnedMemory(ctx context.Context, inst vm.Instance, max time.Duration) {
+	const settle, step = 3 * time.Second, 500 * time.Millisecond
+	resident := func() (uint64, bool) {
+		mem, ok := inst.ResidentMemory()
+		return mem.AnonBytes + mem.FileBytes, ok
+	}
+	low, ok := resident()
+	if !ok {
+		return
+	}
+	deadline, lastDrop := time.Now().Add(max), time.Now()
+	for time.Now().Before(deadline) && time.Since(lastDrop) < settle {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(step):
+		}
+		now, ok := resident()
+		if !ok {
+			return
+		}
+		if now+16<<20 < low {
+			low, lastDrop = now, time.Now()
+		}
+	}
 }
 
 func writeJSON(path string, v any) error {

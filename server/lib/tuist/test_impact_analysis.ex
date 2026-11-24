@@ -25,7 +25,7 @@ defmodule Tuist.TestImpactAnalysis do
 
   # Bump when a rule's behaviour or the order changes, so a stored decision
   # can be traced to the rules that made it.
-  @rules_version "2"
+  @rules_version "3"
 
   @reasons [:test_file_changed, :failed_last_run, :no_evidence, :impacted, :owned_without_evidence, :unaffected]
 
@@ -34,6 +34,9 @@ defmodule Tuist.TestImpactAnalysis do
 
   @doc "Why a test is decided, in the rules' order."
   def reasons, do: @reasons
+
+  @doc "The invocation's coverage scope, with the legacy Xcode scheme as a fallback."
+  def scope(params), do: Map.get(params, :scope) || get_in(params, [:xcode, :scheme])
 
   @doc """
   The trace of a decision (`Decision.decide/4`): one `%{rule:, selected:,

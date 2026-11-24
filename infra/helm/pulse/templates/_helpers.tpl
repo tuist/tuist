@@ -190,10 +190,22 @@ affinity:
     - {port: 4003, protocol: TCP}
     {{- end }}
 {{- if ne .Values.environment "management" }}
-# Kura posts its copy of each error to /v1/sentry/ (the tuist chart's
-# sentryPulse). The server's web pods already have the rule above; no other
-# producer is admitted. hostNetwork Kura pods carry a node's identity and come
-# in through pulse-host-ingress.
+# Kura, the server's processor and registry sync pods, and the registry post
+# their copy of each error to /v1/sentry/ (the tuist chart's sentryPulse).
+# The server's web pods already have the rule above; no other producer is
+# admitted. hostNetwork Kura pods carry a node's identity and come in through
+# pulse-host-ingress.
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "pulse.readerNamespace" . }}
+      podSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/component
+            operator: In
+            values: [processor, swift-registry-sync, registry]
+  ports:
+    - {port: 4000, protocol: TCP}
 - from:
     - namespaceSelector:
         matchLabels:

@@ -41,7 +41,6 @@ clusters/
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
     ├── production/{cluster,kustomization}.yaml
-    ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
     └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
 
@@ -53,7 +52,7 @@ Two mechanisms apply these manifests, split deliberately (see
 - **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
   `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
   scoped never to prune a `Cluster` object. This is the source of truth
-  for the staging / canary / production and once / atlas topologies.
+  for the staging / canary / production and atlas topologies.
 - **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
   path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
   templates (whose delete-and-apply fallback for `field is immutable` a plain

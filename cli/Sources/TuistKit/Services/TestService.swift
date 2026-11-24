@@ -1163,11 +1163,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
-            // The other shards run the rest of a target this one holds part of, so only the request
-            // narrowing a target keeps its hash back.
+            // A target the plan split across shards is stored only once every shard holding part of it
+            // passed its part. One this shard holds whole is stored once it passed, unless the request
+            // narrowed it.
             let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(requestRestrictions)
-            let passingNames = await passingTargetNames(
-                resultBundlePath: resultBundlePath,
+            let storable = { (names: Set<String>) in
+                (
+                    requestedTestIdentifiers.isEmpty
+                        ? names
+                        : names.intersection(Self.fullyRunTestTargetNames(requestedTestIdentifiers))
+                ).subtracting(testImpactSkipList.narrowedModules)
+            }
+            let moduleOutcomes = await moduleOutcomes(resultBundlePath: resultBundlePath)
+            let passingNames = passingTargetNames(
+                moduleOutcomes: moduleOutcomes,
                 runInFull: testError == nil
                     ? testTargetNamesRunInFull(
                         xcodebuildArguments: xcodebuildArguments,
@@ -1176,15 +1185,33 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     : [],
                 withholding: stressResult
             )
-            try await storeSuccessfulTestHashesFromGraph(
-                selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: (
-                    requestedTestIdentifiers.isEmpty
-                        ? passingNames
-                        : passingNames.intersection(Self.fullyRunTestTargetNames(requestedTestIdentifiers))
-                ).subtracting(testImpactSkipList.narrowedModules),
-                cacheStorage: hashUploadStorage
-            )
+            // Products planned before split targets were recorded keep storing what this shard passed. A
+            // record for another plan can't say which shards this plan split a target across.
+            let splitTestTargets = selectiveTestingGraph.splitTestTargets
+            if splitTestTargets == nil || splitTestTargets?.shardPlanId == shard.shardPlanId {
+                let shardIndicesBySplitTarget = splitTestTargets?.shardIndices ?? [:]
+                try await storeSuccessfulTestHashesFromGraph(
+                    selectiveTestingGraph: selectiveTestingGraph,
+                    passingTargetNames: storable(passingNames)
+                        .filter { shardIndicesBySplitTarget[$0] == nil },
+                    cacheStorage: hashUploadStorage
+                )
+                try await storeSplitTestTargetHashes(
+                    passedTargetNames: storable(
+                        splitTargetNamesWhosePartPassed(
+                            Set(shardIndicesBySplitTarget.filter { $0.value.contains(shardIndex) }.keys),
+                            moduleOutcomes: moduleOutcomes,
+                            shardPassed: testError == nil
+                        )
+                    )
+                    .subtracting(stressResult?.withheldTargetNames ?? []),
+                    shardIndicesBySplitTarget: shardIndicesBySplitTarget,
+                    shardPlanId: shard.shardPlanId,
+                    shardIndex: shardIndex,
+                    selectiveTestingGraph: selectiveTestingGraph,
+                    cacheStorage: hashUploadStorage
+                )
+            }
         }
 
         try await copyResultBundlePathIfNeeded(
@@ -1522,8 +1549,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         await removeOwnedDerivedData(ownedDerivedDataPath)
 
-        let passingNames = await passingTargetNames(
-            resultBundlePath: resultBundlePath,
+        let passingNames = passingTargetNames(
+            moduleOutcomes: await moduleOutcomes(resultBundlePath: resultBundlePath),
             runInFull: testError == nil
                 ? testTargetNamesRunInFull(
                     xcodebuildArguments: xcodebuildArguments,
@@ -1917,6 +1944,81 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try await storeTestHashes(cacheableItems, cacheStorage: cacheStorage)
     }
 
+    /// The split targets whose part on this shard passed: every test case of it the shard ran passed, or
+    /// it ran none. A shard that ran none of a target can still fail before running it, so that counts
+    /// only when the shard passed or its failure is a test case that failed.
+    private func splitTargetNamesWhosePartPassed(
+        _ targetNames: Set<String>,
+        moduleOutcomes: [String: Bool]?,
+        shardPassed: Bool
+    ) -> Set<String> {
+        let failureIsATestCase = moduleOutcomes?.values.contains(false) ?? false
+        return targetNames.filter { name in
+            switch moduleOutcomes?[name] {
+            case let passed?: passed
+            case nil: shardPassed || failureIsATestCase
+            }
+        }
+    }
+
+    /// Records this shard's passed part of each split target in the selective-tests cache, then stores the
+    /// target's hash once every shard holding part of it recorded theirs. The parts are keyed by the plan,
+    /// so a rerun of the plan's failed shards completes the target.
+    ///
+    /// Shards finishing together each record their part before looking for the others', so once a cache
+    /// serves what was written to it, at least one of them sees every part. One that can't read them
+    /// stores nothing, which only costs the next run the target's tests.
+    private func storeSplitTestTargetHashes(
+        passedTargetNames: Set<String>,
+        shardIndicesBySplitTarget: [String: [Int]],
+        shardPlanId: String,
+        shardIndex: Int,
+        selectiveTestingGraph: SelectiveTestingGraph,
+        cacheStorage: CacheStoring
+    ) async throws {
+        let targets = passedTargetNames.compactMap { name in
+            selectiveTestingGraph.testTargetHashes[name].map { (name: name, hash: $0) }
+        }
+        guard !targets.isEmpty else { return }
+
+        let store: @Sendable () async throws -> Void = {
+            func part(_ target: (name: String, hash: String), shardIndex: Int) -> CacheStorableItem {
+                CacheStorableItem(
+                    name: "\(target.name)-shard-\(shardIndex)",
+                    hash: "\(target.hash)-\(shardPlanId)-\(shardIndex)".md5
+                )
+            }
+
+            try await Self.storeTestHashes(
+                Dictionary(uniqueKeysWithValues: targets.map { (part($0, shardIndex: shardIndex), [AbsolutePath]()) }),
+                cacheStorage: cacheStorage
+            )
+            let otherParts = targets.flatMap { target in
+                (shardIndicesBySplitTarget[target.name] ?? [])
+                    .filter { $0 != shardIndex }
+                    .map { part(target, shardIndex: $0) }
+            }
+            let recordedParts = Set(
+                ((try? await cacheStorage.fetch(Set(otherParts), cacheCategory: .selectiveTests)) ?? [:]).keys
+                    .map { CacheStorableItem(name: $0.name, hash: $0.hash) }
+            )
+            let completed = targets.filter { target in
+                (shardIndicesBySplitTarget[target.name] ?? [])
+                    .allSatisfy { $0 == shardIndex || recordedParts.contains(part(target, shardIndex: $0)) }
+            }
+            guard !completed.isEmpty else { return }
+            try await Self.storeTestHashes(
+                Dictionary(uniqueKeysWithValues: completed.map { (CacheStorableItem(name: $0.name, hash: $0.hash), []) }),
+                cacheStorage: cacheStorage
+            )
+        }
+        if let deferrals = SnapshotsTestRunner.hashStoresAwaitingVerdict {
+            await deferrals.append(store)
+        } else {
+            try await store()
+        }
+    }
+
     /// The modules that passed, minus any with a new test case the gate found flaky.
     ///
     /// A candidate passed the first pass by construction, so its module is in the passing set
@@ -1924,11 +2026,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// test cases for it, and exit green: in `enforce` with no change to the branch, in `report`
     /// with the warning gone after one run.
     private func passingTargetNames(
-        resultBundlePath: AbsolutePath?,
+        moduleOutcomes: [String: Bool]?,
         runInFull: Set<String> = [],
         withholding stressResult: StressNewTestsResult?
-    ) async -> Set<String> {
-        let passing = await passingTargetNames(resultBundlePath: resultBundlePath).union(runInFull)
+    ) -> Set<String> {
+        let passing = Set((moduleOutcomes ?? [:]).filter(\.value).keys).union(runInFull)
         guard let stressResult else { return passing }
         return passing.subtracting(stressResult.withheldTargetNames)
     }
@@ -1964,20 +2066,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return runTargetNames.subtracting(skippedTargetNames)
     }
 
-    private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
-        guard let resultBundlePath else { return [] }
+    /// Whether every test case the result bundle holds for a module passed, for each module it holds test
+    /// cases for. Nil when the bundle can't be read.
+    private func moduleOutcomes(resultBundlePath: AbsolutePath?) async -> [String: Bool]? {
+        guard let resultBundlePath else { return nil }
         let rootDirectory = try? await rootDirectory()
         guard let rootDirectory,
               let testSummary = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-        else { return [] }
+        else { return nil }
 
-        let testCasesByModule = Dictionary(grouping: testSummary.testCases) { $0.module }
-        return Set(
-            testCasesByModule.compactMap { module, testCases -> String? in
-                guard let module else { return nil }
-                return testCases.allSatisfy { $0.status != .failed } ? module : nil
-            }
-        )
+        let testCasesByModule = testSummary.testCases.compactMap { testCase in testCase.module.map { ($0, testCase) } }
+        return Dictionary(grouping: testCasesByModule, by: \.0)
+            .mapValues { testCases in testCases.allSatisfy { $0.1.status != .failed } }
     }
 
     // MARK: - Helpers

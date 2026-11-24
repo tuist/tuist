@@ -24,7 +24,12 @@ permissions:
 
 jobs:
   check:
-    if: ${{ github.repository == 'tuist/tuist' && github.event.workflow_run.conclusion == 'success' }}
+    # `branches: [main]` matches the head branch name, so a fork PR from its own
+    # `main` branch would also match; only notify on runs of this repository's code.
+    if: >-
+      github.repository == 'tuist/tuist' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       deployed: ${{ steps.check.outputs.deployed }}

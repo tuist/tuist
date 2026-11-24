@@ -84,8 +84,9 @@ type PoolDemand struct {
 //     pool whose work is temporarily unservable from being classified as
 //     idle and starved of a Pod forever on a saturated fleet.
 //  2. Warm stock — a baseline (the explicit minimum, or one above load
-//     for pools in use), then remaining learned spare for active pools,
-//     recently used quiet pools, and finally idle pools. Each sub-tier
+//     for pools in use), then one above load for every pool with a learned
+//     floor, then remaining learned spare for active pools, recently used
+//     quiet pools, and finally idle pools. Each sub-tier
 //     funds pools whole in cold-job, usage, recency and name order, concentrating
 //     useful bursts rather than splitting capacity proportionally.
 //     Withheld-only work does not earn active burst priority.
@@ -123,7 +124,7 @@ func AllocateCompute(pools []PoolDemand, fleetCapacity int64, shapeCaps map[stri
 	out := make(map[string]int32, len(pools))
 
 	var loadWants, headWants []tierWant
-	warmCeilings := []func(PoolDemand) int32{baselineCeiling, activeFloorCeiling, inUseFloorCeiling, floorCeiling}
+	warmCeilings := []func(PoolDemand) int32{baselineCeiling, learnedBaselineCeiling, activeFloorCeiling, inUseFloorCeiling, floorCeiling}
 	warmWants := make([][]tierWant, len(warmCeilings))
 	byName := make(map[string]PoolDemand, len(pools))
 
@@ -374,7 +375,7 @@ func capByShape(pools []PoolDemand, shapeCaps map[string]int32) []PoolDemand {
 
 		granted := make([]int32, len(members))
 		remaining := limit
-		ceilings := []func(PoolDemand) int32{loadCeiling, baselineCeiling, activeFloorCeiling, inUseFloorCeiling, floorCeiling, targetCeiling}
+		ceilings := []func(PoolDemand) int32{loadCeiling, baselineCeiling, learnedBaselineCeiling, activeFloorCeiling, inUseFloorCeiling, floorCeiling, targetCeiling}
 		for phase, ceiling := range ceilings {
 			// Every warm tier uses the byte allocator's ordering. Load and
 			// headroom retain round-robin placement inside the shape cap.
@@ -435,18 +436,33 @@ func baselineCeiling(p PoolDemand) int32 {
 	return clampMax(clampMin(baseline, loadCeiling(p)), targetCeiling(p))
 }
 
+// learnedBaselineCeiling adds the first warm runner of every pool with a
+// learned floor, which the server learns only for a pool with a job in the
+// last day. It is funded before any pool's further warm runners: a pool's
+// first warm runner saves its next job a cold start, a burst's eighth only
+// a job of an eight-job burst. Without it a pool with a job every few hours
+// drops into the idle tier an hour after each job and, on a full rack, has
+// no warm runner when the next one comes (27.2's 16 vCPU pool, 2026-11-23).
+func learnedBaselineCeiling(p PoolDemand) int32 {
+	baseline := baselineCeiling(p)
+	if p.Floor > p.Load && baseline < p.Load+1 {
+		baseline = p.Load + 1
+	}
+	return clampMax(baseline, targetCeiling(p))
+}
+
 func activeFloorCeiling(p PoolDemand) int32 {
 	if p.Active {
 		return floorCeiling(p)
 	}
-	return baselineCeiling(p)
+	return learnedBaselineCeiling(p)
 }
 
 func inUseFloorCeiling(p PoolDemand) int32 {
 	if p.InUse || p.Active {
 		return floorCeiling(p)
 	}
-	return baselineCeiling(p)
+	return learnedBaselineCeiling(p)
 }
 
 func loadCeiling(p PoolDemand) int32 {
@@ -455,7 +471,7 @@ func loadCeiling(p PoolDemand) int32 {
 
 func floorCeiling(p PoolDemand) int32 {
 	floor := clampMin(p.Floor, 0)
-	if baseline := baselineCeiling(p); floor < baseline {
+	if baseline := learnedBaselineCeiling(p); floor < baseline {
 		floor = baseline
 	}
 	return clampMax(floor, targetCeiling(p))
