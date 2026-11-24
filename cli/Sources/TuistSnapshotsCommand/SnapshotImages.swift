@@ -17,6 +17,25 @@ enum SnapshotImages {
     /// reports the others as skipped rather than removed (Sentry's `--all-image-file-names`).
     static let allImageNamesFile = "tuist-all-image-names.txt"
 
+    /// Image transfers are small presigned requests, so their time goes to round trips rather than
+    /// bandwidth: a full baseline of thousands of images needs many in flight. URLSession still caps
+    /// HTTP/1.1 connections per host (`TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST`).
+    static let maxConcurrentTransfers = 32
+
+    static func fileSize(_ path: AbsolutePath) -> Int64 {
+        ((try? FileManager.default.attributesOfItem(atPath: path.pathString))?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    /// "2.3 MB in 1.4s", for the transfer summaries CI logs keep.
+    static func transferSummary(bytes: Int64, duration: Duration) -> String {
+        "\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)) in \(seconds(duration))"
+    }
+
+    static func seconds(_ duration: Duration) -> String {
+        let components = duration.components
+        return String(format: "%.1fs", Double(components.seconds) + Double(components.attoseconds) / 1e18)
+    }
+
     /// Roborazzi's compare and verify tasks write these next to the recorded images.
     private static let derivedSuffixes = ["_compare.png", "_actual.png", "_diff.png"]
 

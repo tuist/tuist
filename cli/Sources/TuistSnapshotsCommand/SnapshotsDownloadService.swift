@@ -97,15 +97,19 @@ public struct SnapshotsDownloadService: SnapshotsDownloadServicing {
 
         let files = try baseline.images.map { image in (image, try Self.destination(of: image.name, in: directory)) }
         let stale = files.filter { image, file in Self.contentHash(of: file) != image.contentHash }
-        _ = try await stale.concurrentMap(maxConcurrentTasks: 8) { [snapshotBuildService] image, file in
+        let started = ContinuousClock.now
+        let concurrency = SnapshotImages.maxConcurrentTransfers
+        let sizes = try await stale.concurrentMap(maxConcurrentTasks: concurrency) { [snapshotBuildService] image, file in
             try await snapshotBuildService.downloadSnapshotImage(from: image.url, to: file)
+            return SnapshotImages.fileSize(file)
         }
+        let transfer = SnapshotImages.transferSummary(bytes: sizes.reduce(0, +), duration: ContinuousClock.now - started)
 
         if options.json {
             try Noora.current.json(SnapshotsDownloadOutput(baseline: baseline, downloaded: stale.count))
         } else {
             AlertController.current.success(.alert(
-                "Downloaded the baseline of set '\(options.set)' to \(directory.pathString): \(baseline.images.count) images, \(stale.count) new or changed. See \(build.url)"
+                "Downloaded the baseline of set '\(options.set)' to \(directory.pathString): \(baseline.images.count) images, \(stale.count) new or changed (\(transfer)). See \(build.url)"
             ))
         }
         return baseline
