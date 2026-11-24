@@ -726,12 +726,9 @@ defmodule Tuist.Sandboxes do
             do: %{},
             else: %{cache_volume_id: cache_volume_id, cache_generation: cache_generation}
 
-        # Placement recorded the node (and, for macOS, its incarnation) on
-        # the row behind this struct.
         result =
-          sandbox
-          |> Repo.reload!()
-          |> update_sandbox(
+          mark_created(
+            sandbox,
             Map.merge(
               %{
                 state: :running,
@@ -746,7 +743,6 @@ defmodule Tuist.Sandboxes do
             ),
             boot_event
           )
-          |> schedule_idle_pause()
 
         # A sandbox resumed from its archived memory still reads it until its
         # node reports `memory_loaded`.
@@ -1707,6 +1703,22 @@ defmodule Tuist.Sandboxes do
           {:error, reason}
       end
     end)
+  end
+
+  # Placement recorded the node (and, for macOS, its incarnation) on the row
+  # behind this struct, hence the reload. A delete that ran while the node was
+  # still booting the VM has removed the row: the VM then belongs to no
+  # sandbox, so it is torn down instead of being left running on the node.
+  defp mark_created(%Sandbox{} = sandbox, %{node_name: node_name} = attrs, boot_event) do
+    case Repo.reload(sandbox) do
+      nil ->
+        Logger.info("sandboxes: sandbox was deleted while it was being created", sandbox_id: sandbox.id, node: node_name)
+        _ = delete_on_node(%{sandbox | node_name: node_name})
+        {:error, :deleted}
+
+      current ->
+        current |> update_sandbox(attrs, boot_event) |> schedule_idle_pause()
+    end
   end
 
   defp delete_on_node(%Sandbox{node_name: nil}), do: :ok
