@@ -543,7 +543,8 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
+  # Always asks the row: this tick's copy may predate a drain or a newer image
+  # that closed the deployment, and applying it then would act on a closed one.
   defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
 
   # Every live status, `:replicating` included: its workload is up on the

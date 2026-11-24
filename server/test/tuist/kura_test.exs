@@ -1644,6 +1644,16 @@ defmodule Tuist.KuraTest do
       assert Repo.get!(Server, server.id).status == :destroying
     end
 
+    test "a deployment read before begin_drain/1 cancelled it stays cancelled", %{server: server} do
+      stale = Repo.get_by!(Deployment, kura_server_id: server.id, status: :pending)
+
+      {:ok, _draining} = Kura.begin_drain(server)
+      assert Repo.reload!(stale).status == :cancelled
+
+      assert {:error, _changeset} = Kura.mark_running(stale)
+      assert Repo.reload!(stale).status == :cancelled
+    end
+
     test "cancel_drain/1 refuses a server destroyed since it was read", %{account: account, server: server} do
       {:ok, draining} = Kura.begin_drain(server)
       {:ok, _} = Kura.destroy_server(draining)
