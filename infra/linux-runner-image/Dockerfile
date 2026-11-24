@@ -155,7 +155,7 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
 # base sets the value GitHub uses for its release. The image is
 # amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
 # `ubuntu24-arm64` / `ubuntu22-arm64`.
-FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS base-ubuntu-24.04
+FROM ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b AS base-ubuntu-24.04
 ENV ImageOS=ubuntu24
 
 FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS base-ubuntu-22.04

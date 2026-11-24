@@ -124,7 +124,7 @@ RUN set -eu; \
 # Same Ubuntu digest as infra/linux-runner-image's default base, so sandbox
 # guests and Linux CI jobs share system libraries and native build caches.
 # Renovate bumps both together (see renovate.json).
-FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS guest
+FROM ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b AS guest
 ENV DEBIAN_FRONTEND=noninteractive
 ARG UBUNTU_MIRROR
 RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
@@ -279,7 +279,7 @@ RUN if ! getent passwd 1000 >/dev/null; then useradd --uid 1000 --create-home bu
 
 # The rootfs stage runs natively: mkfs.ext4 -d produces the same image on any
 # host, and this keeps the multi-gigabyte populate step off the emulator.
-FROM --platform=$BUILDPLATFORM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS rootfs
+FROM --platform=$BUILDPLATFORM ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b AS rootfs
 ARG UBUNTU_MIRROR
 RUN sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${UBUNTU_MIRROR}/#" /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update && apt-get install -y --no-install-recommends e2fsprogs ca-certificates curl \
