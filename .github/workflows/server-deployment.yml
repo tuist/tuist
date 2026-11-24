@@ -2147,6 +2147,27 @@ jobs:
               echo "::warning::Could not upgrade the public RustFS store; the server keeps default shard storage."
           fi
 
+          # Helm's wait holds an OnDelete DaemonSet until its Pods run the new
+          # revision, which only the updater moves them to. So with in-place
+          # sandboxd upgrades the updater runs alongside: once Helm applied the
+          # DaemonSet, it rolls the Pods and the wait completes.
+          sandboxd_updater=""
+          if [ "$sandboxd_in_place" = true ]; then
+            want_sandboxd="$(yq '.sandboxes.image.repository' "$HELM_CHART_PATH/values.yaml"):$sandboxd_tag"
+            (
+              set -euo pipefail
+              for _ in $(seq 1 360); do
+                ds=$(kubectl -n "$sandbox_namespace" get daemonset "$sandbox_name" -o json)
+                if jq -e --arg i "$want_sandboxd" '.metadata.generation == .status.observedGeneration
+                  and any(.spec.template.spec.containers[]; .name == "sandboxd" and .image == $i)' <<< "$ds" >/dev/null; then
+                  exec bash .github/scripts/sandboxd-upgrade.sh "$sandbox_namespace" "$sandbox_name"
+                fi
+                sleep 10
+              done
+              echo "::warning::Helm did not apply the sandboxd DaemonSet within an hour; its Pods were not rolled"
+            ) &
+            sandboxd_updater=$!
+          fi
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
@@ -2156,6 +2177,9 @@ jobs:
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
+          if [ -n "$sandboxd_updater" ]; then
+            wait "$sandboxd_updater"
+          fi
 
           # What runs on a rack's Linux nodes (infra/helm/rack-nodes), from the
           # same values and the operator's image, as a release nothing waits
@@ -2326,9 +2350,8 @@ jobs:
           kubectl -n "$NAMESPACE" get externalsecret,secretstore 2>&1 || true
           kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
           echo "::endgroup::"
-      # OnDelete leaves the daemon Pods on their old spec. A daemon-only change
-      # restarts the sandboxd container in place and keeps the running VMs;
-      # anything else replaces the Pod, pausing its sandboxes.
+      # The updater ran alongside Helm above; again here as a final check,
+      # which leaves current Pods alone.
       - name: sandboxd in-place upgrade
         if: env.SANDBOXD_IN_PLACE == 'true'
         run: bash .github/scripts/sandboxd-upgrade.sh "$SANDBOXD_NAMESPACE" "$SANDBOXD_DAEMONSET"
