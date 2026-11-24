@@ -253,6 +253,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
+  As with Linux refreshes, a speculative or refreshed master is not replaced
+  until a job clones it, and a spare prefetch installed beside a used older
+  master is marked refreshed and inherits that master's last use. Without
+  that, every macOS host followed every lineage it had used once (about 12,000
+  background restores a day on 23 rack hosts, 2026-11-24).
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
 - Pressure eviction (`reserveBytes`, `evictionOrder`) removes, in order: generations a

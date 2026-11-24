@@ -1128,8 +1128,16 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 	if b.Replace != nil {
 		next := slot.Identity
 		next.BaseGeneration, next.ImageDigest, next.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
-		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) && b.Replace(next) {
-			return nil
+		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) {
+			// As in queueRefresh: a master no job here cloned since it was fetched
+			// in the background stays as the lineage's older copy, or every host
+			// that used a lineage once follows each generation it publishes.
+			if slot.Kind != KindDocker && (speculative(path) || refreshed(path)) {
+				return nil
+			}
+			if b.Replace(next) {
+				return nil
+			}
 		}
 		return b.evictMaster(path, EvictSuperseded, "head_generation", head.BaseGeneration)
 	}
@@ -1375,8 +1383,19 @@ func (b *LocalImages) PrefetchSpare(ctx context.Context, slot Slot) error {
 // eviction takes before the masters jobs used.
 func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error {
 	return b.fetchMaster(ctx, slot, false, func(master, older string) error {
-		if spare && (older == "" || speculative(older)) {
+		if !spare {
+			return nil
+		}
+		if older == "" || speculative(older) {
 			_ = os.WriteFile(master+".spare", nil, 0600)
+			return nil
+		}
+		// A background successor of a used master (Replace) is a refresh: it is
+		// not followed again until a job clones it, and it ages out with the
+		// older copy's last use rather than with its download.
+		_ = os.WriteFile(master+refreshedSuffix, nil, 0600)
+		if info, err := os.Stat(older); err == nil {
+			return os.Chtimes(master, info.ModTime(), info.ModTime())
 		}
 		return nil
 	})
