@@ -146,6 +146,11 @@ containers read (SANDBOXD_CONFIG), so step 2b can restart the daemon in place
 with new configuration (a Pod's environment cannot change).
 */}}
 {{- $vmm := .Values.sandboxes.vmm.enabled }}
+{{- $inPlace := and $vmm .Values.sandboxes.vmm.inPlaceUpgrades }}
+{{- $vmmImageTag := .Values.sandboxes.vmm.image.tag | default $imageTag }}
+{{- if and $inPlace (not .Values.sandboxes.vmm.image.tag) }}
+{{- fail "sandboxes.vmm.image.tag is required with sandboxes.vmm.inPlaceUpgrades: vmm holds Firecracker under the running VMs, so a daemon upgrade must not move it." }}
+{{- end }}
 {{- $daemonOnlyPorts := list }}
 {{- if not .Values.sandboxes.networkPolicy.guestServerAccess }}
 {{- $daemonOnlyPorts = append $daemonOnlyPorts (.Values.server.service.targetPort | default 8080) }}
@@ -217,12 +222,20 @@ spec:
       app.kubernetes.io/name: sandboxd
       app.kubernetes.io/instance: {{ .Release.Name }}
   updateStrategy:
+    {{- if $inPlace }}
+    # The deploy rolls the Pods itself (.github/scripts/sandboxd-upgrade.sh):
+    # a daemon image change patches the running Pod's sandboxd container,
+    # which restarts alone and re-attaches the VMs vmm kept; any other change
+    # replaces the Pod, pausing its sandboxes as before.
+    type: OnDelete
+    {{- else }}
     type: RollingUpdate
     rollingUpdate:
       # A daemon restart pauses the node's running sandboxes, so a few nodes
       # roll at a time. Template upgrades do not roll it (see the installer
       # DaemonSet below).
       maxUnavailable: 3
+    {{- end }}
   template:
     metadata:
       labels:
@@ -234,7 +247,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: {{ .Values.sandboxes.metricsPort | quote }}
         prometheus.io/path: /metrics
-        {{- if $vmm }}
+        {{- /* In place, the kubelet refreshes the mounted ConfigMap and the
+        restarted daemon reads it; no checksum rolls the Pods. */}}
+        {{- if and $vmm (not $inPlace) }}
         # Until step 2b restarts the daemon in place, a configuration change
         # rolls the Pods as an environment change did.
         checksum/config: {{ $configData | sha256sum }}
@@ -285,7 +300,8 @@ spec:
       # grants keep their daemon image, and with it their running sandboxes.
       initContainers:
         - name: cache-image-dir
-          image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
+          # vmm's tag, so a daemon upgrade leaves the Pod spec unchanged.
+          image: "{{ .Values.sandboxes.image.repository }}:{{ $vmmImageTag }}"
           imagePullPolicy: {{ .Values.sandboxes.image.pullPolicy }}
           command: ["mkdir", "-p", "-m", "0700", "/data/sandboxes/cache-images"]
           volumeMounts:
@@ -328,6 +344,12 @@ spec:
               value: /etc/sandboxd/config.env
             - name: VMM_SOCKET
               value: /run/vmm/vmm.sock
+            {{- if $inPlace }}
+            # The updater's handover marker, a Pod annotation the kubelet
+            # refreshes here. See cmd/sandboxd/handover.go.
+            - name: HANDOVER_FILE
+              value: /etc/podinfo/annotations
+            {{- end }}
             {{- else }}
             - name: SERVER_URL
               value: {{ $config.SERVER_URL | quote }}
@@ -465,6 +487,11 @@ spec:
             - name: config
               mountPath: /etc/sandboxd
               readOnly: true
+            {{- if $inPlace }}
+            - name: podinfo
+              mountPath: /etc/podinfo
+              readOnly: true
+            {{- end }}
             {{- end }}
         {{- if $vmm }}
         # Spawns the daemon's Firecracker VMs, which sit in this container's
@@ -474,7 +501,7 @@ spec:
         # namespaces and lazy-disk mounts without propagating any mount to
         # the host. See infra/sandboxd/AGENTS.md, "Process model".
         - name: vmm
-          image: "{{ .Values.sandboxes.image.repository }}:{{ $imageTag }}"
+          image: "{{ .Values.sandboxes.image.repository }}:{{ $vmmImageTag }}"
           imagePullPolicy: {{ .Values.sandboxes.image.pullPolicy }}
           command: ["/usr/local/bin/vmm"]
           env:
@@ -538,6 +565,14 @@ spec:
         - name: config
           configMap:
             name: {{ $name }}-config
+        {{- if $inPlace }}
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: annotations
+                fieldRef:
+                  fieldPath: metadata.annotations
+        {{- end }}
         {{- end }}
 ---
 # Installs the guest template on every sandbox node. Its init container seeds

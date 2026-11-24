@@ -1,6 +1,8 @@
 package envfile
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,8 +15,12 @@ func TestLoadFillsOnlyUnsetVariables(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("ENVFILE_TEST_A", "from-pod")
-	if err := Load(path); err != nil {
+	sum, err := Load(path)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("%x", sha256.Sum256([]byte(content))); sum != want {
+		t.Fatalf("sum = %q, want %q", sum, want)
 	}
 	t.Cleanup(func() { os.Unsetenv("ENVFILE_TEST_B"); os.Unsetenv("ENVFILE_TEST_EMPTY") })
 	if got := os.Getenv("ENVFILE_TEST_A"); got != "from-pod" {
@@ -33,13 +39,13 @@ func TestLoadRejectsMalformedLinesAndMissingFiles(t *testing.T) {
 	if err := os.WriteFile(path, []byte("NOT A PAIR\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Load(path); err == nil {
+	if _, err := Load(path); err == nil {
 		t.Fatal("accepted a line without =")
 	}
-	if err := Load(filepath.Join(t.TempDir(), "missing")); err == nil {
+	if _, err := Load(filepath.Join(t.TempDir(), "missing")); err == nil {
 		t.Fatal("accepted a missing file")
 	}
-	if err := Load(""); err != nil {
+	if _, err := Load(""); err != nil {
 		t.Fatal(err)
 	}
 }

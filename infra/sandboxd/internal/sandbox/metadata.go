@@ -53,6 +53,19 @@ type Metadata struct {
 	// clone is never archived, so a memory image that has it mounted must
 	// not travel either. Empty for no cache or the template's placeholder.
 	CacheImage string `json:"cache_image,omitempty"`
+
+	// Handover names the Firecracker process a daemon left running in the
+	// vmm container for the next daemon to attach (step 2b), with State
+	// still running. Without it, or when vmm no longer holds exactly that
+	// process, a running sandbox lost its VM.
+	Handover *Handover `json:"handover,omitempty"`
+}
+
+// Handover is a process by pid and start time, which together name one
+// process: a reused pid starts later.
+type Handover struct {
+	PID   int    `json:"pid"`
+	Start uint64 `json:"start"`
 }
 
 func (m Metadata) Shape() template.Shape {
