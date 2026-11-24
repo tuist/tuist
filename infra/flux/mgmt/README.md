@@ -17,7 +17,7 @@ not the health mechanism; a degraded control plane pages via Grafana Cloud.
 | Owned by Flux | Kept on `mgmt-cluster-apply.yml` |
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
-| tenants `once-production`, `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
+| tenant `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
 | Cloudflare operator Helm release and `tuist.dev` rate-limit configuration; management's own Pulse and its Grafana PDC agent | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
@@ -239,7 +239,7 @@ empty diff means the first sync changes nothing; anything else is a live
 mutation you are about to make unattended.
 
 ```bash
-for c in staging canary production once atlas; do
+for c in staging canary production atlas; do
   echo "== $c =="
   kubectl kustomize "infra/k8s/clusters/workloads/$c" | kubectl diff -f - || true
 done
