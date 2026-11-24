@@ -3017,10 +3017,22 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
     # A Linux volume of the repository whose default-branch job saved a head,
     # last used `hours` ago.
-    defp saved_linux_volume(job, key, hours) do
+    # `paths` is what the host reported for its manifest, or :unreported.
+    defp saved_linux_volume(job, key, hours, paths \\ :unreported) do
       job = %{job | workflow_job_id: System.unique_integer([:positive])}
       {:ok, use} = CacheVolumes.allocate_for_job(job, main_identity(), %{attrs("pod-" <> key) | key: key})
       complete(job)
+
+      if paths != :unreported do
+        assert {:ok, %{generation: _}} =
+                 CacheVolumes.image("node", use.id, %{
+                   "operation" => "publish",
+                   "image_digest" => :sha |> :crypto.hash(use.id) |> Base.encode16(case: :lower),
+                   "content_digest" => :sha256 |> :crypto.hash(use.id) |> Base.encode16(case: :lower),
+                   "paths" => paths
+                 })
+      end
+
       assert {:ok, %{action: "keep"}} = publish_report("node", use.id)
       volume_id = Repo.get!(Usage, use.id).volume_id
       used_at = DateTime.utc_now() |> DateTime.add(-hours * 60 * 60, :second) |> DateTime.truncate(:second)
@@ -3053,6 +3065,40 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert cache.scope == next_job.scope
       # Nothing is allocated for the sandbox.
       refute Repo.exists?(from(u in Usage, where: u.volume_id == ^recent and like(u.pod_name, "sandbox-%")))
+    end
+
+    test "prefers the volume whose paths a session binds into its checkout, then into its home", %{
+      account: account,
+      job: job
+    } do
+      # Ordered oldest to newest; each newer volume binds less of what a session uses.
+      checkout = saved_linux_volume(job, "deps", 4, ["server/deps", "/opt/mise"])
+      home = saved_linux_volume(job, "mix", 3, ["~/.cache/mix"])
+      _unknown = saved_linux_volume(job, "legacy", 2)
+      runner_only = saved_linux_volume(job, "toolchain", 1, ["/opt/hostedtoolcache"])
+
+      assert Repo.get!(Volume, checkout).paths == ["server/deps", "/opt/mise"]
+      assert Repo.get!(Volume, runner_only).paths == ["/opt/hostedtoolcache"]
+      assert %{volume_id: ^checkout} = CacheVolumes.sandbox_cache(account.id, "Org/Repo")
+
+      Repo.update_all(from(v in Volume, where: v.id == ^checkout), set: [deleted_at: DateTime.utc_now()])
+      assert %{volume_id: ^home} = CacheVolumes.sandbox_cache(account.id, "Org/Repo")
+
+      # A volume whose paths are unknown still beats one with only the runner's own paths.
+      Repo.update_all(from(v in Volume, where: v.id == ^home), set: [deleted_at: DateTime.utc_now()])
+      assert %{volume_id: volume_id} = CacheVolumes.sandbox_cache(account.id, "Org/Repo")
+      refute volume_id == runner_only
+
+      Repo.update_all(from(v in Volume, where: v.id == ^volume_id), set: [deleted_at: DateTime.utc_now()])
+      assert is_nil(CacheVolumes.sandbox_cache(account.id, "Org/Repo"))
+    end
+
+    test "leaves paths unknown when a host reports more than it may", %{job: job} do
+      too_many = saved_linux_volume(job, "many", 1, Enum.map(1..17, &"dir#{&1}"))
+      too_long = saved_linux_volume(job, "long", 1, [String.duplicate("a", 257)])
+      not_strings = saved_linux_volume(job, "odd", 1, [1])
+
+      for id <- [too_many, too_long, not_strings], do: assert(is_nil(Repo.get!(Volume, id).paths))
     end
 
     test "offers nothing without a saved head the repository can use", %{account: account, job: job} do

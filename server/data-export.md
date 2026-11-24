@@ -1074,6 +1074,8 @@ The archive contains everything needed to understand the account's complete data
   a legacy additional writer branch list that is no longer read (empty for every volume),
   the repository's default branch as last reported by GitHub (nullable),
   the capacity in bytes the latest job that may save requested for the volume (nullable),
+  the path spellings the published head's `.tuist-paths` manifest records, as the host
+  reported them when publishing it (at most 16 of at most 256 bytes; nullable when unknown),
   last use, logical deletion and creation/update timestamps. Identity is unique
   per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
@@ -1202,8 +1204,10 @@ The archive contains everything needed to understand the account's complete data
   node's `CACHE_IMAGES_GIB` budget, and unfinished copies at daemon start; the agent deletes
   its clone as soon as the stream ends and abandons leftovers at start. Off unless a node
   sets `CACHE_IMAGES_GIB`. The server grants a Claude Code session's new Linux sandbox the
-  saved head of its repository's most recently used Linux custom volume (never the checkout
-  or Docker volume), the same head the repository's next CI job mounts, and records it in
+  saved head of one of its repository's Linux custom volumes (never the checkout or Docker
+  volume), chosen by its recorded paths (checkout-relative first, then home, then unknown,
+  never only absolute) and then last use, the same head the repository's next CI job mounts,
+  and records it in
   `sandboxes.cache_volume_id` and `cache_generation`; in production only for accounts with
   the `sandbox_runner_cache` flag.
 - **Docker cache volumes** (Linux hosts, `<cache filesystem>/images/<use UUID>.img` and
