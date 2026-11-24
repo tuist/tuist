@@ -12,6 +12,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.ClaudeCodeSnapshots
+  alias Tuist.Sandboxes.CommandCredentials
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
@@ -112,6 +113,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert start.env["GIT_CONFIG_VALUE_0"] =~ "AUTHORIZATION: basic "
     refute command =~ Base.encode64("x-access-token:ghs_secret_token")
     assert start.env["TUIST_URL"] == Tuist.Environment.app_url()
+    refute Map.has_key?(start.env, "TUIST_OIDC_TOKEN")
     assert %SandboxCommand{command: ^command, status: :running} = Repo.get!(SandboxCommand, build.id)
 
     # The command still runs.
@@ -236,8 +238,18 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert command =~ ~S|state="$HOME/.tuist-sync/|
     assert command =~ "git rev-parse HEAD > \"$state/commit\""
 
+    # Its script signs in with read access to the account's cache while the
+    # build runs, and the build removes the session before saving.
+    stub(Tuist.FeatureFlags, :sandboxes_enabled?, fn _account -> true end)
+    assert {:ok, %{sandbox_command: claims}} = CommandCredentials.claims(start.env["TUIST_OIDC_TOKEN"])
+    assert {:ok, %{id: account_id}, grant} = CommandCredentials.account_grant(claims)
+    assert account_id == account.id
+    assert grant == %{"all_projects" => true, "scopes" => ["account:cache:read", "project:cache:read"]}
+    assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
+
     finish_command(build, 0)
     assert :ok = advance(build)
+    assert {:error, :sandbox_command_not_running} = CommandCredentials.account_grant(claims)
 
     assert %DiskSnapshot{state: :ready, platform: :darwin, template: "macos", template_tag: "sha-new"} =
              snapshot =

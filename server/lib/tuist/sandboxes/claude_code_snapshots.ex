@@ -27,6 +27,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   for that repository, in the command's environment, unset before the
   script runs. The script gets the Tuist environment
   (`Sandboxes.tuist_env/2`), which holds none, so the snapshot holds none.
+  A Mac build's script also gets an identity token with read access to the
+  account's cache (`Tuist.Sandboxes.CommandCredentials`), valid only while
+  the build's command runs, so its `tuist generate` writes the project a
+  signed-in session's does and the session's build reuses the snapshot's;
+  the build deletes the session the CLI stored from it before the disks are
+  saved.
 
   A Linux environment's `macos_setup_script` prepares the Macs its sessions
   create with the `create_sandbox` MCP tool (`Tuist.Sandboxes.Query`) for a
@@ -100,7 +106,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # (`SandboxSync` in the CLI): the manifest of the commit's files, named by
   # its Git hash, and their paths, under the clone's resolved path. The
   # tracked files the script changed go back to the commit first, so the
-  # record describes the copy.
+  # record describes the copy. Before that it drops the session the CLI
+  # stored from the build's identity token, and the script's simulators,
+  # and stops the simulator services: a Mac booted from the disks mounts
+  # the simulator runtimes at new paths, and the devices and services the
+  # disks recorded left its runtimes unavailable (measured, 2026-11).
   @macos_sync_build_script """
   set -eu
   path=$1 url=$2 script=$3
@@ -111,6 +121,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
   cd "$path"
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
+  rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
+  xcrun simctl shutdown all >/dev/null 2>&1 || true
+  xcrun simctl delete all >/dev/null 2>&1 || true
+  killall -TERM Simulator com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+  sudo -n killall -TERM simdiskimaged >/dev/null 2>&1 || true
   git update-index -q --refresh || true
   git reset --quiet --hard HEAD
   root=$(pwd -P)
@@ -204,7 +219,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
                DiskSnapshots.find_ready_for_repository(
                  environment,
                  repository,
-                 setup_sha256(environment.macos_setup_script),
+                 mac_setup_sha256(environment.macos_setup_script),
                  template: attrs.template,
                  workspace_gb: attrs.workspace_gb
                )}
@@ -235,7 +250,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   unless a build of it runs or recently failed. Always `:ok`.
   """
   def request_mac_build(%{snapshot: nil, agent_environment: environment, repository: repository} = source) do
-    case DiskSnapshots.start_build(environment, repository, setup_sha256(environment.macos_setup_script),
+    case DiskSnapshots.start_build(environment, repository, mac_setup_sha256(environment.macos_setup_script),
            platform: :darwin,
            template: source.template,
            workspace_gb: source.workspace_gb
@@ -300,6 +315,14 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
 
   def setup_sha256(script), do: :sha256 |> :crypto.hash(script) |> Base.encode16(case: :lower)
 
+  # A Mac build's snapshot also depends on what the build does around the
+  # script, so a change to that builds the snapshots again.
+  defp mac_setup_sha256(script), do: setup_sha256(@macos_sync_build_script <> script)
+
+  defp build_sha256(build, agent_environment, script) do
+    if mac_build?(build, agent_environment), do: mac_setup_sha256(script), else: setup_sha256(script)
+  end
+
   @doc """
   Takes a build its next step: creates the builder and starts the command,
   waits for the command, or saves or fails the build once it ended. Answers
@@ -310,7 +333,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
 
     with %AgentEnvironment{} = agent_environment <- build.agent_environment,
          script when is_binary(script) <- script(build, agent_environment),
-         true <- setup_sha256(script) == build.setup_sha256 do
+         true <- build_sha256(build, agent_environment, script) == build.setup_sha256 do
       advance(build, agent_environment, Sandboxes.get_sandbox_by_id(build.id))
     else
       _changed -> abandon(build)
@@ -377,8 +400,13 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       |> Map.merge(git_env)
       |> Map.put("GIT_TERMINAL_PROMPT", "0")
 
+    # A Mac build's script signs in to Tuist as a session's does
+    # (`CommandCredentials`, read access to the account's cache).
+    started_by = if mac_build?(build, agent_environment), do: :snapshot_build
+
     case Commands.start(sandbox, %{
            id: build.id,
+           started_by: started_by,
            command: "/bin/sh",
            args: [
              "-c",

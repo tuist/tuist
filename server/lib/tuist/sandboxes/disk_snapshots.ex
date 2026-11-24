@@ -671,14 +671,15 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # session; sessions do not record their repository, so they count for each
   # of its repositories' snapshots), and the Macs created through the account
   # API for its repository on its template, which the macOS snapshot of a
-  # Linux environment serves (`Query.run(:create)`).
+  # Linux environment serves (`Query.run(:create)`). A create that failed
+  # (`:error`, such as a busy fleet) booted nothing and does not count.
   defp spawns(%DiskSnapshot{agent_environment_id: agent_environment_id} = snapshot)
        when is_integer(agent_environment_id) do
     since = DateTime.add(now(), -@popularity_window_hours, :hour)
 
     from(s in Sandbox,
       where:
-        s.inserted_at >= ^since and
+        s.inserted_at >= ^since and s.state != :error and
           ((s.agent_environment_id == ^agent_environment_id and not is_nil(s.anthropic_session_id) and
               s.platform == ^snapshot.platform) or
              (s.account_id == ^snapshot.account_id and s.repository == ^snapshot.repository and

@@ -433,8 +433,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   repository's darwin snapshot of its Xcode template and workspace size, else
   bare with a build requested (`request_mac_build/1`, the default macOS shape).
   Such a Mac records the repository (`sandboxes.repository`): the Macs
-  created for it on the snapshot's template in 24 hours are the snapshot's
-  spawns, which make it popular and so copied out like an Orb snapshot (the
+  created for it on the snapshot's template in 24 hours, except creates that
+  failed (`error`), are the snapshot's spawns, which make it popular and so copied out like an Orb snapshot (the
   environment's Linux sessions count only for its Linux snapshots).
   Such a build clones to `$HOME/work/<name>`, `tuist sandbox sync`'s default
   (the name in the worktree's `origin` URL, so a local directory of another
@@ -452,7 +452,18 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   host macro plugins, so after any cold boot, a snapshot boot included, the
   macro plugins relink and their dependents rebuild (about 55 s of 140 s for
   the Tuist app); the rest stays warm. A stable mount path in the image would
-  remove it. `ClaudeCodeRunners` creates a session's sandbox
+  remove it. A Mac build's command starts as `:snapshot_build`, so its
+  script gets a `TUIST_OIDC_TOKEN` with read access to the account's cache
+  that exchanges only while the build runs (`CommandCredentials`): an
+  unauthenticated `tuist generate` skips the cache setup and writes other
+  build settings than a session's, and the session's first build then
+  recompiled everything (measured, 2026-11). After the script the build
+  deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
+  simulator devices and stops the simulator services, since runtimes mount
+  at new paths on each boot and a Mac restored with the builder's devices
+  and simulator state lost its iOS runtime. The snapshot's key hashes the
+  build script with the macOS setup script, so changing either rebuilds it.
+  `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs
   in a session's sandbox before its runner, so the spawn lease never limits

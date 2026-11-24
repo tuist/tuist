@@ -19,6 +19,13 @@ defmodule Tuist.Sandboxes.CommandCredentials do
   token, only the preset scopes it holds itself, and only its projects), read
   access when they may only read it, and no token otherwise. It never carries
   `account:sandboxes:write`.
+
+  A macOS repository snapshot's build (`Tuist.Sandboxes.ClaudeCodeSnapshots`)
+  starts its command as `:snapshot_build` in its builder, which is no member
+  sandbox: while the build runs, the command gets read access to the
+  account's cache, so the script's `tuist generate` writes the same project
+  as a signed-in session's and Xcode reuses what the build compiled. The
+  build removes the session the CLI stored before its disks are saved.
   """
 
   import Ecto.Query
@@ -30,6 +37,7 @@ defmodule Tuist.Sandboxes.CommandCredentials do
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
 
@@ -45,7 +53,7 @@ defmodule Tuist.Sandboxes.CommandCredentials do
   account's cache, `TUIST_OIDC_TOKEN`.
   """
   def env(subject, %Sandbox{} = sandbox, %SandboxCommand{} = command) do
-    if Sandboxes.member_sandbox?(sandbox) do
+    if credentialed?(subject, sandbox) do
       %Sandbox{account: account} = sandbox = Repo.preload(sandbox, :account)
       env = Sandboxes.tuist_env(account, sandbox)
 
@@ -57,6 +65,21 @@ defmodule Tuist.Sandboxes.CommandCredentials do
       %{}
     end
   end
+
+  defp credentialed?(:snapshot_build, sandbox), do: snapshot_builder?(sandbox)
+  defp credentialed?(_subject, sandbox), do: Sandboxes.member_sandbox?(sandbox)
+
+  # A builder has its build's id (`DiskSnapshots.start_build/3`).
+  defp snapshot_builder?(%Sandbox{id: id, agent_environment_id: agent_environment_id}),
+    do:
+      is_integer(agent_environment_id) and
+        Repo.exists?(
+          from(d in DiskSnapshot,
+            where: d.id == ^id and d.agent_environment_id == ^agent_environment_id and d.state == :building
+          )
+        )
+
+  defp grant(:snapshot_build, _account), do: %{"all_projects" => true, "scopes" => @read_scopes}
 
   defp grant(subject, %Account{} = account) do
     cond do
@@ -140,7 +163,9 @@ defmodule Tuist.Sandboxes.CommandCredentials do
         preload: [:account]
 
     with %Sandbox{account: account} = sandbox <- Repo.one(query),
-         true <- Sandboxes.member_sandbox?(sandbox) and Tuist.FeatureFlags.sandboxes_enabled?(account) do
+         true <-
+           (Sandboxes.member_sandbox?(sandbox) or snapshot_builder?(sandbox)) and
+             Tuist.FeatureFlags.sandboxes_enabled?(account) do
       {:ok, account, grant}
     else
       _ -> {:error, :sandbox_command_not_running}

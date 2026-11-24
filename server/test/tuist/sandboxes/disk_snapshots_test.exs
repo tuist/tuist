@@ -544,8 +544,9 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
           archived_at: DateTime.utc_now()
         )
 
-      # The environment's Linux sessions, another repository's Mac and the
-      # repository's Mac on another Xcode do not count.
+      # The environment's Linux sessions, another repository's Mac, the
+      # repository's Mac on another Xcode and a create that failed do not
+      # count.
       for id <- ~w(s1 s2) do
         sandbox_fixture(account: account, agent_environment_id: agent_environment.id, anthropic_session_id: id)
       end
@@ -553,6 +554,14 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       sandbox_fixture(account: account, platform: :darwin, repository: "acme/other", template: "macos-xcode-27-2")
       sandbox_fixture(account: account, platform: :darwin, repository: "acme/app", template: "macos-xcode-27-0")
       sandbox_fixture(account: account, platform: :darwin, repository: "acme/app", template: "macos-xcode-27-2")
+
+      sandbox_fixture(
+        account: account,
+        platform: :darwin,
+        repository: "acme/app",
+        template: "macos-xcode-27-2",
+        state: :error
+      )
 
       refute DiskSnapshots.queue_copies(snapshot)
 
