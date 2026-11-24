@@ -839,8 +839,12 @@ defmodule TuistWeb.API.SandboxesController do
       {:error, reason} ->
         %{code: code, message: message} = Query.error(reason)
         message = if reason == :not_found, do: "Command not found.", else: message
-        {_result, conn} = send_lines(conn, [%{type: "error", message: message, code: code}])
-        conn
+
+        case send_lines(conn, [%{type: "error", message: message, code: code}]) do
+          {:ok, conn} -> conn
+          # The client went away; the stream already ended for it.
+          {:error, _reason} -> conn
+        end
     end
   end
 
