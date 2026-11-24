@@ -178,6 +178,9 @@ type Sandbox struct {
 	// first exec or worker: its workspace is the empty disk the create
 	// formatted, which a prepared workspace may replace.
 	fresh bool
+	// inputsSwapped is set once an execution VM got its scope's inputs
+	// image as its workspace; see inputsWorkspace.
+	inputsSwapped bool
 	// memoryPending is set while a warm restore still reads memory from
 	// its archive, disksPending while it still reads its disks (lazy, until
 	// then); EventMemoryLoaded reports both cleared.
@@ -1197,6 +1200,7 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 		return res, err
 	}
 	defer sb.releaseAgent()
+	m.inputsWorkspace(ctx, sb, agent, args)
 	defer m.serveBlobs(sb, args)()
 	if args.TimeoutMs > 0 {
 		var cancel context.CancelFunc
