@@ -513,6 +513,14 @@
                 }
               }
             },
+            "snapshots": {
+              "text": "Snapshots",
+              "items": {
+                "generated-xcode-project": {
+                  "text": "Generated Xcode project"
+                }
+              }
+            },
             "insights": {
               "text": "Insights",
               "items": {
