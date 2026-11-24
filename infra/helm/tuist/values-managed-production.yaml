@@ -2610,6 +2610,9 @@ sandboxes:
   # toward 24 once runner retirements for sandboxes and runner queue age
   # stay acceptable.
   maxCpu: "16"
+  # Memory bursting: guests return the memory they free (and, once idle,
+  # their page cache) to the host, and pauses punch zeros out of images.
+  balloonFreePageReporting: true
   # What the daemons were started with, so raising maxCpu (read by the
   # server) restarts none of them.
   daemonMaxCpu: "250m"
