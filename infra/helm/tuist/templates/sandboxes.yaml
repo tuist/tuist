@@ -268,8 +268,15 @@ spec:
                     operator: In
                     values:
                       {{- toYaml .Values.sandboxes.nodePools | nindent 22 }}
-      {{- with .Values.sandboxes.tolerations }}
+      # The runners-controller taints a host `tuist.dev/reserved-for` while
+      # it gathers seats for one pool, and already counts the daemon's
+      # allocation there. Without this toleration a rollout during a
+      # reservation leaves the host without a daemon, and its sandboxes
+      # unreachable, until the taint lifts.
       tolerations:
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      {{- with .Values.sandboxes.tolerations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if and $checkoutAgent .Values.sandboxes.cacheImagesGiB }}
@@ -583,8 +590,11 @@ spec:
                     operator: In
                     values:
                       {{- toYaml .Values.sandboxes.nodePools | nindent 22 }}
-      {{- with .Values.sandboxes.tolerations }}
+      # Same as the daemon: a template rollout must reach reserved hosts.
       tolerations:
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      {{- with .Values.sandboxes.tolerations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
