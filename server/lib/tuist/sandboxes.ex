@@ -661,6 +661,11 @@ defmodule Tuist.Sandboxes do
         do: name
   end
 
+  # The node attaches an older generation of the lineage when its agent keeps
+  # only that; daemons that predate `cache_generation` attach the granted one.
+  defp attached_generation(nil, _data), do: nil
+  defp attached_generation(cache, data), do: data["cache_generation"] || cache.base_generation
+
   defp boot(%Sandbox{} = sandbox, source, prefer \\ [], cache \\ nil, capacity_wait_ms \\ 0) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
     started_at = System.monotonic_time(:millisecond)
@@ -713,10 +718,7 @@ defmodule Tuist.Sandboxes do
               last_active_at: now(),
               error_message: nil,
               cache_volume_id: attached_cache && attached_cache.volume_id,
-              # The node attaches an older generation of the lineage when its
-              # agent keeps only that; daemons that predate the field attach
-              # the granted one.
-              cache_generation: attached_cache && (data["cache_generation"] || attached_cache.base_generation)
+              cache_generation: attached_generation(attached_cache, data)
             },
             boot_event
           )
