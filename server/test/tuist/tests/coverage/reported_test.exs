@@ -1599,10 +1599,9 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
     Commits.recompute(project, "head")
 
-    measured = Commits.merged_files(project.id, "head")
-
     carried = fn ->
-      project |> Reported.merged_files("head", measured) |> Enum.find(&(&1.path == "Sources/Text.swift"))
+      {files, _count} = Commits.list_files(project.id, "head", 1, 100)
+      Enum.find(files, &(&1.path == "Sources/Text.swift"))
     end
 
     assert %{covered_lines: 3} = carried.()
@@ -1626,7 +1625,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       fun.()
     end)
 
-    Reported.merged_files(project, "head", Commits.merged_files(project.id, "head"))
+    Reported.files(project, "head")
 
     assert_received {:coverage_reported_opts, opts}
     assert Keyword.get(opts, :locking) == false

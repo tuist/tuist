@@ -409,7 +409,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> MapSet.new()
   end
 
-  # What the pages read (`merged_files/4`, `file/4`) is the reported coverage
+  # What the pages read (`files/3`, `file/4`) is the reported coverage
   # the commit's published version settled, cached against that version: on a
   # suite of thousands a compute costs about a second and a page reads it more
   # than once. The settings that change the answer without a new version are
@@ -431,28 +431,27 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   @doc """
-  The commit's files with their reported line totals, by path, as
+  The commit's files with their reported line totals and targets, by path, as
   `Tuist.Tests.Coverage.Commits.merged_files/3` lists the measured ones: what
   the comparison reads when the commit's reported coverage is exact, so its
-  targets and files compare as a full run's would. `measured` are the
-  commit's measured files; a file only an ancestor compiled takes its targets
-  from there.
+  targets and files compare as a full run's would. A file only an ancestor
+  compiled takes its targets from there. Nil when the commit's reported
+  coverage is not exact.
   """
-  def merged_files(%Project{} = project, sha, measured, opts \\ []) do
+  def files(%Project{} = project, sha, opts \\ []) do
     case settled(project, sha, opts) do
       %{kind: "reported", files: files} ->
-        by_path = Map.new(measured, &{&1.path, &1})
-
         files
         |> Enum.map(fn {path, file} ->
-          by_path
-          |> Map.get(path, %{path: path, targets: Map.get(file, :targets, [])})
-          |> Map.merge(Map.take(file, [:git_blob_id, :covered_lines, :executable_lines]))
+          Map.merge(
+            %{path: path, targets: Map.get(file, :targets, [])},
+            Map.take(file, [:git_blob_id, :covered_lines, :executable_lines])
+          )
         end)
         |> Enum.sort_by(& &1.path)
 
       _ ->
-        measured
+        nil
     end
   end
 
@@ -497,11 +496,18 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # The files the commit's runs measured, by path, as the commit's own totals
-  # count them.
+  # count them, with their targets: the pages list them from here
+  # (`files/3`) without merging the runs' rows again.
   defp observed_files(project_id, run_ids, excluded) do
     from(f in subquery(Coverage.merged_files_query_for_runs(project_id, run_ids, excluded)),
       select:
-        {f.path, %{git_blob_id: f.git_blob_id, covered_lines: f.covered_lines, executable_lines: f.executable_lines}}
+        {f.path,
+         %{
+           git_blob_id: f.git_blob_id,
+           targets: f.targets,
+           covered_lines: f.covered_lines,
+           executable_lines: f.executable_lines
+         }}
     )
     |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
     |> Map.new()
@@ -1099,14 +1105,15 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     # The carried lines are read once, as the joins' left side: ClickHouse
     # runs a CTE again wherever it is named, and they are the costly part.
-    # The source runs' rows are aggregated only for the files no run at the
-    # commit observed, whose paths are read without their lines.
+    # A source run's file only counts when no run at the commit observed it,
+    # which the observed side of the same row tells: filtering the source
+    # runs' rows by the observed paths read the commit's runs a second time.
     rows =
       """
       SELECT c.path, c.nearest,
         o.path != '', length(o.executable),
         length(arrayDistinct(arrayConcat(o.covered, arrayIntersect(c.carried_lines, o.executable)))),
-        u.path != '', u.git_blob_id, u.targets, length(u.executable),
+        o.path = '' AND u.path != '', u.git_blob_id, u.targets, length(u.executable),
         length(arrayIntersect(c.carried_lines, u.executable))
       FROM (
         SELECT path, min(rank) AS nearest, argMin(source_run, rank) AS nearest_run,
@@ -1123,7 +1130,6 @@ defmodule Tuist.Tests.Coverage.Reported do
         SELECT toString(test_run_id) AS run, path, anyIf(git_blob_id, git_blob_id != '') AS git_blob_id,
           groupUniqArrayArray(targets) AS targets, groupUniqArrayArray(line_numbers) AS executable
         FROM (#{sources})
-        WHERE path NOT IN (SELECT path FROM (#{observed}) WHERE NOT is_test)
         GROUP BY test_run_id, path
       ) AS u ON u.path = c.path AND u.run = c.nearest_run
       SETTINGS join_use_nulls = 0

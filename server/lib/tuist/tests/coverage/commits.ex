@@ -1520,8 +1520,11 @@ defmodule Tuist.Tests.Coverage.Commits do
          true <- carried?(summary),
          %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
       excluded = Coverage.excluded(project_id, opts)
-      measured = merged_files(project_id, sha, excluded: excluded, consistent: Keyword.get(opts, :consistent, false))
-      Reported.merged_files(project, sha, measured, excluded: excluded)
+
+      # The settled reported coverage holds every file with its targets, so
+      # the runs' rows are merged again only when it is not exact.
+      Reported.files(project, sha, excluded: excluded) ||
+        merged_files(project_id, sha, excluded: excluded, consistent: Keyword.get(opts, :consistent, false))
     else
       _ -> nil
     end
