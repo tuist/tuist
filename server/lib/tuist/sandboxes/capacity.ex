@@ -760,7 +760,14 @@ defmodule Tuist.Sandboxes.Capacity do
           )
 
         cap = min(get_in(node, [:capacity, :cpus]) || 0, Map.get(node, :execution_slots, 0) * 2)
-        "#{node.name} candidate=#{Enum.any?(candidates, &(&1.name == node.name))} cap=#{cap} used=#{inspect(used)}"
+        mib = fn bytes -> if is_integer(bytes), do: div(bytes, 1024 * 1024), else: bytes end
+        elastic = Map.get(node, :elastic) || %{}
+
+        "#{node.name} candidate=#{Enum.any?(candidates, &(&1.name == node.name))} cap=#{cap} used=#{inspect(used)}" <>
+          " mem_reported_mib=#{mib.(reported_limit(node))} mem_asked_mib=#{mib.(asked_limit(node))}" <>
+          " mem_budget_mib=#{mib.(memory_budget_bytes(node))} mem_reserved_mib=#{mib.(reserved_bytes(node.name))}" <>
+          " charge_mib=#{mib.(charge_bytes(sandbox))} floor_mib=#{mib.(elastic[:memory_floor_bytes])}" <>
+          " ceiling_mib=#{mib.(elastic[:memory_ceiling_bytes])} disk_space=#{disk_space?(node, sandbox)} disk_room=#{disk_room?(node, sandbox)}"
       end)
 
     Logger.info("re placement no room vcpus=#{sandbox.vcpus} tag=#{image_tag} nodes=[#{Enum.join(nodes, "; ")}]")
