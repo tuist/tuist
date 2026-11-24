@@ -5353,10 +5353,18 @@ defmodule Tuist.Tests do
       |> all_by_uuid_chunks(fn ids -> from(sp in Tuist.Shards.ShardPlan, where: sp.id in ^ids) end)
       |> Map.new(&{&1.id, &1})
 
+    # A shard whose latest status is still `processing` has not reported, as
+    # `merged_shard_status/3` counts it. Leaving it out of the failures would
+    # let the next shard report merge the reaped run back to `in_progress`.
     reported =
       test_run_ids
       |> all_by_uuid_chunks(fn ids ->
-        from(sr in ShardRun, where: sr.test_run_id in ^ids, select: {sr.test_run_id, sr.shard_index})
+        from(sr in ShardRun,
+          where: sr.test_run_id in ^ids,
+          group_by: [sr.test_run_id, sr.shard_index],
+          having: fragment("argMax(?, ?) != 'processing'", sr.status, sr.inserted_at),
+          select: {sr.test_run_id, sr.shard_index}
+        )
       end)
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
