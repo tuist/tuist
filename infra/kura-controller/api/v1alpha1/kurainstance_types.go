@@ -325,7 +325,9 @@ type GatewayEntrance struct {
 	// entrance, in kilobytes per second. Zero sets no limit.
 	RateLimitKBps int32 `json:"rateLimitKBps,omitempty"`
 	// ConnectionLimit bounds the concurrent connections one client address may
-	// hold through the entrance. Zero sets no limit.
+	// hold through the entrance. Zero sets no limit. ingress-nginx counts each
+	// concurrent HTTP/2 request as a connection, so for gRPC and h2 clients it
+	// bounds requests in flight, and the excess gets an HTML 503.
 	ConnectionLimit int32 `json:"connectionLimit,omitempty"`
 }
 

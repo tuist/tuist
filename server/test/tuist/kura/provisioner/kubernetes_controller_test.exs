@@ -2422,8 +2422,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  "ingressClassName" => "kura-ber1-runners",
                  "clientCIDRs" => ["10.10.0.0/24"],
                  "nodeSelector" => %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"},
-                 "rateLimitKBps" => 6400,
-                 "connectionLimit" => 16
+                 "rateLimitKBps" => 6400
                }
              ]
 
