@@ -10,6 +10,7 @@ defmodule LuftServerWeb.AuthController do
   """
   use LuftServerWeb, :controller
 
+  alias LuftServer.AuthEvents
   alias LuftServer.NativeAuth
   alias LuftServer.Sessions
   alias LuftServer.Tuist.OIDC
@@ -37,65 +38,93 @@ defmodule LuftServerWeb.AuthController do
     cond do
       # The state binds the response to the browser that started the sign-in.
       not match?(%{"state" => ^state}, transaction) ->
+        AuthEvents.log(:sign_in, :invalid_state, client: client(transaction))
         conn |> put_status(:bad_request) |> json(%{error: "invalid_state"})
 
       is_map(transaction["native"]) ->
         native_callback(configure_session(conn, drop: true), params, transaction)
 
       error = params["error"] ->
+        AuthEvents.log(:sign_in, :denied, client: "browser")
         redirect(conn, to: with_query(transaction["return_to"], error: error))
 
       code = params["code"] ->
         with {:ok, signin} <- OIDC.exchange_code(code, transaction),
-             {:ok, token, _session} <- Sessions.create(signin) do
+             {:ok, token, session} <- Sessions.create(signin) do
+          AuthEvents.log(:sign_in, :success, client: "browser", session: session)
+
           conn
           |> configure_session(renew: true)
           |> Auth.put_session_cookie(token)
           |> redirect(to: transaction["return_to"])
         else
           {:error, _reason} ->
+            AuthEvents.log(:sign_in, :failed, client: "browser")
             conn |> put_status(:bad_gateway) |> json(%{error: "sign_in_failed"})
         end
 
       true ->
+        AuthEvents.log(:sign_in, :invalid_request, client: "browser")
         conn |> put_status(:bad_request) |> json(%{error: "invalid_request"})
     end
   end
 
-  def callback(conn, _params),
-    do: conn |> put_status(:bad_request) |> json(%{error: "invalid_request"})
+  def callback(conn, _params) do
+    AuthEvents.log(:sign_in, :invalid_request)
+    conn |> put_status(:bad_request) |> json(%{error: "invalid_request"})
+  end
 
   defp native_callback(conn, params, transaction) do
+    client = client(transaction)
+
     if Sessions.consume_native_transaction(transaction["native_pending"]) do
       cond do
         is_binary(params["error"]) ->
+          AuthEvents.log(:sign_in, :denied, client: client)
+
           redirect(conn,
             external: NativeAuth.callback_url(transaction["native"], error: "access_denied")
           )
 
         is_binary(params["code"]) ->
           with {:ok, signin} <- OIDC.exchange_code(params["code"], transaction),
-               {:ok, url} <- NativeAuth.complete(signin, transaction["native"]) do
+               {:ok, url, session} <- NativeAuth.complete(signin, transaction["native"]) do
+            AuthEvents.log(:sign_in, :success, client: client, session: session)
             redirect(conn, external: url)
           else
-            _ -> conn |> put_status(:bad_gateway) |> json(%{error: "sign_in_failed"})
+            _ ->
+              AuthEvents.log(:sign_in, :failed, client: client)
+              conn |> put_status(:bad_gateway) |> json(%{error: "sign_in_failed"})
           end
 
         true ->
+          AuthEvents.log(:sign_in, :invalid_request, client: client)
           conn |> put_status(:bad_request) |> json(%{error: "invalid_request"})
       end
     else
+      # The pending sign-in expired or was already used.
+      AuthEvents.log(:sign_in, :invalid_state, client: client)
       conn |> put_status(:bad_request) |> json(%{error: "invalid_state"})
     end
   end
 
   def logout(conn, _params) do
-    Sessions.delete(conn.assigns.session)
+    session = conn.assigns.session
+    Sessions.delete(session)
+
+    client =
+      if get_req_header(conn, "authorization") == [], do: "browser", else: NativeAuth.client_id()
+
+    AuthEvents.log(:sign_out, :success, session: session, client: client)
 
     conn
     |> Auth.delete_session_cookie()
     |> send_resp(:no_content, "")
   end
+
+  # The native client that started the sign-in, or the browser flow.
+  defp client(%{"native" => %{"client_id" => client_id}}), do: client_id
+  defp client(_transaction), do: "browser"
 
   # Only a path on this origin, so the sign-in can't be turned into an open
   # redirect. Browsers read `//host` and `/\host` as other hosts, and drop
