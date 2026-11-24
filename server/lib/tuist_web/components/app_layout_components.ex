@@ -47,6 +47,7 @@ defmodule TuistWeb.AppLayoutComponents do
         if once?,
           do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests",
           else: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" %>
+      <% snapshots_path = ~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots" %>
       <% test_runs_path =
         if once?,
           do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/test-runs",
@@ -104,7 +105,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="subtask"
         navigate={tests_root}
         selected={@current_path == tests_root}
-        default_open={String.starts_with?(@current_path, tests_root)}
+        default_open={
+          String.starts_with?(@current_path, tests_root) or
+            String.starts_with?(@current_path, snapshots_path)
+        }
         phx-update="ignore"
       >
         <.sidebar_item
@@ -194,6 +198,13 @@ defmodule TuistWeb.AppLayoutComponents do
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"
             )
           }
+        />
+        <.sidebar_item
+          :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Snapshots")}
+          icon="photo"
+          navigate={snapshots_path}
+          selected={String.starts_with?(@current_path, snapshots_path)}
         />
       </.sidebar_group>
       <.sidebar_item
@@ -364,7 +375,7 @@ defmodule TuistWeb.AppLayoutComponents do
           String.starts_with?(
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
-          )
+          ) or String.starts_with?(@current_path, snapshots_path)
         }
         phx-update="ignore"
       >
@@ -443,6 +454,13 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Snapshots")}
+          icon="photo"
+          navigate={snapshots_path}
+          selected={String.starts_with?(@current_path, snapshots_path)}
+        />
       </.sidebar_group>
       <.sidebar_item
         :if={Project.gradle_project?(@selected_project)}
@@ -451,18 +469,6 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
           @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
-        }
-      />
-      <.sidebar_item
-        :if={Tuist.FeatureFlags.snapshots_enabled?(@selected_account)}
-        label={dgettext("dashboard", "Snapshots")}
-        icon="photo"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/snapshots"
-          )
         }
       />
       <.sidebar_item
