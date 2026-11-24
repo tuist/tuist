@@ -13,7 +13,9 @@ import TuistSupport
 /// every test process, each parallel testing clone, and the app a UI test launches. The file holds
 /// every instrumented image the process loaded, and Xcode clears the directory when the next run
 /// with coverage starts. A process belongs to the test target whose bundle has a function that no
-/// other image of the run has and that ran in it. Each target's profiles are merged and reported
+/// other image of the run has and that ran in it, or, for a bundle with no such function, whose
+/// records TestCoverageAttribution wrote for the process's pid (`modulesByProcess`: it writes each
+/// process's output under a directory named by its pid). Each target's profiles are merged and reported
 /// by `llvm-cov` over the images whose functions ran, the way the run's own coverage is reported.
 ///
 /// A process no test bundle claims, such as the app a UI test drives, belongs to the scope that
@@ -54,6 +56,7 @@ struct TestTargetProcessCoverage {
         bundles: [Bundle],
         images: [String],
         launches: [CoverageObserverOutput.Launch] = [],
+        modulesByProcess: [Int32: Set<String>] = [:],
         remap: @escaping @Sendable (_ path: String, _ image: String) -> String
     ) async -> Result {
         var result = Result()
@@ -83,21 +86,25 @@ struct TestTargetProcessCoverage {
             (profile, await executedFunctions(profile: profile.pathString))
         }
         let scopeByProcess = Dictionary(launches.map { ($0.processIdentifier, $0.scope) }, uniquingKeysWith: { $1 })
+        let bundleModules = Set(bundles.map(\.module))
         var profilesByOwner: [Owner: [AbsolutePath]] = [:]
         var executedByOwner: [Owner: Set<UInt64>] = [:]
         for (profile, executed) in executedByProfile {
-            let modules = ownFunctions.filter { !$0.1.isDisjoint(with: executed) }.map(\.0)
             let owner: Owner
-            switch modules.count {
-            case 0:
-                guard let scope = Self.processIdentifier(ofProfile: profile).flatMap({ scopeByProcess[$0] }) else {
-                    result.unmatchedProcesses += 1
-                    continue
-                }
-                result.launchedProcesses += 1
-                owner = .launch(scope)
-            case 1: owner = .target(modules[0])
-            default:
+            switch Self.owner(
+                ofProcess: Self.processIdentifier(ofProfile: profile),
+                executed: executed,
+                ownFunctions: ownFunctions,
+                scopeByProcess: scopeByProcess,
+                recordedModules: { modulesByProcess[$0, default: []].intersection(bundleModules) }
+            ) {
+            case let .owned(found):
+                if case .launch = found { result.launchedProcesses += 1 }
+                owner = found
+            case .unmatched:
+                result.unmatchedProcesses += 1
+                continue
+            case .ambiguous:
                 result.ambiguousProcesses += 1
                 continue
             }
@@ -150,9 +157,39 @@ struct TestTargetProcessCoverage {
         return result
     }
 
-    private enum Owner: Hashable {
+    enum Owner: Hashable {
         case target(String)
         case launch(CoverageObserverOutput.Launch.Scope)
+    }
+
+    enum Ownership: Equatable {
+        case owned(Owner)
+        case unmatched
+        case ambiguous
+    }
+
+    /// Who a process belongs to: the test bundle with a function of its own (`ownFunctions`) that
+    /// ran in it; else the scope that recorded launching it; else the one test bundle whose records
+    /// TestCoverageAttribution wrote for its pid (`recordedModules`). The last covers a bundle with
+    /// no instrumented function of its own, such as one whose code all lives in a library from the
+    /// binary cache: its process is told apart only by what the package says ran in it.
+    static func owner(
+        ofProcess processIdentifier: Int32?,
+        executed: Set<UInt64>,
+        ownFunctions: [(String, Set<UInt64>)],
+        scopeByProcess: [Int32: CoverageObserverOutput.Launch.Scope],
+        recordedModules: (Int32) -> Set<String>
+    ) -> Ownership {
+        let modules = ownFunctions.filter { !$0.1.isDisjoint(with: executed) }.map(\.0)
+        switch modules.count {
+        case 0:
+            guard let processIdentifier else { return .unmatched }
+            if let scope = scopeByProcess[processIdentifier] { return .owned(.launch(scope)) }
+            let recorded = recordedModules(processIdentifier)
+            return recorded.count == 1 ? .owned(.target(recorded.first!)) : .unmatched
+        case 1: return .owned(.target(modules[0]))
+        default: return .ambiguous
+        }
     }
 
     /// The pid in a raw profile's name, `<uuid>-<pid>.profraw` as Xcode names it (`%p`).
