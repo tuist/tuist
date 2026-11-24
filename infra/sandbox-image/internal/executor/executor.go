@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"syscall"
@@ -73,6 +74,9 @@ func (s *Session) Run(parent context.Context, requestJSON, token string) (string
 		Meter: &worker.CgroupMeter{Root: "/sys/fs/cgroup", Name: "action", VCPUs: runtime.NumCPU()}}
 	w.CAS.Seed(r.Inputs)
 	w.CAS.Host = hostBlobs{dial: dialHost}
+	if info, err := os.Stat(inputsDir); err == nil && info.IsDir() {
+		w.Inputs = inputsDir
+	}
 	response, cacheable := w.Execute(ctx, &re.Digest{Hash: r.Hash, SizeBytes: r.Size})
 	if md := response.GetResult().GetExecutionMetadata(); md != nil {
 		if timings, err := casReadTimings(w.CAS, r.Endpoint, s.reused); err == nil {

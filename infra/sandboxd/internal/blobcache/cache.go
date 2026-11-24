@@ -88,6 +88,8 @@ type entry struct {
 	ready chan struct{}
 	err   error
 	elem  *list.Element // in lru once ready
+	// hits counts the requests that found or waited for it; see Image.
+	hits int
 }
 
 type Metrics struct {
@@ -133,6 +135,9 @@ type Cache struct {
 	pending int64     // reserved bytes not yet on disk
 	conns   map[string]*grpc.ClientConn
 	tmp     int
+	images  map[string]*imageState // by scope key; see Image
+	// Mkfs formats an inputs image around a tree; tests replace it.
+	Mkfs func(ctx context.Context, image, root string) error
 }
 
 // New empties dir and returns a cache bounded to budget bytes. Nothing in it
@@ -204,6 +209,7 @@ func (c *Cache) Open(ctx context.Context, s Scope, hash string, size int64) (*os
 			continue
 		}
 		c.lru.MoveToBack(e.elem)
+		e.hits++
 		f, err := os.Open(e.path)
 		c.mu.Unlock()
 		if err != nil {
@@ -228,6 +234,11 @@ func (c *Cache) reserve(key, path string, size int64) (*entry, error) {
 	for c.used+size > c.budget || c.shortOfDisk(size) {
 		oldest := c.lru.Front()
 		if oldest == nil {
+			// Inputs images count in the budget too; blobs come first.
+			if st := c.oldestImage(nil); st != nil {
+				c.dropImage(st)
+				continue
+			}
 			c.gauge()
 			return nil, ErrFull
 		}
