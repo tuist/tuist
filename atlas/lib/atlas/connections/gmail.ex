@@ -19,12 +19,19 @@ defmodule Atlas.Connections.Gmail do
   @read_scope "https://www.googleapis.com/auth/gmail.readonly"
   @compose_scope "https://www.googleapis.com/auth/gmail.compose"
   @api "https://gmail.googleapis.com/gmail/v1/users/me"
+  # Draft writes use the media upload URI: a base64url `raw` JSON field is
+  # limited in size, and attachments make messages large.
+  @upload_api "https://gmail.googleapis.com/upload/gmail/v1/users/me"
   @max_results 25
   @max_body 20_000
   # Matches the document library's upload cap.
   @max_attachment_bytes 50 * 1024 * 1024
   @max_draft_body 100_000
   @max_recipients 50
+  @max_new_attachments 10
+  # Leaves room for base64 encoding under Gmail's 25 MB sending limit.
+  @max_draft_attachment_bytes 18_000_000
+  @content_type ~r/\A[A-Za-z0-9!#$&^_.+-]{1,127}\/[A-Za-z0-9!#$&^_.+-]{1,127}\z/
   @id ~r/\A[A-Za-z0-9_-]{1,100}\z/
   # Plain addresses only, so no recipient can carry a display name, header
   # separator or line break into the message.
@@ -99,16 +106,19 @@ defmodule Atlas.Connections.Gmail do
   end
 
   @doc """
-  Creates a plain-text, Markdown or HTML draft. `reply_to_message_id` threads it under that
-  message, which also needs the Gmail read consent to look up its headers.
+  Creates a plain-text, Markdown or HTML draft, optionally with `attachments`
+  (`filename`, `content_base64`, optional `content_type`). `reply_to_message_id`
+  threads it under that message, which also needs the Gmail read consent to look
+  up its headers.
   """
   def create_draft(%User{} = user, attrs) when is_map(attrs) do
-    with {:ok, fields} <- draft_fields(attrs) do
+    with {:ok, fields} <- draft_fields(attrs),
+         :ok <- attachments_fit(attachment_bytes(fields.attachments)) do
       with_token(user, [@compose_scope], "draft_create", fn token ->
         with {:ok, reply} <- reply(token, fields.reply_to_message_id),
-             {:ok, created} <- request(:post, "/drafts", token, json: %{"message" => message(fields, reply)}) do
+             {:ok, created} <- write_draft(:post, "/drafts", token, %{}, fields, reply, fields.attachments) do
           audit(user, "connection.gmail_draft_created", %{"draft_id" => created["id"], "reply" => reply != nil})
-          {:ok, written(created, fields, reply)}
+          {:ok, written(created, fields, reply, fields.attachments)}
         end
       end)
     end
@@ -116,17 +126,24 @@ defmodule Atlas.Connections.Gmail do
 
   @doc """
   Replaces a draft's recipients, subject and body. Without `reply_to_message_id`
-  the draft keeps the thread and reply headers it already has.
+  the draft keeps the thread and reply headers it already has. The draft's
+  attachments are kept and new `attachments` added to them, unless
+  `keep_attachments` is false.
   """
   def update_draft(%User{} = user, id, attrs) when is_binary(id) and is_map(attrs) do
     with :ok <- valid_id(id),
          {:ok, fields} <- draft_fields(attrs) do
       with_locked_draft(user, id, "draft_update", fn token ->
-        with {:ok, reply} <- update_reply(token, id, fields.reply_to_message_id),
-             {:ok, updated} <-
-               request(:put, "/drafts/" <> id, token, json: %{"id" => id, "message" => message(fields, reply)}) do
+        with {:ok, current} <- fetch_draft(token, id),
+             {:ok, reply} <- update_reply(token, current, fields.reply_to_message_id),
+             # Gmail's reported sizes reject an oversized draft before anything is downloaded.
+             :ok <- attachments_fit(reported_bytes(current, fields) + attachment_bytes(fields.attachments)),
+             {:ok, kept} <- kept_attachments(token, current, fields.keep_attachments),
+             attachments = kept ++ fields.attachments,
+             :ok <- attachments_fit(attachment_bytes(attachments)),
+             {:ok, updated} <- write_draft(:put, "/drafts/" <> id, token, %{"id" => id}, fields, reply, attachments) do
           audit(user, "connection.gmail_draft_updated", %{"draft_id" => id})
-          {:ok, written(updated, fields, reply)}
+          {:ok, written(updated, fields, reply, attachments)}
         end
       end)
     end
@@ -169,12 +186,17 @@ defmodule Atlas.Connections.Gmail do
   defp with_locked_draft(user, id, operation, fun),
     do: with_draft_lock(user, id, fn -> with_token(user, [@compose_scope], operation, fun) end)
 
-  # Serialize updates and sends for the same user's draft.
+  # Serialize updates and sends for the same user's draft. The transaction
+  # outlives the Gmail calls it wraps (an update downloads and uploads up to
+  # 25 MB), so the audit and commit never run on a connection the pool reclaimed.
   defp with_draft_lock(user, id, fun) do
-    Repo.transaction(fn ->
-      Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["gmail-draft:#{user.id}:#{id}"])
-      fun.()
-    end)
+    Repo.transaction(
+      fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["gmail-draft:#{user.id}:#{id}"])
+        fun.()
+      end,
+      timeout: :timer.minutes(3)
+    )
     |> case do
       {:ok, result} -> result
       {:error, reason} -> {:error, reason}
@@ -262,6 +284,7 @@ defmodule Atlas.Connections.Gmail do
            body: body(payload),
            body_html: html_body(payload),
            attachments: attachments(payload),
+           attachment_parts: Enum.filter(flatten(payload), &attachment_part?/1),
            recipients: Enum.flat_map(~w(To Cc Bcc), &(headers |> header(&1) |> split_addresses()))
          }}
 
@@ -273,7 +296,7 @@ defmodule Atlas.Connections.Gmail do
     end
   end
 
-  defp written(response, fields, reply) do
+  defp written(response, fields, reply, attachments) do
     %{
       id: response["id"],
       message_id: get_in(response, ["message", "id"]),
@@ -285,7 +308,11 @@ defmodule Atlas.Connections.Gmail do
       in_reply_to: reply && reply.in_reply_to,
       body: bounded(fields.body),
       body_html: bounded(fields.body_html),
-      attachments: []
+      attachments:
+        Enum.map(
+          attachments,
+          &%{"filename" => &1.filename, "mime_type" => &1.content_type, "size" => byte_size(&1.body)}
+        )
     }
   end
 
@@ -310,18 +337,161 @@ defmodule Atlas.Connections.Gmail do
     end
   end
 
-  defp update_reply(token, _id, message_id) when is_binary(message_id), do: reply(token, message_id)
+  defp update_reply(token, _draft, message_id) when is_binary(message_id), do: reply(token, message_id)
 
-  defp update_reply(token, id, nil) do
-    with {:ok, draft} <- fetch_draft(token, id) do
-      in_reply_to = draft.in_reply_to && single_line(draft.in_reply_to)
-      references = single_line(draft.references)
-      # RFC 5322: a reply's References ends with the parent's Message-ID.
-      references = if references == "" and in_reply_to, do: in_reply_to, else: references
+  defp update_reply(_token, draft, nil) do
+    in_reply_to = draft.in_reply_to && single_line(draft.in_reply_to)
+    references = single_line(draft.references)
+    # RFC 5322: a reply's References ends with the parent's Message-ID.
+    references = if references == "" and in_reply_to, do: in_reply_to, else: references
 
-      {:ok, if(draft.thread_id, do: %{thread_id: draft.thread_id, in_reply_to: in_reply_to, references: references})}
+    {:ok, if(draft.thread_id, do: %{thread_id: draft.thread_id, in_reply_to: in_reply_to, references: references})}
+  end
+
+  # Gmail replaces the whole message on update, so the draft's attachments are
+  # copied from its raw message and written back rather than silently dropped.
+  # drafts.get needs only the compose scope; messages.attachments.get would
+  # also need Gmail read access.
+  defp kept_attachments(_token, _draft, false), do: {:ok, []}
+  defp kept_attachments(_token, %{attachment_parts: []}, true), do: {:ok, []}
+
+  defp kept_attachments(token, draft, true) do
+    with {:ok, %{"message" => %{"raw" => raw}}} when is_binary(raw) <-
+           request(:get, "/drafts/" <> draft.id, token, params: [format: "raw"], receive_timeout: 60_000),
+         {:ok, bytes} <- decode_bytes(raw) do
+      mime_attachments(bytes)
+    else
+      {:ok, _body} -> {:error, :invalid_response}
+      error -> error
     end
   end
+
+  defp mime_attachments(bytes) do
+    {:ok, bytes |> String.replace(~r/\r?\n/, "\r\n") |> Mail.parse() |> attachment_entities()}
+  rescue
+    _ -> {:error, :invalid_response}
+  end
+
+  defp attachment_entities(%Mail.Message{parts: [_ | _] = parts}), do: Enum.flat_map(parts, &attachment_entities/1)
+
+  defp attachment_entities(%Mail.Message{body: body} = part) when is_binary(body) do
+    {disposition, disposition_params} =
+      case List.wrap(part.headers["content-disposition"]) do
+        [value | params] -> {value, params}
+        [] -> {nil, []}
+      end
+
+    [type | type_params] = Mail.Message.get_content_type(part)
+    name = mime_param(disposition_params, "filename") || mime_param(type_params, "name")
+
+    if disposition == "attachment" or is_binary(name) do
+      type = if is_binary(type) and Regex.match?(@content_type, type), do: type, else: "application/octet-stream"
+      [%{filename: safe_filename(name || "attachment"), content_type: type, body: body}]
+    else
+      []
+    end
+  end
+
+  defp attachment_entities(_part), do: []
+
+  # The mail library decodes RFC 2047 words and RFC 2231 continuations, but
+  # returns a lone RFC 2231 `filename*` as {{"filename", ""}, "UTF-8''..."}.
+  defp mime_param(params, key) do
+    Enum.find_value(params, fn
+      {^key, value} when is_binary(value) and value != "" ->
+        value
+
+      {{^key, _}, value} when is_binary(value) ->
+        case String.split(value, "'", parts: 3) do
+          [_charset, _language, encoded] -> URI.decode(encoded)
+          _ -> value
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp reported_bytes(_draft, %{keep_attachments: false}), do: 0
+
+  defp reported_bytes(draft, _fields) do
+    Enum.sum_by(draft.attachment_parts, fn part ->
+      case part do
+        %{"body" => %{"size" => size}} when is_integer(size) -> size
+        _ -> 0
+      end
+    end)
+  end
+
+  defp attachment_bytes(attachments), do: Enum.sum_by(attachments, &byte_size(&1.body))
+
+  defp attachments_fit(bytes) do
+    if bytes <= @max_draft_attachment_bytes do
+      :ok
+    else
+      {:error,
+       {:invalid,
+        "The draft's attachments must total at most #{div(@max_draft_attachment_bytes, 1_000_000)} MB, " <>
+          "so the message stays under Gmail's 25 MB sending limit."}}
+    end
+  end
+
+  defp new_attachments(attachments) when is_list(attachments) and length(attachments) <= @max_new_attachments do
+    Enum.reduce_while(attachments, {:ok, []}, fn attachment, {:ok, decoded} ->
+      case new_attachment(attachment) do
+        {:ok, attachment} -> {:cont, {:ok, [attachment | decoded]}}
+        error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, decoded} -> {:ok, Enum.reverse(decoded)}
+      error -> error
+    end
+  end
+
+  defp new_attachments(_attachments),
+    do: {:error, {:invalid, "attachments must list at most #{@max_new_attachments} files."}}
+
+  defp new_attachment(%{"filename" => filename, "content_base64" => encoded} = attachment)
+       when is_binary(filename) and is_binary(encoded) do
+    # Like reply_to_support_thread, a missing or empty type is inferred from the name.
+    content_type =
+      case Map.get(attachment, "content_type") do
+        type when type in [nil, ""] -> MIME.from_path(filename)
+        type -> type
+      end
+
+    with true <-
+           (String.valid?(filename) and byte_size(filename) in 1..255 and not (filename =~ ~r/[\x00-\x1f\x7f]/)) ||
+             {:error, {:invalid, "Attachment filenames must be one line of at most 255 UTF-8 bytes."}},
+         true <-
+           (is_binary(content_type) and Regex.match?(@content_type, content_type)) ||
+             {:error, {:invalid, "Attachment content_type must be a MIME type such as application/pdf."}},
+         {:ok, body} <- Base.decode64(encoded, ignore: :whitespace) do
+      {:ok, %{filename: filename, content_type: content_type, body: body}}
+    else
+      :error -> {:error, {:invalid, "attachments must contain valid Base64 file data."}}
+      error -> error
+    end
+  end
+
+  defp new_attachment(_attachment), do: {:error, {:invalid, "attachments require filename and content_base64."}}
+
+  # Names written by other clients get the same bounds as new attachments.
+  defp safe_filename(name) do
+    name = if String.valid?(name), do: name |> String.replace(~r/[\x00-\x1f\x7f]/, "_") |> String.trim(), else: ""
+
+    name
+    |> String.slice(0, 255)
+    |> truncate_bytes()
+    |> case do
+      "" -> "attachment"
+      name -> name
+    end
+  end
+
+  defp truncate_bytes(name) when byte_size(name) <= 255, do: name
+  defp truncate_bytes(name), do: name |> String.slice(0..-2//1) |> truncate_bytes()
 
   defp draft_fields(attrs) do
     to = Map.get(attrs, "to", [])
@@ -330,6 +500,7 @@ defmodule Atlas.Connections.Gmail do
     body = Map.get(attrs, "body", "")
     format = Map.get(attrs, "body_format", "plain")
     reply_to = Map.get(attrs, "reply_to_message_id")
+    keep_attachments = Map.get(attrs, "keep_attachments", true)
 
     checks = [
       {recipients?(to, 1), "to must list 1 to #{@max_recipients} plain email addresses."},
@@ -339,13 +510,24 @@ defmodule Atlas.Connections.Gmail do
        "body must be UTF-8 text of at most #{@max_draft_body} bytes."},
       {format in ~w(plain markdown html), "body_format must be plain, markdown or html."},
       {is_nil(reply_to) or (is_binary(reply_to) and Regex.match?(@id, reply_to)),
-       "reply_to_message_id must be a message id returned by search_my_gmail."}
+       "reply_to_message_id must be a message id returned by search_my_gmail."},
+      {is_boolean(keep_attachments), "keep_attachments must be true or false."}
     ]
 
     case Enum.find(checks, fn {valid?, _message} -> not valid? end) do
       nil ->
-        fields = %{to: to, cc: cc, subject: subject, reply_to_message_id: reply_to}
-        {:ok, Map.merge(fields, draft_content(body, format))}
+        with {:ok, attachments} <- new_attachments(Map.get(attrs, "attachments", [])) do
+          fields = %{
+            to: to,
+            cc: cc,
+            subject: subject,
+            reply_to_message_id: reply_to,
+            attachments: attachments,
+            keep_attachments: keep_attachments
+          }
+
+          {:ok, Map.merge(fields, draft_content(body, format))}
+        end
 
       {false, message} ->
         {:error, {:invalid, message}}
@@ -391,26 +573,45 @@ defmodule Atlas.Connections.Gmail do
   defp single_line?(value),
     do: is_binary(value) and String.valid?(value) and String.length(value) <= 500 and not (value =~ ~r/[\r\n\x00]/)
 
-  # RFC 5322 message with UTF-8 base64 content, sent to Gmail as `raw`.
-  defp message(fields, reply) do
-    {content_headers, body} = mime_content(fields)
+  # Writes the draft through Gmail's multipart media upload: the Draft resource
+  # (`id` on update, the message's threadId) as JSON, then the RFC 5322 message.
+  defp write_draft(method, path, token, metadata, fields, reply, attachments) do
+    thread = if reply && reply.thread_id, do: %{"threadId" => reply.thread_id}, else: %{}
+    boundary = boundary()
+
+    body =
+      "--#{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" <>
+        JSON.encode!(Map.put(metadata, "message", thread)) <>
+        "\r\n--#{boundary}\r\nContent-Type: message/rfc822\r\n\r\n" <>
+        message(fields, reply, attachments) <> "\r\n--#{boundary}--\r\n"
+
+    request(method, path, token,
+      base: @upload_api,
+      params: [uploadType: "multipart"],
+      headers: [{"content-type", "multipart/related; boundary=#{boundary}"}],
+      body: body,
+      receive_timeout: 60_000
+    )
+  end
+
+  # RFC 5322 message with UTF-8 base64 content.
+  defp message(fields, reply, attachments) do
+    {content_headers, body} = if attachments == [], do: mime_content(fields), else: mixed_content(fields, attachments)
 
     headers =
-      [
-        {"To", Enum.join(fields.to, ", ")},
-        fields.cc != [] && {"Cc", Enum.join(fields.cc, ", ")},
-        {"Subject", encode_header(fields.subject)},
-        reply && reply.in_reply_to && {"In-Reply-To", reply.in_reply_to},
-        reply && reply.references != "" && {"References", reply.references},
-        {"MIME-Version", "1.0"}
-      ]
-      |> Kernel.++(content_headers)
-      |> Enum.filter(& &1)
-      |> Enum.map_join(fn {name, value} -> "#{name}: #{value}\r\n" end)
+      Enum.filter(
+        [
+          {"To", Enum.join(fields.to, ", ")},
+          fields.cc != [] && {"Cc", Enum.join(fields.cc, ", ")},
+          {"Subject", encode_header(fields.subject)},
+          reply && reply.in_reply_to && {"In-Reply-To", reply.in_reply_to},
+          reply && reply.references != "" && {"References", reply.references},
+          {"MIME-Version", "1.0"}
+        ],
+        & &1
+      )
 
-    raw = Base.url_encode64(headers <> "\r\n" <> body, padding: false)
-
-    if reply && reply.thread_id, do: %{"raw" => raw, "threadId" => reply.thread_id}, else: %{"raw" => raw}
+    mime_part(headers ++ content_headers, body)
   end
 
   defp mime_content(%{body: body, body_html: ""}) do
@@ -419,23 +620,63 @@ defmodule Atlas.Connections.Gmail do
   end
 
   defp mime_content(fields) do
-    boundary = "atlas-" <> Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
-
-    body =
-      Enum.map_join([{"text/plain", fields.body}, {"text/html", fields.body_html}], fn {type, content} ->
-        "--#{boundary}\r\nContent-Type: #{type}; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" <>
-          wrap(Base.encode64(content), 76)
-      end) <> "--#{boundary}--\r\n"
-
-    {[{"Content-Type", "multipart/alternative; boundary=\"#{boundary}\""}], body}
+    multipart("alternative", [
+      text_part("text/plain", fields.body),
+      text_part("text/html", fields.body_html)
+    ])
   end
 
-  defp wrap(text, width) when byte_size(text) > width do
-    binary_part(text, 0, width) <> "\r\n" <> wrap(binary_part(text, width, byte_size(text) - width), width)
+  defp mixed_content(fields, attachments) do
+    {headers, body} = mime_content(fields)
+
+    multipart("mixed", [
+      mime_part(headers, body)
+      | Enum.map(attachments, fn attachment ->
+          mime_part(
+            [
+              {"Content-Type", attachment.content_type},
+              {"Content-Disposition", "attachment; " <> filename_param(attachment.filename)},
+              {"Content-Transfer-Encoding", "base64"}
+            ],
+            wrap(Base.encode64(attachment.body), 76)
+          )
+        end)
+    ])
   end
 
-  defp wrap("", _width), do: ""
-  defp wrap(text, _width), do: text <> "\r\n"
+  defp text_part(type, content) do
+    mime_part(
+      [{"Content-Type", "#{type}; charset=UTF-8"}, {"Content-Transfer-Encoding", "base64"}],
+      wrap(Base.encode64(content), 76)
+    )
+  end
+
+  defp multipart(subtype, parts) do
+    boundary = boundary()
+
+    {[{"Content-Type", "multipart/#{subtype}; boundary=\"#{boundary}\""}],
+     Enum.map_join(parts, &("--#{boundary}\r\n" <> &1)) <> "--#{boundary}--\r\n"}
+  end
+
+  defp mime_part(headers, body),
+    do: Enum.map_join(headers, fn {name, value} -> "#{name}: #{value}\r\n" end) <> "\r\n" <> body
+
+  defp boundary, do: "atlas-" <> Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
+
+  # RFC 2231 extended parameter for names a quoted string cannot carry.
+  defp filename_param(name) do
+    if name =~ ~r/\A[A-Za-z0-9 !#$%&'()*+,.;=@^_`{}~\[\]-]+\z/,
+      do: ~s(filename="#{name}"),
+      else: "filename*=UTF-8''" <> URI.encode(name, &URI.char_unreserved?/1)
+  end
+
+  # Builds the lines as iodata: attachments make the text large.
+  defp wrap(text, width) do
+    full = div(byte_size(text), width) * width
+    <<lines::binary-size(^full), rest::binary>> = text
+    chunks = for <<line::binary-size(^width) <- lines>>, do: [line, "\r\n"]
+    IO.iodata_to_binary([chunks | if(rest == "", do: [], else: [rest, "\r\n"])])
+  end
 
   # RFC 2047 encoded words (at most 75 characters each) for non-ASCII subjects.
   defp encode_header(value) do
@@ -501,6 +742,16 @@ defmodule Atlas.Connections.Gmail do
         "size" => get_in(part, ["body", "size"])
       }
     end
+  end
+
+  # Gmail lists a filename for most attachments, but an attachment part can
+  # also be marked only by its Content-Disposition.
+  defp attachment_part?(part) do
+    (is_binary(part["filename"]) and part["filename"] != "") or
+      (part["headers"] || [])
+      |> header("Content-Disposition")
+      |> String.downcase()
+      |> String.starts_with?("attachment")
   end
 
   defp attachment_part(message, part_id) do
@@ -599,15 +850,20 @@ defmodule Atlas.Connections.Gmail do
   defp valid_id(id), do: if(Regex.match?(@id, id), do: :ok, else: {:error, :not_found})
 
   defp request(method, path, token, opts) do
+    {base, opts} = Keyword.pop(opts, :base, @api)
+
     case Req.request(
-           [
-             method: method,
-             url: @api <> path,
-             auth: {:bearer, token},
-             retry: false,
-             redirect: false,
-             receive_timeout: 15_000
-           ] ++ opts
+           Keyword.merge(
+             [
+               method: method,
+               url: base <> path,
+               auth: {:bearer, token},
+               retry: false,
+               redirect: false,
+               receive_timeout: 15_000
+             ],
+             opts
+           )
          ) do
       {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
       {:ok, %{status: 404}} -> {:error, :not_found}

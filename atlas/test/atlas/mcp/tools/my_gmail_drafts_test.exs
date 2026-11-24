@@ -32,8 +32,8 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
           }
         })
 
-      "POST", "/gmail/v1/users/me/drafts", conn ->
-        message = conn |> json_body() |> Map.fetch!("message")
+      "POST", "/upload/gmail/v1/users/me/drafts", conn ->
+        message = conn |> uploaded() |> Map.fetch!("message")
         send(self(), {:created, message})
         Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-1", "threadId" => "thread-1"}})
     end)
@@ -76,8 +76,8 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
         Req.Test.json(conn, draft_payload("Old", "Old"))
 
       method, path, conn when method in ["POST", "PUT"] ->
-        assert path in ["/gmail/v1/users/me/drafts", "/gmail/v1/users/me/drafts/draft-1"]
-        send(self(), {:rich, json_body(conn)["message"]["raw"]})
+        assert path in ["/upload/gmail/v1/users/me/drafts", "/upload/gmail/v1/users/me/drafts/draft-1"]
+        send(self(), {:rich, uploaded(conn)["message"]["raw"]})
         Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-1"}})
     end)
 
@@ -137,7 +137,16 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
           %{base | "subject" => "Hi\r\nBcc: eve@example.com"},
           Map.put(base, "cc", ["eve@example.com, mallory@example.com"]),
           Map.put(base, "body_format", "text/html\r\nBcc: eve@example.com"),
-          %{base | "to" => []}
+          %{base | "to" => []},
+          Map.put(base, "attachments", [
+            %{
+              "filename" => "a.pdf",
+              "content_type" => "application/pdf\r\nBcc: eve@example.com",
+              "content_base64" => "AA=="
+            }
+          ]),
+          Map.put(base, "attachments", [%{"filename" => "a.pdf\r\nBcc: eve@example.com", "content_base64" => "AA=="}]),
+          Map.put(base, "attachments", [%{"filename" => "a.pdf", "content_base64" => "not base64!"}])
         ] do
       assert {:error, message} = CreateMyGmailDraft.execute(agent_conn(user), args)
       refute message =~ "expired"
@@ -164,9 +173,8 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
       "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
         Req.Test.json(conn, Process.get(:draft))
 
-      "PUT", "/gmail/v1/users/me/drafts/draft-1", conn ->
-        body = json_body(conn)
-        send(self(), {:updated, body})
+      "PUT", "/upload/gmail/v1/users/me/drafts/draft-1", conn ->
+        send(self(), {:updated, uploaded(conn)})
         Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-2", "threadId" => "thread-1"}})
     end)
 
@@ -181,6 +189,318 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
     assert headers["references"] == "<orig@mail.example>"
     assert headers["subject"] == "Re: New"
     assert body == "New body"
+  end
+
+  test "a created draft carries its attachments next to the rich body" do
+    user = insert_google!([Gmail.compose_scope()])
+    pdf = <<"%PDF-1.7\n", :crypto.strong_rand_bytes(200)::binary>>
+
+    gmail(fn "POST", "/upload/gmail/v1/users/me/drafts", conn ->
+      send(self(), {:created, uploaded(conn)})
+      Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-1"}})
+    end)
+
+    args = %{
+      "to" => ["anna@example.com"],
+      "subject" => "Signed contract",
+      "body" => "Attached, **signed**.",
+      "body_format" => "markdown",
+      "attachments" => [
+        %{
+          "filename" => "Vertrag – Käthe.pdf",
+          "content_type" => "application/pdf",
+          "content_base64" => Base.encode64(pdf)
+        },
+        %{"filename" => "notes.txt", "content_type" => "", "content_base64" => Base.encode64("ok")}
+      ]
+    }
+
+    assert {:ok, %{draft: draft}} = execute_tool(CreateMyGmailDraft, agent_conn(user), args)
+
+    assert draft.attachments == [
+             %{"filename" => "Vertrag – Käthe.pdf", "mime_type" => "application/pdf", "size" => byte_size(pdf)},
+             %{"filename" => "notes.txt", "mime_type" => "text/plain", "size" => 2}
+           ]
+
+    assert_received {:created, %{"message" => message}}
+    refute Map.has_key?(message, "threadId")
+    {headers, [{body_headers, [_plain, _html]}, {pdf_headers, pdf_body}, {txt_headers, "ok"}]} = parse(message["raw"])
+    assert headers["content-type"] =~ "multipart/mixed"
+    assert body_headers["content-type"] =~ "multipart/alternative"
+    assert pdf_headers["content-type"] == "application/pdf"
+    assert pdf_headers["content-disposition"] == "attachment; filename*=UTF-8''Vertrag%20%E2%80%93%20K%C3%A4the.pdf"
+    assert pdf_body == pdf
+    assert txt_headers["content-type"] == "text/plain"
+    assert txt_headers["content-disposition"] == ~s(attachment; filename="notes.txt")
+  end
+
+  test "an update keeps the draft's attachments with only the drafts consent, unless told to drop them" do
+    user = insert_google!([Gmail.compose_scope()])
+    signed = :crypto.strong_rand_bytes(300)
+
+    parts = [
+      {"signed.pdf", "application/pdf", ~s(attachment; filename="signed.pdf"), signed},
+      {"Vertrag – Käthe.pdf", "application/pdf", "attachment; filename*=UTF-8''Vertrag%20%E2%80%93%20K%C3%A4the.pdf",
+       "vertrag"},
+      {"terms.csv", ~s(text/csv; name="terms.csv"), nil, "a,b"}
+    ]
+
+    raw =
+      "To: anna@example.com\r\nSubject: Contract\r\nMIME-Version: 1.0\r\n" <>
+        ~s(Content-Type: multipart/mixed; boundary="b"\r\n\r\n) <>
+        "--b\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nOld body\r\n" <>
+        Enum.map_join(parts, fn {_name, type, disposition, data} ->
+          "--b\r\nContent-Type: #{type}\r\n" <>
+            if(disposition, do: "Content-Disposition: #{disposition}\r\n", else: "") <>
+            "Content-Transfer-Encoding: base64\r\n\r\n#{Base.encode64(data)}\r\n"
+        end) <> "--b--\r\n"
+
+    draft =
+      update_in(draft_payload("Contract", "Old body"), ["message", "payload"], fn payload ->
+        Map.merge(payload, %{
+          "mimeType" => "multipart/mixed",
+          "parts" =>
+            for {{name, type, _, data}, index} <- Enum.with_index(parts, 1) do
+              %{
+                "partId" => "#{index}",
+                "mimeType" => type,
+                "filename" => name,
+                "body" => %{"attachmentId" => "att-#{index}", "size" => byte_size(data)}
+              }
+            end
+        })
+      end)
+
+    gmail(fn
+      "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
+        case conn.query_params["format"] do
+          "full" -> Req.Test.json(conn, draft)
+          "raw" -> Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"raw" => Base.url_encode64(raw)}})
+        end
+
+      # Google refuses attachment downloads to a token without Gmail read access.
+      "GET", "/gmail/v1/users/me/messages/" <> _, conn ->
+        conn
+        |> Plug.Conn.put_status(403)
+        |> Req.Test.json(%{"error" => %{"errors" => [%{"reason" => "insufficientPermissions"}]}})
+
+      "PUT", "/upload/gmail/v1/users/me/drafts/draft-1", conn ->
+        send(self(), {:updated, uploaded(conn)})
+        Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-2", "threadId" => "thread-1"}})
+    end)
+
+    args = %{
+      "draft_id" => "draft-1",
+      "to" => ["anna@example.com"],
+      "subject" => "Contract",
+      "body" => "New body",
+      "attachments" => [%{"filename" => "invoice.pdf", "content_base64" => Base.encode64("invoice")}]
+    }
+
+    assert {:ok, %{draft: %{attachments: listed}}} = execute_tool(UpdateMyGmailDraft, agent_conn(user), args)
+    assert Enum.map(listed, & &1["filename"]) == ["signed.pdf", "Vertrag – Käthe.pdf", "terms.csv", "invoice.pdf"]
+
+    assert_received {:updated, %{"id" => "draft-1", "message" => %{"threadId" => "thread-1", "raw" => raw}}}
+
+    {_headers,
+     [
+       {_, "New body"},
+       {signed_headers, ^signed},
+       {vertrag_headers, "vertrag"},
+       {csv_headers, "a,b"},
+       {invoice_headers, "invoice"}
+     ]} = parse(raw)
+
+    assert signed_headers["content-type"] == "application/pdf"
+    assert signed_headers["content-disposition"] == ~s(attachment; filename="signed.pdf")
+    assert vertrag_headers["content-disposition"] == "attachment; filename*=UTF-8''Vertrag%20%E2%80%93%20K%C3%A4the.pdf"
+    assert csv_headers["content-type"] == "text/csv"
+    assert invoice_headers["content-type"] == "application/pdf"
+
+    assert {:ok, %{draft: %{attachments: []}}} =
+             execute_tool(
+               UpdateMyGmailDraft,
+               agent_conn(user),
+               args |> Map.delete("attachments") |> Map.put("keep_attachments", false)
+             )
+
+    assert_received {:updated, %{"message" => %{"raw" => raw}}}
+    assert {%{"content-type" => "text/plain; charset=UTF-8"}, "New body"} = parse(raw)
+  end
+
+  test "a reply update carries new attachments in the original thread" do
+    user = insert_google!([Gmail.scope(), Gmail.compose_scope()])
+
+    gmail(fn
+      "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
+        Req.Test.json(conn, draft_payload("Draft", "Old"))
+
+      "GET", "/gmail/v1/users/me/messages/orig", conn ->
+        Req.Test.json(conn, %{
+          "id" => "orig",
+          "threadId" => "thread-9",
+          "payload" => %{"headers" => [%{"name" => "Message-ID", "value" => "<orig@mail.example>"}]}
+        })
+
+      "PUT", "/upload/gmail/v1/users/me/drafts/draft-1", conn ->
+        send(self(), {:updated, uploaded(conn)})
+        Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-2", "threadId" => "thread-9"}})
+    end)
+
+    args = %{
+      "draft_id" => "draft-1",
+      "to" => ["anna@example.com"],
+      "subject" => "Re: Contract",
+      "body" => "Signed copy attached.",
+      "reply_to_message_id" => "orig",
+      "attachments" => [%{"filename" => "signed.pdf", "content_base64" => Base.encode64("pdf")}]
+    }
+
+    assert {:ok, %{draft: %{in_reply_to: "<orig@mail.example>"}}} =
+             execute_tool(UpdateMyGmailDraft, agent_conn(user), args)
+
+    assert_received {:updated, %{"id" => "draft-1", "message" => %{"threadId" => "thread-9", "raw" => raw}}}
+    {headers, [{_, "Signed copy attached."}, {pdf_headers, "pdf"}]} = parse(raw)
+    assert headers["content-type"] =~ "multipart/mixed"
+    assert headers["in-reply-to"] == "<orig@mail.example>"
+    assert headers["references"] == "<orig@mail.example>"
+    assert pdf_headers["content-type"] == "application/pdf"
+  end
+
+  test "keep_attachments false replaces the draft's attachments without reading them" do
+    user = insert_google!([Gmail.compose_scope()])
+
+    draft =
+      update_in(draft_payload("Contract", "Body"), ["message", "payload"], fn payload ->
+        Map.merge(payload, %{
+          "mimeType" => "multipart/mixed",
+          "parts" => [
+            %{
+              "partId" => "1",
+              "mimeType" => "application/pdf",
+              "filename" => "old.pdf",
+              "body" => %{"size" => 30_000_000}
+            }
+          ]
+        })
+      end)
+
+    gmail(fn
+      "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
+        assert conn.query_params["format"] == "full", "replaced attachments must not be downloaded"
+        Req.Test.json(conn, draft)
+
+      "PUT", "/upload/gmail/v1/users/me/drafts/draft-1", conn ->
+        send(self(), {:updated, uploaded(conn)})
+        Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-2"}})
+    end)
+
+    args = %{
+      "draft_id" => "draft-1",
+      "to" => ["anna@example.com"],
+      "subject" => "Contract",
+      "body" => "Body",
+      "keep_attachments" => false,
+      "attachments" => [%{"filename" => "new.pdf", "content_base64" => Base.encode64("new")}]
+    }
+
+    assert {:ok, %{draft: %{attachments: [%{"filename" => "new.pdf"}]}}} =
+             execute_tool(UpdateMyGmailDraft, agent_conn(user), args)
+
+    assert_received {:updated, %{"message" => %{"raw" => raw}}}
+
+    assert {_headers, [{_, "Body"}, {%{"content-disposition" => ~s(attachment; filename="new.pdf")}, "new"}]} =
+             parse(raw)
+  end
+
+  test "an update keeps empty attachments and attachments without a filename" do
+    user = insert_google!([Gmail.compose_scope()])
+
+    raw =
+      "To: anna@example.com\r\nSubject: Contract\r\nMIME-Version: 1.0\r\n" <>
+        ~s(Content-Type: multipart/mixed; boundary="b"\r\n\r\n) <>
+        "--b\r\nContent-Type: text/plain\r\n\r\nOld\r\n" <>
+        "--b\r\nContent-Type: text/csv\r\nContent-Disposition: attachment\r\n" <>
+        "Content-Transfer-Encoding: base64\r\n\r\n#{Base.encode64("a,b")}\r\n" <>
+        "--b\r\nContent-Type: text/plain\r\n" <>
+        ~s(Content-Disposition: attachment; filename="empty.txt"\r\n) <>
+        "Content-Transfer-Encoding: base64\r\n\r\n\r\n--b--\r\n"
+
+    # Only the Content-Disposition header marks the CSV as an attachment.
+    draft =
+      update_in(draft_payload("Contract", "Old"), ["message", "payload"], fn payload ->
+        Map.merge(payload, %{
+          "mimeType" => "multipart/mixed",
+          "parts" => [
+            %{
+              "partId" => "1",
+              "mimeType" => "text/csv",
+              "filename" => "",
+              "headers" => [%{"name" => "Content-Disposition", "value" => "attachment"}],
+              "body" => %{"attachmentId" => "att-1", "size" => 3}
+            }
+          ]
+        })
+      end)
+
+    gmail(fn
+      "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
+        case conn.query_params["format"] do
+          "full" -> Req.Test.json(conn, draft)
+          "raw" -> Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"raw" => Base.url_encode64(raw)}})
+        end
+
+      "PUT", "/upload/gmail/v1/users/me/drafts/draft-1", conn ->
+        send(self(), {:updated, uploaded(conn)})
+        Req.Test.json(conn, %{"id" => "draft-1", "message" => %{"id" => "msg-2"}})
+    end)
+
+    args = %{"draft_id" => "draft-1", "to" => ["anna@example.com"], "subject" => "Contract", "body" => "New"}
+
+    assert {:ok, %{draft: %{attachments: listed}}} = execute_tool(UpdateMyGmailDraft, agent_conn(user), args)
+
+    assert listed == [
+             %{"filename" => "attachment", "mime_type" => "text/csv", "size" => 3},
+             %{"filename" => "empty.txt", "mime_type" => "text/plain", "size" => 0}
+           ]
+
+    assert_received {:updated, %{"message" => %{"raw" => raw}}}
+    assert {_headers, [{_, "New"}, {_, "a,b"}, {%{"content-type" => "text/plain"}, ""}]} = parse(raw)
+  end
+
+  test "an update that would push the draft's attachments past the limit is refused before any download" do
+    user = insert_google!([Gmail.compose_scope()])
+
+    draft =
+      update_in(draft_payload("Contract", "Body"), ["message", "payload"], fn payload ->
+        Map.merge(payload, %{
+          "mimeType" => "multipart/mixed",
+          "parts" => [
+            %{
+              "partId" => "1",
+              "mimeType" => "application/pdf",
+              "filename" => "big.pdf",
+              "body" => %{"attachmentId" => "att-1", "size" => 18_000_000}
+            }
+          ]
+        })
+      end)
+
+    gmail(fn "GET", "/gmail/v1/users/me/drafts/draft-1", conn ->
+      assert conn.query_params["format"] == "full", "attachments must not be downloaded"
+      Req.Test.json(conn, draft)
+    end)
+
+    args = %{
+      "draft_id" => "draft-1",
+      "to" => ["anna@example.com"],
+      "subject" => "Contract",
+      "body" => "Body",
+      "attachments" => [%{"filename" => "one-more.txt", "content_base64" => Base.encode64("x")}]
+    }
+
+    assert {:error, message} = UpdateMyGmailDraft.execute(agent_conn(user), args)
+    assert message =~ "at most 18 MB"
   end
 
   test "sending immediately uses the owner's mailbox without creating or consuming an Atlas approval" do
@@ -315,9 +635,28 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
     JSON.decode!(body)
   end
 
-  # A minimal RFC 5322 reader for the single-part messages Atlas writes.
-  defp parse(raw) do
-    [head, body] = raw |> Base.url_decode64!(padding: false) |> String.split("\r\n\r\n", parts: 2)
+  # Gmail's multipart upload carries the Draft resource as JSON, then the
+  # message. Returns the resource with the message as `raw`, as Gmail stores it.
+  defp uploaded(conn) do
+    assert conn.query_params["uploadType"] == "multipart"
+    [content_type] = Plug.Conn.get_req_header(conn, "content-type")
+    [_, boundary] = Regex.run(~r/\Amultipart\/related; boundary=(\S+)\z/, content_type)
+    {:ok, body, _conn} = Plug.Conn.read_body(conn, length: 50_000_000)
+    ["", json, message, "--\r\n"] = String.split(body, "--" <> boundary)
+    ["\r\nContent-Type: application/json; charset=UTF-8", json] = String.split(json, "\r\n\r\n", parts: 2)
+    ["\r\nContent-Type: message/rfc822", message] = String.split(message, "\r\n\r\n", parts: 2)
+
+    json
+    |> JSON.decode!()
+    |> put_in(["message", "raw"], Base.url_encode64(String.replace_suffix(message, "\r\n", ""), padding: false))
+  end
+
+  # A minimal RFC 5322 reader for the messages Atlas writes: headers, then the
+  # decoded body or, for multipart content, each part read the same way.
+  defp parse(raw), do: raw |> Base.url_decode64!(padding: false) |> mime()
+
+  defp mime(entity) do
+    [head, body] = String.split(entity, "\r\n\r\n", parts: 2)
 
     headers =
       head
@@ -328,7 +667,15 @@ defmodule Atlas.MCP.Tools.MyGmailDraftsTest do
         {String.downcase(name), value}
       end)
 
-    {headers, body |> String.replace("\r\n", "") |> Base.decode64!()}
+    case Regex.run(~r/\Amultipart\/\w+; boundary="([^"]+)"\z/, headers["content-type"]) do
+      [_, boundary] ->
+        ["" | parts] = String.split(body, "--" <> boundary)
+        {parts, ["--\r\n"]} = Enum.split(parts, -1)
+        {headers, Enum.map(parts, &(&1 |> String.replace_prefix("\r\n", "") |> mime()))}
+
+      nil ->
+        {headers, body |> String.replace("\r\n", "") |> Base.decode64!()}
+    end
   end
 
   defp decode_words(value) do

@@ -127,12 +127,19 @@ when you reconnect. MCP clients then get four caller-only tools:
   drafts with HTML and a plain-text alternative. Recipients are plain email addresses. An optional
   `reply_to_message_id` (from `search_my_gmail`) files the draft in that thread
   and sets `In-Reply-To` and `References`; it also needs Gmail access.
+  `attachments` adds up to 10 files, each with `filename`, `content_base64` and
+  an optional `content_type` (inferred from the filename when omitted). One
+  call can carry about 6 MB of files, and a draft's attachments can total at
+  most 18 MB, so the message stays under Gmail's 25 MB sending limit.
 - `get_my_gmail_draft` reads a draft by `draft_id`: recipients, subject, reply
   headers, attachment names, a plain-text body and `body_html` source, each body
   bounded to 20,000 characters.
 - `update_my_gmail_draft` replaces a draft's recipients, subject and body. It
   keeps the draft's thread unless you pass a new `reply_to_message_id`. Pass
   `body_format` on each replacement; omitting it replaces the body with plain text.
+  The draft keeps its attachments, and `attachments` adds more. Set
+  `keep_attachments` to `false` to replace them with `attachments`, or to
+  remove them all when you pass none.
 - `send_my_gmail_draft` sends the current draft immediately, including its
   recipients, body and attachments. Your MCP client handles confirmation;
   Atlas does not ask for a separate approval. If Gmail does not confirm the
