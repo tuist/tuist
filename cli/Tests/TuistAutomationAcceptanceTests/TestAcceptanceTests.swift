@@ -1,11 +1,14 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Path
 import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistEnvironment
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import TuistXCResultService
@@ -411,5 +414,102 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
             executedTestNames.contains { $0.contains("greeting_isNotEmpty") },
             "Swift Testing suite MacFrameworkValueTests did not run"
         )
+    }
+}
+
+/// A suite-granularity plan splits `MacFrameworkTests` across both shards. When the shard holding a
+/// failing suite fails, the other shard passes its part of the target, and that part alone must not
+/// let the next run skip the target. Once every shard holding the target passed, the next run skips it.
+@Suite(.coverageAttribution)
+struct TestAcceptanceTestShardSplitTargetSelectiveTesting {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH", "DEVELOPER_DIR", "TUIST_URL"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests")
+    ) func split_target_is_skipped_only_once_every_shard_holding_it_passes() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+        let githubOutputPath = temporaryDirectory.appending(component: "github_output")
+        let runID = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
+
+        try await fileSystem.writeText(
+            """
+            import Foundation
+            import XCTest
+
+            final class MacFrameworkShardFailureTests: XCTestCase {
+                func testFailsWhenAsked() {
+                    XCTAssertNil(ProcessInfo.processInfo.environment["SHARD_FAILURE"])
+                }
+            }
+            """,
+            at: fixtureDirectory.appending(components: "MacFramework", "Tests", "MacFrameworkShardFailureTests.swift")
+        )
+        // Results are parsed, and so uploaded, relative to the project's root, which is found from the
+        // working directory.
+        try #require(Environment.mocked).currentWorkingDirectoryStub = fixtureDirectory
+        // Suite inventories come from CI runs only.
+        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
+        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
+        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
+        Environment.mocked?.variables["TEST_RUNNER_SHARD_FAILURE"] = "1"
+        let passthrough = ["--inspect-mode", "local", "--path", fixtureDirectory.pathString, "--"]
+
+        // Suite plans are packed from the suites earlier runs recorded, so record them first.
+        Environment.mocked?.variables["GITHUB_RUN_ID"] = "\(runID)-history"
+        await #expect(throws: (any Error).self) {
+            try await TuistTest.run(TestCommand.self, ["MacFrameworkTests"] + passthrough + ["-destination", "platform=macOS"])
+        }
+
+        func buildShards(attempt: Int) async throws -> Int {
+            Environment.mocked?.variables["GITHUB_RUN_ID"] = "\(runID)-\(attempt)"
+            try await fileSystem.writeText("", at: githubOutputPath, options: Set([.overwrite]))
+            if try await fileSystem.exists(testProductsPath) {
+                try await fileSystem.remove(testProductsPath)
+            }
+            try await TuistTest.run(
+                TestCommand.self,
+                ["MacFrameworkTests", "--build-only", "--shard-total", "2", "--shard-granularity", "suite", "--shard-skip-upload"]
+                    + passthrough
+                    + ["-testProductsPath", testProductsPath.pathString, "-destination", "platform=macOS"]
+            )
+            let output = try await fileSystem.readTextFile(at: githubOutputPath)
+            let matrix = try #require(output.split(separator: "\n").last { $0.hasPrefix("matrix=") })
+            let json = try #require(
+                try JSONSerialization.jsonObject(with: Data(String(matrix.dropFirst("matrix=".count)).utf8)) as? [String: Any]
+            )
+            return try #require(json["shard"] as? [Int]).count
+        }
+
+        func runShard(_ index: Int) async -> Bool {
+            do {
+                try await TuistTest.run(
+                    TestCommand.self,
+                    ["MacFrameworkTests", "--without-building", "--shard-index", "\(index)"]
+                        + passthrough
+                        + ["-testProductsPath", testProductsPath.pathString, "-destination", "platform=macOS"]
+                )
+                return true
+            } catch {
+                return false
+            }
+        }
+
+        try #require(try await buildShards(attempt: 1) == 2, "The server didn't plan the two shards this test is about")
+        let firstAttempt = [await runShard(0), await runShard(1)]
+        try #require(firstAttempt.filter { $0 }.count == 1, "Exactly one shard should hold the failing suite")
+
+        // Rerunning the whole job after the failure must test the target again.
+        Environment.mocked?.variables["TEST_RUNNER_SHARD_FAILURE"] = nil
+        try #require(try await buildShards(attempt: 2) == 2, "A shard passing its part of the target let the rerun skip it")
+        #expect(await runShard(0))
+        #expect(await runShard(1))
+
+        // Every shard holding the target passed, so the next run skips it.
+        #expect(try await buildShards(attempt: 3) == 0)
     }
 }

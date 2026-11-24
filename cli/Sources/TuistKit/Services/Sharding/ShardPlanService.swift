@@ -199,6 +199,13 @@
                 metadata: .section
             )
 
+            try await recordSplitTestTargets(
+                of: shardPlan,
+                modules: modules,
+                shardGranularity: shardGranularity,
+                xctestproductsPath: xctestproductsPath
+            )
+
             if let archivePath {
                 try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
                 Logger.current.notice("Shard archive written to \(archivePath.pathString)", metadata: .section)
@@ -217,6 +224,45 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// Records in the products' selective testing graph which targets the plan split across shards, so
+        /// a shard passing its part of one doesn't store the target's hash on its own.
+        ///
+        /// In a suite plan the last shard is the catch-all: it skips the suites other shards hold and runs
+        /// whatever else a module has, such as suites added since the inventory the plan was packed from,
+        /// so it holds part of every module.
+        private func recordSplitTestTargets(
+            of shardPlan: Components.Schemas.ShardPlan,
+            modules: [String],
+            shardGranularity: ShardGranularity,
+            xctestproductsPath: AbsolutePath
+        ) async throws {
+            let graphPath = xctestproductsPath.appending(component: SelectiveTestingGraph.fileName)
+            guard try await fileSystem.exists(graphPath),
+                  var graph: SelectiveTestingGraph = try? await fileSystem.readJSONFile(at: graphPath)
+            else { return }
+
+            var shardIndices: [String: Set<Int>] = [:]
+            for shard in shardPlan.shards {
+                for testTarget in shard.test_targets {
+                    let module = String(testTarget.prefix { $0 != "/" })
+                    shardIndices[module, default: []].insert(shard.index)
+                }
+            }
+            let isSuitePlan = shardGranularity == .suite
+                || shardPlan.shards.contains { $0.test_targets.contains { $0.contains("/") } }
+            if isSuitePlan, shardPlan.shard_count > 0 {
+                for module in modules {
+                    shardIndices[module, default: []].insert(shardPlan.shard_count - 1)
+                }
+            }
+
+            graph.splitTestTargets = SelectiveTestingGraph.SplitTestTargets(
+                shardPlanId: shardPlan.id,
+                shardIndices: shardIndices.filter { $0.value.count > 1 }.mapValues { $0.sorted() }
+            )
+            try await fileSystem.writeAsJSON(graph, at: graphPath, encoder: JSONEncoder(), options: [.overwrite])
         }
 
         /// The branch of the checkout the tests were built from, which the server reads the suite
