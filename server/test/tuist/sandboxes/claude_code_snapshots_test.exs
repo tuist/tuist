@@ -247,6 +247,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert grant == %{"all_projects" => true, "scopes" => ["account:cache:read", "project:cache:read"]}
     assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
     assert command =~ ~S|rm -rf "$cache"|
+    assert command =~ "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 GIT_TERMINAL_PROMPT\n"
 
     finish_command(build, 0)
     assert :ok = advance(build)
