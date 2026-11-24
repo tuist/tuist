@@ -717,6 +717,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert result["failed_test_count"] == 2
       assert result["result_bundle_url"] == "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
       assert result["session_url"] == "https://storage.test/acme/app/runs/command-event-1/session.zip"
+      assert result["shard_result_bundles"] == []
       assert result["coverage"]["coverage"] == 75.0
       assert result["selective_testing"]["strategy"] == "coverage"
     end
@@ -774,6 +775,78 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       result = JSON.decode!(text)
       assert result["result_bundle_url"] == "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
       assert result["session_url"] == nil
+    end
+
+    test "links each shard report's result bundle by the ID the shard uploaded it under" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      run = %{
+        id: "run-1",
+        status: :failure,
+        duration: 10_000,
+        is_ci: true,
+        is_flaky: false,
+        scheme: "AppTests",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: ~N[2024-01-01 12:00:00],
+        project_id: 1,
+        shard_plan_id: "plan-1"
+      }
+
+      stub(Tests, :get_test, fn "run-1" -> {:ok, run} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Analytics, :get_test_run_metrics, fn _ ->
+        %{total_count: 1, failed_count: 0, flaky_count: 0, avg_duration: 1}
+      end)
+
+      stub(CoverageQuery, :test_run, fn _ ->
+        %{
+          enabled: false,
+          git_dirty: false,
+          measured: false,
+          partial: false,
+          covered_lines: 0,
+          executable_lines: 0,
+          coverage: nil
+        }
+      end)
+
+      stub(SelectionQuery, :test_run, fn _ ->
+        %{strategy: "module_hash", baseline_sha: nil, requested: 1, selected: 1, skipped: 0, estimated: 0}
+      end)
+
+      stub(Tests, :shard_reports, fn ^run ->
+        [
+          %{shard_index: 0, source_test_run_id: "run-1", status: "success", reported_at: ~N[2024-01-01 12:05:00]},
+          %{shard_index: 1, source_test_run_id: "upload-2", status: "failure", reported_at: ~N[2024-01-01 12:10:00]}
+        ]
+      end)
+
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", _opts -> {:error, :not_found} end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetTestRun.call(conn, %{"test_run_id" => "run-1"})
+
+      assert JSON.decode!(text)["shard_result_bundles"] == [
+               %{
+                 "shard_index" => 0,
+                 "status" => "success",
+                 "reported_at" => "2024-01-01T12:05:00Z",
+                 "result_bundle_url" => "https://storage.test/acme/app/runs/run-1/result_bundle.zip"
+               },
+               %{
+                 "shard_index" => 1,
+                 "status" => "failure",
+                 "reported_at" => "2024-01-01T12:10:00Z",
+                 "result_bundle_url" => "https://storage.test/acme/app/runs/upload-2/result_bundle.zip"
+               }
+             ]
     end
 
     test "requires :test_read authorization" do

@@ -16,5 +16,7 @@ defmodule Tuist.Shards.ShardRun do
     field :duration, Ch, type: "UInt64", default: 0
     field :ran_at, Ch, type: "DateTime64(6)"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    # The ID the shard reported under, which its result bundle is stored by.
+    field :source_test_run_id, Ch, type: "String", default: ""
   end
 end

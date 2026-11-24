@@ -366,6 +366,36 @@ defmodule Tuist.Tests do
 
   def result_bundle_run_ids(%Test{id: id}), do: [id]
 
+  @doc """
+  Every report a sharded run's shards sent, as `%{shard_index, source_test_run_id,
+  status, reported_at}` ordered by shard and time, one per report ID: a shard
+  run again in a CI retry reports, and uploads its result bundle, under a new ID.
+  Reports recorded before `shard_runs.source_test_run_id` existed are left out.
+  """
+  def shard_reports(%{id: id, project_id: project_id} = test) do
+    if is_nil(Map.get(test, :shard_plan_id)), do: [], else: query_shard_reports(id, project_id)
+  end
+
+  defp query_shard_reports(id, project_id) do
+    # ShardRun stores this UUID as a String, and Swift clients historically
+    # supplied uppercase IDs.
+    ids = [String.downcase(id), String.upcase(id)]
+
+    ClickHouseRepo.all(
+      from(sr in ShardRun.query(),
+        where: sr.project_id == ^project_id and sr.test_run_id in ^ids and sr.source_test_run_id != "",
+        group_by: [sr.shard_index, sr.source_test_run_id],
+        order_by: [asc: sr.shard_index, asc: min(sr.inserted_at)],
+        select: %{
+          shard_index: sr.shard_index,
+          source_test_run_id: sr.source_test_run_id,
+          status: fragment("argMax(?, ?)", sr.status, sr.inserted_at),
+          reported_at: max(sr.inserted_at)
+        }
+      )
+    )
+  end
+
   def get_latest_test_by_build_run_id(build_run_id, project_id) do
     query =
       from(t in Test.query(),
@@ -956,6 +986,9 @@ defmodule Tuist.Tests do
     shard_index = Map.get(attrs, :shard_index)
     shard_status = Map.get(attrs, :status, "success")
     shard_duration = Map.get(attrs, :duration, 0)
+    # The xcresult worker reports under the merged ID and names the upload in
+    # `source_test_run_id`; the CLI's own request reports under the upload's ID.
+    source_test_run_id = Map.get(attrs, :source_test_run_id) || Map.get(attrs, :id)
 
     # `shard_runs` is the only authority on which run a plan's shards report
     # into. The first shard claims that mapping before its run row exists, so a
@@ -972,6 +1005,7 @@ defmodule Tuist.Tests do
         shard_index,
         shard_status,
         shard_duration,
+        source_test_run_id,
         attrs
       )
     end
@@ -1038,6 +1072,7 @@ defmodule Tuist.Tests do
             shard_index,
             shard_status,
             shard_duration,
+            source_test_run_id,
             attrs
           )
 
@@ -1117,6 +1152,7 @@ defmodule Tuist.Tests do
           shard_index,
           shard_status,
           shard_duration,
+          source_test_run_id,
           attrs
         )
       end
@@ -1228,7 +1264,7 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp insert_shard_run(plan_id, project_id, test_run_id, shard_index, status, duration, attrs) do
+  defp insert_shard_run(plan_id, project_id, test_run_id, shard_index, status, duration, source_test_run_id, attrs) do
     now = NaiveDateTime.utc_now()
 
     IngestRepo.insert_all(ShardRun, [
@@ -1240,7 +1276,8 @@ defmodule Tuist.Tests do
         status: status,
         duration: duration || 0,
         ran_at: attrs |> Map.get(:ran_at, now) |> shard_run_ran_at(),
-        inserted_at: now
+        inserted_at: now,
+        source_test_run_id: source_test_run_id || ""
       }
     ])
   end
