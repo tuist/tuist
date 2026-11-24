@@ -2214,6 +2214,50 @@ defmodule Tuist.TestsTest do
       assert updated_test.duration == 800
     end
 
+    test "records the ID each shard report was sent under, where its result bundle is stored" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      report = fn attrs ->
+        Map.merge(
+          %{
+            project_id: project.id,
+            account_id: account.id,
+            duration: 500,
+            status: "success",
+            git_branch: "main",
+            git_commit_sha: "abc123",
+            ran_at: NaiveDateTime.utc_now(),
+            is_ci: true,
+            shard_plan_id: plan.id
+          },
+          attrs
+        )
+      end
+
+      first_upload = UUIDv7.generate()
+      failed_upload = UUIDv7.generate()
+      retried_upload = UUIDv7.generate()
+
+      {:ok, run} = Tests.create_test(report.(%{id: first_upload, shard_index: 0}))
+      {:ok, _} = Tests.create_test(report.(%{id: failed_upload, shard_index: 1, status: "processing"}))
+
+      # The xcresult worker reports under the merged run's ID and names the upload.
+      {:ok, _} =
+        Tests.create_test(report.(%{id: run.id, source_test_run_id: failed_upload, shard_index: 1, status: "failure"}))
+
+      {:ok, _} = Tests.create_test(report.(%{id: retried_upload, shard_index: 1, status: "failure"}))
+
+      assert run.id == first_upload
+
+      assert [
+               %{shard_index: 0, source_test_run_id: ^first_upload, status: "success"},
+               %{shard_index: 1, source_test_run_id: ^failed_upload, status: "failure"},
+               %{shard_index: 1, source_test_run_id: ^retried_upload, status: "failure"}
+             ] = Tests.shard_reports(run)
+    end
+
     test "keeps run errors reported by a shard other than the first" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account

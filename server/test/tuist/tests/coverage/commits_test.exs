@@ -4,6 +4,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.TestImpactAnalysis.Baselines
@@ -15,11 +16,13 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
+  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.CoverageRunFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
@@ -730,15 +733,29 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       )
     end
 
-    # A report of the run three days old: its evidence is past the two days
-    # `coverage_files` keeps it, so merges may have deleted any of it.
+    # A shard report of the run three days old, which its totals cover: its
+    # evidence is past the two days `coverage_files` keeps it, so merges may
+    # have deleted any of it.
     defp report_days_ago(run, days) do
       inserted_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
+
+      [totals] =
+        ClickHouseRepo.all(from(c in CoverageRun, where: c.test_run_id == ^run.id, order_by: [desc: c.version], limit: 1))
+
+      IngestRepo.insert_all(CoverageRun, [
+        %{
+          Map.take(totals, CoverageRun.__schema__(:fields))
+          | version: totals.version + 1,
+            report_shards: totals.report_shards ++ [1],
+            report_inserted_at: totals.report_inserted_at ++ [inserted_at]
+        }
+      ])
 
       IngestRepo.insert_all(CoverageRunFile, [
         %{
           test_run_id: run.id,
           project_id: run.project_id,
+          shard_index: 1,
           build_system: "xcode",
           path: "Sources/Old.swift",
           layout_id: 1,
@@ -1058,6 +1075,46 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert %{carried_tests_count: 2} = Reported.compute(project, "head")
       assert checkpoints(project, "head") == []
+    end
+
+    test "writes no checkpoint while a shard's report is on the replicas but not in the totals", %{
+      account: account,
+      project: project
+    } do
+      full_run(project, account, NaiveDateTime.utc_now())
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      sharded = %{shard_plan_id: plan.id, shard_index: 0}
+      head = selective_run(project, account, "head", "text", sharded)
+
+      # Shard 1's rows land before its totals do.
+      IngestRepo.insert_all(CoverageRunFile, [
+        %{
+          test_run_id: head.id,
+          project_id: project.id,
+          shard_index: 1,
+          build_system: "xcode",
+          path: "Sources/Math.swift",
+          layout_id: 1,
+          git_commit_sha: "head",
+          targets: ["App"],
+          covered_lines: 0,
+          executable_lines: 1,
+          execution_counts: [],
+          function_execution_counts: [],
+          function_covered_lines: [],
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      CoverageFixtures.recompute_commit(head)
+      assert checkpoints(project, "head") == []
+
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 1, 0])], %{
+        sharded
+        | shard_index: 1
+      })
+
+      assert [%Snapshot{carried_targets: ["TextKitTests\u001Ftext"]}] = checkpoints(project, "head")
     end
 
     test "copies a target from an overlay with the tests it doesn't override from its checkpoint", %{

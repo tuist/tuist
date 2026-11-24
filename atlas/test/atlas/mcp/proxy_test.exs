@@ -560,6 +560,20 @@ defmodule Atlas.MCP.ProxyTest do
     end
   end
 
+  test "a timed-out upstream is reported as slow, not unreachable" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+
+    expect(Req, :post, fn _ -> {:error, %Req.TransportError{reason: :timeout}} end)
+    assert {:ok, timed_out} = Proxy.connection_status(conn, "grafana")
+    assert timed_out.status == "transport_error"
+    assert timed_out.message =~ "did not answer within 20 seconds"
+    refute timed_out.message =~ "Could not reach"
+
+    expect(Req, :post, fn _ -> {:error, %Req.TransportError{reason: :econnrefused}} end)
+    assert {:ok, refused} = Proxy.connection_status(conn, "grafana")
+    assert refused.message =~ "Could not reach upstream grafana"
+  end
+
   test "live diagnostics preserve the failed discovery stage and redact JSON-RPC bodies" do
     conn = %{assigns: %{current_user: %User{id: "user-1"}}}
     expect_initialize()

@@ -29,6 +29,9 @@ const (
 	diskSnapshotFile      = "disk-snapshot.json"
 	diskSnapshotTmpPrefix = ".tmp-"
 	guestSyncTimeout      = 60 * time.Second
+	// guestDropCacheTimeout bounds the pre-pause cache drop, which writes
+	// back what is still dirty after the pause's own sync.
+	guestDropCacheTimeout = 20 * time.Second
 )
 
 var (
@@ -444,7 +447,7 @@ func (m *Manager) dropGuestCache(ctx context.Context, sb *Sandbox) (int64, error
 	if agent == nil {
 		return 0, ErrNotRunning
 	}
-	ctx, cancel := context.WithTimeout(ctx, guestSyncTimeout)
+	ctx, cancel := context.WithTimeout(ctx, guestDropCacheTimeout)
 	defer cancel()
 	var out []byte
 	code, err := vsock.RunProcess(ctx, agent, vsock.ExecRequest{Cmd: []string{"/bin/sh", "-c", dropCacheScript}, Cwd: "/"}, func(stream string, data []byte) {

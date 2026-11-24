@@ -7,8 +7,10 @@ defmodule Tuist.Tests.Coverage.Workers.RunFilesBackfillWorkerTest do
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Workers.PinsBackfillWorker
   alias Tuist.Tests.Coverage.Workers.RunFilesBackfillWorker
   alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.CoverageRunFile
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -72,6 +74,24 @@ defmodule Tuist.Tests.Coverage.Workers.RunFilesBackfillWorkerTest do
 
     assert :ok = perform_job(RunFilesBackfillWorker, %{pass: 2})
     assert copied_rows(run_id) == 3
+
+    # The run's totals predate the pins, which the pins backfill writes next.
+    IngestRepo.insert_all(CoverageRun, [
+      %{
+        project_id: project.id,
+        test_run_id: run_id,
+        git_commit_sha: "a",
+        covered_lines: 2,
+        executable_lines: 3,
+        files: 2,
+        version: 1,
+        inserted_at: reported_at,
+        report_shards: [],
+        report_inserted_at: []
+      }
+    ])
+
+    assert :ok = perform_job(PinsBackfillWorker, %{pass: 2})
 
     rows = Commits.file_rows(project.id, [run_id], "Sources/A.swift")
 

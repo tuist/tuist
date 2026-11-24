@@ -11,6 +11,12 @@ defmodule Tuist.Tests.CoverageRun do
   shard report inserts the totals it computed over the shards reported so far. Reports can land in any order, so `version` ranks a
   computation by how many shards it included, then by the newest report it
   saw: the most complete one wins.
+
+  `report_shards` and `report_inserted_at` pin the report of each shard the
+  totals cover, by the `inserted_at` its `coverage_run_files` rows share:
+  every replica held them when the row was written, and readers take those
+  rows (`Tuist.Tests.Coverage.report_files_for_runs/3`). Rows written before
+  the pins existed have none, and readers take each shard's newest report.
   """
   use Ecto.Schema
 
@@ -31,5 +37,7 @@ defmodule Tuist.Tests.CoverageRun do
     field :files, Ch, type: "UInt32", default: 0
     field :version, Ch, type: "UInt64"
     field :inserted_at, Ch, type: "DateTime64(6)"
+    field :report_shards, Ch, type: "Array(UInt32)", default: []
+    field :report_inserted_at, Ch, type: "Array(DateTime64(6))", default: []
   end
 end

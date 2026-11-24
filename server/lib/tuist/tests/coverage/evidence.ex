@@ -34,9 +34,11 @@ defmodule Tuist.Tests.Coverage.Evidence do
   they expire `retention_days/0` after they were inserted, long before the
   run's own rows.
   """
+  alias Tuist.ClickHouse.Inserts
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageFile
+  alias TuistCommon.Ingestion.Bufferable
 
   # Joins a scope id's parts. A unit separator, because a slash would not
   # survive a Bazel label (`//app/core:tests`) or a test name that holds one.
@@ -87,10 +89,29 @@ defmodule Tuist.Tests.Coverage.Evidence do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      scopes
-      |> Stream.transform(Keyword.get(opts, :line_budget, @line_budget), &rows(&1, paths, base, &2))
-      |> Stream.chunk_every(@insert_chunk_size)
-      |> Enum.each(&IngestRepo.insert_all(CoverageFile, &1))
+      # One insert, encoded a chunk at a time as the request streams it: the
+      # rows share one `inserted_at`, so they land as one part and a reader
+      # sees all of the report's evidence or none of it. Columns a row leaves
+      # out take their type's default.
+      %{fields: fields, encoding_types: types, header: header, insert_sql: sql, insert_opts: insert_opts} =
+        Bufferable.compile_time_prepare(CoverageFile)
+
+      encoded = :counters.new(1, [])
+
+      body =
+        scopes
+        |> Stream.transform(Keyword.get(opts, :line_budget, @line_budget), &rows(&1, paths, base, &2))
+        |> Stream.chunk_every(@insert_chunk_size)
+        |> Stream.map(fn chunk ->
+          :counters.add(encoded, 1, length(chunk))
+          chunk |> Enum.map(fn row -> Enum.map(fields, &Map.get(row, &1)) end) |> Ch.RowBinary._encode_rows(types)
+        end)
+
+      IngestRepo.with_retry(fn -> IngestRepo.query!(sql, Stream.concat([header], body), insert_opts) end)
+
+      # The run's coverage totals wait for these rows (`Workers.TotalsWorker`).
+      if :counters.get(encoded, 1) > 0,
+        do: Inserts.record("coverage_files", Coverage.report_key(test_run_id, shard_index), project_id, base.inserted_at)
     end
 
     :ok

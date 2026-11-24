@@ -51,7 +51,6 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageRun
-  alias Tuist.Tests.CoverageRunFile
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
@@ -146,10 +145,10 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # `coverage_files` time-to-live), deleted part by part as merges reach it,
   # so a run past that age may have lost any of it, and a snapshot built from
   # what's left would read its tests as without evidence or with fewer files.
-  # A report's rows share one `inserted_at` and its run rows
-  # (`coverage_run_files`) outlive the evidence, so a run's oldest report is
-  # read there; a run without such rows counts from when it ran. The margin covers a write's minutes and
-  # the clocks.
+  # A report's rows share one `inserted_at`, which the run's totals pin
+  # (`coverage_runs.report_inserted_at`) and outlive the evidence, so a run's
+  # oldest pinned report is read there; a run whose totals pin none counts
+  # from when it ran. The margin covers a write's minutes and the clocks.
   defp whole_evidence(project_id, runs) do
     cutoff = DateTime.add(DateTime.utc_now(), @evidence_margin_seconds - Evidence.retention_days() * 86_400, :second)
 
@@ -159,10 +158,11 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       |> Coverage.id_chunks(1)
       |> Enum.flat_map(fn ids ->
         ClickHouseRepo.all(
-          from(f in CoverageRunFile,
-            where: f.project_id == ^project_id and f.test_run_id in ^ids,
-            group_by: f.test_run_id,
-            select: {f.test_run_id, min(f.inserted_at)}
+          from(c in CoverageRun,
+            where: c.project_id == ^project_id and c.test_run_id in ^ids,
+            group_by: c.test_run_id,
+            having: fragment("notEmpty(argMax(?, ?))", c.report_inserted_at, c.version),
+            select: {c.test_run_id, fragment("arrayMin(argMax(?, ?))", c.report_inserted_at, c.version)}
           ),
           settings: [select_sequential_consistency: 1]
         )
@@ -506,11 +506,13 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
         )
       end
 
+    # The shards whose report the run's totals pin: one whose rows a replica
+    # holds before every replica does isn't reported yet.
     reported =
       ClickHouseRepo.one(
-        from(f in CoverageRunFile,
-          where: f.project_id == ^project_id and f.test_run_id == ^run.test_run_id,
-          select: fragment("uniqExact(?)", f.shard_index)
+        from(c in CoverageRun,
+          where: c.project_id == ^project_id and c.test_run_id == ^run.test_run_id,
+          select: fragment("length(argMax(?, ?))", c.report_shards, c.version)
         ),
         settings: [select_sequential_consistency: 1]
       )
@@ -1067,7 +1069,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   # code), its evidence over them, and its tests with their status and a hash
   # of the files they and their suite's setup executed, and of the lines they
   # ran in them. The hashes are over each path's hash, grouped in the table's
-  # order so groups stream: a shard's replaced report only repeats paths,
+  # order so groups stream: shards reporting the same path only repeat it,
   # which the hashes ignore. A test the run only skipped didn't fail: it has
   # no evidence there. An overlay inserts with `join_use_nulls`, which makes
   # a test without evidence's `own` columns NULL instead of empty.
@@ -1113,15 +1115,17 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     """
   end
 
-  # The run's evidence over its repository files, as reported: a path a
-  # shard's replaced report repeats is read twice, which every reader of it
-  # tolerates (bitmaps, `DISTINCT`, target-only checks), so nothing holds the
-  # whole evidence to deduplicate it.
+  # The run's evidence over the files of the reports its totals cover
+  # (`Coverage.pinned_reports_sql/0`), as reported: a path several shards
+  # report is read once per shard, which every reader of it tolerates
+  # (bitmaps, `DISTINCT`, target-only checks), so nothing holds the whole
+  # evidence to deduplicate it.
   defp evidence_sql do
     """
     report AS (
       SELECT path, max(is_test) AS is_test FROM coverage_run_files
       WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
+        AND (test_run_id, shard_index, inserted_at) IN (#{Coverage.pinned_reports_sql()})
       GROUP BY path
     ),
     evidence AS (
@@ -1252,6 +1256,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     FROM (
       SELECT DISTINCT path FROM coverage_run_files
       WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
+        AND (test_run_id, shard_index, inserted_at) IN (#{Coverage.pinned_reports_sql()})
         AND path NOT IN (SELECT path FROM known)
     )
     """
@@ -1338,9 +1343,9 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
 
   # `keyed`: per scope (`scope`, `idx`), the lines it ran in each repository
   # file as ranges, only for the scopes a relation (`scope`, `test_idx`)
-  # lists when one is given. A path a shard's replaced report repeats is
-  # listed twice: readers union a scope's lines per file, so nothing
-  # deduplicates them.
+  # lists when one is given, over the files of the reports the run's totals
+  # cover. A path several shards report is listed once per shard: readers
+  # union a scope's lines per file, so nothing deduplicates them.
   defp keyed_lines_sql(scopes \\ nil) do
     """
     #{named_tests_sql()},
@@ -1349,6 +1354,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     report AS (
       SELECT path FROM coverage_run_files
       WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
+        AND (test_run_id, shard_index, inserted_at) IN (#{Coverage.pinned_reports_sql()})
       GROUP BY path
     ),
     scope_lines AS (
