@@ -224,6 +224,9 @@ msgstr "다양한 지원 채널을 통해 필요할 때 도움을 받으세요."
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:134
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:14
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:853
+#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:36
+#: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:29
+#: lib/tuist_web/marketing/controllers/marketing_html/runners_provider.html.heex:18
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:386
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:118
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:388
@@ -2597,13 +2600,6 @@ msgstr "/분"
 msgid "How are Tuist Runners billed?"
 msgstr "Tuist 러너는 어떻게 과금되나요?"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:36
-#: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:29
-#: lib/tuist_web/marketing/controllers/marketing_html/runners_provider.html.heex:18
-#, elixir-autogen, elixir-format
-msgid "Request access"
-msgstr "접근 권한 요청"
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Yearly and volume discounts"
@@ -2981,20 +2977,10 @@ msgstr "Linux CI 러너"
 msgid "Machines sized for the job"
 msgstr "작업에 최적화된 머신"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
-#, elixir-autogen, elixir-format
-msgid "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup. Invite-only."
-msgstr "GitHub Actions, GitLab CI, Buildkite, Bitrise용 관리형 macOS 및 Linux CI 러너와 공유 빌드 캐시 제공. 한 줄 설정. 초대 전용."
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Managed macOS and Linux runners for your CI, next to your cache"
 msgstr "캐시와 함께 사용하는 CI용 관리형 macOS 및 Linux 러너"
-
-#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:27
-#, elixir-autogen, elixir-format
-msgid "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain. Currently invite-only."
-msgstr "동일 네트워크에서 빌드 캐시를 제공하는 관리형 러너. 파이프라인의 한 줄만 변경하면 되며, 유지보수할 플릿이 없습니다. 현재 초대 전용입니다."
 
 #: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:25
 #, elixir-autogen, elixir-format
@@ -3126,3 +3112,13 @@ msgstr "Linux 러너와 동일한 요금으로 격리된 Linux 마이크로VM에
 #, elixir-autogen, elixir-format
 msgid "Tell us about your workloads and we'll help you get set up. Yearly and volume pricing is available for runners."
 msgstr "워크로드에 대해 알려주시면 설정을 도와드립니다. 러너에는 연간 및 대량 구매 요금이 제공됩니다."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
+#, elixir-autogen, elixir-format
+msgid "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup."
+msgstr "GitHub Actions, GitLab CI, Buildkite, Bitrise용 관리형 macOS 및 Linux CI 러너와 공유 빌드 캐시를 제공합니다. 한 줄로 설정하세요."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain."
+msgstr "빌드 캐시가 동일한 네트워크에 있는 관리형 러너입니다. 파이프라인에서 한 줄만 변경하면 되며, 유지보수할 플릿이 없습니다."

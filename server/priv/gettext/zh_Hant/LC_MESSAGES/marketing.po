@@ -224,6 +224,9 @@ msgstr "透過多種支援管道，在您需要的時候取得協助。"
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:134
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:14
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:853
+#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:36
+#: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:29
+#: lib/tuist_web/marketing/controllers/marketing_html/runners_provider.html.heex:18
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:386
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:118
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:388
@@ -2597,13 +2600,6 @@ msgstr "/分鐘"
 msgid "How are Tuist Runners billed?"
 msgstr "Tuist Runners 如何計費？"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:36
-#: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:29
-#: lib/tuist_web/marketing/controllers/marketing_html/runners_provider.html.heex:18
-#, elixir-autogen, elixir-format
-msgid "Request access"
-msgstr "申請存取權限"
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:367
 #, elixir-autogen, elixir-format
 msgid "Yearly and volume discounts"
@@ -2981,20 +2977,10 @@ msgstr "Linux CI 執行器。"
 msgid "Machines sized for the job"
 msgstr "為工作負載量身打造的機器"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
-#, elixir-autogen, elixir-format
-msgid "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup. Invite-only."
-msgstr "用於 GitHub Actions、GitLab CI、Buildkite 和 Bitrise 的受管 macOS 與 Linux CI 執行器，並搭配共用建置快取。一行指令即可設定。目前僅限邀請使用。"
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Managed macOS and Linux runners for your CI, next to your cache"
 msgstr "為你的 CI 提供受管的 macOS 與 Linux 執行器，並與你的快取並列部署"
-
-#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:27
-#, elixir-autogen, elixir-format
-msgid "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain. Currently invite-only."
-msgstr "在同一網路中提供具備建置快取的受管執行器。只需更改管線中的一行設定；無需維護主機群組。目前僅限邀請使用。"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:25
 #, elixir-autogen, elixir-format
@@ -3126,3 +3112,13 @@ msgstr "以與 Linux 執行器相同的費率，在隔離的 Linux 微虛擬機�
 #, elixir-autogen, elixir-format
 msgid "Tell us about your workloads and we'll help you get set up. Yearly and volume pricing is available for runners."
 msgstr "告訴我們你的工作負載，我們將協助你完成設定。執行器提供年繳與大量定價方案。"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
+#, elixir-autogen, elixir-format
+msgid "Managed macOS and Linux CI runners for GitHub Actions, GitLab CI, Buildkite, and Bitrise, next to a shared build cache. One-line setup."
+msgstr "為 GitHub Actions、GitLab CI、Buildkite 和 Bitrise 提供受管的 macOS 與 Linux CI 執行器，並搭配共用建置快取。一行指令即可完成設定。"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/runners.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain."
+msgstr "受管執行器與建置快取位於同一網路。只需修改管線中的一行設定，無需維護執行器叢集。"
