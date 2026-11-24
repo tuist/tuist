@@ -106,11 +106,17 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   # (`SandboxSync` in the CLI): the manifest of the commit's files, named by
   # its Git hash, and their paths, under the clone's resolved path. The
   # tracked files the script changed go back to the commit first, so the
-  # record describes the copy. Before that it drops the session the CLI
-  # stored from the build's identity token, and the script's simulators,
-  # and stops the simulator services: a Mac booted from the disks mounts
-  # the simulator runtimes at new paths, and the devices and services the
-  # disks recorded left its runtimes unavailable (measured, 2026-11).
+  # record describes the copy. Before that it waits for the compilation
+  # cache's publications (`tuist-spool`) to reach the remote, stops the
+  # cache proxy and the build service that write the cache, and drops the
+  # cache when publications are still owed: a copied store whose spool owes
+  # some holds associations no Mac can satisfy, and the sessions' compiles
+  # failed on it (`cas-plugin/AGENTS.md`, measured 2026-11). It also drops
+  # the session the CLI stored from the build's identity token, and the
+  # script's simulators, and stops the simulator services: a Mac booted
+  # from the disks mounts the simulator runtimes at new paths, and the
+  # devices and services the disks recorded left its runtimes unavailable
+  # (measured, 2026-11).
   @macos_sync_build_script """
   set -eu
   path=$1 url=$2 script=$3
@@ -121,6 +127,16 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
   cd "$path"
   /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
+  cache="$HOME/Library/Developer/Xcode/DerivedData/CompilationCache.noindex"
+  owed() { find "$cache" -path '*/tuist-spool/*' -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '; }
+  deadline=$(( $(date +%s) + 300 ))
+  while [ "$(owed)" != 0 ] && [ "$(date +%s)" -lt "$deadline" ]; do sleep 5; done
+  launchctl bootout "gui/$(id -u)/tuist.cas-proxy" >/dev/null 2>&1 || true
+  killall -TERM SWBBuildService XCBBuildService >/dev/null 2>&1 || true
+  if [ "$(owed)" != 0 ]; then
+    echo "snapshot: dropping the compilation cache, $(owed) publications owed" >> "$HOME/.claude-code-setup.log"
+    rm -rf "$cache"
+  fi
   rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   xcrun simctl delete all >/dev/null 2>&1 || true
@@ -143,6 +159,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   printf '%s' "$(git hash-object --no-filters "$state/manifest")" > "$state/id"
   rm "$state/manifest"
   git rev-parse HEAD > "$state/commit"
+  sync
   """
 
   @doc """

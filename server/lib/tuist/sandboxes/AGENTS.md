@@ -461,7 +461,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   deletes the CLI's stored session (`~/.config/tuist/credentials`) and the
   simulator devices and stops the simulator services, since runtimes mount
   at new paths on each boot and a Mac restored with the builder's devices
-  and simulator state lost its iOS runtime. The snapshot's key hashes the
+  and simulator state lost its iOS runtime. Before that it waits up to five
+  minutes for the compilation cache's `tuist-spool` to drain, stops the
+  cache proxy and build service, and deletes `CompilationCache.noindex` if
+  publications are still owed: a copied store whose spool owed some failed
+  session compiles with "not a IncludeFileList node kind" (see
+  `cas-plugin/AGENTS.md`). The build ends with `sync`. The snapshot's key hashes the
   build script with the macOS setup script, so changing either rebuilds it.
   `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the

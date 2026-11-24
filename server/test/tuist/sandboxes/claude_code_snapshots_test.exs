@@ -246,6 +246,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert account_id == account.id
     assert grant == %{"all_projects" => true, "scopes" => ["account:cache:read", "project:cache:read"]}
     assert command =~ ~S|rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/tuist/credentials"|
+    assert command =~ ~S|rm -rf "$cache"|
 
     finish_command(build, 0)
     assert :ok = advance(build)
